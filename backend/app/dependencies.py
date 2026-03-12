@@ -1,8 +1,10 @@
 """dependencies.py — FastAPI dependency injection (DB session, auth, etc.)"""
 # TODO: Add database session dependency, current user dependency
 
+from collections.abc import Generator
+
 from sqlalchemy.orm import Session
-from typing import Generator
+
 from app.database import SessionLocal
 
 

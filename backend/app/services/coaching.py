@@ -11,6 +11,7 @@ CRITICAL RULES (from CLAUDE.md):
 """
 import anthropic
 from cachetools import LRUCache
+
 from app.config import settings
 from app.prompts.lesson import build_lesson_prompt
 from app.prompts.system import SYSTEM_PROMPT

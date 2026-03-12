@@ -1,5 +1,6 @@
 """test_health.py — Basic smoke test to verify the API starts"""
 from fastapi.testclient import TestClient
+
 from app.main import app
 
 client = TestClient(app)

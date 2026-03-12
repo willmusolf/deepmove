@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routes import coaching, games, auth, users
+from app.routes import auth, coaching, games, users
 
 app = FastAPI(
     title="DeepMove API",
