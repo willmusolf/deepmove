@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Build output
+dist/
+build/
+*.egg-info/
+
+# Environment variables — NEVER commit these
+.env
+.env.local
+.env.*.local
+.env.production
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Vite
+.vite/
+
+# Python
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Alembic — keep migrations but not generated files
+backend/alembic/versions/__pycache__/
+
+# Stockfish WASM binary (large, download separately)
+frontend/public/stockfish/*.wasm
+frontend/public/stockfish/*.js
+!frontend/public/stockfish/.gitkeep
