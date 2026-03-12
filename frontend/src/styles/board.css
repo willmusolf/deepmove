@@ -1,0 +1,26 @@
+/* board.css — Chessground styles
+   Import order matters: base → board theme → piece theme */
+
+@import 'chessground/assets/chessground.base.css';
+@import 'chessground/assets/chessground.brown.css';
+@import 'chessground/assets/chessground.cburnett.css';
+
+/* Board container sizing */
+.cg-wrap {
+  width: 100%;
+  height: 100%;
+}
+
+.chess-board-container {
+  width: 480px;
+  height: 480px;
+  position: relative;
+}
+
+/* Responsive — shrink board on small screens */
+@media (max-width: 540px) {
+  .chess-board-container {
+    width: calc(100vw - 32px);
+    height: calc(100vw - 32px);
+  }
+}

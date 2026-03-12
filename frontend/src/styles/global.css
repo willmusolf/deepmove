@@ -1,6 +1,4 @@
-/* global.css — Base styles for DeepMove
-   TODO (Track A): Replace with proper design system
-   Design principles: clean, professional, chess-focused. Not vibe-coded, not meme-branded. */
+/* global.css — Base styles for DeepMove */
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -11,12 +9,15 @@
 :root {
   --color-bg: #1a1a2e;
   --color-surface: #16213e;
-  --color-border: #0f3460;
-  --color-accent: #e94560;
+  --color-surface-2: #0f3460;
+  --color-border: #2a3a5e;
+  --color-accent: #4a9eff;
+  --color-accent-hover: #6ab4ff;
   --color-text: #eaeaea;
-  --color-text-muted: #8892a4;
+  --color-text-muted: #7a8aaa;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --font-mono: 'SF Mono', 'Fira Code', monospace;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  --radius: 6px;
 }
 
 body {
@@ -27,8 +28,168 @@ body {
   min-height: 100vh;
 }
 
+/* ── App shell ────────────────────────────────────────────────────────── */
 .app {
-  max-width: 1400px;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 2rem 1.5rem;
+}
+
+/* ── Demo header ──────────────────────────────────────────────────────── */
+.demo-header {
+  margin-bottom: 2rem;
+}
+
+.demo-header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.demo-subtitle {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  margin-top: 0.25rem;
+}
+
+/* ── Two-column demo layout ───────────────────────────────────────────── */
+.demo-layout {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+}
+
+.demo-board-col {
+  flex-shrink: 0;
+}
+
+.demo-side-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ── Controls below board ─────────────────────────────────────────────── */
+.demo-controls {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+/* ── Side panel sections ──────────────────────────────────────────────── */
+.demo-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.demo-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.demo-input {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-family: var(--font-mono);
+  width: 100%;
+  outline: none;
+}
+
+.demo-input:focus {
+  border-color: var(--color-accent);
+}
+
+.demo-move-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-height: 2rem;
+}
+
+.demo-move {
+  background: var(--color-surface-2);
+  border-radius: 4px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+}
+
+.demo-muted {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.demo-fen {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.btn:active {
+  opacity: 0.85;
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--color-accent-hover);
+}
+
+.btn-secondary {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.btn-secondary:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width: 680px) {
+  .demo-layout {
+    flex-direction: column;
+  }
+
+  .demo-board-col {
+    width: 100%;
+  }
+
+  .chess-board-container {
+    width: calc(100vw - 3rem) !important;
+    height: calc(100vw - 3rem) !important;
+  }
 }

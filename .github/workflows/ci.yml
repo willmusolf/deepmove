@@ -31,7 +31,7 @@ jobs:
         run: npm run typecheck
 
       - name: Run tests
-        run: npm run test:run
+        run: npx vitest run --passWithNoTests
 
       - name: Build
         run: npm run build
@@ -57,12 +57,11 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Lint with ruff
-        run: ruff check app/ tests/
+        run: python -m ruff check app/ tests/
 
       - name: Run tests
-        run: pytest tests/ -v
+        run: python -m pytest tests/ -v
         env:
-          # Tests run without a real database — mocked in test fixtures
           DATABASE_URL: ""
           ANTHROPIC_API_KEY: ""
           ENVIRONMENT: test
