@@ -6,7 +6,6 @@ import type { CriticalMoment } from '../chess/types'
 
 interface GameState {
   pgn: string | null
-  gameKey: number
   moveEvals: MoveEval[]
   currentMoveIndex: number
   criticalMoments: CriticalMoment[]
@@ -31,7 +30,6 @@ interface GameState {
 
 const initialState = {
   pgn: null,
-  gameKey: 0,
   moveEvals: [],
   currentMoveIndex: 0,
   criticalMoments: [],
@@ -44,7 +42,7 @@ const initialState = {
 
 export const useGameStore = create<GameState>(set => ({
   ...initialState,
-  setPgn: pgn => set(s => ({ pgn, gameKey: s.gameKey + 1 })),
+  setPgn: pgn => set({ pgn }),
   setMoveEvals: moveEvals => set({ moveEvals }),
   setCurrentMove: currentMoveIndex => set({ currentMoveIndex }),
   setCriticalMoments: criticalMoments => set({ criticalMoments }),

@@ -64,7 +64,6 @@ export default function App() {
   const isAnalyzing = useGameStore(s => s.isAnalyzing)
   const totalMovesCount = useGameStore(s => s.totalMovesCount)
   const pgn = useGameStore(s => s.pgn)
-  const gameKey = useGameStore(s => s.gameKey)
   const currentPositionLines = useGameStore(s => s.currentPositionLines)
   const isAnalyzingPosition = useGameStore(s => s.isAnalyzingPosition)
   const setCurrentPositionLines = useGameStore(s => s.setCurrentPositionLines)
@@ -78,7 +77,7 @@ export default function App() {
       void runAnalysis(pgn)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameKey, isReady])
+  }, [pgn, isReady])
 
   // Per-position multi-PV analysis — runs after full-game analysis completes
   // Uses a token to discard stale results from quick navigation
