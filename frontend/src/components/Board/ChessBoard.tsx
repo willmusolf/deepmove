@@ -7,13 +7,17 @@ import { Chessground } from 'chessground'
 import type { Api } from 'chessground/api'
 import type { Config } from 'chessground/config'
 import type { Key } from 'chessground/types'
+import type { DrawShape } from 'chessground/draw'
 import { Chess } from 'chess.js'
+
+export type { DrawShape }
 
 export interface ChessBoardProps {
   fen?: string
   orientation?: 'white' | 'black'
   interactive?: boolean
   onMove?: (from: string, to: string, fen: string) => void
+  shapes?: DrawShape[]
 }
 
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
@@ -40,6 +44,7 @@ export default function ChessBoard({
   orientation = 'white',
   interactive = true,
   onMove,
+  shapes = [],
 }: ChessBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const apiRef = useRef<Api | null>(null)
@@ -84,6 +89,14 @@ export default function ChessBoard({
       draggable: {
         enabled: interactive,
       },
+      drawable: {
+        enabled: true,
+        visible: true,
+        defaultSnapToValidMove: true,
+        eraseOnClick: false,
+        shapes: [],
+        autoShapes: [],
+      },
     }
 
     apiRef.current = Chessground(containerRef.current, config)
@@ -107,6 +120,14 @@ export default function ChessBoard({
       },
     })
   }, [fen, orientation, interactive])
+
+  // Sync engine arrow shapes
+  useEffect(() => {
+    if (!apiRef.current) return
+    apiRef.current.set({
+      drawable: { autoShapes: shapes },
+    })
+  }, [shapes])
 
   return (
     <div className="chess-board-container">

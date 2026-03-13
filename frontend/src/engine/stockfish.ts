@@ -4,6 +4,8 @@
 // It auto-detects worker context and speaks UCI over postMessage.
 // We just send UCI strings in and parse UCI strings back out.
 
+import { Chess } from 'chess.js'
+
 export interface EvalResult {
   fen: string
   depth: number
@@ -14,10 +16,21 @@ export interface EvalResult {
   pv: string[]
 }
 
+export interface TopLine {
+  rank: number        // 1, 2, 3
+  score: number       // centipawns, white-perspective
+  isMate: boolean
+  mateIn: number | null
+  pv: string[]        // UCI moves e.g. ["e2e4", "e7e5", ...]
+  san: string         // SAN of the first move for display
+}
+
 interface QueueItem {
   fen: string
   depth: number
   resolve: (result: EvalResult) => void
+  multiPV?: number
+  multiPvResolve?: (lines: TopLine[]) => void
 }
 
 export class StockfishEngine {
@@ -33,6 +46,12 @@ export class StockfishEngine {
   private busy = false
   private queue: QueueItem[] = []
   private _initTimeoutId: ReturnType<typeof setTimeout> | null = null
+
+  // Multi-PV state
+  private currentIsMultiPV = false
+  private currentMultiPvResolve: ((lines: TopLine[]) => void) | null = null
+  private latestMultiPvLines: Map<number, TopLine> = new Map()
+  private currentSideToMove: 'w' | 'b' = 'w'
 
   async initialize(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -72,52 +91,118 @@ export class StockfishEngine {
     })
   }
 
+  private uciToSan(fen: string, uciMove: string): string {
+    try {
+      const chess = new Chess(fen)
+      const from = uciMove.slice(0, 2)
+      const to = uciMove.slice(2, 4)
+      const promo = uciMove[4]
+      const move = chess.move({ from, to, promotion: promo ?? 'q' })
+      return move?.san ?? uciMove
+    } catch {
+      return uciMove
+    }
+  }
+
   private onUciLine(line: string) {
-    // Parse eval info from 'info depth ...' lines
     if (line.startsWith('info')) {
-      const depthMatch = line.match(/\bdepth (\d+)/)
-      const cpMatch = line.match(/\bscore cp (-?\d+)/)
-      const mateMatch = line.match(/\bscore mate (-?\d+)/)
-      const pvMatch = line.match(/ pv (.+)$/)
+      if (this.currentIsMultiPV) {
+        // Multi-PV parsing — accumulate per-rank
+        const multiPvMatch = line.match(/\bmultipv (\d+)/)
+        if (!multiPvMatch) return
+        const rank = parseInt(multiPvMatch[1], 10)
 
-      if (depthMatch) this.latestDepth = parseInt(depthMatch[1], 10)
+        const cpMatch = line.match(/\bscore cp (-?\d+)/)
+        const mateMatch = line.match(/\bscore mate (-?\d+)/)
+        const pvMatch = line.match(/ pv (.+)$/)
+        if (!pvMatch) return
 
-      if (mateMatch) {
-        const m = parseInt(mateMatch[1], 10)
-        this.latestIsMate = true
-        this.latestMateIn = m
-        this.latestScore = m > 0 ? 30_000 : -30_000
-      } else if (cpMatch) {
-        this.latestIsMate = false
-        this.latestMateIn = null
-        this.latestScore = parseInt(cpMatch[1], 10)
+        const pv = pvMatch[1].trim().split(' ')
+        let isMate = false
+        let mateIn: number | null = null
+        let rawScore = 0
+
+        if (mateMatch) {
+          const m = parseInt(mateMatch[1], 10)
+          isMate = true
+          mateIn = m
+          rawScore = m > 0 ? 30_000 : -30_000
+        } else if (cpMatch) {
+          rawScore = parseInt(cpMatch[1], 10)
+        }
+
+        // Convert to white-perspective
+        const score = this.currentSideToMove === 'w' ? rawScore : -rawScore
+        const whiteMateIn = isMate && mateIn !== null
+          ? (this.currentSideToMove === 'w' ? mateIn : -mateIn)
+          : null
+
+        const san = pv.length > 0 ? this.uciToSan(this.currentFen, pv[0]) : ''
+
+        this.latestMultiPvLines.set(rank, { rank, score, isMate, mateIn: whiteMateIn, pv, san })
+      } else {
+        // Single-PV parsing (existing logic)
+        const depthMatch = line.match(/\bdepth (\d+)/)
+        const cpMatch = line.match(/\bscore cp (-?\d+)/)
+        const mateMatch = line.match(/\bscore mate (-?\d+)/)
+        const pvMatch = line.match(/ pv (.+)$/)
+
+        if (depthMatch) this.latestDepth = parseInt(depthMatch[1], 10)
+
+        if (mateMatch) {
+          const m = parseInt(mateMatch[1], 10)
+          this.latestIsMate = true
+          this.latestMateIn = m
+          this.latestScore = m > 0 ? 30_000 : -30_000
+        } else if (cpMatch) {
+          this.latestIsMate = false
+          this.latestMateIn = null
+          this.latestScore = parseInt(cpMatch[1], 10)
+        }
+
+        if (pvMatch) this.latestPv = pvMatch[1].trim().split(' ')
       }
-
-      if (pvMatch) this.latestPv = pvMatch[1].trim().split(' ')
       return
     }
 
     // 'bestmove e2e4 ponder e7e5'
     if (line.startsWith('bestmove')) {
-      const bmMatch = line.match(/^bestmove (\S+)/)
-      if (bmMatch) this.latestBestMove = bmMatch[1]
+      if (this.currentIsMultiPV) {
+        const lines = Array.from(this.latestMultiPvLines.values())
+          .sort((a, b) => a.rank - b.rank)
 
-      const result: EvalResult = {
-        fen: this.currentFen,
-        depth: this.latestDepth,
-        score: this.latestScore,
-        isMate: this.latestIsMate,
-        mateIn: this.latestMateIn,
-        bestMove: this.latestBestMove,
-        pv: this.latestPv,
+        const resolve = this.currentMultiPvResolve
+        this.currentMultiPvResolve = null
+        this.currentIsMultiPV = false
+        this.latestMultiPvLines = new Map()
+        this.busy = false
+
+        // Reset MultiPV to 1 for subsequent single-PV analysis
+        this.worker!.postMessage('setoption name MultiPV value 1')
+
+        if (resolve) resolve(lines)
+        this.drainQueue()
+      } else {
+        const bmMatch = line.match(/^bestmove (\S+)/)
+        if (bmMatch) this.latestBestMove = bmMatch[1]
+
+        const result: EvalResult = {
+          fen: this.currentFen,
+          depth: this.latestDepth,
+          score: this.latestScore,
+          isMate: this.latestIsMate,
+          mateIn: this.latestMateIn,
+          bestMove: this.latestBestMove,
+          pv: this.latestPv,
+        }
+
+        const resolve = this.pendingResolve
+        this.pendingResolve = null
+        this.busy = false
+
+        if (resolve) resolve(result)
+        this.drainQueue()
       }
-
-      const resolve = this.pendingResolve
-      this.pendingResolve = null
-      this.busy = false
-
-      if (resolve) resolve(result)
-      this.drainQueue()
     }
   }
 
@@ -130,13 +215,24 @@ export class StockfishEngine {
   private dispatch(item: QueueItem) {
     this.busy = true
     this.currentFen = item.fen
-    this.latestScore = 0
-    this.latestIsMate = false
-    this.latestMateIn = null
-    this.latestDepth = 0
-    this.latestBestMove = ''
-    this.latestPv = []
-    this.pendingResolve = item.resolve
+    this.currentSideToMove = item.fen.split(' ')[1] === 'b' ? 'b' : 'w'
+
+    if (item.multiPV && item.multiPvResolve) {
+      this.currentIsMultiPV = true
+      this.currentMultiPvResolve = item.multiPvResolve
+      this.latestMultiPvLines = new Map()
+      this.worker!.postMessage(`setoption name MultiPV value ${item.multiPV}`)
+    } else {
+      this.currentIsMultiPV = false
+      this.latestScore = 0
+      this.latestIsMate = false
+      this.latestMateIn = null
+      this.latestDepth = 0
+      this.latestBestMove = ''
+      this.latestPv = []
+      this.pendingResolve = item.resolve
+    }
+
     this.worker!.postMessage(`position fen ${item.fen}`)
     this.worker!.postMessage(`go depth ${item.depth}`)
   }
@@ -154,6 +250,25 @@ export class StockfishEngine {
     })
   }
 
+  analyzePositionMultiPV(fen: string, depth = 18, numLines = 3): Promise<TopLine[]> {
+    if (!this.worker) return Promise.reject(new Error('Engine not initialized'))
+
+    return new Promise((resolve) => {
+      const item: QueueItem = {
+        fen,
+        depth,
+        resolve: () => {},  // unused for multi-PV
+        multiPV: numLines,
+        multiPvResolve: resolve,
+      }
+      if (this.busy) {
+        this.queue.push(item)
+      } else {
+        this.dispatch(item)
+      }
+    })
+  }
+
   terminate(): void {
     if (this._initTimeoutId !== null) {
       clearTimeout(this._initTimeoutId)
@@ -161,6 +276,7 @@ export class StockfishEngine {
     }
     this.queue = []
     this.pendingResolve = null
+    this.currentMultiPvResolve = null
     this.busy = false
     if (this.worker) {
       this.worker.postMessage('quit')

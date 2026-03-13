@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { StockfishEngine } from '../engine/stockfish'
+import type { TopLine } from '../engine/stockfish'
 import { analyzeGame } from '../engine/analysis'
 import type { MoveEval } from '../engine/analysis'
 import { useGameStore } from '../stores/gameStore'
@@ -60,5 +61,11 @@ export function useStockfish() {
     }
   }
 
-  return { isReady, engineStatus, runAnalysis }
+  async function analyzePositionLines(fen: string, depth = 18, numLines = 3): Promise<TopLine[]> {
+    const engine = engineRef.current
+    if (!engine || !isReady) return []
+    return engine.analyzePositionMultiPV(fen, depth, numLines)
+  }
+
+  return { isReady, engineStatus, runAnalysis, analyzePositionLines }
 }

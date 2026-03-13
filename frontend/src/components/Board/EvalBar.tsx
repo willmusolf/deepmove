@@ -27,24 +27,32 @@ export default function EvalBar({
   const whitePct = evalCentipawns !== undefined ? cpToWhitePct(evalCentipawns) : 50
   const blackPct = 100 - whitePct
 
-  // Mate label: white winning = white shows "M{n}", black winning = black shows "M{n}"
-  const mateLabel =
-    isMate && mateIn != null ? `M${Math.abs(mateIn)}` : null
+  // Build the label shown at the boundary
+  let boundaryLabel: string
+  if (isMate && mateIn != null) {
+    boundaryLabel = `M${Math.abs(mateIn)}`
+  } else if (evalCentipawns !== undefined) {
+    const pawns = evalCentipawns / 100
+    const sign = pawns > 0 ? '+' : ''
+    boundaryLabel = `${sign}${pawns.toFixed(1)}`
+  } else {
+    boundaryLabel = '0.0'
+  }
 
   return (
-    <div className="eval-bar-container" title={evalCentipawns !== undefined ? `${evalCentipawns > 0 ? '+' : ''}${(evalCentipawns / 100).toFixed(2)}` : 'Analyzing…'}>
+    <div className="eval-bar-container" style={{ position: 'relative' }}>
       {/* Black's section (top) */}
-      <div className="eval-bar-black" style={{ height: `${blackPct}%` }}>
-        {mateLabel && mateIn != null && mateIn < 0 && (
-          <span className="eval-mate-label">{mateLabel}</span>
-        )}
-      </div>
+      <div className="eval-bar-black" style={{ height: `${blackPct}%` }} />
 
       {/* White's section (bottom) */}
-      <div className="eval-bar-white" style={{ height: `${whitePct}%` }}>
-        {mateLabel && mateIn != null && mateIn > 0 && (
-          <span className="eval-mate-label">{mateLabel}</span>
-        )}
+      <div className="eval-bar-white" style={{ height: `${whitePct}%` }} />
+
+      {/* Numeric eval label at the boundary */}
+      <div
+        className="eval-bar-label"
+        style={{ top: `${blackPct}%` }}
+      >
+        {boundaryLabel}
       </div>
 
       {isAnalyzing && <div className="eval-bar-analyzing" />}
