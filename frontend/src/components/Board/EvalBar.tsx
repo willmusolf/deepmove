@@ -1,19 +1,53 @@
 // EvalBar.tsx — Evaluation bar alongside the chess board
-// Shows the current position evaluation as a visual bar.
-//
-// IMPORTANT: In Think First mode, the eval bar is HIDDEN until the user engages
-// with the coach's question. This prevents users from seeing -2.5 and stopping thinking.
-//
-// Props: evalCentipawns (number), hidden (boolean for Think First mode)
-// TODO (Track A, Session 5): Implement after Stockfish integration
+// IMPORTANT: hidden=true in Think First mode — hides eval until user engages.
 
 interface EvalBarProps {
-  evalCentipawns: number
-  hidden?: boolean
+  evalCentipawns?: number  // undefined = no data yet (shows 50/50)
+  isMate?: boolean
+  mateIn?: number | null
+  isAnalyzing?: boolean
+  hidden?: boolean         // Think First mode
 }
 
-export default function EvalBar({ evalCentipawns: _eval, hidden }: EvalBarProps) {
-  if (hidden) return <div className="eval-bar eval-bar--hidden" />
-  // TODO: Convert centipawns to visual bar percentage, handle mate scores
-  return <div className="eval-bar" />
+// Convert centipawns to white-side percentage (0–100) for the bar height.
+// Uses a sigmoid so extreme advantages look decisive without hitting hard 100/0.
+function cpToWhitePct(cp: number): number {
+  return 100 / (1 + Math.exp(-cp / 300))
+}
+
+export default function EvalBar({
+  evalCentipawns,
+  isMate,
+  mateIn,
+  isAnalyzing,
+  hidden,
+}: EvalBarProps) {
+  if (hidden) return null
+
+  const whitePct = evalCentipawns !== undefined ? cpToWhitePct(evalCentipawns) : 50
+  const blackPct = 100 - whitePct
+
+  // Mate label: white winning = white shows "M{n}", black winning = black shows "M{n}"
+  const mateLabel =
+    isMate && mateIn != null ? `M${Math.abs(mateIn)}` : null
+
+  return (
+    <div className="eval-bar-container" title={evalCentipawns !== undefined ? `${evalCentipawns > 0 ? '+' : ''}${(evalCentipawns / 100).toFixed(2)}` : 'Analyzing…'}>
+      {/* Black's section (top) */}
+      <div className="eval-bar-black" style={{ height: `${blackPct}%` }}>
+        {mateLabel && mateIn != null && mateIn < 0 && (
+          <span className="eval-mate-label">{mateLabel}</span>
+        )}
+      </div>
+
+      {/* White's section (bottom) */}
+      <div className="eval-bar-white" style={{ height: `${whitePct}%` }}>
+        {mateLabel && mateIn != null && mateIn > 0 && (
+          <span className="eval-mate-label">{mateLabel}</span>
+        )}
+      </div>
+
+      {isAnalyzing && <div className="eval-bar-analyzing" />}
+    </div>
+  )
 }
