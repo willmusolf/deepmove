@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "postinstall": "node -e \"const{cpSync,existsSync}=require('fs');const src='node_modules/stockfish/bin/stockfish-18-lite-single.wasm';const dst='public/stockfish/stockfish.wasm';if(existsSync(src)){cpSync(src,dst);console.log('stockfish.wasm copied')}else{console.warn('stockfish npm package not found, skipping wasm copy')}\""
   },
   "dependencies": {
     "chess.js": "^1.3.0",
@@ -26,6 +27,7 @@
     "@typescript-eslint/parser": "^8.15.0",
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^9.15.0",
+    "stockfish": "^18.0.5",
     "typescript": "^5.6.3",
     "vite": "^6.0.3",
     "vitest": "^2.1.8"
