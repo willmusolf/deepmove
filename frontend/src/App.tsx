@@ -7,6 +7,10 @@ import EvalGraph from './components/Board/EvalGraph'
 import MoveList from './components/Board/MoveList'
 import BestLines from './components/Board/BestLines'
 import ImportPanel from './components/Import/ImportPanel'
+import AccountLink from './components/Import/AccountLink'
+import GameSelector from './components/Import/GameSelector'
+import type { ChessComGame } from './api/chesscom'
+import type { LichessGame } from './api/lichess'
 import NavSidebar from './components/Layout/NavSidebar'
 import type { Page } from './components/Layout/NavSidebar'
 import { useGameReview } from './hooks/useGameReview'
@@ -19,7 +23,8 @@ import './styles/board.css'
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 const LINE_BRUSHES = ['green', 'paleBlue', 'yellow'] as const
 
-type PanelTab = 'analysis' | 'load'
+type PanelTab = "analysis" | "load"
+type ImportTab = "chesscom" | "lichess" | "pgn"
 
 /** Play a sequence of UCI moves from a FEN; returns the FEN after each step */
 function replayUciMoves(startFen: string, uciMoves: string[]): string[] {
@@ -68,6 +73,7 @@ export default function App() {
   const isAnalyzingPosition = useGameStore(s => s.isAnalyzingPosition)
   const setCurrentPositionLines = useGameStore(s => s.setCurrentPositionLines)
   const setAnalyzingPosition = useGameStore(s => s.setAnalyzingPosition)
+  const userColor = useGameStore(s => s.userColor)
 
   const { isReady, engineStatus, runAnalysis, analyzePositionLines } = useStockfish()
 
@@ -106,8 +112,19 @@ export default function App() {
   }, [currentFen, isAnalyzing, isLoaded])
 
   const [orientation, setOrientation] = useState<'white' | 'black'>('white')
+
+  // Auto-orient board when a new game loads
+  useEffect(() => {
+    if (pgn) setOrientation(userColor ?? 'white')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pgn])
   const [boardFen, setBoardFen] = useState(STARTING_FEN)
   const [panelTab, setPanelTab] = useState<PanelTab>('load')
+  const [importTab, setImportTab] = useState<ImportTab>('chesscom')
+  const [chesscomGames, setChesscomGames] = useState<ChessComGame[]>([])
+  const [lichessGames, setLichessGames] = useState<LichessGame[]>([])
+  const [chesscomUsername, setChesscomUsername] = useState('')
+  const [lichessUsername, setLichessUsername] = useState('')
   const [currentPage, setCurrentPage] = useState<Page>('review')
   const [showEvalBar, setShowEvalBar] = useState(true)
   const [variation, setVariation] = useState<Variation | null>(null)
@@ -412,12 +429,70 @@ export default function App() {
                   )}
 
                   {panelTab === 'load' && (
-                    <ImportPanel
-                      onFenLoad={(fen) => {
-                        reset()
-                        setBoardFen(fen)
-                      }}
-                    />
+                    <div className="load-panel">
+                      {/* Sub-tabs: Chess.com | Lichess | PGN */}
+                      <div className="import-tabs">
+                        <button
+                          className={`import-tab${importTab === 'chesscom' ? ' active' : ''}`}
+                          onClick={() => setImportTab('chesscom')}
+                        >Chess.com</button>
+                        <button
+                          className={`import-tab${importTab === 'lichess' ? ' active' : ''}`}
+                          onClick={() => setImportTab('lichess')}
+                        >Lichess</button>
+                        <button
+                          className={`import-tab${importTab === 'pgn' ? ' active' : ''}`}
+                          onClick={() => setImportTab('pgn')}
+                        >PGN</button>
+                      </div>
+
+                      {importTab === 'chesscom' && (
+                        <>
+                          <AccountLink
+                            platform="chesscom"
+                            onGamesLoaded={(games, uname) => {
+                              setChesscomGames(games as ChessComGame[])
+                              setChesscomUsername(uname)
+                            }}
+                          />
+                          {chesscomGames.length > 0 && (
+                            <GameSelector
+                              games={chesscomGames}
+                              username={chesscomUsername}
+                              onGameLoaded={() => setPanelTab('analysis')}
+                            />
+                          )}
+                        </>
+                      )}
+
+                      {importTab === 'lichess' && (
+                        <>
+                          <AccountLink
+                            platform="lichess"
+                            onGamesLoaded={(games, uname) => {
+                              setLichessGames(games as LichessGame[])
+                              setLichessUsername(uname)
+                            }}
+                          />
+                          {lichessGames.length > 0 && (
+                            <GameSelector
+                              games={lichessGames}
+                              username={lichessUsername}
+                              onGameLoaded={() => setPanelTab('analysis')}
+                            />
+                          )}
+                        </>
+                      )}
+
+                      {importTab === 'pgn' && (
+                        <ImportPanel
+                          onFenLoad={(fen) => {
+                            reset()
+                            setBoardFen(fen)
+                          }}
+                        />
+                      )}
+                    </div>
                   )}
 
                   {panelTab === 'analysis' && !isLoaded && (

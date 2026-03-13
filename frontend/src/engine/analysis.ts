@@ -91,6 +91,7 @@ export async function analyzeGame(
   engine: StockfishEngine,
   depth = 18,
   onProgress?: (completed: number, total: number, latest: MoveEval) => void,
+  signal?: AbortSignal,
 ): Promise<MoveEval[]> {
   const chess = new Chess()
   chess.loadPgn(cleanPgn(pgn))
@@ -111,6 +112,7 @@ export async function analyzeGame(
   let prevScore = 0  // Starting position eval (assume ~0)
 
   for (let i = 0; i < history.length; i++) {
+    if (signal?.aborted) break
     const move = history[i]
     const fen = positions[i + 1]
     const color: 'white' | 'black' = i % 2 === 0 ? 'white' : 'black'

@@ -13,6 +13,7 @@ export default function ImportPanel({ onFenLoad }: ImportPanelProps) {
   const [fenError, setFenError] = useState<string | null>(null)
 
   const setPgn = useGameStore(s => s.setPgn)
+  const setUserColor = useGameStore(s => s.setUserColor)
   const reset = useGameStore(s => s.reset)
 
   function handleLoadPgn() {
@@ -27,6 +28,7 @@ export default function ImportPanel({ onFenLoad }: ImportPanelProps) {
     }
     setPgnError(null)
     reset()
+    setUserColor(null)
     setPgn(trimmed)
   }
 

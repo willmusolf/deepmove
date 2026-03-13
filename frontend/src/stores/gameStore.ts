@@ -10,6 +10,7 @@ interface GameState {
   currentMoveIndex: number
   criticalMoments: CriticalMoment[]
   userElo: number
+  userColor: 'white' | 'black' | null  // null = unknown (PGN paste)
   isAnalyzing: boolean
   totalMovesCount: number   // set at analysis start so status bar can show "32/47"
   currentPositionLines: TopLine[]   // multi-PV results for current position
@@ -21,6 +22,7 @@ interface GameState {
   setCurrentMove: (index: number) => void
   setCriticalMoments: (moments: CriticalMoment[]) => void
   setUserElo: (elo: number) => void
+  setUserColor: (color: 'white' | 'black' | null) => void
   setAnalyzing: (analyzing: boolean) => void
   setTotalMovesCount: (count: number) => void
   setCurrentPositionLines: (lines: TopLine[]) => void
@@ -34,6 +36,7 @@ const initialState = {
   currentMoveIndex: 0,
   criticalMoments: [],
   userElo: 1200,
+  userColor: null as 'white' | 'black' | null,
   isAnalyzing: false,
   totalMovesCount: 0,
   currentPositionLines: [],
@@ -47,6 +50,7 @@ export const useGameStore = create<GameState>(set => ({
   setCurrentMove: currentMoveIndex => set({ currentMoveIndex }),
   setCriticalMoments: criticalMoments => set({ criticalMoments }),
   setUserElo: userElo => set({ userElo }),
+  setUserColor: userColor => set({ userColor }),
   setAnalyzing: isAnalyzing => set({ isAnalyzing }),
   setTotalMovesCount: totalMovesCount => set({ totalMovesCount }),
   setCurrentPositionLines: currentPositionLines => set({ currentPositionLines }),

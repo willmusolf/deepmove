@@ -11,7 +11,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "postinstall": "node -e \"const{cpSync,existsSync}=require('fs');const src='node_modules/stockfish/bin/stockfish-18-lite-single.wasm';const dst='public/stockfish/stockfish.wasm';if(existsSync(src)){cpSync(src,dst);console.log('stockfish.wasm copied')}else{console.warn('stockfish npm package not found, skipping wasm copy')}\""
+    "postinstall": "node -e \"const{cpSync,existsSync}=require('fs');const src='node_modules/stockfish/bin/stockfish-18-asm.js';const dst='public/stockfish/stockfish.js';if(existsSync(src)){cpSync(src,dst);console.log('stockfish-18-asm.js copied')}else{console.warn('stockfish npm package not found, skipping copy')}\""
   },
   "dependencies": {
     "chess.js": "^1.3.0",

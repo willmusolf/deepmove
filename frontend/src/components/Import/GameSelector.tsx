@@ -1,6 +1,146 @@
-// GameSelector.tsx — Game list for selecting from fetched Chess.com/Lichess games
-// Shows: opponent, result, time control, date. Click to load game for review.
+import { useEffect, useRef } from 'react'
+import type { ChessComGame } from '../../api/chesscom'
+import type { LichessGame } from '../../api/lichess'
+import { useGameStore } from '../../stores/gameStore'
+import { cleanPgn } from '../../chess/pgn'
 
-export default function GameSelector() {
-  return <div className="game-selector" />
+interface GameSelectorProps {
+  games: ChessComGame[] | LichessGame[]
+  username: string
+  onGameLoaded: () => void
+}
+
+function formatDate(timestamp: number): string {
+  const d = new Date(timestamp * 1000)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function formatLichessDate(timestamp: number): string {
+  const d = new Date(timestamp)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function formatTimeControl(tc: string): string {
+  // Chess.com: "600" → "10 min", "300+3" → "5+3"
+  // Lichess: already "5+3" style from clock
+  if (tc.includes('+')) return tc
+  const secs = parseInt(tc, 10)
+  if (isNaN(secs)) return tc
+  const mins = Math.round(secs / 60)
+  return `${mins} min`
+}
+
+function isChessComGame(g: ChessComGame | LichessGame): g is ChessComGame {
+  return 'end_time' in g
+}
+
+interface NormalizedGame {
+  pgn: string
+  opponent: string
+  opponentRating: number
+  result: 'W' | 'L' | 'D'
+  timeControl: string
+  date: string
+  isWhite: boolean
+}
+
+function normalizeChessCom(game: ChessComGame, username: string): NormalizedGame {
+  const isWhite = game.white.username.toLowerCase() === username.toLowerCase()
+  const opponent = isWhite ? game.black : game.white
+  const myResult = isWhite ? game.white.result : game.black.result
+
+  let result: 'W' | 'L' | 'D'
+  if (myResult === 'win') result = 'W'
+  else if (['checkmated', 'resigned', 'timeout', 'abandoned', 'lose'].includes(myResult)) result = 'L'
+  else result = 'D'
+
+  return {
+    pgn: game.pgn,
+    opponent: opponent.username,
+    opponentRating: opponent.rating,
+    result,
+    timeControl: formatTimeControl(game.time_control),
+    date: formatDate(game.end_time),
+    isWhite,
+  }
+}
+
+function normalizeLichess(game: LichessGame, username: string): NormalizedGame {
+  const isWhite = game.players.white.user?.name?.toLowerCase() === username.toLowerCase()
+  const opponent = isWhite ? game.players.black : game.players.white
+
+  // Lichess result from status + winner field isn't always present, infer from status
+  let result: 'W' | 'L' | 'D' = 'D'
+  if ((game as unknown as Record<string, unknown>).winner === (isWhite ? 'white' : 'black')) result = 'W'
+  else if ((game as unknown as Record<string, unknown>).winner === (isWhite ? 'black' : 'white')) result = 'L'
+  else if (game.status === 'draw' || game.status === 'stalemate') result = 'D'
+
+  const clock = game.clock
+  const timeControl = clock ? `${Math.round(clock.initial / 60)}+${clock.increment}` : game.speed
+
+  return {
+    pgn: game.pgn,
+    opponent: opponent.user?.name ?? '?',
+    opponentRating: opponent.rating,
+    result,
+    timeControl,
+    date: formatLichessDate(game.createdAt),
+    isWhite,
+  }
+}
+
+export default function GameSelector({ games, username, onGameLoaded }: GameSelectorProps) {
+  const setPgn = useGameStore(s => s.setPgn)
+  const setUserColor = useGameStore(s => s.setUserColor)
+  const reset = useGameStore(s => s.reset)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (listRef.current) listRef.current.scrollTop = 0
+  }, [games])
+
+  if (games.length === 0) {
+    return <div className="game-list-empty">No games found.</div>
+  }
+
+  function handleSelect(rawPgn: string, isWhite: boolean) {
+    reset()
+    setUserColor(isWhite ? 'white' : 'black')
+    setPgn(cleanPgn(rawPgn))
+    onGameLoaded()
+  }
+
+  const normalized = games.map(g =>
+    isChessComGame(g)
+      ? normalizeChessCom(g, username)
+      : normalizeLichess(g as LichessGame, username)
+  )
+
+  return (
+    <>
+    <div className="game-list-count">{games.length} game{games.length !== 1 ? 's' : ''}</div>
+    <div className="game-list" ref={listRef}>
+      {normalized.map((g, i) => (
+        <button
+          key={i}
+          className="game-row"
+          onClick={() => handleSelect(g.pgn, g.isWhite)}
+        >
+          <span className="game-row__players">
+            <span className="game-row__color-dot" data-color={g.isWhite ? 'white' : 'black'} />
+            <span className="game-row__username">{username}</span>
+            <span className="game-row__vs">vs</span>
+            <span className="game-row__color-dot" data-color={g.isWhite ? 'black' : 'white'} />
+            <span className="game-row__opponent">{g.opponent}<span className="game-row__rating"> ({g.opponentRating})</span></span>
+          </span>
+          <span className={`game-row__result game-row__result--${g.result.toLowerCase()}`}>
+            {g.result}
+          </span>
+          <span className="game-row__meta">{g.timeControl}</span>
+          <span className="game-row__meta">{g.date}</span>
+        </button>
+      ))}
+    </div>
+    </>
+  )
 }
