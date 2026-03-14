@@ -156,6 +156,7 @@ cg-board {
 .side-col {
   flex: 1;
   min-width: 240px;
+  max-width: 340px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -287,6 +288,37 @@ cg-board {
 
 .move-active:hover {
   background: var(--color-accent-hover);
+}
+
+/* Move in the active path (ancestor of current node) */
+.move-in-path {
+  color: var(--color-accent);
+  opacity: 0.7;
+}
+
+/* Variation block — indented sub-line below a branching move */
+.variation-block {
+  display: block;
+  margin: 3px 0 3px 8px;
+  padding-left: 8px;
+  border-left: 2px solid var(--color-border);
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.variation-depth-2 {
+  margin-left: 16px;
+  font-size: 0.78rem;
+}
+
+.variation-depth-3 {
+  margin-left: 24px;
+  font-size: 0.75rem;
+}
+
+/* Move list flow container */
+.move-line {
+  line-height: 1.8;
 }
 
 .move-result {
@@ -644,25 +676,66 @@ cg-board {
 }
 
 /* ── Eval Graph ────────────────────────────────────────────────────────── */
+.eval-graph-wrap {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;   /* tooltip anchor */
+}
+
 .eval-graph-container {
   flex-shrink: 0;
   flex-grow: 0;
-  border-radius: var(--radius);
+  height: 96px;
+  border-radius: var(--radius) var(--radius) 0 0;
   overflow: hidden;
   border: 1px solid var(--color-border);
-  background: #0f1220;
+  border-bottom: none;
+  background: #0f1117;
   cursor: crosshair;
 }
 
 .eval-graph-svg {
   display: block;
   width: 100%;
-  height: 80px;
+  height: 96px;
+  min-height: 96px;
+  max-height: 96px;
+  flex-shrink: 0;
 }
 
-.eval-graph-dot {
+/* Annotation strip — HTML badges below SVG */
+.eval-graph-annotations {
+  position: relative;
+  height: 18px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: rgba(15, 17, 23, 0.6);
+  overflow: visible;
+}
+
+.eval-graph-badge {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 800;
+  font-family: system-ui, sans-serif;
+  line-height: 1;
+  padding: 1px 2px;
+  border-radius: 2px;
+  white-space: nowrap;
   pointer-events: none;
 }
+
+.eval-graph-badge--blunder   { color: #ef4444; }
+.eval-graph-badge--mistake   { color: #f97316; }
+.eval-graph-badge--brilliant { color: #22d3ee; }
+.eval-graph-badge--best      { color: #22c55e; }
+.eval-graph-badge--excellent { color: #4ade80; }
 
 .eval-graph-empty {
   height: 96px;
@@ -782,6 +855,14 @@ cg-board {
   font-size: 0.78rem;
 }
 
+.best-lines-depth {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  text-align: right;
+  padding: 0 4px;
+}
+
 .best-line-skeleton {
   height: 32px;
   background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
@@ -794,6 +875,158 @@ cg-board {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ── Best lines toggle ────────────────────────────────────────────────── */
+.best-lines-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 0.25rem;
+}
+
+.lines-toggle-btn {
+  align-self: flex-start;
+  padding: 0.25rem 0.65rem;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.lines-toggle-btn:hover {
+  background: rgba(255,255,255,0.09);
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+.lines-toggle-btn.active {
+  background: rgba(74, 222, 128, 0.1);
+  border-color: rgba(74, 222, 128, 0.35);
+  color: #4ade80;
+}
+
+/* ── Eval graph tooltip ───────────────────────────────────────────────── */
+.eval-graph-tooltip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+  background: rgba(12, 14, 20, 0.95);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 4px 8px;
+  white-space: nowrap;
+  gap: 1px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+.eval-graph-tooltip-move {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text);
+  font-family: var(--font-mono, monospace);
+}
+
+.eval-graph-tooltip-eval {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Game Report ──────────────────────────────────────────────────────── */
+.game-report {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: rgba(15, 17, 23, 0.7);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.game-report-side {
+  flex: 1;
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.game-report-side--user {
+  background: rgba(74, 222, 128, 0.04);
+}
+
+.game-report-divider {
+  width: 1px;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+.game-report-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.game-report-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.game-report-accuracy {
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.game-report-acpl {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+}
+
+.game-report-acpl strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.game-report-grades {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 1px;
+}
+
+.game-report-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-family: system-ui, sans-serif;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.06);
+  line-height: 1.4;
+}
+
+.gr-brilliant  { color: #22d3ee; }
+.gr-best       { color: #22c55e; }
+.gr-excellent  { color: #4ade80; }
+.gr-good       { color: #86efac; }
+.gr-inaccuracy { color: #eab308; }
+.gr-mistake    { color: #f97316; }
+.gr-blunder    { color: #ef4444; }
 
 /* ── Variation banner ─────────────────────────────────────────────────── */
 .variation-banner {

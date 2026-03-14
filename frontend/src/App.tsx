@@ -4,6 +4,7 @@ import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
 import EvalGraph from './components/Board/EvalGraph'
+import GameReport from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
 import BestLines from './components/Board/BestLines'
 import ImportPanel from './components/Import/ImportPanel'
@@ -21,40 +22,26 @@ import type { Key } from 'chessground/types'
 import './styles/board.css'
 
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
-const LINE_BRUSHES = ['green', 'paleBlue', 'yellow'] as const
+// Lichess-style thickness brushes — all green, varying weight
+const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
 
 type PanelTab = "analysis" | "load"
 type ImportTab = "chesscom" | "lichess" | "pgn"
-
-/** Play a sequence of UCI moves from a FEN; returns the FEN after each step */
-function replayUciMoves(startFen: string, uciMoves: string[]): string[] {
-  const fens: string[] = [startFen]
-  const chess = new Chess(startFen)
-  for (const uci of uciMoves) {
-    try {
-      chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] ?? 'q' })
-      fens.push(chess.fen())
-    } catch {
-      break
-    }
-  }
-  return fens
-}
-
-interface Variation {
-  fens: string[]    // [baseFen, after move 1, ...]
-  pvMoves: string[] // UCI moves
-  index: number     // current step (0 = base position)
-}
 
 export default function App() {
   const {
     currentFen,
     moves,
+    moveTree,
+    rootId,
+    currentPath,
     currentMoveIndex,
     goToMove,
     goForward,
     goBack,
+    navigateTo,
+    addVariationMove,
+    nextMainLineNode,
     isLoaded,
     whitePlayer,
     blackPlayer,
@@ -66,6 +53,7 @@ export default function App() {
 
   const reset = useGameStore(s => s.reset)
   const moveEvals = useGameStore(s => s.moveEvals)
+  const analyzedCount = useGameStore(s => s.analyzedCount)
   const isAnalyzing = useGameStore(s => s.isAnalyzing)
   const totalMovesCount = useGameStore(s => s.totalMovesCount)
   const pgn = useGameStore(s => s.pgn)
@@ -74,34 +62,61 @@ export default function App() {
   const setCurrentPositionLines = useGameStore(s => s.setCurrentPositionLines)
   const setAnalyzingPosition = useGameStore(s => s.setAnalyzingPosition)
   const userColor = useGameStore(s => s.userColor)
+  const criticalMoments = useGameStore(s => s.criticalMoments)
 
-  const { isReady, engineStatus, runAnalysis, analyzePositionLines } = useStockfish()
+  const { isReady, engineStatus, runAnalysis, analyzePositionLines, stopPositionAnalysis } = useStockfish()
+
+  const [showBestLines, setShowBestLines] = useState(false)
+  const [currentAnalysisDepth, setCurrentAnalysisDepth] = useState(0)
+  // FEN → TopLine[] cache so revisiting a position never re-analyzes
+  const positionCache = useRef<Map<string, TopLine[]>>(new Map())
 
   // Trigger full-game analysis whenever a new game loads and the engine is ready
   useEffect(() => {
     if (pgn && isReady) {
+      positionCache.current.clear()
       void runAnalysis(pgn)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pgn, isReady])
 
-  // Per-position multi-PV analysis — runs after full-game analysis completes
-  // Uses a token to discard stale results from quick navigation
+  // Per-position multi-PV analysis — runs whenever current position changes.
+  // Results cached by FEN so revisiting a position is instant.
   const positionTokenRef = useRef(0)
 
   useEffect(() => {
+    // Always abort any in-flight position analysis before doing anything else.
+    // This prevents queue clogging on rapid navigation — the engine stops immediately
+    // and starts fresh for the new position.
+    stopPositionAnalysis()
+
     if (!isLoaded || isAnalyzing) {
       setCurrentPositionLines([])
+      setCurrentAnalysisDepth(0)
+      return
+    }
+    const cached = positionCache.current.get(currentFen)
+    if (cached) {
+      setCurrentPositionLines(cached)
+      setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
+      setAnalyzingPosition(false)
       return
     }
     const token = ++positionTokenRef.current
     setAnalyzingPosition(true)
     setCurrentPositionLines([])
+    setCurrentAnalysisDepth(0)
 
-    analyzePositionLines(currentFen, 18, 3)
+    analyzePositionLines(currentFen, 22, 3, (lines, depth) => {
+      if (positionTokenRef.current !== token) return
+      setCurrentPositionLines(lines)
+      setCurrentAnalysisDepth(depth)
+    })
       .then(lines => {
-        if (positionTokenRef.current !== token) return  // navigated away, discard
+        if (positionTokenRef.current !== token) return
+        positionCache.current.set(currentFen, lines)
         setCurrentPositionLines(lines)
+        setCurrentAnalysisDepth(lines[0]?.depth ?? 0)
         setAnalyzingPosition(false)
       })
       .catch(() => {
@@ -118,6 +133,7 @@ export default function App() {
     if (pgn) setOrientation(userColor ?? 'white')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pgn])
+
   const [boardFen, setBoardFen] = useState(STARTING_FEN)
   const [panelTab, setPanelTab] = useState<PanelTab>('load')
   const [importTab, setImportTab] = useState<ImportTab>('chesscom')
@@ -127,43 +143,17 @@ export default function App() {
   const [lichessUsername, setLichessUsername] = useState('')
   const [currentPage, setCurrentPage] = useState<Page>('review')
   const [showEvalBar, setShowEvalBar] = useState(true)
-  const [variation, setVariation] = useState<Variation | null>(null)
 
-  const displayFen = variation
-    ? variation.fens[variation.index]
-    : isLoaded ? currentFen : boardFen
+  const displayFen = isLoaded ? currentFen : boardFen
 
   useEffect(() => {
     if (isLoaded) setPanelTab('analysis')
   }, [isLoaded])
 
-  // Exit variation on game navigation
-  useEffect(() => {
-    setVariation(null)
-  }, [currentMoveIndex])
+  // ── Keyboard navigation ────────────────────────────────────────────────────
 
-  // Keyboard navigation
-  const goBackFn = useCallback(() => {
-    if (variation) {
-      if (variation.index === 0) {
-        setVariation(null)
-      } else {
-        setVariation(v => v ? { ...v, index: v.index - 1 } : null)
-      }
-    } else {
-      goBack()
-    }
-  }, [variation, goBack])
-
-  const goForwardFn = useCallback(() => {
-    if (variation) {
-      if (variation.index < variation.fens.length - 1) {
-        setVariation(v => v ? { ...v, index: v.index + 1 } : null)
-      }
-    } else {
-      goForward()
-    }
-  }, [variation, goForward])
+  const goBackFn = useCallback(() => goBack(), [goBack])
+  const goForwardFn = useCallback(() => goForward(), [goForward])
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -172,11 +162,12 @@ export default function App() {
       if (active?.tagName === 'TEXTAREA' || active?.tagName === 'INPUT') return
       if (e.key === 'ArrowLeft') { e.preventDefault(); goBackFn() }
       if (e.key === 'ArrowRight') { e.preventDefault(); goForwardFn() }
-      if (e.key === 'Escape' && variation) { e.preventDefault(); setVariation(null) }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isLoaded, goBackFn, goForwardFn, variation])
+  }, [isLoaded, goBackFn, goForwardFn])
+
+  // ── Player display ─────────────────────────────────────────────────────────
 
   const topPlayer = orientation === 'white'
     ? { name: blackPlayer, elo: blackElo }
@@ -188,72 +179,86 @@ export default function App() {
   const toMoveSide = displayFen.split(' ')[1]
   const topIsToMove = orientation === 'white' ? toMoveSide === 'b' : toMoveSide === 'w'
 
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
   function handleNewGame() {
     reset()
     setBoardFen(STARTING_FEN)
     setPanelTab('load')
-    setVariation(null)
   }
 
-  function handleLineClick(line: TopLine) {
-    const base = variation ? variation.fens[variation.index] : currentFen
-    const fens = replayUciMoves(base, line.pv)
-    setVariation({ fens, pvMoves: line.pv, index: 0 })
-  }
-
-  // Arrow shapes: show best lines as colored arrows on the board
-  // In variation mode, show the next move in the PV as a green arrow
-  const boardShapes: DrawShape[] = (() => {
-    if (variation) {
-      const nextUci = variation.pvMoves[variation.index]
-      if (!nextUci || variation.index >= variation.fens.length - 1) return []
-      return [{
-        orig: nextUci.slice(0, 2) as Key,
-        dest: nextUci.slice(2, 4) as Key,
-        brush: 'green',
-      }]
+  // Board move during game review: advance main line or create branch
+  function handleBoardMove(from: string, to: string, san: string, newFen: string) {
+    const next = nextMainLineNode
+    if (next && next.from === from && next.to === to) {
+      goForward()
+    } else {
+      addVariationMove(from, to, san, newFen)
     }
-    return currentPositionLines
-      .filter(l => l.pv.length >= 1)
-      .map((line, i) => ({
-        orig: line.pv[0].slice(0, 2) as Key,
-        dest: line.pv[0].slice(2, 4) as Key,
-        brush: LINE_BRUSHES[i] ?? 'green',
-      }))
-  })()
-
-  // Current position eval for the inline display
-  const currentEval = currentMoveIndex > 0 ? moveEvals[currentMoveIndex - 1] : undefined
-
-  // Move grades array: index i = grade for move i+1 (1-based → 0-based)
-  const moveGrades = moveEvals.map(me => me.grade)
-
-  // Eval display string
-  function formatEval(me: typeof currentEval): string {
-    if (!me) return '—'
-    if (me.eval.isMate) return me.eval.mateIn !== null ? `M${Math.abs(me.eval.mateIn)}` : 'M'
-    const cp = me.eval.score
-    const pawns = (cp / 100).toFixed(2)
-    return cp >= 0 ? `+${pawns}` : pawns
   }
 
-  const analyzedCount = moveEvals.length
+  // Best Lines click: enter first move of that PV as a branch
+  function handleLineClick(line: TopLine) {
+    if (line.pv.length === 0) return
+    const uci = line.pv[0]
+    const chess = new Chess(currentFen)
+    const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] ?? 'q' })
+    if (move) addVariationMove(move.from, move.to, move.san, chess.fen())
+  }
+
+  // ── Eval ───────────────────────────────────────────────────────────────────
+
+  // Use per-position lines when available — works for both main line and branches
+  const posLine = currentPositionLines[0]
+  const mainEval = currentMoveIndex > 0 ? moveEvals[currentMoveIndex - 1] : undefined
+  const evalCp = posLine?.score ?? mainEval?.eval.score
+  const evalIsMate = posLine?.isMate ?? mainEval?.eval.isMate ?? false
+  const evalMateIn = posLine?.mateIn ?? mainEval?.eval.mateIn ?? null
+
+  function formatEval(score: number | undefined, isMate: boolean, mateIn: number | null): string {
+    if (score === undefined) return '—'
+    if (isMate) return mateIn !== null ? `M${Math.abs(mateIn)}` : 'M'
+    const pawns = (score / 100).toFixed(2)
+    return score >= 0 ? `+${pawns}` : pawns
+  }
+
+  // ── Arrow shapes ───────────────────────────────────────────────────────────
+
+  // Show 1-3 lines based on how close alternatives are to the best move.
+  // If the 2nd line is within 200cp it's genuinely playable — show it.
+  // If the 3rd line is within 100cp of the best it's worth showing too.
+  function getVisibleLines(lines: TopLine[]): TopLine[] {
+    if (lines.length === 0) return []
+    const best = lines[0].score
+    return lines.filter((line, i) => {
+      if (i === 0) return true
+      const gap = Math.abs(line.score - best)
+      if (i === 1) return gap <= 200
+      if (i === 2) return gap <= 100
+      return false
+    })
+  }
+
+  const visibleLines = getVisibleLines(currentPositionLines)
+
+  const boardShapes: DrawShape[] = visibleLines
+    .filter(l => l.pv.length >= 1)
+    .map((line, i) => ({
+      orig: line.pv[0].slice(0, 2) as Key,
+      dest: line.pv[0].slice(2, 4) as Key,
+      brush: LINE_BRUSHES[i] ?? 'okMove',
+    }))
+
+  // ── Misc ───────────────────────────────────────────────────────────────────
+
+  const moveGrades = moveEvals.map(me => me.grade)
   const showAnalyzingBar = isAnalyzing || (analyzedCount < totalMovesCount && totalMovesCount > 0)
 
-  // In variation, show eval of first line (the one we entered) if available
-  const variationEval = variation && currentPositionLines[0]
-    ? currentPositionLines[0]
-    : null
+  // Are we currently in a branch (off the main line)?
+  const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
-  const evalCp = variation
-    ? (variationEval?.score)
-    : currentEval?.eval.score
-  const evalIsMate = variation
-    ? (variationEval?.isMate ?? false)
-    : (currentEval?.eval.isMate ?? false)
-  const evalMateIn = variation
-    ? (variationEval?.mateIn ?? null)
-    : (currentEval?.eval.mateIn ?? null)
+  // Suppress unused warning — moves is kept for potential future use
+  void moves
 
   return (
     <div className="app">
@@ -274,11 +279,16 @@ export default function App() {
                   )}
                 </div>
 
-                {variation && (
+                {inBranch && (
                   <div className="variation-banner">
-                    Variation &nbsp;·&nbsp; {variation.index} / {variation.fens.length - 1}
-                    &nbsp;
-                    <button className="variation-exit-btn" onClick={() => setVariation(null)}>
+                    Variation
+                    <button
+                      className="variation-exit-btn"
+                      onClick={() => {
+                        const mainLinePath = currentPath.filter(id => moveTree[id]?.isMainLine)
+                        navigateTo(mainLinePath)
+                      }}
+                    >
                       ✕ Exit
                     </button>
                   </div>
@@ -291,14 +301,18 @@ export default function App() {
                       isMate={evalIsMate}
                       mateIn={evalMateIn}
                       isAnalyzing={isAnalyzing}
+                      orientation={orientation}
                     />
                   )}
                   <ChessBoard
                     key={isLoaded ? 'review' : 'freeplay'}
                     fen={displayFen}
                     orientation={orientation}
-                    interactive={!isLoaded}
-                    onMove={isLoaded ? undefined : (_f, _t, newFen) => setBoardFen(newFen)}
+                    interactive={true}
+                    onMove={isLoaded
+                      ? handleBoardMove
+                      : (_f, _t, _san, newFen) => setBoardFen(newFen)
+                    }
                     shapes={boardShapes}
                   />
                 </div>
@@ -317,14 +331,12 @@ export default function App() {
                   {isLoaded && (
                     <>
                       <button className="nav-btn" onClick={goBackFn}
-                        disabled={!variation && currentMoveIndex === 0}>←</button>
+                        disabled={currentPath.length === 0}>←</button>
                       <span className="move-counter">
-                        {variation
-                          ? `var ${variation.index}/${variation.fens.length - 1}`
-                          : `${currentMoveIndex} / ${totalMoves}`}
+                        {currentMoveIndex} / {totalMoves}
                       </span>
                       <button className="nav-btn" onClick={goForwardFn}
-                        disabled={!variation && currentMoveIndex === totalMoves}>→</button>
+                        disabled={currentMoveIndex >= totalMoves && !inBranch}>→</button>
                     </>
                   )}
                   <button
@@ -391,46 +403,69 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Eval display — only when we have data */}
-                      {currentEval && (
+                      {/* Eval display */}
+                      {(posLine || mainEval) && (
                         <div className="eval-display">
-                          <span className="eval-display-value">{formatEval(currentEval)}</span>
-                          <span className="eval-display-depth">depth {currentEval.eval.depth}</span>
+                          <span className="eval-display-value">
+                            {formatEval(evalCp, evalIsMate, evalMateIn)}
+                          </span>
+                          {mainEval && !inBranch && (
+                            <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
+                          )}
+                          {isAnalyzingPosition && (
+                            <span className="eval-display-depth">analyzing…</span>
+                          )}
                         </div>
                       )}
 
-                      {/* Best lines panel */}
+                      {/* Best lines toggle + panel */}
                       {!isAnalyzing && (
-                        <BestLines
-                          lines={currentPositionLines}
-                          isAnalyzingPosition={isAnalyzingPosition}
-                          onLineClick={handleLineClick}
-                        />
+                        <div className="best-lines-section">
+                          <button
+                            className={`lines-toggle-btn${showBestLines ? ' active' : ''}`}
+                            onClick={() => setShowBestLines(v => !v)}
+                          >
+                            {showBestLines ? 'Hide Lines' : 'Show Lines'}
+                          </button>
+                          {showBestLines && (
+                            <BestLines
+                              lines={visibleLines}
+                              isAnalyzingPosition={isAnalyzingPosition}
+                              onLineClick={handleLineClick}
+                              depth={currentAnalysisDepth}
+                            />
+                          )}
+                        </div>
                       )}
 
-                      {/* Eval graph — appears after first eval arrives */}
-                      {analyzedCount > 0 && (
-                        <EvalGraph
-                          moveEvals={moveEvals}
-                          totalMoves={totalMovesCount || totalMoves}
-                          currentMoveIndex={currentMoveIndex}
-                          onNavigate={goToMove}
-                        />
+                      {/* Eval graph + report — only after analysis completes */}
+                      {!isAnalyzing && moveEvals.length > 0 && (
+                        <>
+                          <EvalGraph
+                            moveEvals={moveEvals}
+                            totalMoves={totalMoves}
+                            currentMoveIndex={currentMoveIndex}
+                            onNavigate={goToMove}
+                            criticalMoments={criticalMoments}
+                          />
+                          <GameReport moveEvals={moveEvals} userColor={userColor} />
+                        </>
                       )}
 
-                      {/* Move list — always interactive */}
+                      {/* Move list — tree renderer */}
                       <MoveList
-                        moves={moves}
+                        tree={moveTree}
+                        rootId={rootId}
+                        currentPath={currentPath}
                         moveGrades={moveGrades}
-                        currentMoveIndex={currentMoveIndex}
-                        onMoveClick={goToMove}
+                        onNodeClick={navigateTo}
+                        isAnalyzing={isAnalyzing}
                       />
                     </>
                   )}
 
                   {panelTab === 'load' && (
                     <div className="load-panel">
-                      {/* Sub-tabs: Chess.com | Lichess | PGN */}
                       <div className="import-tabs">
                         <button
                           className={`import-tab${importTab === 'chesscom' ? ' active' : ''}`}

@@ -16,7 +16,7 @@ export interface ChessBoardProps {
   fen?: string
   orientation?: 'white' | 'black'
   interactive?: boolean
-  onMove?: (from: string, to: string, fen: string) => void
+  onMove?: (from: string, to: string, san: string, fen: string) => void
   shapes?: DrawShape[]
 }
 
@@ -52,7 +52,7 @@ export default function ChessBoard({
   const onMoveRef = useRef(onMove)
 
   // Keep refs current without triggering re-init
-  useRef(() => { fenRef.current = fen })
+  fenRef.current = fen
   onMoveRef.current = onMove
 
   // Initialize chessground once on mount
@@ -73,7 +73,13 @@ export default function ChessBoard({
             const chess = new Chess(currentFen)
             const move = chess.move({ from, to, promotion: 'q' })
             if (move && onMoveRef.current) {
-              onMoveRef.current(from, to, chess.fen())
+              // Lock the board immediately so no second move can fire before
+              // React re-renders and sets the correct movable.color for the next turn.
+              apiRef.current?.set({ movable: { color: undefined } })
+              onMoveRef.current(from, to, move.san, chess.fen())
+            } else {
+              // Move failed validation — snap the piece back to its origin square.
+              apiRef.current?.set({ fen: currentFen })
             }
           },
         },
@@ -89,6 +95,9 @@ export default function ChessBoard({
       draggable: {
         enabled: interactive,
       },
+      premovable: {
+        enabled: false,
+      },
       drawable: {
         enabled: true,
         visible: true,
@@ -96,6 +105,15 @@ export default function ChessBoard({
         eraseOnClick: false,
         shapes: [],
         autoShapes: [],
+        brushes: {
+          green:    { key: 'green',    color: '#15781B', opacity: 0.8,  lineWidth: 10 },
+          red:      { key: 'red',      color: '#882020', opacity: 0.8,  lineWidth: 10 },
+          blue:     { key: 'blue',     color: '#003088', opacity: 0.8,  lineWidth: 10 },
+          yellow:   { key: 'yellow',   color: '#e68f00', opacity: 0.8,  lineWidth: 10 },
+          bestMove: { key: 'bestMove', color: '#15781B', opacity: 0.85, lineWidth: 12 },
+          goodMove: { key: 'goodMove', color: '#15781B', opacity: 0.55, lineWidth: 7 },
+          okMove:   { key: 'okMove',   color: '#15781B', opacity: 0.35, lineWidth: 4 },
+        },
       },
     }
 

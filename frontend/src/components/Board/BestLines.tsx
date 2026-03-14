@@ -7,6 +7,7 @@ interface BestLinesProps {
   lines: TopLine[]
   isAnalyzingPosition: boolean
   onLineClick: (line: TopLine) => void
+  depth?: number
 }
 
 const LINE_COLORS = ['#4ade80', '#60a5fa', '#facc15']  // green, blue, yellow
@@ -19,7 +20,7 @@ function formatScore(line: TopLine): string {
   return line.score >= 0 ? `+${pawns}` : pawns
 }
 
-export default function BestLines({ lines, isAnalyzingPosition, onLineClick }: BestLinesProps) {
+export default function BestLines({ lines, isAnalyzingPosition, onLineClick, depth }: BestLinesProps) {
   if (!isAnalyzingPosition && lines.length === 0) return null
 
   return (
@@ -31,18 +32,25 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick }: B
           <div className="best-line-row best-line-skeleton" />
         </>
       ) : (
-        lines.map((line, i) => (
-          <button
-            key={line.rank}
-            className="best-line-row"
-            onClick={() => onLineClick(line)}
-            title="Click to explore this line"
-          >
-            <span className="best-line-dot" style={{ background: LINE_COLORS[i] ?? LINE_COLORS[0] }} />
-            <span className="best-line-move">{line.san}</span>
-            <span className="best-line-eval">{formatScore(line)}</span>
-          </button>
-        ))
+        <>
+          {lines.map((line, i) => (
+            <button
+              key={line.rank}
+              className="best-line-row"
+              onClick={() => onLineClick(line)}
+              title="Click to explore this line"
+            >
+              <span className="best-line-dot" style={{ background: LINE_COLORS[i] ?? LINE_COLORS[0] }} />
+              <span className="best-line-move">{line.san}</span>
+              <span className="best-line-eval">{formatScore(line)}</span>
+            </button>
+          ))}
+          {depth != null && depth > 0 && (
+            <div className="best-lines-depth">
+              depth: {depth}{isAnalyzingPosition ? ' ↑' : ''}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

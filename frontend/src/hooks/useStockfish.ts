@@ -17,9 +17,11 @@ export function useStockfish() {
   const [engineStatus, setEngineStatus] = useState<EngineStatus>('loading')
 
   const setMoveEvals = useGameStore(s => s.setMoveEvals)
+  const setAnalyzedCount = useGameStore(s => s.setAnalyzedCount)
   const setAnalyzing = useGameStore(s => s.setAnalyzing)
   const setTotalMovesCount = useGameStore(s => s.setTotalMovesCount)
   const setCriticalMoments = useGameStore(s => s.setCriticalMoments)
+  const setCurrentPositionLines = useGameStore(s => s.setCurrentPositionLines)
   const userElo = useGameStore(s => s.userElo)
   const userColor = useGameStore(s => s.userColor)
 
@@ -48,12 +50,15 @@ export function useStockfish() {
     if (!engine || !isReady) return
 
     abortRef.current?.abort()
+    engineRef.current?.stop()  // interrupt current Stockfish analysis immediately
     const controller = new AbortController()
     abortRef.current = controller
 
     setAnalyzing(true)
     setMoveEvals([])
+    setAnalyzedCount(0)
     setTotalMovesCount(0)
+    setCurrentPositionLines([])  // clear stale arrows from previous game
 
     const partial: MoveEval[] = []
     const color = userColor ?? 'white'
@@ -62,9 +67,13 @@ export function useStockfish() {
       await analyzeGame(pgn, engine, 15, (done, total, latest) => {
         if (done === 1) setTotalMovesCount(total)
         partial.push(latest)
-        setMoveEvals([...partial])
+        // Update the progress counter every move (cheap — just a number)
+        // but don't flush the full moveEvals array until analysis completes
+        setAnalyzedCount(done)
       }, controller.signal)
       if (controller.signal.aborted) return
+      // Single flush of all results at once — no progressive jitter
+      setMoveEvals([...partial])
       const moments = detectCriticalMoments(partial, color, userElo)
       setCriticalMoments(moments)
     } catch (err) {
@@ -74,11 +83,20 @@ export function useStockfish() {
     }
   }
 
-  async function analyzePositionLines(fen: string, depth = 18, numLines = 3): Promise<TopLine[]> {
+  async function analyzePositionLines(
+    fen: string,
+    depth = 22,
+    numLines = 3,
+    onUpdate?: (lines: TopLine[], depth: number) => void,
+  ): Promise<TopLine[]> {
     const engine = engineRef.current
     if (!engine || !isReady) return []
-    return engine.analyzePositionMultiPV(fen, depth, numLines)
+    return engine.analyzePositionMultiPV(fen, depth, numLines, onUpdate)
   }
 
-  return { isReady, engineStatus, runAnalysis, analyzePositionLines }
+  function stopPositionAnalysis() {
+    engineRef.current?.stopPositionAnalysis()
+  }
+
+  return { isReady, engineStatus, runAnalysis, analyzePositionLines, stopPositionAnalysis }
 }

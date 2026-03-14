@@ -23,6 +23,7 @@ export interface TopLine {
   mateIn: number | null
   pv: string[]        // UCI moves e.g. ["e2e4", "e7e5", ...]
   san: string         // SAN of the first move for display
+  depth: number       // analysis depth at which this line was produced
 }
 
 interface QueueItem {
@@ -31,6 +32,7 @@ interface QueueItem {
   resolve: (result: EvalResult) => void
   multiPV?: number
   multiPvResolve?: (lines: TopLine[]) => void
+  multiPvOnUpdate?: (lines: TopLine[], depth: number) => void
 }
 
 export class StockfishEngine {
@@ -50,6 +52,8 @@ export class StockfishEngine {
   // Multi-PV state
   private currentIsMultiPV = false
   private currentMultiPvResolve: ((lines: TopLine[]) => void) | null = null
+  private currentMultiPvOnUpdate: ((lines: TopLine[], depth: number) => void) | null = null
+  private lastEmittedMultiPvDepth = 0
   private latestMultiPvLines: Map<number, TopLine> = new Map()
   private currentSideToMove: 'w' | 'b' = 'w'
 
@@ -112,11 +116,13 @@ export class StockfishEngine {
         if (!multiPvMatch) return
         const rank = parseInt(multiPvMatch[1], 10)
 
+        const depthMatch = line.match(/\bdepth (\d+)/)
         const cpMatch = line.match(/\bscore cp (-?\d+)/)
         const mateMatch = line.match(/\bscore mate (-?\d+)/)
         const pvMatch = line.match(/ pv (.+)$/)
         if (!pvMatch) return
 
+        const depth = depthMatch ? parseInt(depthMatch[1], 10) : 0
         const pv = pvMatch[1].trim().split(' ')
         let isMate = false
         let mateIn: number | null = null
@@ -139,7 +145,18 @@ export class StockfishEngine {
 
         const san = pv.length > 0 ? this.uciToSan(this.currentFen, pv[0]) : ''
 
-        this.latestMultiPvLines.set(rank, { rank, score, isMate, mateIn: whiteMateIn, pv, san })
+        this.latestMultiPvLines.set(rank, { rank, score, isMate, mateIn: whiteMateIn, pv, san, depth })
+
+        // Emit progressive update whenever rank 1 (the best line) reaches a new depth.
+        // Stockfish doesn't always update all lines at every depth, so requiring
+        // allAtDepth would stall at the shallowest depth where all 3 lines agree.
+        if (rank === 1 && depth > this.lastEmittedMultiPvDepth && this.currentMultiPvOnUpdate) {
+          this.lastEmittedMultiPvDepth = depth
+          this.currentMultiPvOnUpdate(
+            Array.from(this.latestMultiPvLines.values()).sort((a, b) => a.rank - b.rank),
+            depth,
+          )
+        }
       } else {
         // Single-PV parsing (existing logic)
         const depthMatch = line.match(/\bdepth (\d+)/)
@@ -173,6 +190,7 @@ export class StockfishEngine {
 
         const resolve = this.currentMultiPvResolve
         this.currentMultiPvResolve = null
+        this.currentMultiPvOnUpdate = null
         this.currentIsMultiPV = false
         this.latestMultiPvLines = new Map()
         this.busy = false
@@ -220,6 +238,8 @@ export class StockfishEngine {
     if (item.multiPV && item.multiPvResolve) {
       this.currentIsMultiPV = true
       this.currentMultiPvResolve = item.multiPvResolve
+      this.currentMultiPvOnUpdate = item.multiPvOnUpdate ?? null
+      this.lastEmittedMultiPvDepth = 0
       this.latestMultiPvLines = new Map()
       this.worker!.postMessage(`setoption name MultiPV value ${item.multiPV}`)
     } else {
@@ -250,7 +270,12 @@ export class StockfishEngine {
     })
   }
 
-  analyzePositionMultiPV(fen: string, depth = 18, numLines = 3): Promise<TopLine[]> {
+  analyzePositionMultiPV(
+    fen: string,
+    depth = 22,
+    numLines = 3,
+    onUpdate?: (lines: TopLine[], depth: number) => void,
+  ): Promise<TopLine[]> {
     if (!this.worker) return Promise.reject(new Error('Engine not initialized'))
 
     return new Promise((resolve) => {
@@ -260,6 +285,7 @@ export class StockfishEngine {
         resolve: () => {},  // unused for multi-PV
         multiPV: numLines,
         multiPvResolve: resolve,
+        multiPvOnUpdate: onUpdate,
       }
       if (this.busy) {
         this.queue.push(item)
@@ -267,6 +293,27 @@ export class StockfishEngine {
         this.dispatch(item)
       }
     })
+  }
+
+  /** Stop any in-flight multi-PV position analysis and clear queued position analyses.
+   *  Never interrupts full-game single-PV analysis. */
+  stopPositionAnalysis(): void {
+    // Remove only multi-PV items from the queue (leave full-game single-PV items)
+    this.queue = this.queue.filter(item => !item.multiPV)
+    // If currently running a multi-PV analysis, stop it immediately
+    if (this.worker && this.busy && this.currentIsMultiPV) {
+      this.worker.postMessage('stop')
+    }
+  }
+
+  /** Send UCI 'stop' so Stockfish emits bestmove immediately. Clears pending queue.
+   *  Use this when switching games so the abort loop exits fast instead of waiting
+   *  for the current depth-15 analysis to finish (~3-5s per position). */
+  stop(): void {
+    this.queue = []
+    if (this.worker && this.busy) {
+      this.worker.postMessage('stop')
+    }
   }
 
   terminate(): void {
