@@ -2,7 +2,7 @@
 // chessground handles rendering and drag/drop
 // chess.js handles legal move computation
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
 import { Chessground } from 'chessground'
 import type { Api } from 'chessground/api'
 import type { Config } from 'chessground/config'
@@ -18,12 +18,14 @@ export interface ChessBoardProps {
   interactive?: boolean
   onMove?: (from: string, to: string, san: string, fen: string) => void
   shapes?: DrawShape[]
+  lastMove?: [Key, Key]
+  pathKey?: number  // Changes whenever position navigates; ensures FEN sync always fires
 }
 
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
 /** Compute legal move destinations for chessground's movable.dests */
-function getLegalDests(fen: string): Map<Key, Key[]> {
+export function getLegalDests(fen: string): Map<Key, Key[]> {
   const chess = new Chess(fen)
   const dests = new Map<Key, Key[]>()
   chess.moves({ verbose: true }).forEach(m => {
@@ -35,7 +37,7 @@ function getLegalDests(fen: string): Map<Key, Key[]> {
 }
 
 /** Get which color's turn it is from a FEN */
-function getTurnColor(fen: string): 'white' | 'black' {
+export function getTurnColor(fen: string): 'white' | 'black' {
   return fen.split(' ')[1] === 'w' ? 'white' : 'black'
 }
 
@@ -45,15 +47,47 @@ export default function ChessBoard({
   interactive = true,
   onMove,
   shapes = [],
+  lastMove,
+  pathKey = 0,
 }: ChessBoardProps) {
+  // Detect check so chessground can highlight the king's square in red
+  const checkColor = useMemo((): 'white' | 'black' | false => {
+    const chess = new Chess(fen)
+    if (!chess.inCheck()) return false
+    return chess.turn() === 'w' ? 'white' : 'black'
+  }, [fen])
+
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const apiRef = useRef<Api | null>(null)
   const fenRef = useRef(fen)
   const onMoveRef = useRef(onMove)
+  const interactiveRef = useRef(interactive)
+  const prevFenRef = useRef(fen)
+  const prevPathKeyRef = useRef(pathKey)
+  const prevLastMoveRef = useRef(lastMove)
+  const prevOrientationRef = useRef(orientation)
+  const prevCheckColorRef = useRef(checkColor)
+  const prevInteractiveRef = useRef(interactive)
+
+  // Snap board container to nearest multiple of 8 to prevent chessground square misalignment
+  useEffect(() => {
+    const el = wrapperRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      const { width, height } = entries[0].contentRect
+      const size = Math.floor(Math.min(width, height) / 8) * 8
+      el.style.width = `${size}px`
+      el.style.height = `${size}px`
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   // Keep refs current without triggering re-init
   fenRef.current = fen
   onMoveRef.current = onMove
+  interactiveRef.current = interactive
 
   // Initialize chessground once on mount
   useEffect(() => {
@@ -62,6 +96,7 @@ export default function ChessBoard({
     const config: Config = {
       fen,
       orientation,
+      turnColor: getTurnColor(fen),
       movable: {
         color: interactive ? getTurnColor(fen) : undefined,
         free: false,
@@ -72,14 +107,19 @@ export default function ChessBoard({
             const currentFen = fenRef.current
             const chess = new Chess(currentFen)
             const move = chess.move({ from, to, promotion: 'q' })
+
             if (move && onMoveRef.current) {
-              // Lock the board immediately so no second move can fire before
-              // React re-renders and sets the correct movable.color for the next turn.
-              apiRef.current?.set({ movable: { color: undefined } })
               onMoveRef.current(from, to, move.san, chess.fen())
             } else {
-              // Move failed validation — snap the piece back to its origin square.
-              apiRef.current?.set({ fen: currentFen })
+              // Move failed validation — snap back and re-enable the board.
+              apiRef.current?.set({
+                fen: currentFen,
+                turnColor: getTurnColor(currentFen),
+                movable: {
+                  color: interactiveRef.current ? getTurnColor(currentFen) : undefined,
+                  dests: interactiveRef.current ? getLegalDests(currentFen) : undefined,
+                },
+              })
             }
           },
         },
@@ -94,6 +134,8 @@ export default function ChessBoard({
       },
       draggable: {
         enabled: interactive,
+        showGhost: true,
+        distance: 3,
       },
       premovable: {
         enabled: false,
@@ -125,30 +167,61 @@ export default function ChessBoard({
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync FEN and orientation changes after init
+  // Sync FEN, orientation, and last-move highlight after init.
+  // Explicitly passing lastMove on every navigation ensures the highlight
+  // always matches the current position (prevents stale highlight after goBack).
   useEffect(() => {
     fenRef.current = fen
     if (!apiRef.current) return
+
+    const pathKeyChanged = prevPathKeyRef.current !== pathKey
+    const fenChanged = prevFenRef.current !== fen
+    const lastMoveChanged = prevLastMoveRef.current !== lastMove
+    const orientationChanged = prevOrientationRef.current !== orientation
+    const checkColorChanged = prevCheckColorRef.current !== checkColor
+    const interactiveChanged = prevInteractiveRef.current !== interactive
+
+    prevPathKeyRef.current = pathKey
+    prevFenRef.current = fen
+    prevLastMoveRef.current = lastMove
+    prevOrientationRef.current = orientation
+    prevCheckColorRef.current = checkColor
+    prevInteractiveRef.current = interactive
+
+    // Only update the board when something meaningful changes.
+    if (!pathKeyChanged && !fenChanged && !lastMoveChanged && !orientationChanged && !checkColorChanged && !interactiveChanged) {
+      return
+    }
+
+    if (pathKeyChanged || fenChanged) {
+      apiRef.current.cancelMove() // Cancel any ongoing move interaction when navigation changes
+    }
+
     apiRef.current.set({
       fen,
+      lastMove: lastMove ?? [],
       orientation,
+      check: checkColor,
+      turnColor: getTurnColor(fen),
       movable: {
         color: interactive ? getTurnColor(fen) : undefined,
         dests: interactive ? getLegalDests(fen) : undefined,
       },
     })
-  }, [fen, orientation, interactive])
+  }, [fen, lastMove, orientation, interactive, pathKey, checkColor])
 
-  // Sync engine arrow shapes
+  // Sync engine arrow shapes — always re-pass movable so chessground's partial
+  // set() can never accidentally clear movable.dests during an arrows update.
   useEffect(() => {
     if (!apiRef.current) return
     apiRef.current.set({
       drawable: { autoShapes: shapes },
+
     })
   }, [shapes])
 
   return (
-    <div className="chess-board-container">
+    <div ref={wrapperRef} className="chess-board-container" role="region" aria-label="Chess board">
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
     </div>
   )

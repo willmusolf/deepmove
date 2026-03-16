@@ -179,8 +179,13 @@ export function useGameReview() {
   }, [currentPath, tree, rootId, setPath])
 
   const goBack = useCallback(() => {
-    if (currentPath.length > 0) setPath(currentPath.slice(0, -1))
-  }, [currentPath, setPath])
+    setBranchState(prev => {
+      if (prev.currentPath.length === 0) return prev
+      const newPath = prev.currentPath.slice(0, -1)
+      console.log(`[goBack] Removing '${prev.currentPath[prev.currentPath.length - 1]}' from path. New path: ${newPath.join(' → ')}`)
+      return { ...prev, currentPath: newPath }
+    })
+  }, [])
 
   // Main-line-only navigation by index (EvalGraph clicks)
   const goToMove = useCallback((index: number) => {
@@ -205,48 +210,66 @@ export function useGameReview() {
     newFen: string,
   ): string => {
     const parentId = currentPath.length > 0 ? currentPath[currentPath.length - 1] : null
-    const parentNode = parentId ? tree[parentId] : null
 
-    // Re-use if this exact move already exists as a child here
-    if (parentId) {
-      const existing = tree[parentId].childIds.find(
-        cid => tree[cid]?.from === from && tree[cid]?.to === to
-      )
-      if (existing) {
-        setPath([...currentPath, existing])
-        return existing
-      }
+    // Ensure parent exists in tree before proceeding
+    if (parentId && !tree[parentId]) {
+      console.warn(`[addVariationMove] Parent node ${parentId} not in tree. Cannot add branch.`)
+      return ''
     }
 
-    const siblingCount = parentId ? tree[parentId].childIds.length : 0
-    const newId = parentId ? `${parentId}-b${siblingCount}` : `root-b0`
+    // Re-use if this exact move already exists as a child here.
+    // For root branches (parentId=null), search nodes with parentId===null.
+    const existing = parentId
+      ? tree[parentId]?.childIds.find(cid => tree[cid] && tree[cid]?.from === from && tree[cid]?.to === to)
+      : Object.values(tree).find(n => n.parentId === null && n.from === from && n.to === to)?.id
+    if (existing) {
+      console.log(`[addVariationMove] Found existing move: ${existing}, appending to path`)
+      setBranchState(prev => ({ ...prev, currentPath: [...prev.currentPath, existing] }))
+      return existing
+    }
 
-    const color: 'white' | 'black' = parentNode
-      ? (parentNode.color === 'white' ? 'black' : 'white')
-      : 'white'
+    // Derive color and move number from parent node's FEN.
+    const colorFromFen = (fen: string): 'white' | 'black' =>
+      fen.split(' ')[1] === 'w' ? 'white' : 'black'
+    const parentNode = parentId ? tree[parentId] : null
+    const color: 'white' | 'black' = parentNode ? colorFromFen(parentNode.fen) : 'white'
     const moveNumber: number = parentNode
-      ? (parentNode.color === 'white' ? parentNode.moveNumber : parentNode.moveNumber + 1)
+      ? (color === 'white' ? parentNode.moveNumber + 1 : parentNode.moveNumber)
       : 1
+
+    // Compute siblingCount: count only the BRANCH nodes (isMainLine=false) that are already children
+    // Filter out main-line children which don't affect branch ID numbering
+    const siblingCount = parentId
+      ? (tree[parentId]?.childIds.filter(cid => !tree[cid]?.isMainLine).length ?? 0)
+      : Object.values(tree).filter(n => n.parentId === null && !n.isMainLine).length
+    const newId = parentId ? `${parentId}-b${siblingCount}` : `root-b${siblingCount}`
+
+    console.log(`[addVariationMove] parentId=${parentId}, newId=${newId}, from=${from} to=${to}, siblingCount=${siblingCount}, branchChildCount=${parentId ? tree[parentId]?.childIds.filter((cid: string) => !tree[cid]?.isMainLine).length : 'N/A'}`)
 
     const newNode: MoveNode = {
       id: newId, san, from, to, fen: newFen,
       childIds: [], parentId, moveNumber, color, isMainLine: false,
     }
 
-    setBranchState(prev => ({
-      ...prev,
-      nodes: { ...prev.nodes, [newId]: newNode },
-      extraChildren: {
-        ...prev.extraChildren,
-        ...(parentId ? {
-          [parentId]: [...(prev.extraChildren[parentId] ?? []), newId],
-        } : {}),
-      },
-      currentPath: [...currentPath, newId],
-    }))
+    // Use '__root__' sentinel key for branches off the starting position so
+    // the tree stays navigable and MoveList can render them.
+    const extraKey = parentId ?? '__root__'
+
+    setBranchState(prev => {
+      console.log(`[addVariationMove] Setting branch state. extraKey=${extraKey}, currentPath before=${prev.currentPath.join(' → ')}`)
+      return {
+        ...prev,
+        nodes: { ...prev.nodes, [newId]: newNode },
+        extraChildren: {
+          ...prev.extraChildren,
+          [extraKey]: [...(prev.extraChildren[extraKey] ?? []), newId],
+        },
+        currentPath: [...prev.currentPath, newId],
+      }
+    })
 
     return newId
-  }, [currentPath, tree, setPath])
+  }, [currentPath, tree])
 
   // ── Sync grade from full-game analysis back onto main-line tree nodes ───────
   // Called from App after moveEvals arrive; grades are stored on the MoveNode
@@ -284,5 +307,6 @@ export function useGameReview() {
     totalMoves,
     moves,
     syncGrades,
+    rootBranchIds: activeBranch.extraChildren['__root__'] ?? [],
   }
 }

@@ -16,6 +16,7 @@ import NavSidebar from './components/Layout/NavSidebar'
 import type { Page } from './components/Layout/NavSidebar'
 import { useGameReview } from './hooks/useGameReview'
 import { useStockfish } from './hooks/useStockfish'
+import { useSound } from './hooks/useSound'
 import { useGameStore } from './stores/gameStore'
 import type { TopLine } from './engine/stockfish'
 import type { Key } from 'chessground/types'
@@ -42,6 +43,7 @@ export default function App() {
     navigateTo,
     addVariationMove,
     nextMainLineNode,
+    rootBranchIds,
     isLoaded,
     whitePlayer,
     blackPlayer,
@@ -61,10 +63,12 @@ export default function App() {
   const isAnalyzingPosition = useGameStore(s => s.isAnalyzingPosition)
   const setCurrentPositionLines = useGameStore(s => s.setCurrentPositionLines)
   const setAnalyzingPosition = useGameStore(s => s.setAnalyzingPosition)
+  const setAnalyzing = useGameStore(s => s.setAnalyzing)
   const userColor = useGameStore(s => s.userColor)
   const criticalMoments = useGameStore(s => s.criticalMoments)
 
   const { isReady, engineStatus, runAnalysis, analyzePositionLines, stopPositionAnalysis } = useStockfish()
+  const { enabled: soundEnabled, toggle: toggleSound, playMoveSound, playSound } = useSound()
 
   const [showBestLines, setShowBestLines] = useState(false)
   const [currentAnalysisDepth, setCurrentAnalysisDepth] = useState(0)
@@ -75,6 +79,7 @@ export default function App() {
   useEffect(() => {
     if (pgn && isReady) {
       positionCache.current.clear()
+      setAnalyzing(true)  // close race window: position analysis checks this before isAnalyzing propagates
       void runAnalysis(pgn)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -146,14 +151,31 @@ export default function App() {
 
   const displayFen = isLoaded ? currentFen : boardFen
 
+  // Last-move highlight: always reflects the actual last move in currentPath
+  // so chessground never shows a stale highlight after navigating back.
+  const lastMoveNode = currentPath.length > 0 ? moveTree[currentPath[currentPath.length - 1]] : undefined
+  const boardLastMove = lastMoveNode
+    ? [lastMoveNode.from, lastMoveNode.to] as [Key, Key]
+    : undefined
+
   useEffect(() => {
     if (isLoaded) setPanelTab('analysis')
   }, [isLoaded])
 
   // ── Keyboard navigation ────────────────────────────────────────────────────
 
-  const goBackFn = useCallback(() => goBack(), [goBack])
-  const goForwardFn = useCallback(() => goForward(), [goForward])
+  const goBackFn = useCallback(() => {
+    if (currentPath.length > 0) playSound('move')
+    goBack()
+  }, [currentPath, goBack, playSound])
+
+  const goForwardFn = useCallback(() => {
+    const nextId = currentPath.length === 0
+      ? rootId
+      : moveTree[currentPath[currentPath.length - 1]]?.childIds[0]
+    if (nextId) playMoveSound(moveTree[nextId]?.san ?? '')
+    goForward()
+  }, [currentPath, rootId, moveTree, goForward, playMoveSound])
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -187,12 +209,17 @@ export default function App() {
     setPanelTab('load')
   }
 
-  // Board move during game review: advance main line or create branch
+  // Board move during game review: advance main line or create branch.
+  // Guard: don't create root-level variations (currentPath empty = start position).
   function handleBoardMove(from: string, to: string, san: string, newFen: string) {
+    console.log(`[handleBoardMove] from=${from} to=${to}, currentPath=${currentPath.join(' → ')}, nextMainLine=${nextMainLineNode?.san ?? 'null'}`)
+    playMoveSound(san)
     const next = nextMainLineNode
     if (next && next.from === from && next.to === to) {
+      console.log(`[handleBoardMove] Moving forward on main line`)
       goForward()
     } else {
+      console.log(`[handleBoardMove] Creating branch variation`)
       addVariationMove(from, to, san, newFen)
     }
   }
@@ -203,7 +230,21 @@ export default function App() {
     const uci = line.pv[0]
     const chess = new Chess(currentFen)
     const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] ?? 'q' })
-    if (move) addVariationMove(move.from, move.to, move.san, chess.fen())
+    if (move) {
+      playMoveSound(move.san)
+      addVariationMove(move.from, move.to, move.san, chess.fen())
+    }
+  }
+
+  function handleNavigateTo(path: string[]) {
+    const nodeId = path[path.length - 1]
+    if (nodeId && moveTree[nodeId]) playMoveSound(moveTree[nodeId].san)
+    navigateTo(path)
+  }
+
+  function handleGoToMove(index: number) {
+    if (index > 0 && index <= moves.length) playMoveSound(moves[index - 1])
+    goToMove(index)
   }
 
   // ── Eval ───────────────────────────────────────────────────────────────────
@@ -257,9 +298,6 @@ export default function App() {
   // Are we currently in a branch (off the main line)?
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
-  // Suppress unused warning — moves is kept for potential future use
-  void moves
-
   return (
     <div className="app">
       <NavSidebar currentPage={currentPage} onNavigate={setCurrentPage} />
@@ -279,20 +317,6 @@ export default function App() {
                   )}
                 </div>
 
-                {inBranch && (
-                  <div className="variation-banner">
-                    Variation
-                    <button
-                      className="variation-exit-btn"
-                      onClick={() => {
-                        const mainLinePath = currentPath.filter(id => moveTree[id]?.isMainLine)
-                        navigateTo(mainLinePath)
-                      }}
-                    >
-                      ✕ Exit
-                    </button>
-                  </div>
-                )}
 
                 <div className="board-with-eval">
                   {showEvalBar && (
@@ -314,6 +338,8 @@ export default function App() {
                       : (_f, _t, _san, newFen) => setBoardFen(newFen)
                     }
                     shapes={boardShapes}
+                    lastMove={isLoaded ? boardLastMove : undefined}
+                    pathKey={currentPath.length}
                   />
                 </div>
 
@@ -336,7 +362,11 @@ export default function App() {
                         {currentMoveIndex} / {totalMoves}
                       </span>
                       <button className="nav-btn" onClick={goForwardFn}
-                        disabled={currentMoveIndex >= totalMoves && !inBranch}>→</button>
+                        disabled={
+                          currentPath.length === 0
+                            ? !rootId
+                            : !moveTree[currentPath[currentPath.length - 1]]?.childIds[0]
+                        }>→</button>
                     </>
                   )}
                   <button
@@ -356,6 +386,13 @@ export default function App() {
                     title={showEvalBar ? 'Hide eval bar' : 'Show eval bar'}
                   >
                     Eval
+                  </button>
+                  <button
+                    className={`btn btn-secondary${soundEnabled ? '' : ' muted'}`}
+                    onClick={toggleSound}
+                    title={soundEnabled ? 'Mute sounds' : 'Unmute sounds'}
+                  >
+                    {soundEnabled ? 'SFX' : 'Mute'}
                   </button>
                 </div>
               </div>
@@ -445,7 +482,7 @@ export default function App() {
                             moveEvals={moveEvals}
                             totalMoves={totalMoves}
                             currentMoveIndex={currentMoveIndex}
-                            onNavigate={goToMove}
+                            onNavigate={handleGoToMove}
                             criticalMoments={criticalMoments}
                           />
                           <GameReport moveEvals={moveEvals} userColor={userColor} />
@@ -458,8 +495,9 @@ export default function App() {
                         rootId={rootId}
                         currentPath={currentPath}
                         moveGrades={moveGrades}
-                        onNodeClick={navigateTo}
+                        onNodeClick={handleNavigateTo}
                         isAnalyzing={isAnalyzing}
+                        rootBranchIds={rootBranchIds}
                       />
                     </>
                   )}
