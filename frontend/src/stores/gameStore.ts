@@ -7,7 +7,7 @@ import type { CriticalMoment } from '../chess/types'
 interface GameState {
   pgn: string | null
   moveEvals: MoveEval[]
-  currentMoveIndex: number
+  analyzedCount: number     // incremented each move during analysis (for progress bar)
   criticalMoments: CriticalMoment[]
   userElo: number
   userColor: 'white' | 'black' | null  // null = unknown (PGN paste)
@@ -19,7 +19,7 @@ interface GameState {
   // Actions
   setPgn: (pgn: string) => void
   setMoveEvals: (evals: MoveEval[]) => void
-  setCurrentMove: (index: number) => void
+  setAnalyzedCount: (count: number) => void
   setCriticalMoments: (moments: CriticalMoment[]) => void
   setUserElo: (elo: number) => void
   setUserColor: (color: 'white' | 'black' | null) => void
@@ -33,7 +33,7 @@ interface GameState {
 const initialState = {
   pgn: null,
   moveEvals: [],
-  currentMoveIndex: 0,
+  analyzedCount: 0,
   criticalMoments: [],
   userElo: 1200,
   userColor: null as 'white' | 'black' | null,
@@ -47,7 +47,7 @@ export const useGameStore = create<GameState>(set => ({
   ...initialState,
   setPgn: pgn => set({ pgn }),
   setMoveEvals: moveEvals => set({ moveEvals }),
-  setCurrentMove: currentMoveIndex => set({ currentMoveIndex }),
+  setAnalyzedCount: analyzedCount => set({ analyzedCount }),
   setCriticalMoments: criticalMoments => set({ criticalMoments }),
   setUserElo: userElo => set({ userElo }),
   setUserColor: userColor => set({ userColor }),

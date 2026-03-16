@@ -1,14 +1,14 @@
+// MoveList.tsx — Lichess-style pair-per-row move list
+// Each full-move (white + black) appears on one row.
+// Variation blocks are indented divs beneath the pair row they branch from.
+
 import { useEffect, useRef } from 'react'
 import type { MoveGrade } from '../../engine/analysis'
+import type { MoveNode, MoveTree } from '../../chess/types'
+import { getPathToNode } from '../../hooks/useGameReview'
 
-interface MoveListProps {
-  moves: string[]
-  moveGrades: (MoveGrade | undefined)[]  // grade per move (undefined = not yet analyzed)
-  currentMoveIndex: number
-  onMoveClick: (index: number) => void
-}
+// ─── Grade badge ─────────────────────────────────────────────────────────────
 
-// Badge config: label, CSS class
 const GRADE_CONFIG: Record<NonNullable<MoveGrade>, { label: string; cls: string }> = {
   brilliant:  { label: '!!', cls: 'grade-brilliant' },
   best:       { label: '★',  cls: 'grade-best' },
@@ -21,67 +21,173 @@ const GRADE_CONFIG: Record<NonNullable<MoveGrade>, { label: string; cls: string 
 }
 
 function GradeBadge({ grade }: { grade: MoveGrade | undefined }) {
-  if (!grade) return <span className="grade-placeholder" />
+  if (!grade) return null
   const cfg = GRADE_CONFIG[grade]
   return <span className={`move-grade ${cfg.cls}`}>{cfg.label}</span>
 }
 
+// ─── Shared context passed through all renderers ──────────────────────────────
+
+interface RenderCtx {
+  tree: MoveTree
+  currentPath: string[]
+  moveGrades: (MoveGrade | undefined)[]
+  onNodeClick: (path: string[]) => void
+  isAnalyzing: boolean
+}
+
+// ─── Single move token ────────────────────────────────────────────────────────
+
+function MoveToken({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
+  const { currentPath, moveGrades, onNodeClick, isAnalyzing, tree } = ctx
+  const active = currentPath[currentPath.length - 1] === node.id
+  const inPath = currentPath.includes(node.id)
+  const mainIdx = node.isMainLine ? parseInt(node.id.slice(1), 10) : -1
+  const grade = (!isAnalyzing && mainIdx >= 0) ? moveGrades[mainIdx] : undefined
+
+  return (
+    <span className="move-cell">
+      <span
+        className={['move-san', active ? 'move-active' : '', inPath && !active ? 'move-in-path' : ''].filter(Boolean).join(' ')}
+        data-node-id={node.id}
+        onClick={() => onNodeClick(getPathToNode(node.id, tree))}
+      >
+        {node.san}
+      </span>
+      {node.isMainLine && <GradeBadge grade={isAnalyzing ? undefined : grade} />}
+    </span>
+  )
+}
+
+// ─── Pair-based line renderer ─────────────────────────────────────────────────
+// Walks the line collecting moves in pairs (white, black).
+// Renders each pair as one flex row, then appends variation blocks below the row.
+
+function PairLine({ startId, ctx, depth }: { startId: string; ctx: RenderCtx; depth: number }) {
+  const { tree } = ctx
+
+  // Collect nodes along childIds[0]
+  const nodes: MoveNode[] = []
+  let id: string | null = startId
+  while (id !== null) {
+    const node: MoveNode | undefined = tree[id]
+    if (!node) break
+    nodes.push(node)
+    id = node.childIds[0] ?? null
+  }
+  if (nodes.length === 0) return null
+
+  // Group into pairs.
+  // If the line starts with a black move (variation after a white move), emit a
+  // partial row "N… black" first, then continue with white-led pairs.
+  type Pair = { primary: MoveNode; secondary: MoveNode | null }
+  const pairs: Pair[] = []
+  let i = 0
+
+  if (nodes[0].color === 'black') {
+    pairs.push({ primary: nodes[0], secondary: null })
+    i = 1
+  }
+
+  while (i < nodes.length) {
+    const white = nodes[i]
+    const black: MoveNode | null = nodes[i + 1] ?? null
+    pairs.push({ primary: white, secondary: black })
+    i += black ? 2 : 1
+  }
+
+  return (
+    <>
+      {pairs.map(({ primary, secondary }) => {
+        const numLabel = primary.color === 'white'
+          ? `${primary.moveNumber}.`
+          : `${primary.moveNumber}…`
+
+        // Collect all branches: from primary (white or partial-black) + from secondary (black)
+        const branches = [
+          ...primary.childIds.slice(1),
+          ...(secondary ? secondary.childIds.slice(1) : []),
+        ]
+
+        return (
+          <div key={primary.id} className="move-full-row">
+            <div className="move-pair-row">
+              <span className="move-number">{numLabel}</span>
+              <MoveToken node={primary} ctx={ctx} />
+              {secondary && <MoveToken node={secondary} ctx={ctx} />}
+            </div>
+
+            {branches.length > 0 && (
+              <div className="variation-blocks">
+                {branches.map(bid => {
+                  const bn = tree[bid]
+                  if (!bn) return null
+                  return (
+                    <div key={bid} className={`variation-block variation-depth-${Math.min(depth + 1, 3)}`}>
+                      <PairLine startId={bid} ctx={ctx} depth={depth + 1} />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+// ─── Main export ──────────────────────────────────────────────────────────────
+
+interface MoveListProps {
+  tree: MoveTree
+  rootId: string | null
+  currentPath: string[]
+  moveGrades: (MoveGrade | undefined)[]
+  onNodeClick: (path: string[]) => void
+  isAnalyzing?: boolean
+  rootBranchIds?: string[]
+}
+
 export default function MoveList({
-  moves,
+  tree,
+  rootId,
+  currentPath,
   moveGrades,
-  currentMoveIndex,
-  onMoveClick
+  onNodeClick,
+  isAnalyzing = false,
+  rootBranchIds = [],
 }: MoveListProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!containerRef.current) return
-    const el = containerRef.current.querySelector<HTMLElement>(
-      `[data-move-index="${currentMoveIndex}"]`
-    )
+    const activeId = currentPath[currentPath.length - 1]
+    if (!activeId) return
+    const el = containerRef.current.querySelector<HTMLElement>(`[data-node-id="${activeId}"]`)
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-  }, [currentMoveIndex])
+  }, [currentPath])
 
-  const movePairs: Array<[string, string | null]> = []
-  for (let i = 0; i < moves.length; i += 2) {
-    movePairs.push([moves[i], moves[i + 1] ?? null])
-  }
+  if (!rootId) return <div className="move-list" />
+
+  const ctx: RenderCtx = { tree, currentPath, moveGrades, onNodeClick, isAnalyzing }
 
   return (
     <div className="move-list" ref={containerRef}>
-      {movePairs.map(([white, black], pairIndex) => {
-        const moveNumber = pairIndex + 1
-        const whiteIndex = pairIndex * 2 + 1
-        const blackIndex = pairIndex * 2 + 2
-
-        return (
-          <div key={moveNumber} className="move-pair">
-            <span className="move-number">{moveNumber}.</span>
-            <span
-              className={`move-san${currentMoveIndex === whiteIndex ? ' move-active' : ''}`}
-              data-move-index={whiteIndex}
-              onClick={() => onMoveClick(whiteIndex)}
-            >
-              {white}
-            </span>
-            <GradeBadge grade={moveGrades[whiteIndex - 1]} />
-            {black !== null ? (
-              <>
-                <span
-                  className={`move-san${currentMoveIndex === blackIndex ? ' move-active' : ''}`}
-                  data-move-index={blackIndex}
-                  onClick={() => onMoveClick(blackIndex)}
-                >
-                  {black}
-                </span>
-                <GradeBadge grade={moveGrades[blackIndex - 1]} />
-              </>
-            ) : (
-              <span className="move-san move-placeholder" />
-            )}
-          </div>
-        )
-      })}
+      {rootBranchIds.length > 0 && (
+        <div className="variation-blocks">
+          {rootBranchIds.map(bid => {
+            const bn = tree[bid]
+            if (!bn) return null
+            return (
+              <div key={bid} className="variation-block variation-depth-1">
+                <PairLine startId={bid} ctx={ctx} depth={1} />
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <PairLine startId={rootId} ctx={ctx} depth={0} />
     </div>
   )
 }

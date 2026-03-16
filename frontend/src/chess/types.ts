@@ -138,3 +138,25 @@ export interface CriticalMoment {
   features: PositionFeatures
   classification: ClassificationResult | null
 }
+
+// ─── Move tree (variation support) ─────────────────────────────────────────
+
+import type { MoveGrade } from '../engine/analysis'
+
+/** One half-move node in the game tree */
+export interface MoveNode {
+  id: string            // "m0"…"mN" for main line; "m5-b1" style for branches
+  san: string
+  from: string
+  to: string
+  fen: string           // FEN after this move
+  grade?: MoveGrade
+  childIds: string[]    // [0] = main line continuation, [1+] = branch alternatives
+  parentId: string | null
+  moveNumber: number    // chess move number (1-based)
+  color: 'white' | 'black'
+  isMainLine: boolean
+}
+
+/** Flat map of all nodes keyed by id */
+export type MoveTree = Record<string, MoveNode>
