@@ -7,17 +7,22 @@ import { cleanPgn } from '../../chess/pgn'
 interface GameSelectorProps {
   games: ChessComGame[] | LichessGame[]
   username: string
+  platform: 'chesscom' | 'lichess'
   onGameLoaded: () => void
 }
 
 function formatDate(timestamp: number): string {
   const d = new Date(timestamp * 1000)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return `${date} - ${time}`
 }
 
 function formatLichessDate(timestamp: number): string {
   const d = new Date(timestamp)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return `${date} - ${time}`
 }
 
 function formatTimeControl(tc: string): string {
@@ -44,7 +49,7 @@ interface NormalizedGame {
   isWhite: boolean
 }
 
-function normalizeChessCom(game: ChessComGame, username: string): NormalizedGame {
+export function normalizeChessCom(game: ChessComGame, username: string): NormalizedGame {
   const isWhite = game.white.username.toLowerCase() === username.toLowerCase()
   const opponent = isWhite ? game.black : game.white
   const myResult = isWhite ? game.white.result : game.black.result
@@ -65,7 +70,7 @@ function normalizeChessCom(game: ChessComGame, username: string): NormalizedGame
   }
 }
 
-function normalizeLichess(game: LichessGame, username: string): NormalizedGame {
+export function normalizeLichess(game: LichessGame, username: string): NormalizedGame {
   const isWhite = game.players.white.user?.name?.toLowerCase() === username.toLowerCase()
   const opponent = isWhite ? game.players.black : game.players.white
 
@@ -89,9 +94,10 @@ function normalizeLichess(game: LichessGame, username: string): NormalizedGame {
   }
 }
 
-export default function GameSelector({ games, username, onGameLoaded }: GameSelectorProps) {
+export default function GameSelector({ games, username, platform, onGameLoaded }: GameSelectorProps) {
   const setPgn = useGameStore(s => s.setPgn)
   const setUserColor = useGameStore(s => s.setUserColor)
+  const setPlatform = useGameStore(s => s.setPlatform)
   const reset = useGameStore(s => s.reset)
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -106,6 +112,7 @@ export default function GameSelector({ games, username, onGameLoaded }: GameSele
   function handleSelect(rawPgn: string, isWhite: boolean) {
     reset()
     setUserColor(isWhite ? 'white' : 'black')
+    setPlatform(platform)
     setPgn(cleanPgn(rawPgn))
     onGameLoaded()
   }

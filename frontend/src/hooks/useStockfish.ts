@@ -71,7 +71,7 @@ export function useStockfish() {
         // but don't flush the full moveEvals array until analysis completes
         setAnalyzedCount(done)
       }, controller.signal)
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted) { setAnalyzedCount(0); setTotalMovesCount(0); return }
       // Single flush of all results at once — no progressive jitter
       setMoveEvals([...partial])
       const moments = detectCriticalMoments(partial, color, userElo)

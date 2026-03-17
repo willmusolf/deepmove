@@ -14,28 +14,36 @@ interface SideStats {
   counts: Partial<Record<string, number>>
 }
 
-function computeSideStats(allEvals: MoveEval[], side: 'white' | 'black'): SideStats | null {
-  const moves = allEvals.filter(m => m.color === side)
-  if (moves.length === 0) return null
+const SCORE_CAP = 1000
+function capScore(s: number): number {
+  return Math.max(-SCORE_CAP, Math.min(SCORE_CAP, s))
+}
+
+export function computeSideStats(allEvals: MoveEval[], side: 'white' | 'black'): SideStats | null {
+  if (allEvals.length === 0) return null
 
   let totalLoss = 0
-  for (const me of moves) {
-    const idx = allEvals.indexOf(me)
-    const prevScore = idx === 0 ? 0 : allEvals[idx - 1].eval.score
-    const loss = side === 'white'
-      ? (prevScore - me.eval.score)
-      : (me.eval.score - prevScore)
-    totalLoss += Math.max(0, loss)
-  }
-
-  const acpl = totalLoss / moves.length
-  // Lichess-style accuracy formula
-  const accuracy = Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * acpl) - 3.1669))
-
+  let moveCount = 0
   const counts: Partial<Record<string, number>> = {}
-  for (const me of moves) {
+
+  for (let i = 0; i < allEvals.length; i++) {
+    const me = allEvals[i]
+    if (me.color !== side) continue
+    moveCount++
+    const prevScore = capScore(i === 0 ? 0 : allEvals[i - 1].eval.score)
+    const curScore = capScore(me.eval.score)
+    const loss = side === 'white'
+      ? (prevScore - curScore)
+      : (curScore - prevScore)
+    totalLoss += Math.max(0, loss)
     if (me.grade) counts[me.grade] = (counts[me.grade] ?? 0) + 1
   }
+
+  if (moveCount === 0) return null
+
+  const acpl = totalLoss / moveCount
+  // Lichess-style accuracy formula
+  const accuracy = Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * acpl) - 3.1669))
 
   return { acpl: Math.round(acpl), accuracy: Math.round(accuracy), counts }
 }

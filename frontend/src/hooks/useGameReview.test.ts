@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useGameReview } from './useGameReview'
+import { useGameReview, buildTreeFromPgn, getPathToNode } from './useGameReview'
 import { useGameStore } from '../stores/gameStore'
 
 // Simple 4-half-move PGN: m0=e4(white), m1=e5(black), m2=Nf3(white), m3=Nc6(black)
@@ -15,8 +15,8 @@ function setPgn(pgn: string | null) {
   useGameStore.setState({ pgn })
 }
 
-beforeEach(() => setPgn(TEST_PGN))
-afterEach(() => setPgn(null))
+beforeEach(() => { act(() => { setPgn(TEST_PGN) }) })
+afterEach(() => { act(() => { setPgn(null) }) })
 
 // Helper: advance forward N times sequentially
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -138,15 +138,90 @@ describe('useGameReview — game switch', () => {
   it('switching pgn resets currentPath to []', () => {
     const { result } = renderHook(() => useGameReview())
     goForwardN(result, 2)
-    act(() => setPgn('1. d4 d5'))
+    act(() => { setPgn('1. d4 d5') })
     expect(result.current.currentPath).toEqual([])
   })
 
   it('branch nodes from old game do not persist after game switch', () => {
     const { result } = renderHook(() => useGameReview())
     act(() => result.current.addVariationMove('d2', 'd4', 'd4', AFTER_D4))
-    act(() => setPgn('1. d4 d5'))
+    act(() => { setPgn('1. d4 d5') })
     expect(result.current.currentPath).toEqual([])
     expect(result.current.moveTree['root-b0']).toBeUndefined()
+  })
+})
+
+
+// ─── Pure function tests ─────────────────────────────────────────────────────
+
+describe('buildTreeFromPgn', () => {
+  it('returns parseError for invalid PGN', () => {
+    const result = buildTreeFromPgn('not a pgn !!!')
+    expect(result.parseError).toBe('Invalid PGN.')
+    expect(result.rootId).toBeNull()
+  })
+
+  it('returns empty tree with no error for header-only PGN (0 moves)', () => {
+    // chess.js accepts a PGN with only headers and no moves
+    const result = buildTreeFromPgn('[White "Alice"][Black "Bob"] *')
+    expect(result.parseError).toBeNull()
+    expect(result.rootId).toBeNull()
+    expect(Object.keys(result.tree)).toHaveLength(0)
+  })
+
+  it('builds single-node tree for 1-move PGN', () => {
+    const result = buildTreeFromPgn('1. e4')
+    expect(result.parseError).toBeNull()
+    expect(result.rootId).toBe('m0')
+    expect(Object.keys(result.tree)).toHaveLength(1)
+    expect(result.tree['m0'].san).toBe('e4')
+    expect(result.tree['m0'].parentId).toBeNull()
+    expect(result.tree['m0'].childIds).toHaveLength(0)
+  })
+
+  it('links nodes correctly in a 4-move game', () => {
+    const result = buildTreeFromPgn('1. e4 e5 2. Nf3 Nc6')
+    expect(result.rootId).toBe('m0')
+    expect(result.tree['m0'].childIds).toContain('m1')
+    expect(result.tree['m1'].parentId).toBe('m0')
+    expect(result.tree['m2'].parentId).toBe('m1')
+    expect(result.tree['m3'].parentId).toBe('m2')
+    expect(result.tree['m3'].childIds).toHaveLength(0)
+  })
+
+  it('assigns correct color to each node', () => {
+    const result = buildTreeFromPgn('1. e4 e5')
+    expect(result.tree['m0'].color).toBe('white')
+    expect(result.tree['m1'].color).toBe('black')
+  })
+
+  it('marks all main-line nodes as isMainLine=true', () => {
+    const result = buildTreeFromPgn('1. e4 e5 2. Nf3')
+    for (const node of Object.values(result.tree)) {
+      expect(node.isMainLine).toBe(true)
+    }
+  })
+
+  it('parses headers', () => {
+    const result = buildTreeFromPgn('[White "Alice"][Black "Bob"] 1. e4 *')
+    expect(result.headers['White']).toBe('Alice')
+    expect(result.headers['Black']).toBe('Bob')
+  })
+})
+
+describe('getPathToNode', () => {
+  it('returns single-element path for root node', () => {
+    const { tree } = buildTreeFromPgn('1. e4 e5 2. Nf3 Nc6')
+    expect(getPathToNode('m0', tree)).toEqual(['m0'])
+  })
+
+  it('returns full path from root to given node', () => {
+    const { tree } = buildTreeFromPgn('1. e4 e5 2. Nf3 Nc6')
+    expect(getPathToNode('m2', tree)).toEqual(['m0', 'm1', 'm2'])
+  })
+
+  it('returns full path to last node', () => {
+    const { tree } = buildTreeFromPgn('1. e4 e5 2. Nf3 Nc6')
+    expect(getPathToNode('m3', tree)).toEqual(['m0', 'm1', 'm2', 'm3'])
   })
 })
