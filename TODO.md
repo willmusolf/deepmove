@@ -4,7 +4,9 @@
 
 **Launch Target**: Complete product with coaching, accounts, and mobile compatibility.
 
-**Last Session**: Fixed board re-sync bug (pathKey monotonic counter), removed debug logging, fixed test type errors. All 42 tests pass.
+**Last Session**: Audit round 4 — memoized GameReport stats + PlayerInfoBox material calc, fixed PGN nesting bug, debounced EvalGraph ResizeObserver, added Vite chunk splitting, wired userElo from game metadata, stable React keys. All 78 tests pass.
+
+**Audit Rounds Completed**: 4 (branch collision, GameReport O(n²), memoization/dedup, perf round 4)
 
 ---
 
@@ -42,6 +44,7 @@ Add Move Timestamps for when each move happened the clock has the time of when i
 -add something to make it so the user can say thats their username after they search it and we know its them? and they can search other accounts or something for other websites? need to flesh the idea out they still should be able to search and analyze for other accounts
  -give more space to the laod section? or have usernames on top of each other? look at chessigma for inspiration. currnetly the names are getting cut off most of the time. i can include a screenshot if you want
  - a lot of those are unrealted. we can split that up into an updated better formatted todo in this file then split it up among sessions. ask questions to flesh it out and figure it out further
+ - and so eval bar will be in the player / board box
 
 
 ### TRACK A.3: Wire Board Layout (Session: 1-2 hours) — **MVP**
