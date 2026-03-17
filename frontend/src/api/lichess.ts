@@ -37,9 +37,50 @@ export async function getUserGames(username: string, limit = 10): Promise<Liches
     .map(line => JSON.parse(line) as LichessGame)
 }
 
-export async function getGame(gameId: string): Promise<string> {
-  // Returns PGN string
-  const res = await fetch(`${LICHESS_BASE}/game/export/${gameId}`)
-  if (!res.ok) throw new Error(`Lichess API error: ${res.status}`)
-  return res.text()
+export interface LichessPlayer {
+  id: string
+  username: string
+  title?: string
+  createdAt: number
+  seenAt?: number
+  playTime: {
+    total: number
+    tv: number
+  }
+  count: {
+    all: number
+    rated: number
+    ai: number
+    draw: number
+    drawH: number
+    loss: number
+    lossH: number
+    win: number
+    winH: number
+    bookmark: number
+    playing: number
+    import: number
+    me: number
+  }
+  profile?: {
+    country?: string
+    location?: string
+    bio?: string
+    firstName?: string
+    lastName?: string
+    fideRating?: number
+    uscfRating?: number
+    ecfRating?: number
+    links?: string
+  }
+}
+
+export async function getPlayerProfile(username: string): Promise<LichessPlayer | null> {
+  try {
+    const res = await fetch(`${LICHESS_BASE}/user/${username}`)
+    if (!res.ok) return null
+    return await res.json() as LichessPlayer
+  } catch {
+    return null
+  }
 }

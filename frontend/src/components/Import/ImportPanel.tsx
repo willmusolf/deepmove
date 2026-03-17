@@ -9,7 +9,6 @@ interface ImportPanelProps {
 export default function ImportPanel({ onFenLoad }: ImportPanelProps) {
   const [pgnInput, setPgnInput] = useState('')
   const [fenInput, setFenInput] = useState('')
-  const [pgnError, setPgnError] = useState<string | null>(null)
   const [fenError, setFenError] = useState<string | null>(null)
 
   const setPgn = useGameStore(s => s.setPgn)
@@ -18,15 +17,7 @@ export default function ImportPanel({ onFenLoad }: ImportPanelProps) {
 
   function handleLoadPgn() {
     const trimmed = pgnInput.trim()
-    if (!trimmed) { setPgnError('Please paste a PGN to load.'); return }
-    const chess = new Chess()
-    try {
-      chess.loadPgn(trimmed)
-    } catch {
-      setPgnError('Invalid PGN — check the format and try again.')
-      return
-    }
-    setPgnError(null)
+    if (!trimmed) return
     reset()
     setUserColor(null)
     setPgn(trimmed)
@@ -57,7 +48,7 @@ export default function ImportPanel({ onFenLoad }: ImportPanelProps) {
         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleLoadPgn() } }}
         rows={8}
       />
-      {pgnError && <div className="import-error">{pgnError}</div>}
+      
       <button className="btn btn-primary" onClick={handleLoadPgn} disabled={!pgnInput.trim()}>
         Load Game
       </button>

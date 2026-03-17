@@ -3,9 +3,9 @@ import { useState, useMemo, useCallback } from 'react'
 import { Chess } from 'chess.js'
 import { useGameStore } from '../stores/gameStore'
 import { cleanPgn } from '../chess/pgn'
+import { STARTING_FEN } from '../chess/constants'
 import type { MoveNode, MoveTree } from '../chess/types'
 
-const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
 interface ParsedGame {
   tree: MoveTree

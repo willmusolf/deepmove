@@ -4,6 +4,7 @@
 import { Chess } from 'chess.js'
 import { StockfishEngine } from './stockfish'
 import { cleanPgn } from '../chess/pgn'
+import { STARTING_FEN } from '../chess/constants'
 import type { EvalResult } from './stockfish'
 
 export type MoveGrade =
@@ -26,7 +27,6 @@ export interface MoveEval {
   grade: MoveGrade
 }
 
-const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
 
 const PIECE_VALUES: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 }
