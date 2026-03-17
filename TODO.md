@@ -16,11 +16,27 @@
 **Status**: 🔄 IN PROGRESS — PlayerInfoBox.tsx exists but needs major visual + data overhaul
 **Why**: This is what users see first. If the board area doesn't look polished and professional, nothing else matters.
 
-#### 🔴 IMMEDIATE CONCERN: Stockfish load time
-- The 10MB asm.js worker is loaded eagerly on app start, before the user even loads a game.
-- Competitors (Chessigma, Lichess) feel much faster because they defer heavy analysis.
-- **Fix in this session**: lazy-load the worker only when a game is actually imported. Read `useStockfish.ts` and `engine/stockfish.ts` — move `new StockfishEngine()` + `engine.initialize()` out of the mount effect and into the `runAnalysis` call path so the 10MB script doesn't block initial page render.
-- Also profile: is Stockfish depth 15 per move the bottleneck, or is it the sequential move-by-move queue? Could we parallelize or increase depth only for user moves?
+#### 🔴 IMMEDIATE CONCERN: Analysis is too slow — two separate problems
+
+**Problem 1: Sequential depth-18 loop is the main bottleneck**
+- `analysis.ts` runs a sequential `await engine.analyzePosition(fen, depth)` for EVERY move.
+  A 60-move game = 60 sequential depth-18 Stockfish searches. This is why it takes forever.
+- **Fix A — lower depth**: Drop full-game analysis from depth 18 → 12 or 14.
+  Depth 12-14 is more than sufficient to correctly classify blunders/mistakes/inaccuracies
+  for sub-2000 players. The grade thresholds (10/15/50/150/300cp) don't require depth-18 precision.
+  Per-position "Show Lines" stays at depth 22 — that's on-demand and fast.
+- **Fix B — progressive flush**: `moveEvals` are batch-flushed at the end (useStockfish.ts line ~76).
+  Instead, flush every 5 moves so the eval graph and grade badges appear progressively
+  as analysis runs. Analysis FEELS instant even if total time is the same.
+
+**Problem 2: Manual board (before any game loaded) shows no eval**
+- The free-play board currently does nothing — no eval bar movement, no lines.
+- Fix: wire `analyzePositionLines` to run on free-play FEN changes too, using the same
+  positionCache + token pattern already in App.tsx. Raw notes mention this specifically.
+- Eval bar and "Show Lines" should work identically in free-play mode.
+
+**Problem 3 (minor): 10MB worker loads on app mount**
+- StockfishEngine is initialized before any game is loaded. Low priority vs. the above.
 
 #### Board sizing + layout
 - [ ] Make board larger — shift the right panel (analysis/load) boundary left so the board gets ~20% more width
