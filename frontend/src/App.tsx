@@ -76,6 +76,7 @@ export default function App() {
   const [currentAnalysisDepth, setCurrentAnalysisDepth] = useState(0)
   // FEN → TopLine[] cache so revisiting a position never re-analyzes
   const positionCache = useRef<Map<string, TopLine[]>>(new Map())
+  const pathKeyRef = useRef(0)
 
   // Trigger full-game analysis whenever a new game loads and the engine is ready
   useEffect(() => {
@@ -167,10 +168,12 @@ export default function App() {
   // ── Keyboard navigation ────────────────────────────────────────────────────
 
   const goBackFn = useCallback(() => {
+    pathKeyRef.current++
     goBack()
   }, [goBack])
 
   const goForwardFn = useCallback(() => {
+    pathKeyRef.current++
     const nextId = currentPath.length === 0
       ? rootId
       : moveTree[currentPath[currentPath.length - 1]]?.childIds[0]
@@ -213,14 +216,12 @@ export default function App() {
   // Board move during game review: advance main line or create branch.
   // Guard: don't create root-level variations (currentPath empty = start position).
   function handleBoardMove(from: string, to: string, san: string, newFen: string) {
-    console.log(`[handleBoardMove] from=${from} to=${to}, currentPath=${currentPath.join(' → ')}, nextMainLine=${nextMainLineNode?.san ?? 'null'}`)
+    pathKeyRef.current++
     playMoveSound(san)
     const next = nextMainLineNode
-    if (next && next.from === from && next.to === to) {
-      console.log(`[handleBoardMove] Moving forward on main line`)
+    if (next && next.from === from && next.to === to && next.san === san) {
       goForward()
     } else {
-      console.log(`[handleBoardMove] Creating branch variation`)
       addVariationMove(from, to, san, newFen)
     }
   }
@@ -238,12 +239,14 @@ export default function App() {
   }
 
   function handleNavigateTo(path: string[]) {
+    pathKeyRef.current++
     const nodeId = path[path.length - 1]
     if (nodeId && moveTree[nodeId]) playMoveSound(moveTree[nodeId].san)
     navigateTo(path)
   }
 
   function handleGoToMove(index: number) {
+    pathKeyRef.current++
     if (index > 0 && index <= moves.length) playMoveSound(moves[index - 1])
     goToMove(index)
   }
@@ -341,7 +344,7 @@ export default function App() {
                     }
                     shapes={boardShapes}
                     lastMove={isLoaded ? boardLastMove : undefined}
-                    pathKey={currentPath.length}
+                    pathKey={pathKeyRef.current}
                   />
                 </div>
 

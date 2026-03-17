@@ -1,39 +1,14 @@
 # DeepMove Development TODO
 
-**Current Status**: Board logic ~95% functional. **Board freeze bug identified and instrumented with diagnostics.** Coach integration is next major push (prerequisite: confirm board freeze fix works).
+**Current Status**: Board logic ✅ complete. Chess mechanics (branching, navigation, board sync) confirmed correct and tested. Coach integration is the next major push.
 
 **Launch Target**: Complete product with coaching, accounts, and mobile compatibility.
 
-**Last Session**: Added comprehensive logging to debug board freeze on go-back-1-move scenario. Ready to test and collect console output.
+**Last Session**: Fixed board re-sync bug (pathKey monotonic counter), removed debug logging, fixed test type errors. All 42 tests pass.
 
 ---
 
 ## 🔴 CRITICAL PATH (DO THESE FIRST)
-
-### TRACK A.1: Fix Board Freezing Bug (Session: 1-2 hours)
-**Status**: ✅ Diagnostics added, 🔄 NEEDS TESTING
-**Why first**: Breaks user experience on certain games. Must be stable before coaching.
-
-**What was done:**
-- Added null-safety check in `addVariationMove` to warn if parent node missing
-- Added detailed console logging at 3 key points:
-  - `goBack()`: logs path before/after
-  - `addVariationMove()`: logs variable state + tree updates
-  - `handleBoardMove()`: logs whether advancing main line or creating branch
-- Problem identified: off-by-one in move tree when going back 1 move prevents branching
-
-**Next steps:**
-- [ ] Run frontend, open browser console
-- [ ] Load a game, play forward 3+ moves
-- [ ] Go back exactly 1 move
-- [ ] Try to make a different move (branch)
-- [ ] **Screenshot console output** + send back
-- [ ] Logs will show exact failure point
-- [ ] Fix identified issue + test on 5+ complex games
-
--we can look at lichess or chessigma for this logic maybe? they have perfect game review mechanics. analyze them thoroughly for this logic and any other fixes/improvements we will need to implement
--and also we have a ton of logging implemented for this we can remove it its not very helpful, update or change it how you deem best for getting it developed
--do a thorough audit to what we have now and the simplest possible way to implement all this with everything considered. 
 
 ### TRACK A.2: Player Info Boxes (Session: 2-3 hours) — **MVP**
 **Status**: 🔄 BLOCKED on board freeze fix (low priority but blocks layout)
@@ -52,6 +27,22 @@
 - [ ] Extract move timestamp from PGN
 - [ ] Style to match Chessigma (check chessigma.com source for exact colors/layout)
 - [ ] Test responsive (stack on mobile)
+- its done, check what we did, but make it better and make it look much better i have more suggestions:
+-MAJOR PLAYER BOX EVALUTAITON OVERHUAL
+-its asymmetrical ugly and not fleshed out properly with the correct details
+-fix pieces taken not showign up properly
+-fix sides/user/profile pics not loading for the correct side
+-add time and dateand info of when the game was played?somewhere above game transcript or something? small idk where to put it maybe not necessary for an laready loaded game? or we can highlight which game is loaded if they go back into load where the date and stuff already is? in the game list / load section it has that info instead
+-for pieces taken and points advantage and how much time each person had when they made the move this all needs to look better. we want the info in the player box to be better presented tighter overall more connected to the board maybe a box holding the usernames and info and such AND the board? something cleaner and more polished and professional in line with the ui feel free to ask questions
+-we also want to make the board bigger take up more space to the right and make the analsysi/load/coach area samller (move the left side of that load analsyis container to the right) and make the board bigger
+Add Move Timestamps for when each move happened the clock has the time of when it occured
+-also for hte load section:
+-something to think about: chess.com only pulls games from the most recent month. possible workaorund? or way to pull more games?
+-auto laoding chess games for usernmae typed into load for some reason? make user press enter? or no bc usually its only one account
+-add something to make it so the user can say thats their username after they search it and we know its them? and they can search other accounts or something for other websites? need to flesh the idea out they still should be able to search and analyze for other accounts
+ -give more space to the laod section? or have usernames on top of each other? look at chessigma for inspiration. currnetly the names are getting cut off most of the time. i can include a screenshot if you want
+ - a lot of those are unrealted. we can split that up into an updated better formatted todo in this file then split it up among sessions. ask questions to flesh it out and figure it out further
+
 
 ### TRACK A.3: Wire Board Layout (Session: 1-2 hours) — **MVP**
 **Status**: ⏸️ BLOCKED on A.1 + A.2
@@ -218,62 +209,59 @@
 **Total to MVP**: ~14-20 hours from here
 
 
+---
+
+## 📝 RAW NOTES (keep these — source of truth for future tasks)
 
 **random from will**
+- remove go back logging ✅ done
+- stockfish analysis stopping after 25 moves? and no console error? or i guess its continuing but took forever to get from 25 to 27? then stopped again. full game analysis isn't really working or is incredibly slow it seems like or i have to be on the actual screen for a long time before it boots all that up it seems like
+- give standard options for what to promote to when a pawn gets promoted
 - load should be to the left of analysis?
-- loading still extremely slow compared to lichess analysis board / chessigma game review
-- making a bunch of tests next?
+- making a bunch of tests next? ✅ done
+
 - TODO from notes:
- 
-lets do a slight claude.md /memory.md cleanup and improvement? 
-sclaing / pricing plan?
 
+ -if i load in a game then exit out and open up a new game it start automatically assessing each line while stockfish analyzes in the background is that right?
+-i think we want that to happen each time actually i think we implemented so theres no analysis while the report is being made but i think we can make it run for each board position actually i think thats what lichess does?
+-i had this related note too:
+-maybe a toggle analysis mode? so its not automatically loading all this stuff or still always analyzing lines ? like it can calculate best lines (best start at a higher setting probs?) it starts flashing many different lines as its calculating and the eval bounces around im assuming it shouldn't move and change as much? -start stockfish at a deeper setting? im open to suggestions
+-i think we can have it on always and they can toggle it off? doesnt interfere with the report right?
+-basically lichess only analyzes if you are on the position for like .5 sec so if you flip through moves itll wait til you stop to give full analysis / change eval board and suggested moves etc
+-so i think we could have that ? if we can also figure out a way to have the report be faster? so they can jump around the game assessing positions and best moves while the report is loading?
+-we also need to figure out why our program (like the report generation) is much much much slower than competitors. why is that. initial stockfish analysis loading when you load in a game is super slow.
+- loading still extremely slow compared to chessigma game review?
+- when engine loading happens the show lines button appear and disappear for a second? something else to be figured out with the inefficient loading
+- we also need a better graph / report. copy other websites like chessigma
+-close but fix annotations? or maybe we get rid of annotations? need to brainstorm how to do it but needs to improve this somehow
+we need to break each of these up into a few different sessions i want you to help me do that. also open to conversation / critique / analysis / suggestions so help me out here
 
-branching odesnt always happen, double first branch not working, soemtimes chess board is loced can we figure out all reasons why it gets locked i dont like it getting locked
+-branching logic check ✅ done — confirmed correct
 
+-move letters on first row move to the right a little. we want to move the text of the letters (a-h) just a few pixels to the right on each square so its more readable.
 
--add sounds i want thme to be the most satisfying best sounds. and a toggle. look at all the sounds chess.com makes and lichess and we can decide what to add and freom where. chessigma also has good satisfying sounds
--also highlight the king red when its in check 
+lets do a slight claude.md /memory.md cleanup and improvement?
+scaling / pricing plan?
 
--maybe a toggle analysis mode? so its not automatically loading all this stuff or still alawys analzying lines ? like it can calculate best lines (best start at a higher setting probs?) it starts flashing mayn different lines as its calculating and the eval bounces around im assuming it shoulndt move and change as much? -start stockfish at a deeper setting? im open to suggestions
-
-
--our program is much muhc much slower than competitors. why is that. initial stockfish analysis loading when you load in a game is super slow.
-
-
-
-
--better graph / report. copy other websites
--close but fix annotations?
-
-
-
--add time and dateand info of when the game was played?somewhere above game transcript or something? small idk where to put it maybe not necessary for an laready loaded game? or we can highlight which game is loaded if they go back into load where the date and stuff already is?
--add timestamp next to date to games in lichess/ chess.com load area too?
--something to think about: chess.com only pulls games from the most recent month. possible workaorund? or way to pull more games?
--auto laoding chess games for usernmae typed into load for some reason? make user press enter? or no bc usually its only one account
--also add pieces taken and points somewhere and how much time each person had when they made the move
-
-
-
--make board bigger take up more space to the right and make the analsysi/load/coach area samller (move the left side of that load analsyis container to the right) and make the board bigger
--move letters on first row move to the right a little
-
--add something to make it so the user can just say thats their username and we know its them? and they can search other accounts or something? need to flesh the idea out
-
-
-
--also common openings/labeling positions etc
--when you make a move it unlocks the moves section and it starts like a new game  in default?
--bot options or manual option by default with box for elo name timer coach maybe etc
 -something better for default. can go back in moves without a game loaded? and will calculate stockfish eval on the manual board?
--and have no eval by default
-
-
+-auto labels common openings/labeling positions etc or something? in the default game that you can mess with or in your own transcripts and links to lessons?
+-bot options or manual option by default with box for elo name timer coach maybe etc
+-when you make a move it unlocks the moves section and it starts like a new game in default?
+-and have no eval by default? or have game analysis board that you can just mess with and see best moves and lines and evals etc like starts a new manual game or something and can reset the transcript or something
 
 -alt colorways and pieces
 -have similar dropdown next to move arrows as chessigma
 -test FEN string
--import profile pictures
 -clean up docs and repo organization
 -make taking more obvious as a suggested move? slightly
+-search box should suggest recently searched usernames? so you dont have to type it fully out each time
+
+-COACH LOGIC TO IMPLEMENT/DISCUSS?:
+
+Ideas behind openings like Italian
+Opening / middle / endgame tactics
+Drawback mistakes
+Removing the guard
+Opposite colored bishops and bishop coloring
+Passed pawns
+Recommend playing slower
