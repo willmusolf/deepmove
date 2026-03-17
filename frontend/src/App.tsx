@@ -7,6 +7,7 @@ import EvalGraph from './components/Board/EvalGraph'
 import GameReport from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
 import BestLines from './components/Board/BestLines'
+import PlayerInfoBox from './components/Board/PlayerInfoBox'
 import ImportPanel from './components/Import/ImportPanel'
 import AccountLink from './components/Import/AccountLink'
 import GameSelector from './components/Import/GameSelector'
@@ -66,9 +67,10 @@ export default function App() {
   const setAnalyzing = useGameStore(s => s.setAnalyzing)
   const userColor = useGameStore(s => s.userColor)
   const criticalMoments = useGameStore(s => s.criticalMoments)
+  const platform = useGameStore(s => s.platform)
 
   const { isReady, engineStatus, runAnalysis, analyzePositionLines, stopPositionAnalysis } = useStockfish()
-  const { enabled: soundEnabled, toggle: toggleSound, playMoveSound, playSound } = useSound()
+  const { enabled: soundEnabled, toggle: toggleSound, playMoveSound } = useSound()
 
   const [showBestLines, setShowBestLines] = useState(false)
   const [currentAnalysisDepth, setCurrentAnalysisDepth] = useState(0)
@@ -165,9 +167,8 @@ export default function App() {
   // ── Keyboard navigation ────────────────────────────────────────────────────
 
   const goBackFn = useCallback(() => {
-    if (currentPath.length > 0) playSound('move')
     goBack()
-  }, [currentPath, goBack, playSound])
+  }, [goBack])
 
   const goForwardFn = useCallback(() => {
     const nextId = currentPath.length === 0
@@ -307,15 +308,16 @@ export default function App() {
           {currentPage === 'review' && (
             <>
               <div className="board-col">
-                <div className="player-bar">
-                  {isLoaded && (
-                    <>
-                      <span className={`to-move-dot${topIsToMove ? ' active' : ''}`} />
-                      <span className="player-name">{topPlayer.name ?? '—'}</span>
-                      {topPlayer.elo && <span className="player-elo">{topPlayer.elo}</span>}
-                    </>
-                  )}
-                </div>
+                {isLoaded && (
+                  <PlayerInfoBox
+                    username={topPlayer.name}
+                    elo={topPlayer.elo}
+                    isWhite={orientation === 'white' ? false : true}
+                    isToMove={topIsToMove}
+                    currentFen={displayFen}
+                    platform={platform}
+                  />
+                )}
 
 
                 <div className="board-with-eval">
@@ -335,7 +337,7 @@ export default function App() {
                     interactive={true}
                     onMove={isLoaded
                       ? handleBoardMove
-                      : (_f, _t, _san, newFen) => setBoardFen(newFen)
+                      : (_f, _t, san, newFen) => { playMoveSound(san); setBoardFen(newFen) }
                     }
                     shapes={boardShapes}
                     lastMove={isLoaded ? boardLastMove : undefined}
@@ -343,15 +345,16 @@ export default function App() {
                   />
                 </div>
 
-                <div className="player-bar">
-                  {isLoaded && (
-                    <>
-                      <span className={`to-move-dot${!topIsToMove ? ' active' : ''}`} />
-                      <span className="player-name">{bottomPlayer.name ?? '—'}</span>
-                      {bottomPlayer.elo && <span className="player-elo">{bottomPlayer.elo}</span>}
-                    </>
-                  )}
-                </div>
+                {isLoaded && (
+                  <PlayerInfoBox
+                    username={bottomPlayer.name}
+                    elo={bottomPlayer.elo}
+                    isWhite={orientation === 'white' ? true : false}
+                    isToMove={!topIsToMove}
+                    currentFen={displayFen}
+                    platform={platform}
+                  />
+                )}
 
                 <div className="board-controls">
                   {isLoaded && (
@@ -532,6 +535,7 @@ export default function App() {
                             <GameSelector
                               games={chesscomGames}
                               username={chesscomUsername}
+                              platform="chesscom"
                               onGameLoaded={() => setPanelTab('analysis')}
                             />
                           )}
@@ -551,6 +555,7 @@ export default function App() {
                             <GameSelector
                               games={lichessGames}
                               username={lichessUsername}
+                              platform="lichess"
                               onGameLoaded={() => setPanelTab('analysis')}
                             />
                           )}

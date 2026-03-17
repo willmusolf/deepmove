@@ -1,16 +1,28 @@
 // useSound.ts — Chess sound effects hook
-// Plays Lichess standard sounds on move events. Preference persisted in localStorage.
+// Uses Chess.com's default sound set. Preference persisted in localStorage.
 
 import { useRef, useState, useCallback } from 'react'
 
-type SoundEvent = 'move' | 'capture' | 'castle' | 'check'
+type SoundEvent = 'move' | 'capture' | 'castle' | 'check' | 'mate' | 'promote'
 
 /** Classify a SAN string into the appropriate sound event */
 export function classifySan(san: string): SoundEvent {
-  if (san.endsWith('#') || san.endsWith('+')) return 'check'
+  if (san.endsWith('#')) return 'mate'
+  if (san.endsWith('+')) return 'check'
   if (san.startsWith('O-O')) return 'castle'
+  // Promotion: SAN contains '=' (e.g. e8=Q, exd8=Q+)
+  if (san.includes('=')) return 'promote'
   if (san.includes('x')) return 'capture'
   return 'move'
+}
+
+const SOUND_PATHS: Record<SoundEvent, string> = {
+  move:    '/sounds/move-self.mp3',
+  capture: '/sounds/capture.mp3',
+  castle:  '/sounds/castle.mp3',
+  check:   '/sounds/move-check.mp3',
+  mate:    '/sounds/game-end.mp3',
+  promote: '/sounds/promote.mp3',
 }
 
 export function useSound() {
@@ -18,43 +30,25 @@ export function useSound() {
     localStorage.getItem('soundEnabled') !== 'false'
   )
 
-  // Lazily initialized Audio objects — created on first play to avoid
-  // browser autoplay restrictions before any user interaction.
-  const audiosRef = useRef<Record<SoundEvent, HTMLAudioElement> | null>(null)
+  // One preloaded Audio element per event, lazily created on first play
+  const audioRefs = useRef<Partial<Record<SoundEvent, HTMLAudioElement>>>({})
 
-  function getAudios(): Record<SoundEvent, HTMLAudioElement> {
-    if (!audiosRef.current) {
-      audiosRef.current = {
-        move:    new Audio('/sounds/Move.mp3'),
-        capture: new Audio('/sounds/Capture.mp3'),
-        castle:  new Audio('/sounds/Castle.mp3'),
-        check:   new Audio('/sounds/Check.mp3'),
-      }
-      // Preload
-      for (const audio of Object.values(audiosRef.current)) {
-        audio.preload = 'auto'
-        audio.load()
-      }
+  function getAudio(event: SoundEvent): HTMLAudioElement {
+    if (!audioRefs.current[event]) {
+      const audio = new Audio(SOUND_PATHS[event])
+      audio.preload = 'auto'
+      audio.load()
+      audioRefs.current[event] = audio
     }
-    return audiosRef.current
+    return audioRefs.current[event]!
   }
 
-  /** Play the appropriate sound for a SAN string (move, capture, castle, check) */
+  /** Play the appropriate sound for a SAN string */
   const playMoveSound = useCallback((san: string) => {
     if (!san) return
-    const enabledNow = localStorage.getItem('soundEnabled') !== 'false'
-    if (!enabledNow) return
+    if (localStorage.getItem('soundEnabled') === 'false') return
     const event = classifySan(san)
-    const audio = getAudios()[event]
-    audio.currentTime = 0
-    audio.play().catch(() => {})
-  }, [])
-
-  /** Play a specific sound event directly */
-  const playSound = useCallback((event: SoundEvent) => {
-    const enabledNow = localStorage.getItem('soundEnabled') !== 'false'
-    if (!enabledNow) return
-    const audio = getAudios()[event]
+    const audio = getAudio(event)
     audio.currentTime = 0
     audio.play().catch(() => {})
   }, [])
@@ -67,5 +61,5 @@ export function useSound() {
     })
   }, [])
 
-  return { enabled, toggle, playMoveSound, playSound }
+  return { enabled, toggle, playMoveSound }
 }
