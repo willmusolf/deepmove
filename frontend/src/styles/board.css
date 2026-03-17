@@ -9,8 +9,8 @@
 cg-board square.check {
   background: radial-gradient(
     ellipse at center,
-    rgba(255, 0, 0, 0.5) 0%,
-    rgba(200, 0, 0, 0.35) 30%,
+    rgba(255, 0, 0, 0.72) 0%,
+    rgba(200, 0, 0, 0.50) 30%,
     rgba(140, 0, 0, 0) 80%
   ) !important;
 }
