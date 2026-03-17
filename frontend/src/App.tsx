@@ -214,7 +214,6 @@ export default function App() {
   }
 
   // Board move during game review: advance main line or create branch.
-  // Guard: don't create root-level variations (currentPath empty = start position).
   function handleBoardMove(from: string, to: string, san: string, newFen: string) {
     pathKeyRef.current++
     playMoveSound(san)
@@ -222,7 +221,6 @@ export default function App() {
     if (next && next.from === from && next.to === to && next.san === san) {
       goForward()
     } else {
-      if (currentPath.length === 0) return
       addVariationMove(from, to, san, newFen)
     }
   }
