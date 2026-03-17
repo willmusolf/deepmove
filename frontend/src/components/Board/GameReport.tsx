@@ -1,6 +1,7 @@
 // GameReport.tsx — Compact per-player stats strip shown below the eval graph.
 // Shows accuracy %, ACPL, and move grade breakdown for both sides.
 
+import { useMemo } from 'react'
 import type { MoveEval } from '../../engine/analysis'
 
 interface GameReportProps {
@@ -104,8 +105,8 @@ function SidePanel({ label, stats, isUser }: SidePanelProps) {
 }
 
 export default function GameReport({ moveEvals, userColor }: GameReportProps) {
-  const white = computeSideStats(moveEvals, 'white')
-  const black = computeSideStats(moveEvals, 'black')
+  const white = useMemo(() => computeSideStats(moveEvals, 'white'), [moveEvals])
+  const black = useMemo(() => computeSideStats(moveEvals, 'black'), [moveEvals])
   if (!white || !black) return null
 
   return (

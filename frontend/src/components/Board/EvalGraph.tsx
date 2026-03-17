@@ -80,12 +80,16 @@ export default function EvalGraph({
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
+    let rafId = 0
     const ro = new ResizeObserver(entries => {
-      const w = entries[0].contentRect.width
-      if (w > 0) setSvgWidth(w)
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        const w = entries[0].contentRect.width
+        if (w > 0) setSvgWidth(w)
+      })
     })
     ro.observe(el)
-    return () => ro.disconnect()
+    return () => { ro.disconnect(); cancelAnimationFrame(rafId) }
   }, [])
 
   const analyzed = moveEvals.length

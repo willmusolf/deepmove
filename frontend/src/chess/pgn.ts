@@ -12,8 +12,11 @@ export function cleanPgn(pgn: string): string {
   let s = pgn
     .replace(/\{[^}]*\}/gs, '')   // strip {...} comments (clk, c_effect, etc.)
     .replace(/\$\d+/g, '')         // strip $N NAGs (inaccuracy, blunder annotations)
-  // Strip (...) variation groups — apply twice to handle one level of nesting
-  s = s.replace(/\([^()]*\)/g, '')
-  s = s.replace(/\([^()]*\)/g, '')
+  // Strip (...) variation groups — loop until all nesting levels are removed
+  while (s.includes('(')) {
+    const prev = s
+    s = s.replace(/\([^()]*\)/g, '')
+    if (s === prev) break  // safety: no progress (malformed PGN), exit
+  }
   return s.replace(/\s+/g, ' ').trim()
 }

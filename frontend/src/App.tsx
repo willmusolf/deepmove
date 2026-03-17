@@ -313,7 +313,7 @@ export default function App() {
                   <PlayerInfoBox
                     username={topPlayer.name}
                     elo={topPlayer.elo}
-                    isWhite={orientation === 'white' ? false : true}
+                    isWhite={orientation !== 'white'}
                     isToMove={topIsToMove}
                     currentFen={displayFen}
                     platform={platform}
@@ -350,7 +350,7 @@ export default function App() {
                   <PlayerInfoBox
                     username={bottomPlayer.name}
                     elo={bottomPlayer.elo}
-                    isWhite={orientation === 'white' ? true : false}
+                    isWhite={orientation === 'white'}
                     isToMove={!topIsToMove}
                     currentFen={displayFen}
                     platform={platform}
