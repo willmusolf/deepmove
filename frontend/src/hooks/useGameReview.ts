@@ -182,7 +182,6 @@ export function useGameReview() {
     setBranchState(prev => {
       if (prev.currentPath.length === 0) return prev
       const newPath = prev.currentPath.slice(0, -1)
-      console.log(`[goBack] Removing '${prev.currentPath[prev.currentPath.length - 1]}' from path. New path: ${newPath.join(' → ')}`)
       return { ...prev, currentPath: newPath }
     })
   }, [])
@@ -213,7 +212,6 @@ export function useGameReview() {
 
     // Ensure parent exists in tree before proceeding
     if (parentId && !tree[parentId]) {
-      console.warn(`[addVariationMove] Parent node ${parentId} not in tree. Cannot add branch.`)
       return ''
     }
 
@@ -223,7 +221,6 @@ export function useGameReview() {
       ? tree[parentId]?.childIds.find(cid => tree[cid] && tree[cid]?.from === from && tree[cid]?.to === to)
       : Object.values(tree).find(n => n.parentId === null && n.from === from && n.to === to)?.id
     if (existing) {
-      console.log(`[addVariationMove] Found existing move: ${existing}, appending to path`)
       setBranchState(prev => ({ ...prev, currentPath: [...prev.currentPath, existing] }))
       return existing
     }
@@ -244,7 +241,6 @@ export function useGameReview() {
       : Object.values(tree).filter(n => n.parentId === null && !n.isMainLine).length
     const newId = parentId ? `${parentId}-b${siblingCount}` : `root-b${siblingCount}`
 
-    console.log(`[addVariationMove] parentId=${parentId}, newId=${newId}, from=${from} to=${to}, siblingCount=${siblingCount}, branchChildCount=${parentId ? tree[parentId]?.childIds.filter((cid: string) => !tree[cid]?.isMainLine).length : 'N/A'}`)
 
     const newNode: MoveNode = {
       id: newId, san, from, to, fen: newFen,
@@ -256,7 +252,6 @@ export function useGameReview() {
     const extraKey = parentId ?? '__root__'
 
     setBranchState(prev => {
-      console.log(`[addVariationMove] Setting branch state. extraKey=${extraKey}, currentPath before=${prev.currentPath.join(' → ')}`)
       return {
         ...prev,
         nodes: { ...prev.nodes, [newId]: newNode },
