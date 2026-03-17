@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
 import type { ChessComGame } from '../../api/chesscom'
 import type { LichessGame } from '../../api/lichess'
 import { useGameStore } from '../../stores/gameStore'
@@ -11,15 +11,8 @@ interface GameSelectorProps {
   onGameLoaded: () => void
 }
 
-function formatDate(timestamp: number): string {
-  const d = new Date(timestamp * 1000)
-  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  return `${date} - ${time}`
-}
-
-function formatLichessDate(timestamp: number): string {
-  const d = new Date(timestamp)
+function formatTimestamp(ms: number): string {
+  const d = new Date(ms)
   const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
   const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   return `${date} - ${time}`
@@ -65,7 +58,7 @@ export function normalizeChessCom(game: ChessComGame, username: string): Normali
     opponentRating: opponent.rating,
     result,
     timeControl: formatTimeControl(game.time_control),
-    date: formatDate(game.end_time),
+    date: formatTimestamp(game.end_time * 1000),
     isWhite,
   }
 }
@@ -89,7 +82,7 @@ export function normalizeLichess(game: LichessGame, username: string): Normalize
     opponentRating: opponent.rating,
     result,
     timeControl,
-    date: formatLichessDate(game.createdAt),
+    date: formatTimestamp(game.createdAt),
     isWhite,
   }
 }
@@ -105,6 +98,12 @@ export default function GameSelector({ games, username, platform, onGameLoaded }
     if (listRef.current) listRef.current.scrollTop = 0
   }, [games])
 
+  const normalized = useMemo(() => games.map(g =>
+    isChessComGame(g)
+      ? normalizeChessCom(g, username)
+      : normalizeLichess(g as LichessGame, username)
+  ), [games, username])
+
   if (games.length === 0) {
     return <div className="game-list-empty">No games found.</div>
   }
@@ -116,12 +115,6 @@ export default function GameSelector({ games, username, platform, onGameLoaded }
     setPgn(cleanPgn(rawPgn))
     onGameLoaded()
   }
-
-  const normalized = games.map(g =>
-    isChessComGame(g)
-      ? normalizeChessCom(g, username)
-      : normalizeLichess(g as LichessGame, username)
-  )
 
   return (
     <>

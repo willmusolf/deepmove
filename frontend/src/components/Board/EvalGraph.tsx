@@ -2,7 +2,7 @@
 // Uses ResizeObserver to track real container width → viewBox units = pixels → no stretching.
 // Annotation symbols rendered as HTML badges below the graph (Chess.com style).
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import type { MoveEval } from '../../engine/analysis'
 import type { CriticalMoment } from '../../chess/types'
 
@@ -93,63 +93,61 @@ export default function EvalGraph({
 
   if (total === 0) return null
 
-  // Pixel-accurate column width — SVG units now equal real pixels
-  const colWidth = svgWidth / (total + 1)
+  const { colWidth, midY, points, annotations, criticalBands } = useMemo(() => {
+    const cw = svgWidth / (total + 1)
+    const mx = (i: number) => i * cw
+    const my = cpToY(0, HEIGHT)
 
-  function moveX(i: number): number {
-    return i * colWidth
-  }
-
-  const midY = cpToY(0, HEIGHT)
-
-  // Build points: index 0 = start pos (eval 0), 1..n = analyzed moves
-  const points: Point[] = [{ x: moveX(0), y: midY }]
-  for (let i = 0; i < analyzed; i++) {
-    points.push({ x: moveX(i + 1), y: cpToY(moveEvals[i].eval.score, HEIGHT) })
-  }
-
-  // ── Annotations (HTML strip) ─────────────────────────────────────────────
-  const annotations: Annotation[] = []
-  for (let i = 0; i < moveEvals.length; i++) {
-    const me = moveEvals[i]
-    const prevScore = i === 0 ? 0 : moveEvals[i - 1].eval.score
-    const cpGain = me.color === 'white'
-      ? (me.eval.score - prevScore)
-      : (prevScore - me.eval.score)
-
-    let symbol: string | null = null
-    let colorClass = ''
-    let grade = me.grade ?? ''
-
-    if (me.grade === 'blunder') {
-      symbol = '??'; colorClass = 'eval-graph-badge--blunder'
-    } else if (me.grade === 'mistake') {
-      symbol = '?'; colorClass = 'eval-graph-badge--mistake'
-    } else if (me.grade === 'brilliant') {
-      symbol = '!!'; colorClass = 'eval-graph-badge--brilliant'
-    } else if ((me.grade === 'best' || me.grade === 'excellent') && cpGain > 150) {
-      symbol = '!'; colorClass = 'eval-graph-badge--best'
+    const pts: Point[] = [{ x: mx(0), y: my }]
+    for (let i = 0; i < analyzed; i++) {
+      pts.push({ x: mx(i + 1), y: cpToY(moveEvals[i].eval.score, HEIGHT) })
     }
 
-    if (symbol) {
-      annotations.push({
-        moveIndex: i + 1,
-        grade,
-        symbol,
-        colorClass,
-        pctX: Math.max(1, Math.min(99, (moveX(i + 1) / svgWidth) * 100)),
-      })
-    }
-  }
+    const anns: Annotation[] = []
+    for (let i = 0; i < moveEvals.length; i++) {
+      const me = moveEvals[i]
+      const prevScore = i === 0 ? 0 : moveEvals[i - 1].eval.score
+      const cpGain = me.color === 'white'
+        ? (me.eval.score - prevScore)
+        : (prevScore - me.eval.score)
 
-  // ── Critical moment bands ────────────────────────────────────────────────
-  const criticalBands: number[] = []
-  for (const cm of criticalMoments) {
-    const idx = moveEvals.findIndex(
-      me => me.moveNumber === cm.moveNumber && me.color === cm.color
-    )
-    if (idx !== -1) criticalBands.push(idx + 1)
-  }
+      let symbol: string | null = null
+      let colorClass = ''
+      const grade = me.grade ?? ''
+
+      if (me.grade === 'blunder') {
+        symbol = '??'; colorClass = 'eval-graph-badge--blunder'
+      } else if (me.grade === 'mistake') {
+        symbol = '?'; colorClass = 'eval-graph-badge--mistake'
+      } else if (me.grade === 'brilliant') {
+        symbol = '!!'; colorClass = 'eval-graph-badge--brilliant'
+      } else if ((me.grade === 'best' || me.grade === 'excellent') && cpGain > 150) {
+        symbol = '!'; colorClass = 'eval-graph-badge--best'
+      }
+
+      if (symbol) {
+        anns.push({
+          moveIndex: i + 1,
+          grade,
+          symbol,
+          colorClass,
+          pctX: Math.max(1, Math.min(99, (mx(i + 1) / svgWidth) * 100)),
+        })
+      }
+    }
+
+    const bands: number[] = []
+    for (const cm of criticalMoments) {
+      const idx = moveEvals.findIndex(
+        me => me.moveNumber === cm.moveNumber && me.color === cm.color
+      )
+      if (idx !== -1) bands.push(idx + 1)
+    }
+
+    return { colWidth: cw, midY: my, points: pts, annotations: anns, criticalBands: bands }
+  }, [moveEvals, svgWidth, total, analyzed, criticalMoments])
+
+  const moveX = (i: number) => i * colWidth
 
   // ── Cursor ───────────────────────────────────────────────────────────────
   const cursorX = currentMoveIndex <= analyzed ? moveX(currentMoveIndex) : null

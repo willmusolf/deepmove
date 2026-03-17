@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Chess } from 'chess.js'
 import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
@@ -21,9 +21,9 @@ import { useSound } from './hooks/useSound'
 import { useGameStore } from './stores/gameStore'
 import type { TopLine } from './engine/stockfish'
 import type { Key } from 'chessground/types'
+import { STARTING_FEN } from './chess/constants'
 import './styles/board.css'
 
-const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 // Lichess-style thickness brushes — all green, varying weight
 const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
 
@@ -271,7 +271,8 @@ export default function App() {
   // Show 1-3 lines based on how close alternatives are to the best move.
   // If the 2nd line is within 200cp it's genuinely playable — show it.
   // If the 3rd line is within 100cp of the best it's worth showing too.
-  function getVisibleLines(lines: TopLine[]): TopLine[] {
+  const visibleLines = useMemo(() => {
+    const lines = currentPositionLines
     if (lines.length === 0) return []
     const best = lines[0].score
     return lines.filter((line, i) => {
@@ -281,21 +282,19 @@ export default function App() {
       if (i === 2) return gap <= 100
       return false
     })
-  }
+  }, [currentPositionLines])
 
-  const visibleLines = getVisibleLines(currentPositionLines)
-
-  const boardShapes: DrawShape[] = visibleLines
+  const boardShapes: DrawShape[] = useMemo(() => visibleLines
     .filter(l => l.pv.length >= 1)
     .map((line, i) => ({
       orig: line.pv[0].slice(0, 2) as Key,
       dest: line.pv[0].slice(2, 4) as Key,
       brush: LINE_BRUSHES[i] ?? 'okMove',
-    }))
+    })), [visibleLines])
 
   // ── Misc ───────────────────────────────────────────────────────────────────
 
-  const moveGrades = moveEvals.map(me => me.grade)
+  const moveGrades = useMemo(() => moveEvals.map(me => me.grade), [moveEvals])
   const showAnalyzingBar = isAnalyzing || (analyzedCount < totalMovesCount && totalMovesCount > 0)
 
   // Are we currently in a branch (off the main line)?

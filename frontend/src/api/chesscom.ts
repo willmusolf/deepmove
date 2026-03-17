@@ -37,11 +37,37 @@ export async function getPlayerArchives(username: string): Promise<string[]> {
 export async function getRecentGames(username: string, limit = 10): Promise<ChessComGame[]> {
   const archives = await getPlayerArchives(username)
   if (archives.length === 0) return []
-  // Fetch the most recent archive (last in list)
-  const latestArchiveUrl = archives[archives.length - 1]
-  const res = await fetch(latestArchiveUrl)
-  if (!res.ok) throw new Error(`Chess.com API error: ${res.status}`)
-  const data = await res.json() as { games: ChessComGame[] }
-  // Return most recent games first
-  return data.games.slice(-limit).reverse()
+
+  // Try the most recent archive first; fall back to the previous month if it's empty
+  // (e.g. early in the month the current archive may have no games yet)
+  for (let i = archives.length - 1; i >= Math.max(0, archives.length - 2); i--) {
+    const res = await fetch(archives[i])
+    if (!res.ok) throw new Error(`Chess.com API error: ${res.status}`)
+    const data = await res.json() as { games: ChessComGame[] }
+    if (data.games.length > 0) {
+      return data.games.slice(-limit).reverse()
+    }
+  }
+
+  return []
+}
+
+export interface ChessComPlayer {
+  username: string
+  avatar?: string
+  country?: string
+  status: string
+  is_online: boolean
+  joined: number
+  last_online: number
+}
+
+export async function getPlayerProfile(username: string): Promise<ChessComPlayer | null> {
+  try {
+    const res = await fetch(`${CHESSCOM_BASE}/player/${username}`)
+    if (!res.ok) return null
+    return await res.json() as ChessComPlayer
+  } catch {
+    return null
+  }
 }

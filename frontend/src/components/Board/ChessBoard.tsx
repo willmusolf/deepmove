@@ -9,6 +9,7 @@ import type { Config } from 'chessground/config'
 import type { Key } from 'chessground/types'
 import type { DrawShape } from 'chessground/draw'
 import { Chess } from 'chess.js'
+import { STARTING_FEN } from '../../chess/constants'
 
 export type { DrawShape }
 
@@ -22,7 +23,6 @@ export interface ChessBoardProps {
   pathKey?: number  // Changes whenever position navigates; ensures FEN sync always fires
 }
 
-const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
 /** Compute legal move destinations for chessground's movable.dests */
 export function getLegalDests(fen: string): Map<Key, Key[]> {
@@ -74,12 +74,7 @@ export default function ChessBoard({
   const fenRef = useRef(fen)
   const onMoveRef = useRef(onMove)
   const interactiveRef = useRef(interactive)
-  const prevFenRef = useRef(fen)
   const prevPathKeyRef = useRef(pathKey)
-  const prevLastMoveRef = useRef(lastMove)
-  const prevOrientationRef = useRef(orientation)
-  const prevCheckColorRef = useRef(checkColor)
-  const prevInteractiveRef = useRef(interactive)
 
   // Snap board container to nearest multiple of 8 to prevent chessground square misalignment
   useEffect(() => {
@@ -186,25 +181,9 @@ export default function ChessBoard({
     if (!apiRef.current) return
 
     const pathKeyChanged = prevPathKeyRef.current !== pathKey
-    const fenChanged = prevFenRef.current !== fen
-    const lastMoveChanged = prevLastMoveRef.current !== lastMove
-    const orientationChanged = prevOrientationRef.current !== orientation
-    const checkColorChanged = prevCheckColorRef.current !== checkColor
-    const interactiveChanged = prevInteractiveRef.current !== interactive
-
     prevPathKeyRef.current = pathKey
-    prevFenRef.current = fen
-    prevLastMoveRef.current = lastMove
-    prevOrientationRef.current = orientation
-    prevCheckColorRef.current = checkColor
-    prevInteractiveRef.current = interactive
 
-    // Only update the board when something meaningful changes.
-    if (!pathKeyChanged && !fenChanged && !lastMoveChanged && !orientationChanged && !checkColorChanged && !interactiveChanged) {
-      return
-    }
-
-    if (pathKeyChanged || fenChanged) {
+    if (pathKeyChanged) {
       apiRef.current.cancelMove() // Cancel any ongoing move interaction when navigation changes
     }
 
