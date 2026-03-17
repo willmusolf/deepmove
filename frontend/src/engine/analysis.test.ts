@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { classifyMove } from './analysis'
+import { classifyMove, isSacrificeFn } from './analysis'
 
 describe('classifyMove', () => {
   it('returns forced when only one legal move', () => {
@@ -65,5 +65,43 @@ describe('classifyMove', () => {
       // black: before=-30000→-1000, after=100. cpLoss = 100-(-1000) = 1100 → blunder
       expect(classifyMove(-30000, 100, 'black', 20)).toBe('blunder')
     })
+  })
+})
+
+
+describe('isSacrificeFn', () => {
+  // Starting position FEN — white to move
+  const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+
+  it('returns false when no net material is given up (pawn captures pawn)', () => {
+    // FEN after 1.e4 d5 2.exd5 — white pawn captured black pawn (even trade)
+    const fen = 'rnbqkbnr/ppp1pppp/8/3P4/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2'
+    const move = { piece: 'p', captured: 'p', to: 'd5' }
+    expect(isSacrificeFn(move, fen)).toBe(false)
+  })
+
+  it('returns false when capturing a more valuable piece (piece gain, not sacrifice)', () => {
+    // Knight captures queen — not a sacrifice
+    const move = { piece: 'n', captured: 'q', to: 'd5' }
+    // netGiven = 3 - 9 = -6 ≤ 0 → false immediately
+    expect(isSacrificeFn(move, START_FEN)).toBe(false)
+  })
+
+  it('returns false when piece is not immediately recapturable by a lesser piece', () => {
+    // Queen moves to d5, black cannot recapture with anything cheaper
+    // Use a position where no recapture is available
+    // FEN: white queen on d5, no black pawn/minor piece can capture it
+    const fen = '4k3/8/8/3Q4/8/8/8/4K3 b - - 0 1'
+    const move = { piece: 'q', captured: undefined, to: 'd5' }
+    expect(isSacrificeFn(move, fen)).toBe(false)
+  })
+
+  it('returns true for a genuine sacrifice (queen sac recapturable by pawn)', () => {
+    // White queen goes to e6, black pawn on d7 can capture it
+    // FEN: white queen just moved to e6, black pawn on d7, black to move
+    // Queen on e6, black pawn on d7 can take it: pawn value(1) < netGiven(9-0=9)
+    const sacrificeFen = '4k3/3p4/4Q3/8/8/8/8/4K3 b - - 0 1'
+    const move2 = { piece: 'q', captured: undefined as string | undefined, to: 'e6' }
+    expect(isSacrificeFn(move2, sacrificeFen)).toBe(true)
   })
 })

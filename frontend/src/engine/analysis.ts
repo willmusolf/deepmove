@@ -33,7 +33,7 @@ const PIECE_VALUES: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 
 
 // A move is a sacrifice if the moved piece can be immediately recaptured by a less-valuable
 // opponent piece (net material loss for the mover). Uses chess.js to check opponent moves.
-function isSacrificeFn(move: { piece: string; captured?: string; to: string }, fen: string): boolean {
+export function isSacrificeFn(move: { piece: string; captured?: string; to: string }, fen: string): boolean {
   const movedValue = PIECE_VALUES[move.piece] ?? 0
   const capturedValue = move.captured ? (PIECE_VALUES[move.captured] ?? 0) : 0
   const netGiven = movedValue - capturedValue

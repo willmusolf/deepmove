@@ -222,6 +222,7 @@ export default function App() {
     if (next && next.from === from && next.to === to && next.san === san) {
       goForward()
     } else {
+      if (currentPath.length === 0) return
       addVariationMove(from, to, san, newFen)
     }
   }

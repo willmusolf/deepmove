@@ -14,7 +14,7 @@ interface ParsedGame {
   headers: Record<string, string>
 }
 
-function buildTreeFromPgn(pgn: string): ParsedGame {
+export function buildTreeFromPgn(pgn: string): ParsedGame {
   const chess = new Chess()
   try {
     chess.loadPgn(cleanPgn(pgn))
@@ -207,12 +207,12 @@ export function useGameReview() {
     to: string,
     san: string,
     newFen: string,
-  ): string => {
+  ): void => {
     const parentId = currentPath.length > 0 ? currentPath[currentPath.length - 1] : null
 
     // Ensure parent exists in tree before proceeding
     if (parentId && !tree[parentId]) {
-      return ''
+      return
     }
 
     // Re-use if this exact move already exists as a child here.
@@ -222,7 +222,7 @@ export function useGameReview() {
       : Object.values(tree).find(n => n.parentId === null && n.from === from && n.to === to)?.id
     if (existing) {
       setBranchState(prev => ({ ...prev, currentPath: [...prev.currentPath, existing] }))
-      return existing
+      return
     }
 
     // Derive color and move number from parent node's FEN.
@@ -256,7 +256,6 @@ export function useGameReview() {
       }
     })
 
-    return ''
   }, [currentPath, tree])
 
   const isLoaded =
