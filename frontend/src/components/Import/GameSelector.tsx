@@ -36,6 +36,7 @@ interface NormalizedGame {
   pgn: string
   opponent: string
   opponentRating: number
+  userRating: number
   result: 'W' | 'L' | 'D'
   timeControl: string
   date: string
@@ -56,6 +57,7 @@ export function normalizeChessCom(game: ChessComGame, username: string): Normali
     pgn: game.pgn,
     opponent: opponent.username,
     opponentRating: opponent.rating,
+    userRating: (isWhite ? game.white : game.black).rating,
     result,
     timeControl: formatTimeControl(game.time_control),
     date: formatTimestamp(game.end_time * 1000),
@@ -76,10 +78,12 @@ export function normalizeLichess(game: LichessGame, username: string): Normalize
   const clock = game.clock
   const timeControl = clock ? `${Math.round(clock.initial / 60)}+${clock.increment}` : game.speed
 
+  const userPlayer = isWhite ? game.players.white : game.players.black
   return {
     pgn: game.pgn,
     opponent: opponent.user?.name ?? '?',
     opponentRating: opponent.rating,
+    userRating: userPlayer.rating,
     result,
     timeControl,
     date: formatTimestamp(game.createdAt),
@@ -90,6 +94,7 @@ export function normalizeLichess(game: LichessGame, username: string): Normalize
 export default function GameSelector({ games, username, platform, onGameLoaded }: GameSelectorProps) {
   const setPgn = useGameStore(s => s.setPgn)
   const setUserColor = useGameStore(s => s.setUserColor)
+  const setUserElo = useGameStore(s => s.setUserElo)
   const setPlatform = useGameStore(s => s.setPlatform)
   const reset = useGameStore(s => s.reset)
   const listRef = useRef<HTMLDivElement>(null)
@@ -108,9 +113,10 @@ export default function GameSelector({ games, username, platform, onGameLoaded }
     return <div className="game-list-empty">No games found.</div>
   }
 
-  function handleSelect(rawPgn: string, isWhite: boolean) {
+  function handleSelect(rawPgn: string, isWhite: boolean, userRating?: number) {
     reset()
     setUserColor(isWhite ? 'white' : 'black')
+    if (userRating && userRating > 0) setUserElo(userRating)
     setPlatform(platform)
     setPgn(cleanPgn(rawPgn))
     onGameLoaded()
@@ -120,11 +126,11 @@ export default function GameSelector({ games, username, platform, onGameLoaded }
     <>
     <div className="game-list-count">{games.length} game{games.length !== 1 ? 's' : ''}</div>
     <div className="game-list" ref={listRef}>
-      {normalized.map((g, i) => (
+      {normalized.map((g) => (
         <button
-          key={i}
+          key={g.opponent + g.date}
           className="game-row"
-          onClick={() => handleSelect(g.pgn, g.isWhite)}
+          onClick={() => handleSelect(g.pgn, g.isWhite, g.userRating)}
         >
           <span className="game-row__players">
             <span className="game-row__color-dot" data-color={g.isWhite ? 'white' : 'black'} />

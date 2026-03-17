@@ -2,7 +2,7 @@
 // Shows: avatar, username, rating, flag, time remaining, pieces captured, material advantage
 // Matches Chessigma/Lichess styling with dark background and clean layout
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getPlayerProfile as getChessComProfile } from '../../api/chesscom'
 import { getPlayerProfile as getLichessProfile } from '../../api/lichess'
 import type { ChessComPlayer } from '../../api/chesscom'
@@ -169,8 +169,8 @@ export default function PlayerInfoBox({
     fetchProfile()
   }, [username, platform])
 
-  const materialBalance = getMaterialBalance(currentFen)
-  const capturedPieces = getCapturedPieces(currentFen)
+  const materialBalance = useMemo(() => getMaterialBalance(currentFen), [currentFen])
+  const capturedPieces = useMemo(() => getCapturedPieces(currentFen), [currentFen])
   const playerCaptured = isWhite ? capturedPieces.black : capturedPieces.white
 
   return (
