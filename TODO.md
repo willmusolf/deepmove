@@ -12,51 +12,50 @@
 
 ## 🔴 CRITICAL PATH (DO THESE FIRST)
 
-### TRACK A.2: Player Info Boxes (Session: 2-3 hours) — **MVP**
-**Status**: 🔄 BLOCKED on board freeze fix (low priority but blocks layout)
-**Why**: Essential visual context. Copy Chessigma exactly.
+### TRACK A.2 + A.3: Board Layout Overhaul + Player Info Polish (Session: 3-5 hours) — **MVP NEXT**
+**Status**: 🔄 IN PROGRESS — PlayerInfoBox.tsx exists but needs major visual + data overhaul
+**Why**: This is what users see first. If the board area doesn't look polished and professional, nothing else matters.
 
-**What we know:**
-- Layout: white player box above board, black box below
-- Display: username, rating (1376), flag, time-at-move, pieces captured, material advantage (+5)
-- Time-at-move comes from PGN move timestamp, not current clock
-- Boxes have dark background, fixed positioning, professional styling
+#### 🔴 IMMEDIATE CONCERN: Stockfish load time
+- The 10MB asm.js worker is loaded eagerly on app start, before the user even loads a game.
+- Competitors (Chessigma, Lichess) feel much faster because they defer heavy analysis.
+- **Fix in this session**: lazy-load the worker only when a game is actually imported. Read `useStockfish.ts` and `engine/stockfish.ts` — move `new StockfishEngine()` + `engine.initialize()` out of the mount effect and into the `runAnalysis` call path so the 10MB script doesn't block initial page render.
+- Also profile: is Stockfish depth 15 per move the bottleneck, or is it the sequential move-by-move queue? Could we parallelize or increase depth only for user moves?
 
-**Todo:**
-- [ ] Create `PlayerInfoBox.tsx` component (reusable for white/black)
-- [ ] Extract PGN headers (White, WhiteElo, Black, BlackElo, etc.)
-- [ ] Compute pieces captured + material difference at current move
-- [ ] Extract move timestamp from PGN
-- [ ] Style to match Chessigma (check chessigma.com source for exact colors/layout)
-- [ ] Test responsive (stack on mobile)
-- its done, check what we did, but make it better and make it look much better i have more suggestions:
--MAJOR PLAYER BOX EVALUTAITON OVERHUAL
--its asymmetrical ugly and not fleshed out properly with the correct details
--fix pieces taken not showign up properly
--fix sides/user/profile pics not loading for the correct side
--add time and dateand info of when the game was played?somewhere above game transcript or something? small idk where to put it maybe not necessary for an laready loaded game? or we can highlight which game is loaded if they go back into load where the date and stuff already is? in the game list / load section it has that info instead
--for pieces taken and points advantage and how much time each person had when they made the move this all needs to look better. we want the info in the player box to be better presented tighter overall more connected to the board maybe a box holding the usernames and info and such AND the board? something cleaner and more polished and professional in line with the ui feel free to ask questions
--we also want to make the board bigger take up more space to the right and make the analsysi/load/coach area samller (move the left side of that load analsyis container to the right) and make the board bigger
-Add Move Timestamps for when each move happened the clock has the time of when it occured
--also for hte load section:
--something to think about: chess.com only pulls games from the most recent month. possible workaorund? or way to pull more games?
--auto laoding chess games for usernmae typed into load for some reason? make user press enter? or no bc usually its only one account
--add something to make it so the user can say thats their username after they search it and we know its them? and they can search other accounts or something for other websites? need to flesh the idea out they still should be able to search and analyze for other accounts
- -give more space to the laod section? or have usernames on top of each other? look at chessigma for inspiration. currnetly the names are getting cut off most of the time. i can include a screenshot if you want
- - a lot of those are unrealted. we can split that up into an updated better formatted todo in this file then split it up among sessions. ask questions to flesh it out and figure it out further
- - and so eval bar will be in the player / board box
+#### Board sizing + layout
+- [ ] Make board larger — shift the right panel (analysis/load) boundary left so the board gets ~20% more width
+- [ ] Eval bar lives INSIDE the board column (already done), confirm it doesn't shrink the board
+- [ ] Board + player boxes should feel like one unified unit, not three separate things
+- [ ] On desktop: board column takes ~60% of viewport, right panel ~40%
+- [ ] Verify no layout shift when analysis panel tab switches
 
+#### Player Info Box — full overhaul
+Current state: exists but asymmetrical, pieces taken not displaying correctly, avatar loading broken for correct side.
 
-### TRACK A.3: Wire Board Layout (Session: 1-2 hours) — **MVP**
-**Status**: ⏸️ BLOCKED on A.1 + A.2
-**Why**: Board needs proper container structure before adding coach panel.
+- [ ] **Pieces taken**: fix the logic — currently broken. Need to compare current FEN piece counts vs. starting counts per color, then show pieces the opponent captured FROM you (not pieces you captured). White player box shows pieces white lost. Black player box shows pieces black lost.
+- [ ] **Material advantage**: show `+N` on the side that's ahead, nothing on the other. Currently shows on wrong side sometimes.
+- [ ] **Avatars**: fix which profile loads for which side. The `isWhite` prop determines which API username to look up — verify this is correct end-to-end.
+- [ ] **Move clock**: extract move timestamps from PGN `[%clk H:MM:SS]` comments (they're in the raw PGN before `cleanPgn` strips them). Parse them during `buildTreeFromPgn` and store on each `MoveNode`. Display the clock time for the current move in the player box. This is the "time at move" feature.
+- [ ] **Visual tightening**: player boxes should feel glued to the board top/bottom edge, not floating. Reduce gap between box and board. Match Chessigma's density and proportions.
+- [ ] **Symmetry**: both boxes must be identical height and width. Top box = opponent (flips with board orientation). Bottom box = user.
+- [ ] **Game info strip**: instead of putting date/time IN the player box, show it as a tiny 1-line strip above the top player box: `Rapid • 10+0 • Mar 15 2025` — small, subtle, informative. Pulled from PGN headers (Event, Date, TimeControl).
 
-**Todo:**
-- [ ] Fix ResponsiveLayout (desktop: board center, player boxes above/below; mobile: full width)
-- [ ] Board stays centered + navigable
-- [ ] Player boxes visible on mobile (maybe smaller text or horizontally scrolling)
-- [ ] Make board bigger (+20% from current)
-- [ ] Verify no weird jumping/shifting
+#### Load section UX
+- [ ] **Chess.com multi-month**: current implementation only pulls the most recent monthly archive. Fix: fetch the last 2-3 monthly archives and merge, capped at 50 games total. The archives endpoint returns a list of available months — iterate backwards.
+- [ ] **Username persistence + identity**: after a user loads games for a username, show a subtle "Playing as [username]" indicator. Store their "own" username in localStorage separately from search history. Let them search any username but mark one as "me".
+- [ ] **Name truncation**: usernames getting cut off — increase width of the username column or truncate with ellipsis + tooltip on hover.
+- [ ] **Loaded game highlight**: when user goes back to Load tab after loading a game, highlight which game is currently loaded in the list.
+
+#### Eval bar
+- [ ] Confirm eval bar is sized correctly relative to the new larger board (should span full board height)
+- [ ] `will-change: transform` on the inner fill element for GPU-composited animation
+
+#### Known raw notes captured here (do not delete):
+- eval bar will be in the player/board box ✅ already done
+- load should be to the left of analysis? → keep as-is for now, revisit after coach panel
+- chess.com only pulls most recent month → fixing in this session
+- auto-loading games on username type → already requires Enter key, confirm still correct
+- names getting cut off in load section → fix truncation
 
 ---
 
