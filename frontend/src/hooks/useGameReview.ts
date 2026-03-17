@@ -4,7 +4,6 @@ import { Chess } from 'chess.js'
 import { useGameStore } from '../stores/gameStore'
 import { cleanPgn } from '../chess/pgn'
 import type { MoveNode, MoveTree } from '../chess/types'
-import type { MoveEval } from '../engine/analysis'
 
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
@@ -74,10 +73,11 @@ interface BranchState {
   nodes: MoveTree                          // user-created branch nodes
   extraChildren: Record<string, string[]>  // parentId → extra child ids beyond base tree
   currentPath: string[]
+  branchCounter: number
 }
 
 const EMPTY_BRANCH: BranchState = {
-  pgnKey: null, nodes: {}, extraChildren: {}, currentPath: [],
+  pgnKey: null, nodes: {}, extraChildren: {}, currentPath: [], branchCounter: 0,
 }
 
 export function useGameReview() {
@@ -95,7 +95,7 @@ export function useGameReview() {
   // Synchronous reset when game changes — React re-renders immediately without flash
   let activeBranch = branchState
   if (branchState.pgnKey !== pgn) {
-    const fresh: BranchState = { pgnKey: pgn, nodes: {}, extraChildren: {}, currentPath: [] }
+    const fresh: BranchState = { pgnKey: pgn, nodes: {}, extraChildren: {}, currentPath: [], branchCounter: 0 }
     setBranchState(fresh)
     activeBranch = fresh
   }
@@ -234,26 +234,19 @@ export function useGameReview() {
       ? (color === 'white' ? parentNode.moveNumber + 1 : parentNode.moveNumber)
       : 1
 
-    // Compute siblingCount: count only the BRANCH nodes (isMainLine=false) that are already children
-    // Filter out main-line children which don't affect branch ID numbering
-    const siblingCount = parentId
-      ? (tree[parentId]?.childIds.filter(cid => !tree[cid]?.isMainLine).length ?? 0)
-      : Object.values(tree).filter(n => n.parentId === null && !n.isMainLine).length
-    const newId = parentId ? `${parentId}-b${siblingCount}` : `root-b${siblingCount}`
-
-
-    const newNode: MoveNode = {
-      id: newId, san, from, to, fen: newFen,
-      childIds: [], parentId, moveNumber, color, isMainLine: false,
-    }
-
-    // Use '__root__' sentinel key for branches off the starting position so
-    // the tree stays navigable and MoveList can render them.
+    // Use a monotonic counter from branchState to generate a unique ID.
+    // This avoids stale-closure issues where siblingCount derived from `tree`
+    // could produce duplicate IDs if two branches are added before a re-render.
     const extraKey = parentId ?? '__root__'
-
     setBranchState(prev => {
+      const newId = parentId ? `${parentId}-b${prev.branchCounter}` : `root-b${prev.branchCounter}`
+      const newNode: MoveNode = {
+        id: newId, san, from, to, fen: newFen,
+        childIds: [], parentId, moveNumber, color, isMainLine: false,
+      }
       return {
         ...prev,
+        branchCounter: prev.branchCounter + 1,
         nodes: { ...prev.nodes, [newId]: newNode },
         extraChildren: {
           ...prev.extraChildren,
@@ -263,19 +256,8 @@ export function useGameReview() {
       }
     })
 
-    return newId
+    return ''
   }, [currentPath, tree])
-
-  // ── Sync grade from full-game analysis back onto main-line tree nodes ───────
-  // Called from App after moveEvals arrive; grades are stored on the MoveNode
-  // so MoveList can read them directly from the tree.
-  const syncGrades = useCallback((_evals: MoveEval[]) => {
-    setBranchState(prev => {
-      if (prev.pgnKey !== pgn) return prev
-      // We don't mutate the base tree; grades are passed as a separate prop to MoveList
-      return prev
-    })
-  }, [pgn])
 
   const isLoaded =
     pgn !== null && baseData.parseError === null && Object.keys(baseData.tree).length > 0
@@ -301,7 +283,6 @@ export function useGameReview() {
     rootId,
     totalMoves,
     moves,
-    syncGrades,
     rootBranchIds: activeBranch.extraChildren['__root__'] ?? [],
   }
 }

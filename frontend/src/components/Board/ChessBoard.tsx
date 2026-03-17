@@ -50,11 +50,22 @@ export default function ChessBoard({
   lastMove,
   pathKey = 0,
 }: ChessBoardProps) {
-  // Detect check so chessground can highlight the king's square in red
-  const checkColor = useMemo((): 'white' | 'black' | false => {
+  // Compute check highlight + legal move destinations + turn color from a single Chess instance
+  const { checkColor, legalDests, turnColor: fenTurnColor } = useMemo(() => {
     const chess = new Chess(fen)
-    if (!chess.inCheck()) return false
-    return chess.turn() === 'w' ? 'white' : 'black'
+    const inCheck = chess.inCheck()
+    const turn = chess.turn()
+    const dests = new Map<Key, Key[]>()
+    chess.moves({ verbose: true }).forEach(m => {
+      const from = m.from as Key
+      if (!dests.has(from)) dests.set(from, [])
+      dests.get(from)!.push(m.to as Key)
+    })
+    return {
+      checkColor: inCheck ? (turn === 'w' ? 'white' : 'black') as 'white' | 'black' | false : false as 'white' | 'black' | false,
+      legalDests: dests,
+      turnColor: turn === 'w' ? 'white' : 'black' as 'white' | 'black',
+    }
   }, [fen])
 
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -202,10 +213,10 @@ export default function ChessBoard({
       lastMove: lastMove ?? [],
       orientation,
       check: checkColor,
-      turnColor: getTurnColor(fen),
+      turnColor: fenTurnColor,
       movable: {
-        color: interactive ? getTurnColor(fen) : undefined,
-        dests: interactive ? getLegalDests(fen) : undefined,
+        color: interactive ? fenTurnColor : undefined,
+        dests: interactive ? legalDests : undefined,
       },
     })
   }, [fen, lastMove, orientation, interactive, pathKey, checkColor])
