@@ -151,6 +151,7 @@ export interface MoveNode {
   to: string
   fen: string           // FEN after this move
   grade?: MoveGrade
+  clockTime?: string  // time remaining for that player after this move, from PGN %clk
   childIds: string[]    // [0] = main line continuation, [1+] = branch alternatives
   parentId: string | null
   moveNumber: number    // chess move number (1-based)

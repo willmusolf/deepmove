@@ -1,5 +1,5 @@
 """users.py — User profile endpoints."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
@@ -96,17 +96,17 @@ async def export_me(
         ],
         "lessons": [
             {
-                "id": l.id,
-                "game_id": l.game_id,
-                "move_number": l.move_number,
-                "color": l.color,
-                "principle_id": l.principle_id,
-                "confidence": l.confidence,
-                "lesson_text": l.lesson_text,
-                "elo_band": l.elo_band,
-                "created_at": l.created_at.isoformat() if l.created_at else None,
+                "id": lesson.id,
+                "game_id": lesson.game_id,
+                "move_number": lesson.move_number,
+                "color": lesson.color,
+                "principle_id": lesson.principle_id,
+                "confidence": lesson.confidence,
+                "lesson_text": lesson.lesson_text,
+                "elo_band": lesson.elo_band,
+                "created_at": lesson.created_at.isoformat() if lesson.created_at else None,
             }
-            for l in lessons
+            for lesson in lessons
         ],
         "principles": [
             {

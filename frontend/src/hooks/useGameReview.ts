@@ -2,7 +2,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { Chess } from 'chess.js'
 import { useGameStore } from '../stores/gameStore'
-import { cleanPgn } from '../chess/pgn'
+import { cleanPgn, extractClockTimes } from '../chess/pgn'
 import { STARTING_FEN } from '../chess/constants'
 import type { MoveNode, MoveTree } from '../chess/types'
 
@@ -14,7 +14,7 @@ interface ParsedGame {
   headers: Record<string, string>
 }
 
-export function buildTreeFromPgn(pgn: string): ParsedGame {
+export function buildTreeFromPgn(pgn: string, rawPgn?: string): ParsedGame {
   const chess = new Chess()
   try {
     chess.loadPgn(cleanPgn(pgn))
@@ -28,6 +28,8 @@ export function buildTreeFromPgn(pgn: string): ParsedGame {
   if (history.length === 0) {
     return { tree: {}, rootId: null, parseError: null, headers }
   }
+
+  const clockTimes = rawPgn ? extractClockTimes(rawPgn) : []
 
   const tree: MoveTree = {}
   let prevId: string | null = null
@@ -47,6 +49,7 @@ export function buildTreeFromPgn(pgn: string): ParsedGame {
       moveNumber,
       color,
       isMainLine: true,
+      clockTime: clockTimes[i],
     }
     tree[id] = node
     if (prevId) tree[prevId].childIds.push(id)
@@ -82,11 +85,12 @@ const EMPTY_BRANCH: BranchState = {
 
 export function useGameReview() {
   const pgn = useGameStore(s => s.pgn)
+  const rawPgn = useGameStore(s => s.rawPgn)
 
   // Base tree rebuilt synchronously whenever pgn changes
   const baseData = useMemo<ParsedGame>(() => {
     if (!pgn) return { tree: {}, rootId: null, parseError: null, headers: {} }
-    return buildTreeFromPgn(pgn)
+    return buildTreeFromPgn(pgn, rawPgn ?? undefined)
   }, [pgn])
 
   // All branch/navigation state in one object keyed by pgnKey
@@ -218,8 +222,8 @@ export function useGameReview() {
     // Re-use if this exact move already exists as a child here.
     // For root branches (parentId=null), search nodes with parentId===null.
     const existing = parentId
-      ? tree[parentId]?.childIds.find(cid => tree[cid] && tree[cid]?.from === from && tree[cid]?.to === to)
-      : Object.values(tree).find(n => n.parentId === null && n.from === from && n.to === to)?.id
+      ? tree[parentId]?.childIds.find(cid => tree[cid] && tree[cid]?.from === from && tree[cid]?.to === to && tree[cid]?.san === san)
+      : Object.values(tree).find(n => n.parentId === null && n.from === from && n.to === to && n.san === san)?.id
     if (existing) {
       setBranchState(prev => ({ ...prev, currentPath: [...prev.currentPath, existing] }))
       return

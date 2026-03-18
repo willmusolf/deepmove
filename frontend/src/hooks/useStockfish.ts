@@ -1,17 +1,23 @@
 // useStockfish.ts — React hook for Stockfish engine lifecycle + game analysis
+//
+// TWO-WORKER ARCHITECTURE:
+//   backgroundEngine  — full-game sequential analysis (depth 14)
+//   interactiveEngine  — per-position multi-PV analysis (depth 22), always available
 
 import { useEffect, useRef, useState } from 'react'
 import { StockfishEngine } from '../engine/stockfish'
 import type { TopLine } from '../engine/stockfish'
 import { analyzeGame } from '../engine/analysis'
-import type { MoveEval } from '../engine/analysis'
+
 import { detectCriticalMoments } from '../engine/criticalMoments'
 import { useGameStore } from '../stores/gameStore'
+import { saveAnalyzedGame } from '../services/gameDB'
 
 export type EngineStatus = 'loading' | 'ready' | 'error'
 
 export function useStockfish() {
-  const engineRef = useRef<StockfishEngine | null>(null)
+  const backgroundRef = useRef<StockfishEngine | null>(null)
+  const interactiveRef = useRef<StockfishEngine | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [engineStatus, setEngineStatus] = useState<EngineStatus>('loading')
@@ -21,15 +27,16 @@ export function useStockfish() {
   const setAnalyzing = useGameStore(s => s.setAnalyzing)
   const setTotalMovesCount = useGameStore(s => s.setTotalMovesCount)
   const setCriticalMoments = useGameStore(s => s.setCriticalMoments)
-  const setCurrentPositionLines = useGameStore(s => s.setCurrentPositionLines)
   const userElo = useGameStore(s => s.userElo)
   const userColor = useGameStore(s => s.userColor)
 
   useEffect(() => {
-    const engine = new StockfishEngine()
-    engineRef.current = engine
+    const bg = new StockfishEngine()
+    const ia = new StockfishEngine()
+    backgroundRef.current = bg
+    interactiveRef.current = ia
 
-    engine.initialize()
+    Promise.all([bg.initialize(), ia.initialize()])
       .then(() => {
         setIsReady(true)
         setEngineStatus('ready')
@@ -40,17 +47,19 @@ export function useStockfish() {
       })
 
     return () => {
-      engine.terminate()
-      engineRef.current = null
+      bg.terminate()
+      ia.terminate()
+      backgroundRef.current = null
+      interactiveRef.current = null
     }
   }, [])
 
   async function runAnalysis(pgn: string) {
-    const engine = engineRef.current
+    const engine = backgroundRef.current
     if (!engine || !isReady) return
 
     abortRef.current?.abort()
-    engineRef.current?.stop()  // interrupt current Stockfish analysis immediately
+    engine.stop()  // interrupt any in-flight background analysis
     const controller = new AbortController()
     abortRef.current = controller
 
@@ -58,24 +67,45 @@ export function useStockfish() {
     setMoveEvals([])
     setAnalyzedCount(0)
     setTotalMovesCount(0)
-    setCurrentPositionLines([])  // clear stale arrows from previous game
 
-    const partial: MoveEval[] = []
     const color = userColor ?? 'white'
 
     try {
-      await analyzeGame(pgn, engine, 15, (done, total, latest) => {
+      const results = await analyzeGame(pgn, engine, 14, (done, total) => {
         if (done === 1) setTotalMovesCount(total)
-        partial.push(latest)
-        // Update the progress counter every move (cheap — just a number)
-        // but don't flush the full moveEvals array until analysis completes
         setAnalyzedCount(done)
       }, controller.signal)
+
       if (controller.signal.aborted) { setAnalyzedCount(0); setTotalMovesCount(0); return }
-      // Single flush of all results at once — no progressive jitter
-      setMoveEvals([...partial])
-      const moments = detectCriticalMoments(partial, color, userElo)
+
+      setMoveEvals(results)
+      const moments = detectCriticalMoments(results, color, userElo)
       setCriticalMoments(moments)
+
+      // Persist to IndexedDB
+      const state = useGameStore.getState()
+      if (state.currentGameId && state.currentGameMeta) {
+        const username = localStorage.getItem(
+          state.platform === 'lichess' ? 'deepmove_lichess_username' : 'deepmove_chesscom_username'
+        ) ?? ''
+        saveAnalyzedGame({
+          id: state.currentGameId,
+          username,
+          platform: (state.platform ?? 'pgn-paste') as 'chesscom' | 'lichess' | 'pgn-paste',
+          rawPgn: state.rawPgn ?? pgn,
+          cleanedPgn: state.pgn ?? pgn,
+          userColor: state.userColor,
+          userElo: state.userElo,
+          moveEvals: results,
+          criticalMoments: moments,
+          analyzedAt: Date.now(),
+          opponent: state.currentGameMeta.opponent,
+          opponentRating: state.currentGameMeta.opponentRating,
+          result: state.currentGameMeta.result,
+          timeControl: state.currentGameMeta.timeControl,
+          endTime: state.currentGameMeta.endTime,
+        }).catch(err => console.error('Failed to save game to IndexedDB:', err))
+      }
     } catch (err) {
       console.error('Analysis failed:', err)
     } finally {
@@ -89,13 +119,13 @@ export function useStockfish() {
     numLines = 3,
     onUpdate?: (lines: TopLine[], depth: number) => void,
   ): Promise<TopLine[]> {
-    const engine = engineRef.current
+    const engine = interactiveRef.current
     if (!engine || !isReady) return []
     return engine.analyzePositionMultiPV(fen, depth, numLines, onUpdate)
   }
 
   function stopPositionAnalysis() {
-    engineRef.current?.stopPositionAnalysis()
+    interactiveRef.current?.stopPositionAnalysis()
   }
 
   return { isReady, engineStatus, runAnalysis, analyzePositionLines, stopPositionAnalysis }
