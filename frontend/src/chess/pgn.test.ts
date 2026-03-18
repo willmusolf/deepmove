@@ -31,4 +31,37 @@ describe('cleanPgn', () => {
     const pgn = '1. e4 { [%clk 0:09:57] } e5'
     expect(cleanPgn(pgn)).toBe('1. e4 e5')
   })
+
+  it('strips NAG annotations', () => {
+    expect(cleanPgn('1. e4 $1 e5 $2')).toBe('1. e4 e5')
+  })
+
+  it('strips simple variation', () => {
+    expect(cleanPgn('1. e4 (1. d4 d5) e5')).toBe('1. e4 e5')
+  })
+
+  it('strips nested variations', () => {
+    expect(cleanPgn('1. e4 (1. d4 (1. c4 e5) d5) e5')).toBe('1. e4 e5')
+  })
+
+  it('strips combined comments, NAGs, and variations', () => {
+    expect(cleanPgn('1. e4 {book} $3 (1. d4) e5 {[%clk 0:09:55]}')).toBe('1. e4 e5')
+  })
+
+  it('returns empty string for empty input', () => {
+    expect(cleanPgn('')).toBe('')
+  })
+
+  it('returns empty string for whitespace-only input', () => {
+    expect(cleanPgn('   ')).toBe('')
+  })
+
+  it('handles malformed PGN with unclosed paren without looping', () => {
+    const result = cleanPgn('1. e4 (1. d4 e5')
+    expect(typeof result).toBe('string')  // just verify it terminates
+  })
+
+  it('strips multiple adjacent comments', () => {
+    expect(cleanPgn('1. e4 {a} {b} {c} e5')).toBe('1. e4 e5')
+  })
 })

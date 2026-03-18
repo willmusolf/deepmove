@@ -24,7 +24,7 @@ interface PlayerInfoBoxProps {
 const PIECE_VALUES: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 }
 const START_COUNTS = { p: 8, n: 2, b: 2, r: 2, q: 1 }
 const PIECE_ORDER = ['q', 'r', 'b', 'n', 'p']
-function getCapturedPieces(fen: string): { white: string[]; black: string[] } {
+export function getCapturedPieces(fen: string): { white: string[]; black: string[] } {
   const board = fen.split(' ')[0]
   const current = { white: { p: 0, n: 0, b: 0, r: 0, q: 0 }, black: { p: 0, n: 0, b: 0, r: 0, q: 0 } }
   for (const ch of board) {
@@ -48,7 +48,7 @@ function getCapturedPieces(fen: string): { white: string[]; black: string[] } {
   return captured
 }
 
-function getMaterialBalance(fen: string): number {
+export function getMaterialBalance(fen: string): number {
   const board = fen.split(' ')[0]
   let w = 0, b = 0
   for (const ch of board) {
@@ -58,7 +58,7 @@ function getMaterialBalance(fen: string): number {
   return w - b
 }
 
-function getCountryFlag(raw?: string): string {
+export function getCountryFlag(raw?: string): string {
   if (!raw) return ''
   let code = raw
   if (raw.includes('/')) {
@@ -74,7 +74,7 @@ function getCountryFlag(raw?: string): string {
 /** Format clock string for display.
  *  Input: "H:MM:SS" or "H:MM:SS.d" from PGN %clk
  *  Rules: strip leading "0:", show decimal only if total ≤ 60s */
-function formatClock(raw: string): string {
+export function formatClock(raw: string): string {
   const parts = raw.split(':')
   if (parts.length < 3) return raw
 
@@ -85,8 +85,8 @@ function formatClock(raw: string): string {
   const totalSecs = h * 3600 + m * 60 + s
 
   if (totalSecs < 60) {
-    // Show decimal: "0:42.3"
-    return `0:${sRaw.padStart(4, '0')}`
+    if (sRaw.includes('.')) return `0:${sRaw.padStart(4, '0')}`
+    return `0:${sRaw.padStart(2, '0')}`
   }
   // No decimal
   const sInt = Math.floor(s)

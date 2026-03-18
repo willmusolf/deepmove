@@ -14,7 +14,7 @@ interface EvalBarProps {
 
 // Convert centipawns to white-side percentage (0–100) for the bar height.
 // Divisor of 150: +300cp (~3 pawns) ≈ 88%, +500cp (~5 pawns) ≈ 96% — feels decisive.
-function cpToWhitePct(cp: number): number {
+export function cpToWhitePct(cp: number): number {
   return 100 / (1 + Math.exp(-cp / 150))
 }
 
