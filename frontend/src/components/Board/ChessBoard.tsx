@@ -172,9 +172,9 @@ export default function ChessBoard({
           red:      { key: 'red',      color: '#882020', opacity: 0.8,  lineWidth: 10 },
           blue:     { key: 'blue',     color: '#003088', opacity: 0.8,  lineWidth: 10 },
           yellow:   { key: 'yellow',   color: '#e68f00', opacity: 0.8,  lineWidth: 10 },
-          bestMove: { key: 'bestMove', color: '#15781B', opacity: 0.85, lineWidth: 12 },
-          goodMove: { key: 'goodMove', color: '#15781B', opacity: 0.55, lineWidth: 7 },
-          okMove:   { key: 'okMove',   color: '#15781B', opacity: 0.35, lineWidth: 4 },
+          bestMove: { key: 'bestMove', color: '#15781B', opacity: 0.95, lineWidth: 12 },
+          goodMove: { key: 'goodMove', color: '#15781B', opacity: 0.70, lineWidth: 7 },
+          okMove:   { key: 'okMove',   color: '#15781B', opacity: 0.50, lineWidth: 4 },
         },
       },
     }
