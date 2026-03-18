@@ -1,7 +1,7 @@
 """lesson.py — SQLAlchemy Lesson model"""
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Integer, Real, Text, func
+from sqlalchemy import BigInteger, CheckConstraint, Float, ForeignKey, Index, Integer, Text, func
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,7 +21,7 @@ class Lesson(Base):
     move_number: Mapped[int] = mapped_column(Integer, nullable=False)
     color: Mapped[str] = mapped_column(Text, nullable=False)
     principle_id: Mapped[str | None] = mapped_column(Text, nullable=True)
-    confidence: Mapped[float] = mapped_column(Real, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
     lesson_text: Mapped[str] = mapped_column(Text, nullable=False)
     elo_band: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
