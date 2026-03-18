@@ -1,3 +1,5 @@
+import UserMenu from '../Auth/UserMenu'
+
 export type Page = 'review' | 'dashboard' | 'settings' | 'about'
 
 interface NavSidebarProps {
@@ -30,6 +32,8 @@ export default function NavSidebar({ currentPage, onNavigate }: NavSidebarProps)
           {item.soon && <span className="nav-soon">Soon</span>}
         </div>
       ))}
+      <div className="nav-spacer" />
+      <UserMenu />
     </nav>
   )
 }
