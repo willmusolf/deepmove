@@ -54,20 +54,21 @@ Log every significant technical decision here. Date, decision, rationale, altern
 
 ---
 
-## Planned Features (not yet implemented)
+## Implemented Features
 
-### ADR-011: Move Annotations — Blunder/Inaccuracy/Good/Great/Brilliant (Planned)
-**Decision:** Classify each move by comparing eval before and after the move (from the perspective of the side that moved). Render an icon/color next to each move in MoveList.
-**Thresholds (centipawns, approximate):**
-- Brilliant (!!) — engine's best move AND a sacrifice or unexpected resource
-- Great (!) — eval maintained, best or near-best move
-- Good — within 0.3 pawns of best
-- Inaccuracy (?!) — 0.3–0.9 pawn swing
-- Mistake (?) — 0.9–2.0 pawn swing
-- Blunder (??) — 2.0+ pawn swing
-**Implementation:** Add `annotation` field to `MoveEval` in `engine/analysis.ts`. Classify during `analyzeGame()`. Render in `components/Board/MoveList.tsx` as colored dot or symbol.
+### ADR-011: Move Annotations — Blunder/Inaccuracy/Good/Great/Brilliant
+**Status:** Implemented (Track A)
+**Decision:** Classify each move by comparing eval before and after the move (from the perspective of the side that moved). Render colored grade badge next to each move in MoveList.
+**Actual thresholds (centipawns):**
+- Best — ≤10cp loss
+- Excellent — ≤30cp loss
+- Good — ≤100cp loss
+- Inaccuracy — ≤200cp loss
+- Mistake — ≤400cp loss
+- Blunder — >400cp loss
+**Implementation:** `classifyMove()` in `engine/analysis.ts`. Grade badges rendered in `components/Board/MoveList.tsx`.
 
-### ADR-012: Best Move Arrows (Planned)
-**Decision:** After analysis, overlay arrow(s) on the board showing the engine's best move for the current position.
-**Implementation:** chessground supports `drawable` shapes via `cg.setAutoShapes([{ orig, dest, brush }])`. After `moveEvals` populate, pass `bestMove` UCI string (e.g. "e2e4") to `ChessBoard.tsx` as a prop. Render on demand (toggle button or always-on after analysis). Use a distinct color (e.g. green for best move, blue for alternative).
-**Reference:** chessground docs — `drawable.autoShapes`.
+### ADR-012: Best Move Arrows + Multi-PV
+**Status:** Implemented (Track A)
+**Decision:** After analysis, overlay arrows on the board showing the engine's top moves for the current position.
+**Implementation:** Multi-PV arrows via chessground `autoShapes` (green=best, paleBlue=2nd, yellow=3rd). BestLines panel above move list — click to enter variation mode (arrow keys step through PV, Esc exits). Position analysis triggered after full-game analysis completes.

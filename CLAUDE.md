@@ -50,7 +50,7 @@ PGN Input
 | Principle Classifier | Rules-based TypeScript | Maps features → principles |
 | Backend | Python + FastAPI | Auth, DB, LLM calls only |
 | Database | PostgreSQL | Users, games, lessons, principles |
-| Cache | Redis | LLM response cache, sessions, rate limits |
+| Cache | In-memory LRU (cachetools) | LLM response cache (no Redis for MVP — see ADR-004) |
 | LLM | Claude API (Haiku + Sonnet) | Haiku: classification. Sonnet: lessons |
 | Auth | Email/password + OAuth | |
 | Payments | Stripe | Premium ($4/mo, may increase) |
@@ -61,13 +61,12 @@ PGN Input
 ```
 deepmove/
 ├── CLAUDE.md
-├── README.md
+├── TODO.md
 ├── docs/
-│   ├── product-spec.md
-│   ├── feature-extraction.md
-│   ├── principle-taxonomy.md
-│   ├── coaching-prompts.md
-│   ├── elo-coaching-guide.md
+│   ├── product-spec.md            # Business/marketing reference, competitive landscape
+│   ├── feature-extraction.md      # Feature extraction engine design spec
+│   ├── principle-taxonomy.md      # All 19 coaching principles with Elo gates
+│   ├── setup.md                   # Developer setup guide
 │   └── decisions.md               # ADRs — log every major decision
 │
 ├── frontend/
@@ -76,35 +75,30 @@ deepmove/
 │   ├── tsconfig.json
 │   ├── index.html
 │   ├── public/
-│   │   └── stockfish/
+│   │   ├── stockfish/             # stockfish.js (asm.js) + worker.js wrapper
+│   │   └── sounds/                # Chess sound files
 │   └── src/
 │       ├── main.tsx
 │       ├── App.tsx
 │       ├── components/
+│       │   ├── Auth/              # AuthModal, UserMenu
 │       │   ├── Board/
 │       │   │   ├── ChessBoard.tsx
 │       │   │   ├── EvalBar.tsx
-│       │   │   └── MoveList.tsx
-│       │   ├── GameReview/
-│       │   │   ├── ReviewPanel.tsx
-│       │   │   ├── MoveAnnotation.tsx
-│       │   │   └── JumpToMistakes.tsx
-│       │   ├── Coach/
+│       │   │   ├── EvalGraph.tsx
+│       │   │   ├── MoveList.tsx
+│       │   │   ├── BestLines.tsx
+│       │   │   └── PlayerInfoBox.tsx
+│       │   ├── Coach/             # (Track C — not yet built)
 │       │   │   ├── CoachPanel.tsx
 │       │   │   ├── LessonCard.tsx
 │       │   │   ├── SocraticPrompt.tsx
 │       │   │   └── GameSummary.tsx
 │       │   ├── Import/
-│       │   │   ├── ImportPanel.tsx
 │       │   │   ├── GameSelector.tsx
 │       │   │   └── AccountLink.tsx
-│       │   ├── Dashboard/
-│       │   │   ├── WeaknessProfile.tsx
-│       │   │   └── PrincipleTracker.tsx
 │       │   └── Layout/
-│       │       ├── Header.tsx
-│       │       ├── Footer.tsx
-│       │       └── ResponsiveLayout.tsx
+│       │       └── NavSidebar.tsx
 │       ├── engine/
 │       │   ├── stockfish.worker.ts  # Stockfish runs in Web Worker — NEVER main thread
 │       │   ├── stockfish.ts         # Web Worker manager / message interface
@@ -123,6 +117,7 @@ deepmove/
 │       │   ├── classifier.ts       # Rules-based: features → principle + confidence score
 │       │   ├── taxonomy.ts         # Principle definitions + Elo mappings
 │       │   ├── eloConfig.ts        # Elo-specific thresholds, priorities, language
+│       │   ├── pgn.ts
 │       │   └── types.ts
 │       ├── api/
 │       │   ├── client.ts
@@ -131,10 +126,17 @@ deepmove/
 │       ├── hooks/
 │       │   ├── useStockfish.ts
 │       │   ├── useGameReview.ts
-│       │   └── useCoaching.ts
+│       │   ├── useCoaching.ts
+│       │   └── useSound.ts
+│       ├── services/
+│       │   ├── gameDB.ts           # IndexedDB persistence (idb package)
+│       │   ├── identity.ts
+│       │   └── syncService.ts
 │       ├── stores/
-│       │   └── gameStore.ts        # Zustand
+│       │   ├── gameStore.ts        # Zustand — game state
+│       │   └── authStore.ts        # Zustand — auth state
 │       └── styles/
+│           └── board.css
 │
 ├── backend/
 │   ├── requirements.txt
@@ -143,6 +145,7 @@ deepmove/
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── config.py
+│   │   ├── database.py
 │   │   ├── dependencies.py
 │   │   ├── models/
 │   │   │   ├── user.py
@@ -176,7 +179,6 @@ deepmove/
 │   ├── validate_features.py
 │   └── seed_principles.py
 │
-├── docker-compose.yml
 ├── .env.example
 ├── .gitignore
 └── Makefile
@@ -215,6 +217,7 @@ Cache key structure: `{principle_id}:{game_phase}:{elo_band}:{position_similarit
 - A lesson cached for a 1200 player must NEVER be served to an 1800 player
 - Same principle + same game phase + same Elo band + similar position = cache hit
 - This will cut LLM API costs by 40-60%
+- **MVP:** In-memory LRU cache (`cachetools.LRUCache`). Resets on server restart — acceptable for now. Upgrade path: swap for Upstash Redis (single service change).
 
 ## Elo-Aware Coaching System
 
@@ -520,13 +523,10 @@ cd backend && python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload               # FastAPI on :8000
 
-# Infrastructure
-docker-compose up -d                         # PostgreSQL :5432, Redis :6379
-
 # Required env vars:
 ANTHROPIC_API_KEY=
-DATABASE_URL=postgresql://...
-REDIS_URL=redis://localhost:6379
+DATABASE_URL=postgresql://...    # Supabase connection string
+SECRET_KEY=                      # any long random string
 ```
 
 ## Key External APIs

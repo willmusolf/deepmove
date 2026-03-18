@@ -106,14 +106,12 @@ See `docs/principle-taxonomy.md` for all coaching principles.
 - **Backend:** Push to GitHub → Railway auto-deploys (connect repo in Railway dashboard)
 - **Database:** Already live on Supabase — use the same DATABASE_URL in production env vars
 
-## Getting Stockfish WASM
+## Getting Stockfish
 
-Stockfish WASM files are NOT committed to the repo (too large). For development:
+Stockfish is handled automatically via npm. The `stockfish` npm package ships `stockfish-18-asm.js` (10MB asm.js fallback). A postinstall script in `frontend/package.json` copies it to `frontend/public/stockfish/stockfish.js` on every `npm install`.
 
-```bash
-# TODO: Add download script
-# For now: download from https://github.com/lichess-org/stockfish.wasm/releases
-# Place stockfish.js and stockfish.wasm in frontend/public/stockfish/
-```
+A thin wrapper at `frontend/public/stockfish/worker.js` calls `importScripts('/stockfish/stockfish.js')` — this is the file the Web Worker loads.
 
-This is only needed when working on Track A (Stockfish integration), not for Track B setup.
+No manual download needed. Just run `npm install` in `frontend/`.
+
+**Note:** The npm `stockfish` package does NOT include `.wasm` binaries — only the asm.js fallback. When ready to optimize for performance, download `stockfish-18.wasm` from the nmrugg GitHub releases and switch to the `stockfish-18.js` loader.
