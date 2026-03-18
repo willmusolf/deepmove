@@ -719,22 +719,19 @@ cg-board {
   border-radius: var(--radius);
 }
 
-.eval-bar-black {
+.eval-bar-segment {
   position: absolute;
-  top: 0;
   left: 0;
   right: 0;
-  background: #2a2a2a;
-  transition: height 0.2s ease-out;
+  transition: height 0.2s ease-out, background 0s;
 }
 
-.eval-bar-white {
-  position: absolute;
+.eval-bar-top {
+  top: 0;
+}
+
+.eval-bar-bot {
   bottom: 0;
-  left: 0;
-  right: 0;
-  background: #e8e6e0;
-  transition: height 0.2s ease-out;
 }
 
 .eval-bar-midline {

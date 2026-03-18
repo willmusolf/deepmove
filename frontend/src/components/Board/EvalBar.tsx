@@ -37,17 +37,27 @@ export default function EvalBar({
   const mate = evalCentipawns !== undefined ? (isMate ?? false) : lastRef.current.isMate
   const mIn = evalCentipawns !== undefined ? (mateIn ?? null) : lastRef.current.mateIn
 
-  const whitePct = cpToWhitePct(cp)
+  // On mate, push bar to full (100/0) instead of relying on ±30000cp sigmoid
+  let whitePct: number
+  if (mate) {
+    whitePct = mIn !== null && mIn > 0 ? 100 : mIn !== null && mIn < 0 ? 0 : (cp >= 0 ? 100 : 0)
+  } else {
+    whitePct = cpToWhitePct(cp)
+  }
   const blackPct = 100 - whitePct
 
-  // When board is flipped (black at bottom), flip the bar too
+  // The top div grows down from top:0, bottom div grows up from bottom:0.
+  // When board is flipped (orientation='black'), swap so the bar matches board perspective:
+  // white section on top (opponent side), black section on bottom (user side).
   const topPct = orientation === 'white' ? blackPct : whitePct
   const botPct = orientation === 'white' ? whitePct : blackPct
+  const topColor = orientation === 'white' ? '#2a2a2a' : '#e8e6e0'
+  const botColor = orientation === 'white' ? '#e8e6e0' : '#2a2a2a'
 
   // Build the label shown at the boundary
   let boundaryLabel: string
   if (mate && mIn != null) {
-    boundaryLabel = `M${Math.abs(mIn)}`
+    boundaryLabel = mIn === 0 ? '#' : `M${Math.abs(mIn)}`
   } else {
     const pawns = cp / 100
     const sign = pawns > 0 ? '+' : ''
@@ -60,8 +70,8 @@ export default function EvalBar({
       <div className="eval-bar-inner">
         {/* Black: grows down from top. White: grows up from bottom.
             Both absolutely positioned — immune to flex reflow. */}
-        <div className="eval-bar-black" style={{ height: `${topPct}%` }} />
-        <div className="eval-bar-white" style={{ height: `${botPct}%` }} />
+        <div className="eval-bar-segment eval-bar-top" style={{ height: `${topPct}%`, background: topColor }} />
+        <div className="eval-bar-segment eval-bar-bot" style={{ height: `${botPct}%`, background: botColor }} />
       </div>
 
       {/* Center tick — marks the even (0.0) position */}

@@ -82,6 +82,8 @@ export default function App() {
   // FEN → TopLine[] cache so revisiting a position never re-analyzes
   const positionCache = useRef<Map<string, TopLine[]>>(new Map())
   const pathKeyRef = useRef(0)
+  // Hold last valid eval so the bar never receives undefined (prevents 50/50 flash)
+  const lastEvalRef = useRef({ cp: 0, isMate: false, mateIn: null as number | null })
 
   // Trigger full-game analysis whenever a new game loads and the engine is ready
   const setSkipNextAnalysis = useGameStore(s => s.setSkipNextAnalysis)
@@ -92,6 +94,7 @@ export default function App() {
         return
       }
       positionCache.current.clear()
+      lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
       void runAnalysis(pgn)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,6 +110,7 @@ export default function App() {
 
   useEffect(() => {
     // Always abort any in-flight position analysis immediately on position change.
+    setCurrentPositionLines([])
     stopPositionAnalysis()
 
     const cached = positionCache.current.get(displayFen)
@@ -121,7 +125,6 @@ export default function App() {
     const token = ++positionTokenRef.current
     const timer = setTimeout(() => {
       setAnalyzingPosition(true)
-      setCurrentPositionLines([])
       setCurrentAnalysisDepth(0)
 
       analyzePositionLines(displayFen, 22, 3, (lines, depth) => {
@@ -234,6 +237,8 @@ export default function App() {
 
   function handleNewGame() {
     reset()
+    lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
+    positionCache.current.clear()
     setBoardFen(STARTING_FEN)
     setPanelTab('load')
   }
@@ -293,6 +298,14 @@ export default function App() {
   const evalIsMate = useMainEval ? (mainEval.eval.isMate ?? false) : (posLine?.isMate ?? mainEval?.eval.isMate ?? false)
   const evalMateIn = useMainEval ? (mainEval.eval.mateIn ?? null) : (posLine?.mateIn ?? mainEval?.eval.mateIn ?? null)
 
+  // Stable eval: never undefined — falls back to last known value
+  if (evalCp !== undefined) {
+    lastEvalRef.current = { cp: evalCp, isMate: evalIsMate, mateIn: evalMateIn }
+  }
+  const stableEvalCp = evalCp ?? lastEvalRef.current.cp
+  const stableIsMate = evalCp !== undefined ? evalIsMate : lastEvalRef.current.isMate
+  const stableMateIn = evalCp !== undefined ? evalMateIn : lastEvalRef.current.mateIn
+
   function formatEval(score: number | undefined, isMate: boolean, mateIn: number | null): string {
     if (score === undefined) return '—'
     if (isMate) return mateIn !== null ? `M${Math.abs(mateIn)}` : 'M'
@@ -347,9 +360,9 @@ export default function App() {
                 <div className="board-with-eval">
                   {showEvalBar && (
                     <EvalBar
-                      evalCentipawns={evalCp}
-                      isMate={evalIsMate}
-                      mateIn={evalMateIn}
+                      evalCentipawns={stableEvalCp}
+                      isMate={stableIsMate}
+                      mateIn={stableMateIn}
                       orientation={orientation}
                     />
                   )}
@@ -482,7 +495,7 @@ export default function App() {
                       {(posLine || mainEval) && (
                         <div className="eval-display">
                           <span className="eval-display-value">
-                            {formatEval(evalCp, evalIsMate, evalMateIn)}
+                            {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
                           </span>
                           {mainEval && !inBranch && (
                             <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
@@ -632,7 +645,7 @@ export default function App() {
                       {posLine && (
                         <div className="eval-display">
                           <span className="eval-display-value">
-                            {formatEval(evalCp, evalIsMate, evalMateIn)}
+                            {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
                           </span>
                           {isAnalyzingPosition && (
                             <span className="eval-display-depth">analyzing…</span>
