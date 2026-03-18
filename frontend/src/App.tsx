@@ -18,6 +18,7 @@ import type { Page } from './components/Layout/NavSidebar'
 import { useGameReview } from './hooks/useGameReview'
 import { useStockfish } from './hooks/useStockfish'
 import { useSound } from './hooks/useSound'
+import { useAuthStore } from './stores/authStore'
 import { useGameStore } from './stores/gameStore'
 import type { TopLine } from './engine/stockfish'
 import type { Key } from 'chessground/types'
@@ -64,13 +65,16 @@ export default function App() {
   const isAnalyzingPosition = useGameStore(s => s.isAnalyzingPosition)
   const setCurrentPositionLines = useGameStore(s => s.setCurrentPositionLines)
   const setAnalyzingPosition = useGameStore(s => s.setAnalyzingPosition)
-  const setAnalyzing = useGameStore(s => s.setAnalyzing)
   const userColor = useGameStore(s => s.userColor)
   const criticalMoments = useGameStore(s => s.criticalMoments)
   const platform = useGameStore(s => s.platform)
 
   const { isReady, engineStatus, runAnalysis, analyzePositionLines, stopPositionAnalysis } = useStockfish()
   const { enabled: soundEnabled, toggle: toggleSound, playMoveSound } = useSound()
+
+  // Silent auth refresh on app load — non-blocking, app works without it
+  const authRefresh = useAuthStore(s => s.refresh)
+  useEffect(() => { void authRefresh() }, [authRefresh])
 
   const [showBestLines, setShowBestLines] = useState(false)
   const [currentAnalysisDepth, setCurrentAnalysisDepth] = useState(0)
@@ -79,60 +83,67 @@ export default function App() {
   const pathKeyRef = useRef(0)
 
   // Trigger full-game analysis whenever a new game loads and the engine is ready
+  const setSkipNextAnalysis = useGameStore(s => s.setSkipNextAnalysis)
   useEffect(() => {
     if (pgn && isReady) {
+      if (useGameStore.getState().skipNextAnalysis) {
+        setSkipNextAnalysis(false)
+        return
+      }
       positionCache.current.clear()
-      setAnalyzing(true)  // close race window: position analysis checks this before isAnalyzing propagates
       void runAnalysis(pgn)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pgn, isReady])
 
+  const [boardFen, setBoardFen] = useState(STARTING_FEN)
+  const displayFen = isLoaded ? currentFen : boardFen
+
   // Per-position multi-PV analysis — runs whenever current position changes.
+  // Also runs in free-play mode when pieces are pushed on the board.
   // Results cached by FEN so revisiting a position is instant.
   const positionTokenRef = useRef(0)
 
   useEffect(() => {
-    // Always abort any in-flight position analysis before doing anything else.
-    // This prevents queue clogging on rapid navigation — the engine stops immediately
-    // and starts fresh for the new position.
+    // Always abort any in-flight position analysis immediately on position change.
     stopPositionAnalysis()
 
-    if (!isLoaded || isAnalyzing) {
-      setCurrentPositionLines([])
-      setCurrentAnalysisDepth(0)
-      return
-    }
-    const cached = positionCache.current.get(currentFen)
+    const cached = positionCache.current.get(displayFen)
     if (cached) {
       setCurrentPositionLines(cached)
       setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
       setAnalyzingPosition(false)
       return
     }
-    const token = ++positionTokenRef.current
-    setAnalyzingPosition(true)
-    setCurrentPositionLines([])
-    setCurrentAnalysisDepth(0)
 
-    analyzePositionLines(currentFen, 22, 3, (lines, depth) => {
-      if (positionTokenRef.current !== token) return
-      setCurrentPositionLines(lines)
-      setCurrentAnalysisDepth(depth)
-    })
-      .then(lines => {
+    // 400ms debounce — prevents queue flooding during rapid arrow-key navigation
+    const token = ++positionTokenRef.current
+    const timer = setTimeout(() => {
+      setAnalyzingPosition(true)
+      setCurrentPositionLines([])
+      setCurrentAnalysisDepth(0)
+
+      analyzePositionLines(displayFen, 22, 3, (lines, depth) => {
         if (positionTokenRef.current !== token) return
-        positionCache.current.set(currentFen, lines)
         setCurrentPositionLines(lines)
-        setCurrentAnalysisDepth(lines[0]?.depth ?? 0)
-        setAnalyzingPosition(false)
+        setCurrentAnalysisDepth(depth)
       })
-      .catch(() => {
-        if (positionTokenRef.current !== token) return
-        setAnalyzingPosition(false)
-      })
+        .then(lines => {
+          if (positionTokenRef.current !== token) return
+          positionCache.current.set(displayFen, lines)
+          setCurrentPositionLines(lines)
+          setCurrentAnalysisDepth(lines[0]?.depth ?? 0)
+          setAnalyzingPosition(false)
+        })
+        .catch(() => {
+          if (positionTokenRef.current !== token) return
+          setAnalyzingPosition(false)
+        })
+    }, 150)
+
+    return () => clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentFen, isAnalyzing, isLoaded])
+  }, [displayFen])
 
   const [orientation, setOrientation] = useState<'white' | 'black'>('white')
 
@@ -142,7 +153,6 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pgn])
 
-  const [boardFen, setBoardFen] = useState(STARTING_FEN)
   const [panelTab, setPanelTab] = useState<PanelTab>('load')
   const [importTab, setImportTab] = useState<ImportTab>('chesscom')
   const [chesscomGames, setChesscomGames] = useState<ChessComGame[]>([])
@@ -152,7 +162,6 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('review')
   const [showEvalBar, setShowEvalBar] = useState(true)
 
-  const displayFen = isLoaded ? currentFen : boardFen
 
   // Last-move highlight: always reflects the actual last move in currentPath
   // so chessground never shows a stale highlight after navigating back.
@@ -205,6 +214,19 @@ export default function App() {
   const toMoveSide = displayFen.split(' ')[1]
   const topIsToMove = orientation === 'white' ? toMoveSide === 'b' : toMoveSide === 'w'
 
+  // Find the most recent clock time for each player from the current path
+  const topColor: 'white' | 'black' = orientation === 'white' ? 'black' : 'white'
+  const bottomColor: 'white' | 'black' = orientation === 'white' ? 'white' : 'black'
+  let topClock: string | undefined
+  let bottomClock: string | undefined
+  for (let i = currentPath.length - 1; i >= 0; i--) {
+    const node = moveTree[currentPath[i]]
+    if (!node) continue
+    if (topClock === undefined && node.color === topColor) topClock = node.clockTime
+    if (bottomClock === undefined && node.color === bottomColor) bottomClock = node.clockTime
+    if (topClock !== undefined && bottomClock !== undefined) break
+  }
+
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   function handleNewGame() {
@@ -229,11 +251,15 @@ export default function App() {
   function handleLineClick(line: TopLine) {
     if (line.pv.length === 0) return
     const uci = line.pv[0]
-    const chess = new Chess(currentFen)
+    const chess = new Chess(displayFen)
     const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] ?? 'q' })
     if (move) {
       playMoveSound(move.san)
-      addVariationMove(move.from, move.to, move.san, chess.fen())
+      if (isLoaded) {
+        addVariationMove(move.from, move.to, move.san, chess.fen())
+      } else {
+        setBoardFen(chess.fen())
+      }
     }
   }
 
@@ -250,14 +276,30 @@ export default function App() {
     goToMove(index)
   }
 
+  // Are we currently in a branch (off the main line)?
+  const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
+
   // ── Eval ───────────────────────────────────────────────────────────────────
 
-  // Use per-position lines when available — works for both main line and branches
+  // For the eval bar: prefer the stable full-game eval on the main line.
+  // Only fall back to multi-PV posLine in branches (no mainEval) or before full-game analysis.
+  // Hold the last valid eval so the bar never flashes to 50/50 during transitions.
   const posLine = currentPositionLines[0]
   const mainEval = currentMoveIndex > 0 ? moveEvals[currentMoveIndex - 1] : undefined
-  const evalCp = posLine?.score ?? mainEval?.eval.score
-  const evalIsMate = posLine?.isMate ?? mainEval?.eval.isMate ?? false
-  const evalMateIn = posLine?.mateIn ?? mainEval?.eval.mateIn ?? null
+  const useMainEval = mainEval && !inBranch
+  const rawEvalCp = useMainEval ? mainEval.eval.score : (posLine?.score ?? mainEval?.eval.score)
+  const rawEvalIsMate = useMainEval ? (mainEval.eval.isMate ?? false) : (posLine?.isMate ?? mainEval?.eval.isMate ?? false)
+  const rawEvalMateIn = useMainEval ? (mainEval.eval.mateIn ?? null) : (posLine?.mateIn ?? mainEval?.eval.mateIn ?? null)
+
+  const lastEvalRef = useRef<{ cp: number; isMate: boolean; mateIn: number | null }>({ cp: 0, isMate: false, mateIn: null })
+  if (rawEvalCp !== undefined) {
+    lastEvalRef.current = { cp: rawEvalCp, isMate: rawEvalIsMate, mateIn: rawEvalMateIn }
+  }
+  const evalCp = rawEvalCp ?? lastEvalRef.current.cp
+  // DEBUG: remove after fixing eval bar bounce
+  console.log('[EvalBar]', { currentMoveIndex, rawEvalCp, evalCp, useMainEval: !!useMainEval, inBranch, posLineScore: posLine?.score, mainEvalScore: mainEval?.eval.score })
+  const evalIsMate = rawEvalCp !== undefined ? rawEvalIsMate : lastEvalRef.current.isMate
+  const evalMateIn = rawEvalCp !== undefined ? rawEvalMateIn : lastEvalRef.current.mateIn
 
   function formatEval(score: number | undefined, isMate: boolean, mateIn: number | null): string {
     if (score === undefined) return '—'
@@ -297,8 +339,7 @@ export default function App() {
   const moveGrades = useMemo(() => moveEvals.map(me => me.grade), [moveEvals])
   const showAnalyzingBar = isAnalyzing || (analyzedCount < totalMovesCount && totalMovesCount > 0)
 
-  // Are we currently in a branch (off the main line)?
-  const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
+
 
   return (
     <div className="app">
@@ -309,53 +350,55 @@ export default function App() {
           {currentPage === 'review' && (
             <>
               <div className="board-col">
-                {isLoaded && (
-                  <PlayerInfoBox
-                    username={topPlayer.name}
-                    elo={topPlayer.elo}
-                    isWhite={orientation !== 'white'}
-                    isToMove={topIsToMove}
-                    currentFen={displayFen}
-                    platform={platform}
-                  />
-                )}
-
-
+                {/* board-with-eval wraps eval bar + the full board column (player boxes + board)
+                    so the eval bar spans the full height and all left/right edges align */}
                 <div className="board-with-eval">
                   {showEvalBar && (
                     <EvalBar
                       evalCentipawns={evalCp}
                       isMate={evalIsMate}
                       mateIn={evalMateIn}
-                      isAnalyzing={isAnalyzing}
                       orientation={orientation}
                     />
                   )}
-                  <ChessBoard
-                    key={isLoaded ? 'review' : 'freeplay'}
-                    fen={displayFen}
-                    orientation={orientation}
-                    interactive={true}
-                    onMove={isLoaded
-                      ? handleBoardMove
-                      : (_f, _t, san, newFen) => { playMoveSound(san); setBoardFen(newFen) }
-                    }
-                    shapes={boardShapes}
-                    lastMove={isLoaded ? boardLastMove : undefined}
-                    pathKey={pathKeyRef.current}
-                  />
+                  <div className="board-and-players">
+                    {isLoaded && (
+                      <PlayerInfoBox
+                        username={topPlayer.name}
+                        elo={topPlayer.elo}
+                        isWhite={orientation !== 'white'}
+                        isToMove={topIsToMove}
+                        currentFen={displayFen}
+                        platform={platform}
+                        clockTime={topClock}
+                      />
+                    )}
+                    <ChessBoard
+                      key={isLoaded ? 'review' : 'freeplay'}
+                      fen={displayFen}
+                      orientation={orientation}
+                      interactive={true}
+                      onMove={isLoaded
+                        ? handleBoardMove
+                        : (_f, _t, san, newFen) => { playMoveSound(san); setBoardFen(newFen) }
+                      }
+                      shapes={boardShapes}
+                      lastMove={isLoaded ? boardLastMove : undefined}
+                      pathKey={pathKeyRef.current}
+                    />
+                    {isLoaded && (
+                      <PlayerInfoBox
+                        username={bottomPlayer.name}
+                        elo={bottomPlayer.elo}
+                        isWhite={orientation === 'white'}
+                        isToMove={!topIsToMove}
+                        currentFen={displayFen}
+                        platform={platform}
+                        clockTime={bottomClock}
+                      />
+                    )}
+                  </div>
                 </div>
-
-                {isLoaded && (
-                  <PlayerInfoBox
-                    username={bottomPlayer.name}
-                    elo={bottomPlayer.elo}
-                    isWhite={orientation === 'white'}
-                    isToMove={!topIsToMove}
-                    currentFen={displayFen}
-                    platform={platform}
-                  />
-                )}
 
                 <div className="board-controls">
                   {isLoaded && (
@@ -405,17 +448,16 @@ export default function App() {
               <div className="side-col">
                 <div className="panel-tabs">
                   <button
-                    className={`panel-tab${panelTab === 'analysis' ? ' active' : ''}`}
-                    onClick={() => setPanelTab('analysis')}
-                    disabled={!isLoaded}
-                  >
-                    Analysis
-                  </button>
-                  <button
                     className={`panel-tab${panelTab === 'load' ? ' active' : ''}`}
                     onClick={() => setPanelTab('load')}
                   >
                     Load
+                  </button>
+                  <button
+                    className={`panel-tab${panelTab === 'analysis' ? ' active' : ''}`}
+                    onClick={() => setPanelTab('analysis')}
+                  >
+                    Analysis
                   </button>
                 </div>
 
@@ -459,38 +501,38 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Best lines toggle + panel */}
-                      {!isAnalyzing && (
-                        <div className="best-lines-section">
-                          <button
-                            className={`lines-toggle-btn${showBestLines ? ' active' : ''}`}
-                            onClick={() => setShowBestLines(v => !v)}
-                          >
-                            {showBestLines ? 'Hide Lines' : 'Show Lines'}
-                          </button>
-                          {showBestLines && (
-                            <BestLines
-                              lines={visibleLines}
-                              isAnalyzingPosition={isAnalyzingPosition}
-                              onLineClick={handleLineClick}
-                              depth={currentAnalysisDepth}
-                            />
-                          )}
-                        </div>
+                      {/* Best lines toggle + panel — always available */}
+                      <div className="best-lines-section">
+                        <button
+                          className={`lines-toggle-btn${showBestLines ? ' active' : ''}`}
+                          onClick={() => setShowBestLines(v => !v)}
+                        >
+                          {showBestLines ? 'Hide Lines' : 'Show Lines'}
+                        </button>
+                        {showBestLines && (
+                          <BestLines
+                            lines={visibleLines}
+                            isAnalyzingPosition={isAnalyzingPosition}
+                            onLineClick={handleLineClick}
+                            depth={currentAnalysisDepth}
+                          />
+                        )}
+                      </div>
+
+                      {/* Eval graph — hidden during analysis, shown after completion */}
+                      {!isAnalyzing && moveEvals.length > 0 && (
+                        <EvalGraph
+                          moveEvals={moveEvals}
+                          totalMoves={totalMoves}
+                          currentMoveIndex={currentMoveIndex}
+                          onNavigate={handleGoToMove}
+                          criticalMoments={criticalMoments}
+                        />
                       )}
 
-                      {/* Eval graph + report — only after analysis completes */}
+                      {/* Game report — only after analysis completes */}
                       {!isAnalyzing && moveEvals.length > 0 && (
-                        <>
-                          <EvalGraph
-                            moveEvals={moveEvals}
-                            totalMoves={totalMoves}
-                            currentMoveIndex={currentMoveIndex}
-                            onNavigate={handleGoToMove}
-                            criticalMoments={criticalMoments}
-                          />
-                          <GameReport moveEvals={moveEvals} userColor={userColor} />
-                        </>
+                        <GameReport moveEvals={moveEvals} userColor={userColor} />
                       )}
 
                       {/* Move list — tree renderer */}
@@ -575,11 +617,50 @@ export default function App() {
                   )}
 
                   {panelTab === 'analysis' && !isLoaded && (
-                    <div className="panel-empty">
-                      {parseError
-                        ? <span className="parse-error">Couldn't read this PGN format. Try copying directly from Chess.com or Lichess.</span>
-                        : 'Load a game to start analysis.'}
-                    </div>
+                    <>
+                      {parseError && (
+                        <div className="panel-empty">
+                          <span className="parse-error">Couldn't read this PGN format. Try copying directly from Chess.com or Lichess.</span>
+                        </div>
+                      )}
+
+                      {/* Eval display — works in free-play mode */}
+                      {posLine && (
+                        <div className="eval-display">
+                          <span className="eval-display-value">
+                            {formatEval(evalCp, evalIsMate, evalMateIn)}
+                          </span>
+                          {isAnalyzingPosition && (
+                            <span className="eval-display-depth">analyzing…</span>
+                          )}
+                          {!isAnalyzingPosition && currentAnalysisDepth > 0 && (
+                            <span className="eval-display-depth">depth {currentAnalysisDepth}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Best lines in free-play */}
+                      <div className="best-lines-section">
+                        <button
+                          className={`lines-toggle-btn${showBestLines ? ' active' : ''}`}
+                          onClick={() => setShowBestLines(v => !v)}
+                        >
+                          {showBestLines ? 'Hide Lines' : 'Show Lines'}
+                        </button>
+                        {showBestLines && (
+                          <BestLines
+                            lines={visibleLines}
+                            isAnalyzingPosition={isAnalyzingPosition}
+                            onLineClick={handleLineClick}
+                            depth={currentAnalysisDepth}
+                          />
+                        )}
+                      </div>
+
+                      {!posLine && !isAnalyzingPosition && (
+                        <div className="panel-empty">Push pieces on the board to see evaluation.</div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
