@@ -36,6 +36,7 @@
 - [ ] Print: features extracted, principle detected, confidence score, lesson generated
 - [ ] Document any suspicious outputs
 - [ ] Fix obvious classifier bugs
+- [ ] Add tests for each feature extractor (target: 10+ positions per extractor)
 
 ### TRACK C.1: Build Coaching Panel UI (Session: 3-4 hours) — **MVP**
 **Status**: ⏸️ BLOCKED on A.3 + B.1
@@ -81,9 +82,12 @@
 - [ ] Branching visualization (tree view)
 
 ### TRACK T.2: Frontend Test Infrastructure (1-2 hours)
-- [ ] Add unit/integration test harness (Vitest + Testing Library)
-- [ ] Add test coverage for critical board logic (FEN sync, move validation, branching)
-- [ ] Add CI step to run `npm test` for frontend
+- [x] Add unit/integration test harness (Vitest + Testing Library)
+- [x] Add test coverage for critical board logic (FEN sync, move validation, branching)
+- [x] Add CI step to run `npm test` for frontend
+- **123 tests passing** across 9 files (analysis, criticalMoments, pgn, useGameReview, GameReport, GameSelector, ChessBoard, PlayerInfoBox helpers, EvalBar helpers)
+- [ ] Add feature extraction tests as Track B extractors are built
+- [ ] Add API client tests (chesscom.ts, lichess.ts) with fetch mocking
 
 ### TRACK C.4: Mobile Responsiveness (2-3 hours)
 - [ ] Player boxes stack vertically
@@ -145,7 +149,7 @@
 - [ ] Attempt Chess.com OAuth if credentials are available
 - [ ] Fallback plan: if Chess.com OAuth is unstable, drop it — manual username linking already works via AccountLink.tsx
 
-### D.4 — Backend Tests (Not Started)
+### D.4 — Backend Tests (Not Started, 1 health check test exists)
 - [ ] Auth flow: register → login → access protected route → refresh → logout
 - [ ] Duplicate email registration returns 409
 - [ ] Wrong password returns 401
@@ -425,7 +429,7 @@ This is large. If time runs out, stop cleanly at a phase boundary and report:
 -fix the pawn promotion. it doesnt look right and was delayed in coming out and the pawn moved back to the square it was on before i pressed anyhting just bc of how slow it was to open the list we want it better also the list to be a little bigger
 
 
--make the suggested moves lines a little bolder generally. also after checkmate the eval bar resets to even, instead we want to just keep it at the winners side. also move letters on first row move to the right a little. we want to move the text of the letters (a-h) just a few pixels to the right on each square so its more readable.
+-make the suggested moves lines a little bolder generally. also move letters on first row move to the right a little. we want to move the text of the letters (a-h) just a few pixels to the right on each square so its more readable.
 
 -something better for default. can go back in moves without a game loaded? auto labels common openings/labeling positions etc or something? in the default game that you can mess with or in your own transcripts and links to lessons?
 -bot options or manual option by default with box for elo name timer coach maybe etc
