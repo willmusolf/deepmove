@@ -8,32 +8,7 @@
 
 **Audit Rounds Completed**: 4 (branch collision, GameReport O(n²), memoization/dedup, perf round 4)
 
-## � DEVELOPMENT INFRASTRUCTURE
 
-### TRACK D.1: Testing Framework Setup (Session: 1-2 hours)
-**Status**: ✅ COMPLETED
-**Why**: Essential for maintaining code quality and preventing regressions.
-
-**What was done:**
-- [x] Set up Vitest + React Testing Library for frontend tests
-- [x] Configured test environment with jsdom
-- [x] Added ResizeObserver mock for browser API compatibility
-- [x] Created initial test suite for ChessBoard component
-- [x] Added tests for board rendering, turn color detection, and legal move calculation
-- [x] All tests passing (3/3)
-
-**Test coverage:**
-- ChessBoard component rendering
-- Chess helper functions (getTurnColor, getLegalDests)
-- Browser API mocks (ResizeObserver)
-
-**Next steps:**
-- [ ] Add more component tests (EvalBar, MoveList, etc.)
-- [ ] Add integration tests for game review flow
-- [ ] Add backend API tests
-- [ ] Set up CI/CD with test automation
-
----
 
 ## �🟠 NEXT PHASE (COACHING FOUNDATION)
 
@@ -50,7 +25,8 @@
 - [ ] Try hitting `/api/coaching/lesson` endpoint with test data
 - [ ] Verify LLM response structure (expect `lesson`, `confidence`, `cached`)
 - [ ] Document any connection issues
-
+- currently authStore.ts:42 
+ POST http://localhost:8000/auth/refresh net::ERR_CONNECTION_REFUSED
 ### TRACK B.2: Feature Extraction Validation (Session: 2-3 hours)
 **Status**: ⏸️ BLOCKED on B.1
 **Why**: Catch classification bugs early via real games.
@@ -104,7 +80,7 @@
 - [ ] Last import memory (localStorage)
 - [ ] Branching visualization (tree view)
 
-### TRACK T.1: Frontend Test Infrastructure (1-2 hours)
+### TRACK T.2: Frontend Test Infrastructure (1-2 hours)
 - [ ] Add unit/integration test harness (Vitest + Testing Library)
 - [ ] Add test coverage for critical board logic (FEN sync, move validation, branching)
 - [ ] Add CI step to run `npm test` for frontend
@@ -123,14 +99,70 @@
 
 ---
 
+## 🟣 TRACK D: Accounts & Auth (Partially Complete)
+
+### D.1 — Core Auth + Game Sync ✅ DONE
+- [x] SQLAlchemy models: User, Game, Lesson, UserPrinciple
+- [x] Alembic migration (001_initial_schema.py)
+- [x] JWT auth: register, login, refresh, logout (access token 15min + refresh HttpOnly cookie 7d)
+- [x] bcrypt password hashing, token versioning for revocation
+- [x] Auth dependency (get_current_user / get_optional_user)
+- [x] User routes: GET/PATCH /users/me, DELETE /users/me (GDPR), GET /users/me/export
+- [x] Game routes: CRUD + batch upload (50/req) + sync-status
+- [x] Frontend authStore (Zustand): login/register/refresh/logout
+- [x] API client: auto Bearer token + 401 retry with silent refresh
+- [x] AuthModal: email+password form + OAuth button stubs
+- [x] UserMenu in NavSidebar: avatar, dropdown, logout
+- [x] syncService: IndexedDB ↔ PostgreSQL bi-directional sync
+- [x] Auto-migration on signup: pushes local games + links usernames to account
+- [x] Silent auth refresh on app load (non-blocking)
+
+### D.2 — Connect Database ⏸️ BLOCKED (needs Supabase credentials)
+- [ ] Create Supabase project, get DATABASE_URL
+- [ ] Add DATABASE_URL to backend .env
+- [ ] Run: `cd backend && alembic upgrade head`
+- [ ] Verify tables created in Supabase dashboard
+- [ ] Test register → login → sync flow end-to-end
+
+### D.3 — OAuth (Not Started)
+**Lichess OAuth** (do first — best documented, standard OAuth2 + PKCE)
+- [ ] Register DeepMove as Lichess OAuth app at lichess.org/account/oauth/app
+- [ ] Set LICHESS_CLIENT_ID + LICHESS_CLIENT_SECRET in .env
+- [ ] Implement PKCE: generate code_verifier/challenge in GET /auth/lichess
+- [ ] Store verifier in server-side state (or signed cookie), redirect to Lichess
+- [ ] GET /auth/lichess/callback: exchange code → token, fetch https://lichess.org/api/account
+- [ ] Create user OR link Lichess account to existing user (match by email if available)
+- [ ] Issue DeepMove JWT pair, redirect to frontend with tokens
+
+**Google OAuth** (standard, well-documented)
+- [ ] Create Google Cloud OAuth2 credentials at console.cloud.google.com
+- [ ] Set GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET in .env
+- [ ] Implement standard OAuth2 flow via authlib (already installed)
+- [ ] GET /auth/google/callback: exchange code → token, fetch userinfo
+- [ ] Same create/link logic as Lichess
+
+**Chess.com OAuth** (do last — poorly documented, higher risk)
+- [ ] Attempt Chess.com OAuth if credentials are available
+- [ ] Fallback plan: if Chess.com OAuth is unstable, drop it — manual username linking already works via AccountLink.tsx
+
+### D.4 — Backend Tests (Not Started)
+- [ ] Auth flow: register → login → access protected route → refresh → logout
+- [ ] Duplicate email registration returns 409
+- [ ] Wrong password returns 401
+- [ ] Expired/invalid token returns 401
+- [ ] Token version revocation (logout invalidates old tokens)
+- [ ] Game batch upload + sync-status round-trip
+- [ ] GDPR delete cascades all user data
+- [ ] Use pytest + httpx AsyncClient with a test DB (separate DATABASE_URL for tests)
+
+---
+
 ## 🔵 FUTURE (POST-LAUNCH)
 
-- User accounts + auth
-- Game + lesson history
-- Recurring pattern detection
-- Weakness dashboard
-- Premium tier ($4/mo)
-- Ad integration
+- Recurring mistake detection across games ("3rd time ignoring opponent threats")
+- Weakness dashboard (principle tracker — powered by user_principles table)
+- Premium tier (~$4/mo) — Stripe integration (separate planning session)
+- Ad integration (Carbon Ads / EthicalAds, free tier only)
 - Shareable lessons
 - Chrome extension
 
@@ -138,97 +170,7 @@
 
 ## SESSION PLANNING
 
-**Immediate (next ~4-6 hours):**
-1. Test board freeze with logging — collect console output
-2. Identify exact failure point from logs
-3. Apply fix + validate on 5+ games
-4. Build player info boxes component
-5. Wire responsive layout
 
-**Then (~6-8 hours):**
-6. Set up backend environment
-7. Test coaching endpoint
-8. Validate feature extraction on real games
-9. Build coaching panel UI
-10. Connect frontend→backend
-
-**Then (~4-6 hours):**
-11. Game summary card
-12. Mobile responsiveness
-13. Polish + testing
-
-**Total to MVP**: ~14-20 hours from here
-
-
-PROMPT 3A: Analysis UX Overhaul (do this first)
-
-# DeepMove: Analysis UX Overhaul Session
-
-## Project
-DeepMove chess coaching app. React 18 + TypeScript + Vite frontend. Project root at ~/deepmove-dev/ (use this symlink for all Bash/file ops — the real path has a Unicode apostrophe that breaks tools).
-
-## What to build in this session (7 tasks, in order):
-
-### 1. Elo-Adaptive Analysis Depth
-File: `frontend/src/hooks/useStockfish.ts`
-- `runAnalysis()` currently hardcodes depth 14
-- Read `useGameStore.getState().userElo` at analysis start
-- Depth: <1200 → 10, 1200–1600 → 14, 1600+ → 18
-- `analyzeGame()` already accepts depth as 3rd param — just pass it through
-- Per-position interactive depth stays at 22 (don't change that)
-
-### 2. Eval Bar — Don't Reset After Checkmate
-File: `frontend/src/App.tsx`
-- After checkmate, per-position analysis returns score ~0, resetting the eval bar to 50/50
-- Fix: in App.tsx, track a `lastNonMateEval` ref. When `Chess(displayFen).isCheckmate()` is true, pass the last non-checkmate eval to `<EvalBar>` instead of the live eval
-
-### 3. Classic/Coach View Mode Toggle (main feature)
-Files: `frontend/src/components/Board/EvalGraph.tsx`, `frontend/src/App.tsx`
-
-Add `viewMode: 'classic' | 'coach'` state to App.tsx, defaulting to `'classic'`.
-Add toggle button in board controls bar (near Flip/Eval/SFX buttons).
-
-**EvalGraph.tsx** — add `viewMode` prop:
-- **Classic mode**: fill the area under the eval curve. Above midline (white winning) → `rgba(74, 222, 128, 0.25)` green fill. Below midline (black winning) → `rgba(239, 68, 68, 0.2)` red fill. Use two SVG `<path>` filled areas clipped to each half. Show ALL grade badges in annotation strip (best, excellent, good, inaccuracy, mistake, blunder).
-- **Coach mode** (existing behavior): no fill, curve line only + golden critical moment bands. Annotation strip shows only blunder/mistake badges.
-
-### 4. Chess.com Multi-Month Fix
-File: `frontend/src/api/chesscom.ts`
-- Currently only fetches the most recent monthly archive → empty if no games this month
-- Fix: fetch archives list, pull last 3 months, merge, sort by end_time desc, cap at 50 games
-- Add a small note in the GameSelector or AccountLink explaining "Showing up to 50 games from the last 3 months"
-
-### 5. Bolder Suggestion Arrows
-File: `frontend/src/components/Board/ChessBoard.tsx`
-- Find the drawable brushes config (bestMove, goodMove, okMove)
-- Increase lineWidth: bestMove → 10, goodMove → 8, okMove → 6
-- Read the file first to find exact current values
-
-### 6. Board Letter Offset (a-h labels)
-File: `frontend/src/styles/board.css`
-- The file/rank labels rendered by chessground are slightly cramped
-- Add a small translateX(3px) or similar offset to the chessground coord selectors (likely `.cg-wrap coords.files coord`) to make letters more readable
-
-### 7. Pawn Promotion UX Fix
-File: `frontend/src/components/Board/ChessBoard.tsx`
-- Current: promotion dialog is slow, pawn snaps back before picker appears
-- **Read the file first** to understand the current onMove / chess.move() flow
-- Fix: detect pawn-to-last-rank move BEFORE calling chess.move(). Show an inline visual picker (4 piece icons: Q/R/B/N) at the promotion square. Keep the pawn on the destination square while user picks. Only commit chess.move({ promotion: chosen }) after selection.
-- Style the picker as a small overlay aligned to the promotion square
-
-## After all 7 tasks: run `npx tsc --noEmit` from frontend/ — fix any TypeScript errors before finishing.
-
-## Key files
-- `frontend/src/hooks/useStockfish.ts` — Stockfish wrapper, depth config
-- `frontend/src/engine/analysis.ts` — classifyMove(), MoveGrade types
-- `frontend/src/components/Board/EvalGraph.tsx` — SVG eval curve, annotation badges
-- `frontend/src/components/Board/EvalBar.tsx` — vertical eval bar
-- `frontend/src/components/Board/ChessBoard.tsx` — chessground wrapper, promotion, arrows
-- `frontend/src/components/Import/AccountLink.tsx` — username input + game fetch
-- `frontend/src/api/chesscom.ts` — Chess.com API client
-- `frontend/src/styles/board.css` — all CSS (single file, CSS vars, BEM naming)
-- `frontend/src/App.tsx` — main app, passes props to all board components
-- `frontend/src/stores/gameStore.ts` — Zustand store (has userElo)
 PROMPT 3B: Coaching Intelligence — Design + Build (do this after 3A)
 
 # DeepMove Planning Session: Coaching Intelligence — Feature Extraction, Classifier, LLM Pipeline
@@ -477,20 +419,6 @@ This is large. If time runs out, stop cleanly at a phase boundary and report:
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
 
-**random from will**
-#### Load section UX
-- [ ] **Chess.com multi-month**: current implementation only pulls the most recent monthly archive. Fix: fetch the last 2-3 monthly archives and merge, capped at 50 games total. The archives endpoint returns a list of available months — iterate backwards.
-- [ ] **Username persistence + identity**: after a user loads games for a username, show a subtle "Playing as [username]" indicator. Store their "own" username in localStorage separately from search history. Let them search any username but mark one as "me". (i think we did this with the crown and something in the backend maybe with cachin)
-- [ ] **Name truncation**: usernames getting cut off — increase width of the username column or truncate with ellipsis + tooltip on hover.
-- [ ] **Loaded game highlight**: when user goes back to Load tab after loading a game, highlight which game is currently loaded in the list.
--add a note or something about how we can only grab the last 50 games and give more space for usernames / stack them in each entry in the load area? im open to suggestions about the 50 game thing or we dont have to if thers a way around it
-
-
-
-
-
-
-
 
 -if game is abandoned, and you do a new move on the analysis board, it should be a branch rather than just continuing notation, right?
 
@@ -530,7 +458,4 @@ Key question for the session: What's the MUST-HAVE that makes someone pay? Princ
 
 
 
-
--FOR OPUS
-- flesh out testing more get more coverage make sure core principles and structures are tested and that the tests are created extremely well done and actually test what can break and what we dont want to break with code changes.
 

@@ -90,7 +90,7 @@ export async function analyzeGame(
   pgn: string,
   engine: StockfishEngine,
   depth = 18,
-  onProgress?: (completed: number, total: number, latest: MoveEval) => void,
+  onProgress?: (completed: number, total: number) => void,
   signal?: AbortSignal,
 ): Promise<MoveEval[]> {
   const chess = new Chess()
@@ -135,7 +135,7 @@ export async function analyzeGame(
       grade,
     }
     results.push(moveEval)
-    onProgress?.(i + 1, history.length, moveEval)
+    onProgress?.(i + 1, history.length)
     prevScore = scoreWhite
   }
 

@@ -1,5 +1,5 @@
 """user.py — SQLAlchemy User model"""
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import BigInteger, Boolean, Index, Integer, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP

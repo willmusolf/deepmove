@@ -1,6 +1,5 @@
-// PlayerInfoBox.tsx — Professional player info display above/below board
-// Shows: avatar, username, rating, flag, time remaining, pieces captured, material advantage
-// Matches Chessigma/Lichess styling with dark background and clean layout
+// PlayerInfoBox.tsx — Chess.com-style player info bar
+// Two-line layout: [avatar] [name (rating) flag] / [captured pieces +N]  [clock]
 
 import { useEffect, useMemo, useState } from 'react'
 import { getPlayerProfile as getChessComProfile } from '../../api/chesscom'
@@ -8,228 +7,185 @@ import { getPlayerProfile as getLichessProfile } from '../../api/lichess'
 import type { ChessComPlayer } from '../../api/chesscom'
 import type { LichessPlayer } from '../../api/lichess'
 
+import { getPieceImage } from '../../chess/pieceImages'
+
 interface PlayerInfoBoxProps {
   username: string | null
   elo: string | null
   isWhite: boolean
   isToMove: boolean
   currentFen: string
-  timeLeft?: number | null  // Time remaining in seconds (from PGN timestamps)
-  platform?: 'chesscom' | 'lichess' | null  // For avatar fetching
+  clockTime?: string
+  platform?: 'chesscom' | 'lichess' | null
 }
 
-interface PlayerProfile {
-  avatar?: string
-  country?: string
-}
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-function getMaterialBalance(fen: string): number {
-  // Calculate material advantage in pawns
-  const pieceValues: Record<string, number> = {
-    p: 1, n: 3, b: 3, r: 5, q: 9, k: 0
-  }
-
+const PIECE_VALUES: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 }
+const START_COUNTS = { p: 8, n: 2, b: 2, r: 2, q: 1 }
+const PIECE_ORDER = ['q', 'r', 'b', 'n', 'p']
+function getCapturedPieces(fen: string): { white: string[]; black: string[] } {
   const board = fen.split(' ')[0]
-  let whiteMaterial = 0
-  let blackMaterial = 0
-
-  for (const char of board) {
-    if (char >= 'a' && char <= 'z') {
-      blackMaterial += pieceValues[char] || 0
-    } else if (char >= 'A' && char <= 'Z') {
-      whiteMaterial += pieceValues[char.toLowerCase()] || 0
+  const current = { white: { p: 0, n: 0, b: 0, r: 0, q: 0 }, black: { p: 0, n: 0, b: 0, r: 0, q: 0 } }
+  for (const ch of board) {
+    if (ch >= 'a' && ch <= 'z' && ch !== 'k') {
+      const k = ch as keyof typeof current.black
+      if (k in current.black) current.black[k]++
+    } else if (ch >= 'A' && ch <= 'Z' && ch !== 'K') {
+      const k = ch.toLowerCase() as keyof typeof current.white
+      if (k in current.white) current.white[k]++
     }
-    // Skip numbers (empty squares) and '/' (rank separators)
   }
-
-  return whiteMaterial - blackMaterial
-}
-
-function getCapturedPieces(fen: string): { white: string[], black: string[] } {
-  // Count pieces actually on the board
-  const currentPieces = { white: { p: 0, n: 0, b: 0, r: 0, q: 0, k: 0 }, black: { p: 0, n: 0, b: 0, r: 0, q: 0, k: 0 } }
-
-  const board = fen.split(' ')[0]
-
-  for (const char of board) {
-    if (char >= 'a' && char <= 'z') {
-      const piece = char as keyof typeof currentPieces.black
-      currentPieces.black[piece]++
-    } else if (char >= 'A' && char <= 'Z') {
-      const piece = char.toLowerCase() as keyof typeof currentPieces.white
-      currentPieces.white[piece]++
-    }
-    // Skip numbers (empty squares) and '/' (rank separators)
-  }
-
-  // Starting position piece counts
-  const startingPieces = {
-    white: { p: 8, n: 2, b: 2, r: 2, q: 1, k: 1 },
-    black: { p: 8, n: 2, b: 2, r: 2, q: 1, k: 1 }
-  }
-
+  // Returns piece type chars ('q','r','b','n','p') — caller resolves to images
   const captured = { white: [] as string[], black: [] as string[] }
-
-  // Find captured pieces (missing from starting position)
-  Object.entries(startingPieces.white).forEach(([piece, startCount]) => {
-    const currentCount = currentPieces.white[piece as keyof typeof currentPieces.white]
-    const capturedCount = startCount - currentCount
-    for (let i = 0; i < capturedCount; i++) {
-      captured.white.push(piece.toUpperCase())
-    }
-  })
-
-  Object.entries(startingPieces.black).forEach(([piece, startCount]) => {
-    const currentCount = currentPieces.black[piece as keyof typeof currentPieces.black]
-    const capturedCount = startCount - currentCount
-    for (let i = 0; i < capturedCount; i++) {
-      captured.black.push(piece)
-    }
-  })
-
+  for (const piece of PIECE_ORDER) {
+    const k = piece as keyof typeof START_COUNTS
+    const wLost = START_COUNTS[k] - current.white[k]
+    const bLost = START_COUNTS[k] - current.black[k]
+    for (let i = 0; i < wLost; i++) captured.white.push(piece)
+    for (let i = 0; i < bLost; i++) captured.black.push(piece)
+  }
   return captured
 }
 
-function formatTime(seconds: number | null): string {
-  if (!seconds || seconds < 0) return '--:--'
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  return `${mins}:${secs.toString().padStart(2, '0')}`
+function getMaterialBalance(fen: string): number {
+  const board = fen.split(' ')[0]
+  let w = 0, b = 0
+  for (const ch of board) {
+    if (ch >= 'a' && ch <= 'z') b += PIECE_VALUES[ch] ?? 0
+    else if (ch >= 'A' && ch <= 'Z') w += PIECE_VALUES[ch.toLowerCase()] ?? 0
+  }
+  return w - b
 }
 
-function getCountryFlag(countryCode?: string): string {
-  if (!countryCode) return ''
-  
-  // Handle Chess.com URLs like "https://api.chess.com/pub/country/US"
-  if (countryCode.includes('chess.com') || countryCode.includes('https') || countryCode.includes('/')) {
-    const match = countryCode.match(/\/([A-Z]{2})$/)
-    if (match) countryCode = match[1]
-    else return '' // Invalid format
+function getCountryFlag(raw?: string): string {
+  if (!raw) return ''
+  let code = raw
+  if (raw.includes('/')) {
+    const m = raw.match(/\/([A-Z]{2})$/)
+    if (m) code = m[1]
+    else return ''
   }
-  
-  // Only convert valid 2-letter country codes
-  if (countryCode.length === 2 && /^[A-Z]{2}$/.test(countryCode)) {
-    return countryCode.toUpperCase().split('').map(char =>
-      String.fromCodePoint(127397 + char.charCodeAt(0))
-    ).join('')
-  }
-  
-  return '' // Invalid country code
+  if (code.length === 2 && /^[A-Z]{2}$/.test(code))
+    return code.split('').map(c => String.fromCodePoint(127397 + c.charCodeAt(0))).join('')
+  return ''
 }
+
+/** Format clock string for display.
+ *  Input: "H:MM:SS" or "H:MM:SS.d" from PGN %clk
+ *  Rules: strip leading "0:", show decimal only if total ≤ 60s */
+function formatClock(raw: string): string {
+  const parts = raw.split(':')
+  if (parts.length < 3) return raw
+
+  const h = parseInt(parts[0], 10)
+  const m = parseInt(parts[1], 10)
+  const sRaw = parts[2]  // may contain decimal e.g. "42.3"
+  const s = parseFloat(sRaw)
+  const totalSecs = h * 3600 + m * 60 + s
+
+  if (totalSecs < 60) {
+    // Show decimal: "0:42.3"
+    return `0:${sRaw.padStart(4, '0')}`
+  }
+  // No decimal
+  const sInt = Math.floor(s)
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sInt).padStart(2, '0')}`
+  return `${m}:${String(sInt).padStart(2, '0')}`
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export default function PlayerInfoBox({
-  username,
-  elo,
-  isWhite,
-  isToMove,
-  currentFen,
-  timeLeft,
-  platform
+  username, elo, isWhite, isToMove, currentFen, clockTime, platform
 }: PlayerInfoBoxProps) {
-  const [profile, setProfile] = useState<PlayerProfile | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [avatarFailed, setAvatarFailed] = useState(false)
+  const [countryCode, setCountryCode] = useState<string | undefined>()
 
-  // Fetch player profile for avatar and country
   useEffect(() => {
     if (!username || !platform) return
+    setAvatarFailed(false)
+    setAvatarUrl(null)
+    setCountryCode(undefined)
+    let cancelled = false
 
-    const fetchProfile = async () => {
+    ;(async () => {
       try {
-        let playerProfile: ChessComPlayer | LichessPlayer | null = null
+        let profile: ChessComPlayer | LichessPlayer | null = null
+        if (platform === 'chesscom') profile = await getChessComProfile(username)
+        else if (platform === 'lichess') profile = await getLichessProfile(username)
+        if (cancelled || !profile) return
 
-        if (platform === 'chesscom') {
-          playerProfile = await getChessComProfile(username)
-        } else if (platform === 'lichess') {
-          playerProfile = await getLichessProfile(username)
+        if ('avatar' in profile && profile.avatar) {
+          const av = profile.avatar
+          setAvatarUrl(av.startsWith('http') ? av : `https://api.chess.com${av.startsWith('/') ? '' : '/'}${av}`)
         }
+        if ('country' in profile) setCountryCode(profile.country)
+        else if ('profile' in profile && profile.profile?.country) setCountryCode(profile.profile.country)
+      } catch { /* silently fail */ }
+    })()
 
-        if (playerProfile) {
-          let avatarUrl: string | undefined
-          
-          if ('avatar' in playerProfile && playerProfile.avatar) {
-            // Chess.com avatar - might be relative or full URL
-            const avatar = playerProfile.avatar
-            if (avatar.startsWith('http')) {
-              avatarUrl = avatar
-            } else {
-              // Assume it's a Chess.com avatar path
-              avatarUrl = `https://api.chess.com${avatar.startsWith('/') ? '' : '/'}${avatar}`
-            }
-          }
-          
-          setProfile({
-            avatar: avatarUrl,
-            country: 'country' in playerProfile ? playerProfile.country : ('profile' in playerProfile && playerProfile.profile?.country ? playerProfile.profile.country : undefined)
-          })
-        }
-      } catch (error) {
-        console.warn('Failed to fetch player profile:', error)
-      }
-    }
-
-    fetchProfile()
+    return () => { cancelled = true }
   }, [username, platform])
 
   const materialBalance = useMemo(() => getMaterialBalance(currentFen), [currentFen])
   const capturedPieces = useMemo(() => getCapturedPieces(currentFen), [currentFen])
+  // Show pieces that THIS player lost (captured by opponent)
+  // Show pieces this player CAPTURED (opponent's pieces taken as trophies)
   const playerCaptured = isWhite ? capturedPieces.black : capturedPieces.white
+  const advantage = isWhite ? materialBalance : -materialBalance
+
+  const flag = getCountryFlag(countryCode)
 
   return (
-    <div className={`player-info-box ${isWhite ? 'white' : 'black'}`}>
+    <div className={`player-info-box${isToMove ? ' to-move' : ''}`}>
+      {/* Avatar */}
       <div className="player-avatar">
-        {profile?.avatar && profile.avatar.startsWith('http') ? (
+        {avatarUrl && !avatarFailed ? (
           <img
-            src={profile.avatar}
-            alt={`${username} avatar`}
+            src={avatarUrl}
+            alt={`${username}`}
             className="avatar-image"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement
-              target.style.display = 'none'
-              const fallback = target.nextElementSibling as HTMLElement
-              if (fallback) fallback.style.display = 'flex'
-            }}
+            onError={() => setAvatarFailed(true)}
           />
-        ) : null}
-        <div 
-          className="avatar-fallback"
-          style={{ 
-            display: (!profile?.avatar || !profile.avatar.startsWith('http')) ? 'flex' : 'none' 
-          }}
-        >
-          {username ? username.charAt(0).toUpperCase() : '?'}
-        </div>
+        ) : (
+          <div className="avatar-fallback">
+            {username ? username.charAt(0).toUpperCase() : '?'}
+          </div>
+        )}
       </div>
 
-      <div className="player-details">
-        <div className="player-header">
+      {/* Name + captured pieces (two lines) */}
+      <div className="player-info-lines">
+        <div className="player-line-1">
           <span className="player-name">{username || 'Unknown'}</span>
           {elo && <span className="player-rating">({elo})</span>}
-          {profile?.country && (
-            <span className="player-flag" title={profile.country}>
-              {getCountryFlag(profile.country)}
+          {flag && <span className="player-flag">{flag}</span>}
+        </div>
+        <div className="player-line-2">
+          {playerCaptured.length > 0 && (
+            <span className="captured-pieces">
+              {playerCaptured.map((pieceType, i) => (
+                <img
+                  key={i}
+                  src={getPieceImage(isWhite ? 'b' : 'w', pieceType)}
+                  alt={pieceType}
+                  className="captured-piece-img"
+                />
+              ))}
             </span>
           )}
-        </div>
-
-        <div className="player-stats">
-          <div className="time-display">
-            {formatTime(timeLeft ?? null)}
-          </div>
-
-          <div className="material-info">
-            <div className="captured-pieces">
-              {playerCaptured.length > 0 ? playerCaptured.map((piece, i) => (
-                <span key={i} className="captured-piece">{piece}</span>
-              )) : null}
-            </div>
-            <div className="material-balance">
-              {materialBalance > 0 && '+'}
-              {materialBalance !== 0 ? materialBalance : ''}
-            </div>
-          </div>
+          {advantage > 0 && <span className="material-advantage">+{advantage}</span>}
         </div>
       </div>
 
-      <div className={`to-move-indicator ${isToMove ? 'active' : ''}`} />
+      {/* Clock */}
+      {clockTime && (
+        <div className={`clock-box${isToMove ? ' clock-box--active' : ''}`}>
+          <span className="clock-value">{formatClock(clockTime)}</span>
+        </div>
+      )}
     </div>
   )
 }

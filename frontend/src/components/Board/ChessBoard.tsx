@@ -2,7 +2,7 @@
 // chessground handles rendering and drag/drop
 // chess.js handles legal move computation
 
-import { useEffect, useRef, useMemo } from 'react'
+import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react'
 import { Chessground } from 'chessground'
 import type { Api } from 'chessground/api'
 import type { Config } from 'chessground/config'
@@ -10,6 +10,7 @@ import type { Key } from 'chessground/types'
 import type { DrawShape } from 'chessground/draw'
 import { Chess } from 'chess.js'
 import { STARTING_FEN } from '../../chess/constants'
+import { PIECE_IMAGES } from '../../chess/pieceImages'
 
 export type { DrawShape }
 
@@ -68,6 +69,9 @@ export default function ChessBoard({
     }
   }, [fen])
 
+  const [pendingPromotion, setPendingPromotion] = useState<{ from: Key; to: Key; color: 'white' | 'black'; orientation: 'white' | 'black' } | null>(null)
+
+  const orientationRef = useRef(orientation)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const apiRef = useRef<Api | null>(null)
@@ -94,6 +98,7 @@ export default function ChessBoard({
   fenRef.current = fen
   onMoveRef.current = onMove
   interactiveRef.current = interactive
+  orientationRef.current = orientation
 
   // Initialize chessground once on mount
   useEffect(() => {
@@ -112,8 +117,17 @@ export default function ChessBoard({
           after: (from: Key, to: Key) => {
             const currentFen = fenRef.current
             const chess = new Chess(currentFen)
-            const move = chess.move({ from, to, promotion: 'q' })
+            const piece = chess.get(from as any)
+            const toRank = to[1]
 
+            // Detect promotion: pawn reaching last rank
+            if (piece?.type === 'p' && (toRank === '8' || toRank === '1')) {
+              const color = piece.color === 'w' ? 'white' : 'black'
+              setPendingPromotion({ from, to, color, orientation: orientationRef.current })
+              return
+            }
+
+            const move = chess.move({ from, to })
             if (move && onMoveRef.current) {
               onMoveRef.current(from, to, move.san, chess.fen())
             } else {
@@ -210,9 +224,82 @@ export default function ChessBoard({
     })
   }, [shapes])
 
+  const handlePromotion = useCallback((piece: string) => {
+    if (!pendingPromotion) return
+    const { from, to } = pendingPromotion
+    const currentFen = fenRef.current
+    const chess = new Chess(currentFen)
+    const move = chess.move({ from, to, promotion: piece })
+    setPendingPromotion(null)
+    if (move && onMoveRef.current) {
+      onMoveRef.current(from, to, move.san, chess.fen())
+    } else {
+      // Snap back on failure
+      apiRef.current?.set({
+        fen: currentFen,
+        turnColor: getTurnColor(currentFen),
+        movable: {
+          color: interactiveRef.current ? getTurnColor(currentFen) : undefined,
+          dests: interactiveRef.current ? getLegalDests(currentFen) : undefined,
+        },
+      })
+    }
+  }, [pendingPromotion])
+
   return (
     <div ref={wrapperRef} className="chess-board-container" role="region" aria-label="Chess board">
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {pendingPromotion && (() => {
+        const { to, color, orientation: ori } = pendingPromotion
+        const fileIndex = to.charCodeAt(0) - 97
+        const col = ori === 'white' ? fileIndex : 7 - fileIndex
+        const leftPct = col * 12.5
+        const isRank8 = to[1] === '8'
+        const atVisualTop = (ori === 'white') === isRank8
+        const pickerStyle: React.CSSProperties = {
+          left: `${leftPct}%`,
+          ...(atVisualTop ? { top: 0 } : { bottom: 0 }),
+          flexDirection: atVisualTop ? 'column' : 'column-reverse',
+        }
+        const colorChar = color === 'white' ? 'w' : 'b'
+        const pieces: [string, string][] = [['q','Queen'],['r','Rook'],['b','Bishop'],['n','Knight']]
+        const cancelBtn = (
+          <button
+            key="cancel"
+            className="promotion-cancel"
+            onClick={() => {
+              setPendingPromotion(null)
+              const currentFen = fenRef.current
+              apiRef.current?.set({
+                fen: currentFen,
+                turnColor: getTurnColor(currentFen),
+                movable: {
+                  color: interactiveRef.current ? getTurnColor(currentFen) : undefined,
+                  dests: interactiveRef.current ? getLegalDests(currentFen) : undefined,
+                },
+              })
+            }}
+            title="Cancel"
+          >✕</button>
+        )
+        const choiceBtns = pieces.map(([piece, label]) => (
+          <button
+            key={piece}
+            className="promotion-choice"
+            onClick={() => handlePromotion(piece)}
+            title={label}
+          >
+            <img src={PIECE_IMAGES[`${colorChar}${piece}`]} alt={label} style={{ width: '85%', height: '85%' }} />
+          </button>
+        ))
+        return (
+          <div className="promotion-overlay">
+            <div className="promotion-picker" style={pickerStyle}>
+              {atVisualTop ? [cancelBtn, ...choiceBtns] : [...choiceBtns, cancelBtn]}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

@@ -1,11 +1,13 @@
 // EvalBar.tsx — Evaluation bar alongside the chess board
-// IMPORTANT: hidden=true in Think First mode — hides eval until user engages.
+// Uses absolute positioning to avoid flex reflow flicker.
+// Holds last known eval to prevent 50/50 flash during transitions.
+
+import { useRef } from 'react'
 
 interface EvalBarProps {
   evalCentipawns?: number  // undefined = no data yet (shows 50/50)
   isMate?: boolean
   mateIn?: number | null
-  isAnalyzing?: boolean
   hidden?: boolean         // Think First mode
   orientation?: 'white' | 'black'
 }
@@ -20,50 +22,58 @@ export default function EvalBar({
   evalCentipawns,
   isMate,
   mateIn,
-  isAnalyzing,
   hidden,
   orientation = 'white',
 }: EvalBarProps) {
   if (hidden) return null
 
-  // During analysis, hold at 50/50 — don't jitter with every analyzed move
-  const whitePct = (!isAnalyzing && evalCentipawns !== undefined) ? cpToWhitePct(evalCentipawns) : 50
+  // Hold the last known eval so the bar never flashes to 50/50 during
+  // transient undefined frames (branch entry, position change debounce).
+  const lastRef = useRef<{ cp: number; isMate: boolean; mateIn: number | null }>({ cp: 0, isMate: false, mateIn: null })
+  if (evalCentipawns !== undefined) {
+    lastRef.current = { cp: evalCentipawns, isMate: isMate ?? false, mateIn: mateIn ?? null }
+  }
+  const cp = evalCentipawns ?? lastRef.current.cp
+  const mate = evalCentipawns !== undefined ? (isMate ?? false) : lastRef.current.isMate
+  const mIn = evalCentipawns !== undefined ? (mateIn ?? null) : lastRef.current.mateIn
+
+  const whitePct = cpToWhitePct(cp)
   const blackPct = 100 - whitePct
 
   // When board is flipped (black at bottom), flip the bar too
   const topPct = orientation === 'white' ? blackPct : whitePct
   const botPct = orientation === 'white' ? whitePct : blackPct
-  const topCls = orientation === 'white' ? 'eval-bar-black' : 'eval-bar-white'
-  const botCls = orientation === 'white' ? 'eval-bar-white' : 'eval-bar-black'
 
   // Build the label shown at the boundary
   let boundaryLabel: string
-  if (isAnalyzing) {
-    boundaryLabel = '0.0'
-  } else if (isMate && mateIn != null) {
-    boundaryLabel = `M${Math.abs(mateIn)}`
-  } else if (evalCentipawns !== undefined) {
-    const pawns = evalCentipawns / 100
+  if (mate && mIn != null) {
+    boundaryLabel = `M${Math.abs(mIn)}`
+  } else {
+    const pawns = cp / 100
     const sign = pawns > 0 ? '+' : ''
     boundaryLabel = `${sign}${pawns.toFixed(1)}`
-  } else {
-    boundaryLabel = '0.0'
   }
 
   return (
-    <div className="eval-bar-container" style={{ position: 'relative' }}>
-      <div className={topCls} style={{ height: `${topPct}%` }} />
-      <div className={botCls} style={{ height: `${botPct}%` }} />
+    <div className="eval-bar-container">
+      {/* Inner wrapper clips the bar segments to rounded corners */}
+      <div className="eval-bar-inner">
+        {/* Black: grows down from top. White: grows up from bottom.
+            Both absolutely positioned — immune to flex reflow. */}
+        <div className="eval-bar-black" style={{ height: `${topPct}%` }} />
+        <div className="eval-bar-white" style={{ height: `${botPct}%` }} />
+      </div>
 
-      {/* Numeric eval label at the boundary */}
+      {/* Center tick — marks the even (0.0) position */}
+      <div className="eval-bar-midline" />
+
+      {/* Numeric eval label at the boundary — outside inner so it's not clipped */}
       <div
         className="eval-bar-label"
         style={{ top: `${topPct}%` }}
       >
         {boundaryLabel}
       </div>
-
-      {isAnalyzing && <div className="eval-bar-analyzing" />}
     </div>
   )
 }

@@ -20,3 +20,19 @@ export function cleanPgn(pgn: string): string {
   }
   return s.replace(/\s+/g, ' ').trim()
 }
+
+/**
+ * Extract move clock times from raw PGN (before cleanPgn strips comments).
+ * Parses { [%clk H:MM:SS] } annotations in move order.
+ * Returns an array indexed by half-move (0 = white move 1, 1 = black move 1, ...).
+ * Entries are clock strings like "0:09:45" or undefined if no clock for that move.
+ */
+export function extractClockTimes(rawPgn: string): (string | undefined)[] {
+  const times: (string | undefined)[] = []
+  const regex = /\{\s*\[%clk\s+(\d+:\d{2}:\d{2}(?:\.\d+)?)\]\s*\}/g
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(rawPgn)) !== null) {
+    times.push(match[1])
+  }
+  return times
+}

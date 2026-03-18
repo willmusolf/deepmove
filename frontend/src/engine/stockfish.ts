@@ -6,6 +6,8 @@
 
 import { Chess } from 'chess.js'
 
+const MIN_MULTIPV_DISPLAY_DEPTH = 8
+
 export interface EvalResult {
   fen: string
   depth: number
@@ -150,7 +152,7 @@ export class StockfishEngine {
         // Emit progressive update whenever rank 1 (the best line) reaches a new depth.
         // Stockfish doesn't always update all lines at every depth, so requiring
         // allAtDepth would stall at the shallowest depth where all 3 lines agree.
-        if (rank === 1 && depth > this.lastEmittedMultiPvDepth && this.currentMultiPvOnUpdate) {
+        if (rank === 1 && depth >= MIN_MULTIPV_DISPLAY_DEPTH && depth > this.lastEmittedMultiPvDepth && this.currentMultiPvOnUpdate) {
           this.lastEmittedMultiPvDepth = depth
           this.currentMultiPvOnUpdate(
             Array.from(this.latestMultiPvLines.values()).sort((a, b) => a.rank - b.rank),

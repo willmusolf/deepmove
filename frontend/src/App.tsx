@@ -10,6 +10,7 @@ import BestLines from './components/Board/BestLines'
 import PlayerInfoBox from './components/Board/PlayerInfoBox'
 import ImportPanel from './components/Import/ImportPanel'
 import AccountLink from './components/Import/AccountLink'
+import type { PaginationState } from './components/Import/AccountLink'
 import GameSelector from './components/Import/GameSelector'
 import type { ChessComGame } from './api/chesscom'
 import type { LichessGame } from './api/lichess'
@@ -159,6 +160,8 @@ export default function App() {
   const [lichessGames, setLichessGames] = useState<LichessGame[]>([])
   const [chesscomUsername, setChesscomUsername] = useState('')
   const [lichessUsername, setLichessUsername] = useState('')
+  const [chesscomPagination, setChesscomPagination] = useState<PaginationState | null>(null)
+  const [lichessPagination, setLichessPagination] = useState<PaginationState | null>(null)
   const [currentPage, setCurrentPage] = useState<Page>('review')
   const [showEvalBar, setShowEvalBar] = useState(true)
 
@@ -283,23 +286,12 @@ export default function App() {
 
   // For the eval bar: prefer the stable full-game eval on the main line.
   // Only fall back to multi-PV posLine in branches (no mainEval) or before full-game analysis.
-  // Hold the last valid eval so the bar never flashes to 50/50 during transitions.
   const posLine = currentPositionLines[0]
   const mainEval = currentMoveIndex > 0 ? moveEvals[currentMoveIndex - 1] : undefined
   const useMainEval = mainEval && !inBranch
-  const rawEvalCp = useMainEval ? mainEval.eval.score : (posLine?.score ?? mainEval?.eval.score)
-  const rawEvalIsMate = useMainEval ? (mainEval.eval.isMate ?? false) : (posLine?.isMate ?? mainEval?.eval.isMate ?? false)
-  const rawEvalMateIn = useMainEval ? (mainEval.eval.mateIn ?? null) : (posLine?.mateIn ?? mainEval?.eval.mateIn ?? null)
-
-  const lastEvalRef = useRef<{ cp: number; isMate: boolean; mateIn: number | null }>({ cp: 0, isMate: false, mateIn: null })
-  if (rawEvalCp !== undefined) {
-    lastEvalRef.current = { cp: rawEvalCp, isMate: rawEvalIsMate, mateIn: rawEvalMateIn }
-  }
-  const evalCp = rawEvalCp ?? lastEvalRef.current.cp
-  // DEBUG: remove after fixing eval bar bounce
-  console.log('[EvalBar]', { currentMoveIndex, rawEvalCp, evalCp, useMainEval: !!useMainEval, inBranch, posLineScore: posLine?.score, mainEvalScore: mainEval?.eval.score })
-  const evalIsMate = rawEvalCp !== undefined ? rawEvalIsMate : lastEvalRef.current.isMate
-  const evalMateIn = rawEvalCp !== undefined ? rawEvalMateIn : lastEvalRef.current.mateIn
+  const evalCp = useMainEval ? mainEval.eval.score : (posLine?.score ?? mainEval?.eval.score)
+  const evalIsMate = useMainEval ? (mainEval.eval.isMate ?? false) : (posLine?.isMate ?? mainEval?.eval.isMate ?? false)
+  const evalMateIn = useMainEval ? (mainEval.eval.mateIn ?? null) : (posLine?.mateIn ?? mainEval?.eval.mateIn ?? null)
 
   function formatEval(score: number | undefined, isMate: boolean, mateIn: number | null): string {
     if (score === undefined) return '—'
@@ -569,9 +561,10 @@ export default function App() {
                         <>
                           <AccountLink
                             platform="chesscom"
-                            onGamesLoaded={(games, uname) => {
+                            onGamesLoaded={(games, uname, pagination) => {
                               setChesscomGames(games as ChessComGame[])
                               setChesscomUsername(uname)
+                              setChesscomPagination(pagination)
                             }}
                           />
                           {chesscomGames.length > 0 && (
@@ -580,6 +573,11 @@ export default function App() {
                               username={chesscomUsername}
                               platform="chesscom"
                               onGameLoaded={() => setPanelTab('analysis')}
+                              pagination={chesscomPagination}
+                              onGamesAppended={(newGames, newPagination) => {
+                                setChesscomGames(prev => [...prev, ...(newGames as ChessComGame[])])
+                                setChesscomPagination(newPagination)
+                              }}
                             />
                           )}
                         </>
@@ -589,9 +587,10 @@ export default function App() {
                         <>
                           <AccountLink
                             platform="lichess"
-                            onGamesLoaded={(games, uname) => {
+                            onGamesLoaded={(games, uname, pagination) => {
                               setLichessGames(games as LichessGame[])
                               setLichessUsername(uname)
+                              setLichessPagination(pagination)
                             }}
                           />
                           {lichessGames.length > 0 && (
@@ -600,6 +599,11 @@ export default function App() {
                               username={lichessUsername}
                               platform="lichess"
                               onGameLoaded={() => setPanelTab('analysis')}
+                              pagination={lichessPagination}
+                              onGamesAppended={(newGames, newPagination) => {
+                                setLichessGames(prev => [...prev, ...(newGames as LichessGame[])])
+                                setLichessPagination(newPagination)
+                              }}
                             />
                           )}
                         </>

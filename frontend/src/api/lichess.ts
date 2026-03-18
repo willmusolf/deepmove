@@ -21,15 +21,32 @@ export interface LichessGame {
   clock: { initial: number; increment: number }
 }
 
-export async function getUserGames(username: string, limit = 10): Promise<LichessGame[]> {
-  // Lichess streams NDJSON — we request pgnInJson=true for convenience
-  const res = await fetch(
-    `${LICHESS_BASE}/games/user/${username}?max=${limit}&pgnInJson=true&clocks=false&opening=false`,
-    { headers: { Accept: 'application/x-ndjson' } },
-  )
+export interface LichessLoadResult {
+  games: LichessGame[]
+  /** True if there may be more games to fetch (returned exactly `limit` games) */
+  hasMore: boolean
+}
+
+export async function getUserGames(username: string, limit = 50): Promise<LichessLoadResult> {
+  const games = await fetchLichessGames(username, limit)
+  return { games, hasMore: games.length >= limit }
+}
+
+export async function loadMoreLichessGames(
+  username: string,
+  beforeTimestamp: number,
+  limit = 50,
+): Promise<LichessLoadResult> {
+  const games = await fetchLichessGames(username, limit, beforeTimestamp)
+  return { games, hasMore: games.length >= limit }
+}
+
+async function fetchLichessGames(username: string, limit: number, before?: number): Promise<LichessGame[]> {
+  let url = `${LICHESS_BASE}/games/user/${username}?max=${limit}&pgnInJson=true&clocks=false&opening=false`
+  if (before) url += `&until=${before}`
+  const res = await fetch(url, { headers: { Accept: 'application/x-ndjson' } })
   if (!res.ok) throw new Error(`Lichess API error: ${res.status}`)
   const text = await res.text()
-  // Parse NDJSON (one JSON object per line)
   return text
     .trim()
     .split('\n')

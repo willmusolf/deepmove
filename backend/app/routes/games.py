@@ -1,5 +1,5 @@
 """games.py — Game storage, retrieval, and sync endpoints."""
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -87,7 +87,7 @@ async def create_game(
             existing.move_evals = body.move_evals
             existing.critical_moments = body.critical_moments
             existing.analyzed_at = datetime.fromisoformat(body.analyzed_at) if body.analyzed_at else None
-            existing.synced_at = datetime.now(timezone.utc)
+            existing.synced_at = datetime.now(datetime.UTC)
             db.commit()
             db.refresh(existing)
             return GameResponse.model_validate(existing)
@@ -130,7 +130,7 @@ async def batch_create(
                     existing.analyzed_at = (
                         datetime.fromisoformat(body.analyzed_at) if body.analyzed_at else None
                     )
-                    existing.synced_at = datetime.now(timezone.utc)
+                    existing.synced_at = datetime.now(datetime.UTC)
                     updated += 1
                     continue
 

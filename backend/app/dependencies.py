@@ -1,7 +1,7 @@
 """dependencies.py — FastAPI dependency injection (DB session, auth)."""
 from collections.abc import Generator
 
-from fastapi import Cookie, Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
