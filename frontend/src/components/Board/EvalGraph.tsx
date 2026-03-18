@@ -12,6 +12,7 @@ interface EvalGraphProps {
   currentMoveIndex: number
   onNavigate: (index: number) => void
   criticalMoments?: CriticalMoment[]
+  viewMode?: 'classic' | 'coach'
 }
 
 const HEIGHT = 96
@@ -72,6 +73,7 @@ export default function EvalGraph({
   currentMoveIndex,
   onNavigate,
   criticalMoments = [],
+  viewMode = 'classic',
 }: EvalGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [svgWidth, setSvgWidth] = useState(600)
@@ -119,14 +121,30 @@ export default function EvalGraph({
       let colorClass = ''
       const grade = me.grade ?? ''
 
-      if (me.grade === 'blunder') {
-        symbol = '??'; colorClass = 'eval-graph-badge--blunder'
-      } else if (me.grade === 'mistake') {
-        symbol = '?'; colorClass = 'eval-graph-badge--mistake'
-      } else if (me.grade === 'brilliant') {
-        symbol = '!!'; colorClass = 'eval-graph-badge--brilliant'
-      } else if ((me.grade === 'best' || me.grade === 'excellent') && cpGain > 150) {
-        symbol = '!'; colorClass = 'eval-graph-badge--best'
+      if (viewMode === 'classic') {
+        // Classic: show blunder, mistake, inaccuracy, brilliant, best/excellent
+        if (me.grade === 'blunder') {
+          symbol = '??'; colorClass = 'eval-graph-badge--blunder'
+        } else if (me.grade === 'mistake') {
+          symbol = '?'; colorClass = 'eval-graph-badge--mistake'
+        } else if (me.grade === 'inaccuracy') {
+          symbol = '?!'; colorClass = 'eval-graph-badge--inaccuracy'
+        } else if (me.grade === 'brilliant') {
+          symbol = '!!'; colorClass = 'eval-graph-badge--brilliant'
+        } else if (me.grade === 'best' || me.grade === 'excellent') {
+          symbol = '!'; colorClass = 'eval-graph-badge--best'
+        }
+      } else {
+        // Coach: only blunder, mistake, brilliant, best/excellent with big gain
+        if (me.grade === 'blunder') {
+          symbol = '??'; colorClass = 'eval-graph-badge--blunder'
+        } else if (me.grade === 'mistake') {
+          symbol = '?'; colorClass = 'eval-graph-badge--mistake'
+        } else if (me.grade === 'brilliant') {
+          symbol = '!!'; colorClass = 'eval-graph-badge--brilliant'
+        } else if ((me.grade === 'best' || me.grade === 'excellent') && cpGain > 150) {
+          symbol = '!'; colorClass = 'eval-graph-badge--best'
+        }
       }
 
       if (symbol) {
@@ -149,7 +167,7 @@ export default function EvalGraph({
     }
 
     return { colWidth: cw, midY: my, points: pts, annotations: anns, criticalBands: bands }
-  }, [moveEvals, svgWidth, total, analyzed, criticalMoments])
+  }, [moveEvals, svgWidth, total, analyzed, criticalMoments, viewMode])
 
   const moveX = (i: number) => i * colWidth
 
@@ -223,8 +241,8 @@ export default function EvalGraph({
           {/* Background */}
           <rect x="0" y="0" width={svgWidth} height={HEIGHT} fill="#0f1117" />
 
-          {/* Critical moment golden bands */}
-          {criticalBands.map(idx => (
+          {/* Critical moment golden bands (coach mode only) */}
+          {viewMode === 'coach' && criticalBands.map(idx => (
             <rect
               key={`cm-${idx}`}
               x={moveX(idx) - colWidth * 0.6}

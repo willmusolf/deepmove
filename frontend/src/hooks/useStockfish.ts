@@ -1,8 +1,14 @@
 // useStockfish.ts — React hook for Stockfish engine lifecycle + game analysis
 //
 // TWO-WORKER ARCHITECTURE:
-//   backgroundEngine  — full-game sequential analysis (depth 14)
+//   backgroundEngine  — full-game sequential analysis (elo-adaptive depth)
 //   interactiveEngine  — per-position multi-PV analysis (depth 22), always available
+
+function getAnalysisDepth(elo: number): number {
+  if (!elo || elo < 1200) return elo ? 10 : 14
+  if (elo < 1600) return 14
+  return 18
+}
 
 import { useEffect, useRef, useState } from 'react'
 import { StockfishEngine } from '../engine/stockfish'
@@ -71,7 +77,7 @@ export function useStockfish() {
     const color = userColor ?? 'white'
 
     try {
-      const results = await analyzeGame(pgn, engine, 14, (done, total) => {
+      const results = await analyzeGame(pgn, engine, getAnalysisDepth(userElo), (done, total) => {
         if (done === 1) setTotalMovesCount(total)
         setAnalyzedCount(done)
       }, controller.signal)

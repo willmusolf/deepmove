@@ -118,3 +118,11 @@ export function getGameId(
   const pgn = typeof game === 'string' ? game : (game as ChessComGame).pgn
   return `pgn:${fnv1aHash(pgn)}`
 }
+
+/** DEV ONLY: Clears all analyzed games from IndexedDB */
+export async function clearAllAnalyses(): Promise<number> {
+  const db = await getDB()
+  const count = await db.count(STORE)
+  await db.clear(STORE)
+  return count
+}

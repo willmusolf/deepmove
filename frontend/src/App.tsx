@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Chess } from 'chess.js'
 import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
 import EvalGraph from './components/Board/EvalGraph'
 import GameReport from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
-import BestLines from './components/Board/BestLines'
 import PlayerInfoBox from './components/Board/PlayerInfoBox'
 import ImportPanel from './components/Import/ImportPanel'
 import AccountLink from './components/Import/AccountLink'
@@ -24,6 +22,7 @@ import { useGameStore } from './stores/gameStore'
 import type { TopLine } from './engine/stockfish'
 import type { Key } from 'chessground/types'
 import { STARTING_FEN } from './chess/constants'
+import { clearAllAnalyses } from './services/gameDB'
 import './styles/board.css'
 
 // Lichess-style thickness brushes — all green, varying weight
@@ -77,7 +76,6 @@ export default function App() {
   const authRefresh = useAuthStore(s => s.refresh)
   useEffect(() => { void authRefresh() }, [authRefresh])
 
-  const [showBestLines, setShowBestLines] = useState(false)
   const [currentAnalysisDepth, setCurrentAnalysisDepth] = useState(0)
   // FEN → TopLine[] cache so revisiting a position never re-analyzes
   const positionCache = useRef<Map<string, TopLine[]>>(new Map())
@@ -167,6 +165,8 @@ export default function App() {
   const [lichessPagination, setLichessPagination] = useState<PaginationState | null>(null)
   const [currentPage, setCurrentPage] = useState<Page>('review')
   const [showEvalBar, setShowEvalBar] = useState(true)
+  const [viewMode, setViewMode] = useState<'classic' | 'coach'>('classic')
+  const [showArrows, setShowArrows] = useState(true)
 
 
   // Last-move highlight: always reflects the actual last move in currentPath
@@ -256,21 +256,6 @@ export default function App() {
   }
 
   // Best Lines click: enter first move of that PV as a branch
-  function handleLineClick(line: TopLine) {
-    if (line.pv.length === 0) return
-    const uci = line.pv[0]
-    const chess = new Chess(displayFen)
-    const move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] ?? 'q' })
-    if (move) {
-      playMoveSound(move.san)
-      if (isLoaded) {
-        addVariationMove(move.from, move.to, move.san, chess.fen())
-      } else {
-        setBoardFen(chess.fen())
-      }
-    }
-  }
-
   function handleNavigateTo(path: string[]) {
     pathKeyRef.current++
     const nodeId = path[path.length - 1]
@@ -387,7 +372,7 @@ export default function App() {
                         ? handleBoardMove
                         : (_f, _t, san, newFen) => { playMoveSound(san); setBoardFen(newFen) }
                       }
-                      shapes={boardShapes}
+                      shapes={showArrows ? boardShapes : []}
                       lastMove={isLoaded ? boardLastMove : undefined}
                       pathKey={pathKeyRef.current}
                     />
@@ -445,6 +430,20 @@ export default function App() {
                     title={soundEnabled ? 'Mute sounds' : 'Unmute sounds'}
                   >
                     {soundEnabled ? 'SFX' : 'Mute'}
+                  </button>
+                  <button
+                    className={`btn btn-secondary btn-view-mode ${viewMode}`}
+                    onClick={() => setViewMode(v => v === 'classic' ? 'coach' : 'classic')}
+                    title={viewMode === 'classic' ? 'Switch to Coach mode' : 'Switch to Classic mode'}
+                  >
+                    {viewMode === 'classic' ? 'Classic' : 'Coach'}
+                  </button>
+                  <button
+                    className={`btn btn-secondary${showArrows ? '' : ' muted'}`}
+                    onClick={() => setShowArrows(v => !v)}
+                    title={showArrows ? 'Hide suggestion arrows' : 'Show suggestion arrows'}
+                  >
+                    {showArrows ? 'Arrows' : 'Arrows'}
                   </button>
                 </div>
               </div>
@@ -506,24 +505,6 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Best lines toggle + panel — always available */}
-                      <div className="best-lines-section">
-                        <button
-                          className={`lines-toggle-btn${showBestLines ? ' active' : ''}`}
-                          onClick={() => setShowBestLines(v => !v)}
-                        >
-                          {showBestLines ? 'Hide Lines' : 'Show Lines'}
-                        </button>
-                        {showBestLines && (
-                          <BestLines
-                            lines={visibleLines}
-                            isAnalyzingPosition={isAnalyzingPosition}
-                            onLineClick={handleLineClick}
-                            depth={currentAnalysisDepth}
-                          />
-                        )}
-                      </div>
-
                       {/* Eval graph — hidden during analysis, shown after completion */}
                       {!isAnalyzing && moveEvals.length > 0 && (
                         <EvalGraph
@@ -532,6 +513,7 @@ export default function App() {
                           currentMoveIndex={currentMoveIndex}
                           onNavigate={handleGoToMove}
                           criticalMoments={criticalMoments}
+                          viewMode={viewMode}
                         />
                       )}
 
@@ -657,22 +639,6 @@ export default function App() {
                       )}
 
                       {/* Best lines in free-play */}
-                      <div className="best-lines-section">
-                        <button
-                          className={`lines-toggle-btn${showBestLines ? ' active' : ''}`}
-                          onClick={() => setShowBestLines(v => !v)}
-                        >
-                          {showBestLines ? 'Hide Lines' : 'Show Lines'}
-                        </button>
-                        {showBestLines && (
-                          <BestLines
-                            lines={visibleLines}
-                            isAnalyzingPosition={isAnalyzingPosition}
-                            onLineClick={handleLineClick}
-                            depth={currentAnalysisDepth}
-                          />
-                        )}
-                      </div>
 
                       {!posLine && !isAnalyzingPosition && (
                         <div className="panel-empty">Push pieces on the board to see evaluation.</div>
@@ -685,7 +651,25 @@ export default function App() {
           )}
 
           {currentPage === 'dashboard' && <div className="stub-page">Dashboard coming soon.</div>}
-          {currentPage === 'settings' && <div className="stub-page">Settings coming soon.</div>}
+          {currentPage === 'settings' && (
+            <div className="stub-page">
+              <h3>Settings</h3>
+              <div style={{ marginTop: '1rem' }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={async () => {
+                    const count = await clearAllAnalyses()
+                    alert(`Cleared ${count} cached analyses. Games will re-analyze on next load.`)
+                  }}
+                >
+                  Reset All Analyses
+                </button>
+                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', marginTop: '0.5rem' }}>
+                  Clears cached analysis from IndexedDB. Games will re-run Stockfish on next view.
+                </p>
+              </div>
+            </div>
+          )}
           {currentPage === 'about' && <div className="stub-page">About coming soon.</div>}
         </div>
       </div>

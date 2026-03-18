@@ -74,13 +74,6 @@
 
 ## 🟡 POLISH & EXPANSION
 
-### TRACK A.4: Board UX Polish (1-2 hours per item)
-- [ ] Keyboard navigation (arrow keys to step, spacebar to analyze)
-- [ ] Eval bar clarity (who's winning indicator)
-- [ ] Move highlighting in move list
-- [ ] Last import memory (localStorage)
-- [ ] Branching visualization (tree view)
-
 ### TRACK T.2: Frontend Test Infrastructure (1-2 hours)
 - [x] Add unit/integration test harness (Vitest + Testing Library)
 - [x] Add test coverage for critical board logic (FEN sync, move validation, branching)
@@ -94,6 +87,7 @@
 - [ ] Coach panel full-width below
 - [ ] Board touch-friendly
 - [ ] Test on real phones
+- we really need to flesh this out and perfect it. and also we need to think about making this an app at some point too pretty soon after launch will that be simple and easy? lichess has an app
 
 ### TRACK C.5: Think First Mode (Socratic) — **ITERATE LATER**
 - [ ] For MVP: Just 5-step lesson (no Socratic)
@@ -160,6 +154,103 @@
 - [ ] Use pytest + httpx AsyncClient with a test DB (separate DATABASE_URL for tests)
 
 ---
+
+
+## 💰 MONETIZATION & LAUNCH
+
+### Pricing Model (Decided)
+- **Domain:** deepmove.io (purchased, $60)
+- **Free tier:** Unlimited Stockfish analysis + unlimited game imports + 1 AI-coached game review/day (all 2-3 critical moments with full lessons + game summary) + minimal ads
+- **Premium ($5/mo or $40/year, 20% annual discount):** Unlimited AI coaching + full account analysis (last 50-100 games) + principle tracker dashboard + weekly coaching email + lesson bookmarking + no ads + priority LLM queue
+- **No one-time purchases or credits** — subscription only, keep it simple
+- **Break-even target:** ~200 active users with 10% premium conversion + ads
+
+### LLM Model Strategy: Elo-Based Selection
+- **Under 1600:** Haiku 4.5 (~$0.003/lesson) — tactical + basic strategic coaching is structured enough for Haiku
+- **1600+:** Sonnet 4.6 (~$0.008/lesson) — advanced strategic concepts need richer explanation
+- Free vs Premium = quantity + features, not AI quality. Everyone gets the right model for their level.
+- ~80% of users are under 1600, so costs stay very close to pure Haiku
+
+### Cost Model (with 60% cache hit rate)
+- Per lesson: ~$0.003 (Haiku) / ~$0.008 (Sonnet)
+- Per game (2-3 lessons): ~$0.008
+- Per free user/month (1 game/day): ~$0.24
+- Per premium user/month (3 games/day): ~$0.72
+- 200 users total cost: ~$136/mo (hosting + LLM)
+- 500 users total cost: ~$352/mo
+- 1,000 users total cost: ~$753/mo
+- Hosting: Vercel (free) + Railway ($5/mo) + Supabase (free until ~1K users)
+
+### Revenue Projections (10% premium conversion + ads)
+- 200 users: $154/mo revenue vs $144/mo cost = +$10
+- 500 users: $385/mo revenue vs $352/mo cost = +$33
+- 1,000 users: $770/mo revenue vs $753/mo cost = +$17
+- 2,000 users: $1,540/mo revenue vs $1,400/mo cost = +$140
+- Margins widen as cache hit rate improves over time (→70-80%)
+
+### Competitive Positioning
+- vs Chess.com: Way cheaper ($5 vs $15-30), better AI coaching, no platform lock-in
+- vs Chessigma: We add principle-based coaching on top of free analysis, fewer/better ads
+- vs Lichess: We add AI coaching layer (Lichess has none)
+- vs DecodeChess: Cheaper ($5 vs $15), principle-based not position-based
+- vs Aimchess: Similar price ($5 vs $5-7), but we teach WHY not just WHAT
+
+### M.1: Stripe Integration (2-3 hours)
+- [ ] Create Stripe account + products (Premium Monthly $5, Premium Annual $40)
+- [ ] Stripe Checkout for subscription signup (no custom payment UI)
+- [ ] Stripe Customer Portal for card management + cancellation
+- [ ] Webhook handler: checkout.session.completed → set is_premium = true
+- [ ] Webhook handler: customer.subscription.deleted → set is_premium = false
+- [ ] Add is_premium and stripe_customer_id to User model
+- [ ] Alembic migration for new fields
+
+### M.2: Rate Limiting (1 hour)
+- [ ] Middleware: track daily AI coaching usage per user
+- [ ] Free users: 1 coached game/day (2-3 lessons count as 1 game)
+- [ ] Premium users: unlimited
+- [ ] Return 429 with friendly message: "You've used your free coaching for today. Upgrade to Premium for unlimited."
+- [ ] Reset counters at midnight UTC
+
+### M.3: Ad Integration (1 hour)
+- [ ] Sign up for EthicalAds or Carbon Ads
+- [ ] Single banner placement (bottom of page or sidebar)
+- [ ] Hide ads for Premium users (check is_premium)
+- [ ] Keep it tasteful — one ad max, never intrusive, less than Chessigma
+
+### M.4: Full Account Analysis (3-4 hours) — POST-LAUNCH
+- [ ] Batch analysis: pull last 50-100 recent games → run full pipeline on each
+- [ ] Aggregate principle violations across all games
+- [ ] Generate weakness report: top 3 recurring mistakes + trends + examples
+- [ ] Store results for dashboard display
+- [ ] Monthly rescan capability (Premium only — tracks improvement over time)
+- [ ] Cost per scan: 50 games × $0.008 = ~$0.40 (huge margin on $5/mo)
+
+### M.5: Principle Tracker Dashboard (2-3 hours) — POST-LAUNCH
+- [ ] Visual dashboard: principle violation frequency over time
+- [ ] Top 3 weaknesses highlighted with specific game examples
+- [ ] Progress tracking: "You've reduced blunders by 20% this month"
+- [ ] Premium-only feature
+
+### M.6: Deploy to deepmove.io (2-3 hours)
+- [ ] Deploy frontend to Vercel, connect deepmove.io domain
+- [ ] Deploy backend to Railway
+- [ ] Set up Supabase project (production PostgreSQL)
+- [ ] Configure env vars, SSL, CORS for production
+- [ ] Smoke test full flow: import → analysis → coaching → payment
+
+### Launch Timeline (estimated 4-6 weeks)
+1. Finish coaching pipeline (Tracks B + C) — weeks 1-3
+2. Monetization infrastructure (Stripe, rate limiting, ads) — weeks 3-4
+3. Deploy to deepmove.io — week 4-5
+4. Launch + marketing push — week 5-6
+
+### What to Skip for Launch
+- OAuth (email/password works fine)
+- Weekly coaching emails (post-launch)
+- Principle tracker dashboard (post-launch)
+- Mobile polish beyond basics
+- Think First / Socratic mode (just 5-step lessons)
+- Coaching packs / micro-transactions
 
 ## 🔵 FUTURE (POST-LAUNCH)
 
@@ -421,25 +512,157 @@ This is large. If time runs out, stop cleanly at a phase boundary and report:
 - What's partial and what remains
 - A continuation prompt for the next session
 
+more to think about for coaching logic / plan:
+Will Musolf:
+	I distilled 186+ replies from a massive X thread on 10x-ing Claude Code. Here's the actual playbook people are running.
+
+[u/toddsaunders on X](https://x.com/toddsaunders/status/2031436358233760063) kicked off a thread about 10x-ing Claude Code output and it turned into one of the best crowdsourced playbooks I've seen. 186+ replies, all practitioners, mostly converging on the same handful of setups. Not vibes — actual configs people are running daily.
+
+I went through the whole thing and distilled it down. Posting here because I think a lot of people in this sub are still running Claude Code "stock" and leaving a ton on the table.
+
+
+
+**The two things literally everyone agrees on:**
+
+**1.** `.env` **in project root with your API keys**
+
+This was the single most-mentioned unlock. Drop your Anthropic key (and any other service keys) into a `.env` at project root. Claude Code auto-loads it. No more copy-pasting keys, no more approving every tool call manually. Multiple people said this alone removed \~80% of the babysitting they were doing. One person called it "the difference between Claude doing work *for* you vs. you doing work *through* Claude."
+
+**2. Take your** [`CLAUDE.md`](http://CLAUDE.md) **seriously — like, dead seriously**
+
+Stop treating it like a README nobody reads. The people getting the most out of Claude Code are stuffing their [`CLAUDE.md`](http://CLAUDE.md) with full project architecture, file conventions, naming rules, decision boundaries, tech stack details — everything. Every new session starts with real context instead of you burning 10 minutes re-explaining your codebase. One dev said they run 7 autonomous agents off a shared [`CLAUDE.md`](http://CLAUDE.md) \+ per-agent context files and hasn't touched manual config in weeks. Boris (the literal creator of Claude Code) has said essentially the same thing — his team checks their [`CLAUDE.md`](http://CLAUDE.md) into git and updates it multiple times a week. Anytime Claude makes a mistake, they add a rule so it doesn't happen again. Compounding knowledge.
+
+If you do nothing else today: set up `.env` \+ write a real `CLAUDE.md`. That was the consensus #1 lever across the entire thread.
+
+
+
+**The rest of the stack people are layering on top:**
+
+**Pair Claude Code with Codex for verification.** Tell Claude to use Codex to verify assumptions and run tests. Several replies (one with 19 likes, which is a lot for a reply) said this combo catches edge cases and hallucinations that pure Claude misses. The move is apparently "Claude builds, Codex reviews" — and it pulls ahead of either one solo.
+
+**Autopilot wrappers to kill the approval loop.** The "approve 80 tool calls" friction was a huge pain point. Two repos kept coming up:
+
+* [executive](https://github.com/ncr5012/executive) — one comment called it "literally more than a 10x speed up" once prompts are dialed in
+* [get-shit-done](https://github.com/gsd-build/get-shit-done) — does what it says on the tin
+
+These basically keep Claude in full autonomous mode so you're not babysitting every file write.
+
+**Exa MCP for search.** This one surprised me. Exa apparently hijacks the default search tool — you don't even call it manually. Claude Code just starts pulling fresh docs, research, and implementations automatically. Multiple devs said they "barely open Chrome anymore." If you're still alt-tabbing to Google while Claude waits, this is apparently the fix.
+
+**Plan mode 80% of the time.** Stay in plan mode. Pour energy into the plan. Let Claude one-shot the implementation once the plan is bulletproof. One person has Claude write the plan, then spins up a second Claude to review it as a staff engineer. Boris himself said most of his sessions start in plan mode (shift+tab twice). This tracks with everything I've seen — the people who jump straight to code generation waste the most tokens.
+
+**Obsidian as an external memory layer.** Keep your notes, decisions, and research in Obsidian and link it into Claude Code sessions. Gives you a knowledge graph that survives across projects. Not everyone does this but the people who do are very loud about it.
+
+
+
+**Bonus stuff that kept coming up:**
+
+* **Voice dictation** — now built in, plus people running StreamDeck/Wispr push-to-talk setups
+* **Ghostty + tmux + phone app** — same Claude session on your phone. Someone called it "more addictive than TikTok" (I believe them)
+* **Parallel git worktrees** — spin up experimental branches without breaking main. Boris and his team do this with 5+ parallel Claude instances in numbered terminal tabs
+* **Custom session save/resume skills** — savemysession, Claude-mem, etc. to auto-save top learnings and reload context
+* **Sleep** — the top reply with the most laughs, but multiple devs said fatigue kills the 10x faster than any missing config. Not wrong.
+
+
+
+**The full stack in order:**
+
+1. Clone your repo → add `.env` \+ rich [`CLAUDE.md`](http://CLAUDE.md)
+2. Install an autopilot wrapper (executive or similar)
+3. Point Claude Code at Exa for search + Codex for verification
+4. Open Obsidian side-by-side, stay in plan mode until the plan is airtight
+5. Turn on voice + tmux so you can dictate and context-switch from mobile
+
+The thread consensus: once this stack is running, a single Claude Code session replaces hours of prompt engineering, browser tabs, and manual testing. The top-voted comments called it "not even close" to stock Claude Code.
+
+Start with `.env` \+ [`CLAUDE.md`](http://CLAUDE.md) today. Layer the rest as you go. That's it. That's the post.
+
+Will Musolf:
+	https://www.reddit.com/r/chessbeginners/s/eZnRnSufHI
+	Another gm way of thinking: rule 1 create threats and keep making threats
+Offense is the best defense but make sure it’s good. Aggressive but not reckless 
+Rule 2 attack while bringing in new pieces when attacking. Develop and attack at same time
+Rule 3 before attacking, check opponents checks and captures and if making a drawback mistake. People often overlook opponents captures and checks
+
+Separately:
+Have sequential opening theory? Starting with Italian etc 
+
+Users can pay for a full profile analysis to find tactics and things that have been missed from own games? And that’s also how I’ll send Akeem the tactics
+
+Learning to convert marginally winning positions
+
+Will Musolf:
+	Another gm way of thinking: rule 1 create threats and keep making threats
+Offense is the best defense but make sure it’s good. Aggressive but not reckless 
+Rule 2 attack while bringing in new pieces when attacking. Develop and attack at same time
+Rule 3 before attacking, check opponents checks and captures and if making a drawback mistake. People often overlook opponents captures and checks
+
+Separately:
+Have sequential opening theory? Starting with Italian etc  and you can slowly learn logic and long term thikning with different basic openings
+
+Users can pay for a full profile analysis to find tactics and things that have been missed from own games? And that’s also how I’ll send Akeem the tactics. he wants people to send tactics from their own games to his email (mentioned in this video: https://youtu.be/bj5IiinjCeI)
+maybe we can send him our missed tactics in the way he wants and also tell him about the app and ask if he has any feedback or would like to input on it.
+
+Learning to convert marginally winning positions
+
+
+
+
+
+
+## 📣 MARKETING & GROWTH
+
+### Launch Channels
+- [ ] r/chess announcement post (show real coaching example, ask for feedback)
+- [ ] r/chessbeginners post (primary target audience for AI coaching)
+- [ ] r/learnchess post
+- [ ] chess.com community forums
+- [ ] lichess forum
+- [ ] ProductHunt launch
+
+### Content Marketing (post-launch)
+- [ ] Blog on deepmove.io/blog — chess improvement articles using DeepMove's coaching philosophy
+- [ ] Example post: "Why your chess accuracy score is lying to you" (Studer's leaky roof concept)
+- [ ] Example post: "The one habit that fixes 80% of blunders under 1400"
+- [ ] SEO targets: "free chess coaching", "AI chess coach", "chess game review free"
+
+### Partnerships (post-launch)
+- [ ] Chess YouTuber/streamer outreach — offer free Premium for honest reviews
+- [ ] Chess club partnerships — bulk Premium for clubs
+- [ ] Chess.com/Lichess content creator programs
+
+### Growth Metrics to Track
+- DAU / MAU
+- Free → Premium conversion rate (target: 10%)
+- Coaching lessons served per day
+- LLM cost per user per month
+- Churn rate (monthly)
+
+---
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
 
 
 -if game is abandoned, and you do a new move on the analysis board, it should be a branch rather than just continuing notation, right?
 
--fix the pawn promotion. it doesnt look right and was delayed in coming out and the pawn moved back to the square it was on before i pressed anyhting just bc of how slow it was to open the list we want it better also the list to be a little bigger
 
-
--make the suggested moves lines a little bolder generally. also move letters on first row move to the right a little. we want to move the text of the letters (a-h) just a few pixels to the right on each square so its more readable.
 
 -something better for default. can go back in moves without a game loaded? auto labels common openings/labeling positions etc or something? in the default game that you can mess with or in your own transcripts and links to lessons?
 -bot options or manual option by default with box for elo name timer coach maybe etc
 -when you make a move it unlocks the moves section and it starts like a new game in default?
 -and have no eval by default? if playing a bot. or have game analysis board that you can just mess with and see best moves and lines and evals etc like starts a new manual game or something and can reset the transcript or something
+-and have the positioning be better? theres no player box so the default board is higher than when it is when we load a game so maybe something more consistent/lower/centered when a game isnt loaded in?
 
 -alt colorways and pieces
 -have similar dropdown next to move arrows as chessigma
 -test FEN string
--make taking more obvious as a suggested move? slightly
+-make taking more obvious as a suggested move? slightly like make the dots bigger or bolder maybe?
+-have arrows button and classic button be better and more concistent across that row of buttons visually
+
+
+-thorough systematic audits to make sure everything is as simple and efficient yet powerful as it can possibly be
+
+
+
 
 -make this into an ios app
 
@@ -447,7 +670,7 @@ This is large. If time runs out, stop cleanly at a phase boundary and report:
 
 
 
-scaling / pricing plan?
+scaling / pricing plan? → DECIDED — see "💰 MONETIZATION & LAUNCH" section above
 
 PRICING/MONETIZATION PLAN
 Free tier is generous on purpose: Unlimited imports + Stockfish + 2-3 coaching lessons per game. The goal is to build a large free user base that loves the product. Premium upgrades from love, not frustration.
