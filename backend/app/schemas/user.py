@@ -12,11 +12,11 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     chesscom_username: str | None = None
     lichess_username: str | None = None
-    elo_estimate: int | None = None
     preferences: dict | None = None
 
 
 class UserResponse(BaseModel):
+    is_admin: bool
     id: int
     email: str
     is_premium: bool

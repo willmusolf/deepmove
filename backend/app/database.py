@@ -7,9 +7,16 @@ from app.config import settings
 
 Base = declarative_base()
 
+def _psycopg3_url(url: str) -> str:
+    """Rewrite postgresql:// to postgresql+psycopg:// to use psycopg3 (not psycopg2)."""
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
 if settings.database_url:
     engine = create_engine(
-        settings.database_url,
+        _psycopg3_url(settings.database_url),
         poolclass=QueuePool,
         pool_size=5,
         max_overflow=10,

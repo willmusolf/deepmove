@@ -7,6 +7,7 @@ import type { MoveEval } from '../engine/analysis'
 import type { CriticalMoment } from '../chess/types'
 import type { ChessComGame } from '../api/chesscom'
 import type { LichessGame } from '../api/lichess'
+import { classifyTimeControl } from '../chess/eloConfig'
 
 // ─── Schema ────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ export interface AnalyzedGameRecord {
   result: 'W' | 'L' | 'D'
   timeControl: string
   endTime: number                         // unix ms, for sorting
+  backendGameId: number | null            // DB primary key after sync (null until uploaded)
 }
 
 // ─── DB setup ──────────────────────────────────────────────────────────────
@@ -125,4 +127,73 @@ export async function clearAllAnalyses(): Promise<number> {
   const count = await db.count(STORE)
   await db.clear(STORE)
   return count
+}
+
+// ─── Elo Auto-Detection ─────────────────────────────────────────────────────
+
+export interface DetectedRatings {
+  bullet: number | null
+  blitz: number | null
+  rapid: number | null
+  classical: number | null
+  /** Time control category with the most games — best default for coaching */
+  primaryMode: 'bullet' | 'blitz' | 'rapid' | 'classical' | null
+}
+
+/**
+ * Parse a stored timeControl string back to seconds.
+ * Chess.com stores base in seconds ("600+0"), Lichess stores in minutes ("10+0").
+ * Heuristic: base >= 60 → already seconds; base < 60 → minutes.
+ * Also handles "X min" format from formatTimeControl.
+ */
+function parseTimeControlToSeconds(tc: string): number {
+  if (tc.includes('+')) {
+    const base = parseInt(tc, 10)
+    if (isNaN(base)) return 600
+    return base >= 60 ? base : base * 60
+  }
+  const mins = parseInt(tc, 10)
+  return isNaN(mins) ? 600 : mins * 60
+}
+
+/**
+ * Scan all IndexedDB games and compute average Elo per time control category.
+ * Uses the 20 most recent games per category for accuracy.
+ */
+export async function computeDetectedRatings(): Promise<DetectedRatings> {
+  const db = await getDB()
+  const all = (await db.getAll(STORE)) as AnalyzedGameRecord[]
+  console.log('[detectRatings] records:', all.length, all.slice(0,2).map(r => ({ tc: r.timeControl, elo: r.userElo })))
+  const buckets: Record<string, AnalyzedGameRecord[]> = {
+    bullet: [], blitz: [], rapid: [], classical: [],
+  }
+
+  for (const record of all) {
+    if (!record.userElo || record.userElo <= 0) continue
+    const seconds = parseTimeControlToSeconds(record.timeControl)
+    const mode = classifyTimeControl(seconds)
+    buckets[mode].push(record)
+  }
+
+  function avgElo(records: AnalyzedGameRecord[]): number | null {
+    if (records.length === 0) return null
+    // Most recent 20
+    const recent = records
+      .slice()
+      .sort((a, b) => b.endTime - a.endTime)
+      .slice(0, 20)
+    const sum = recent.reduce((acc, r) => acc + r.userElo, 0)
+    return Math.round(sum / recent.length)
+  }
+
+  const counts = Object.entries(buckets).map(([mode, recs]) => ({ mode, count: recs.length }))
+  const mostPlayed = counts.sort((a, b) => b.count - a.count).find(c => c.count > 0)
+
+  return {
+    bullet: avgElo(buckets.bullet),
+    blitz: avgElo(buckets.blitz),
+    rapid: avgElo(buckets.rapid),
+    classical: avgElo(buckets.classical),
+    primaryMode: (mostPlayed?.mode ?? null) as DetectedRatings['primaryMode'],
+  }
 }

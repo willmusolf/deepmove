@@ -29,6 +29,7 @@ interface GameState {
   isAnalyzingPosition: boolean      // true while running per-position multi-PV analysis
   skipNextAnalysis: boolean         // set by GameSelector when loading from cache
   currentGameId: string | null      // canonical ID for IndexedDB persistence
+  backendGameId: number | null      // DB primary key after sync (null until uploaded)
   currentGameMeta: GameMeta | null  // display metadata for IndexedDB record
 
   // Actions
@@ -46,6 +47,7 @@ interface GameState {
   setCurrentPositionLines: (lines: TopLine[]) => void
   setAnalyzingPosition: (v: boolean) => void
   setCurrentGameId: (id: string | null) => void
+  setBackendGameId: (id: number | null) => void
   setCurrentGameMeta: (meta: GameMeta | null) => void
   setSkipNextAnalysis: (v: boolean) => void
   reset: () => void
@@ -66,6 +68,7 @@ const initialState = {
   currentPositionLines: [],
   isAnalyzingPosition: false,
   currentGameId: null as string | null,
+  backendGameId: null as number | null,
   currentGameMeta: null as GameMeta | null,
   skipNextAnalysis: false,
 }
@@ -86,6 +89,7 @@ export const useGameStore = create<GameState>(set => ({
   setCurrentPositionLines: currentPositionLines => set({ currentPositionLines }),
   setAnalyzingPosition: isAnalyzingPosition => set({ isAnalyzingPosition }),
   setCurrentGameId: currentGameId => set({ currentGameId }),
+  setBackendGameId: backendGameId => set({ backendGameId }),
   setCurrentGameMeta: currentGameMeta => set({ currentGameMeta }),
   setSkipNextAnalysis: skipNextAnalysis => set({ skipNextAnalysis }),
   reset: () => set(initialState),

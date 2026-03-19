@@ -2,7 +2,10 @@
 // Shows the current lesson (or blunder-check checklist) for the active critical moment.
 // Sits on the right side of the board on desktop, below on mobile.
 
+import { useState } from 'react'
 import type { CoachingLesson } from '../../hooks/useCoaching'
+import { useAuthStore } from '../../stores/authStore'
+import { api } from '../../api/client'
 import LessonCard from './LessonCard'
 import SocraticPrompt from './SocraticPrompt'
 
@@ -16,6 +19,24 @@ interface CoachPanelProps {
 export default function CoachPanel({ lessons, currentIndex, onNavigate, onReveal }: CoachPanelProps) {
   const lesson = lessons[currentIndex]
   const total = lessons.length
+  const user = useAuthStore(s => s.user)
+  const isAdmin = user?.is_admin ?? false
+  const [resetMsg, setResetMsg] = useState('')
+  const [resetting, setResetting] = useState(false)
+
+  async function handleResetLessons() {
+    setResetting(true)
+    setResetMsg('')
+    try {
+      await api.delete('/admin/games/lessons/all')
+      await api.delete('/coaching/cache')
+      setResetMsg('Lessons cleared — reload the game to regenerate.')
+    } catch {
+      setResetMsg('Reset failed — check console.')
+    } finally {
+      setResetting(false)
+    }
+  }
 
   if (total === 0) {
     return (
@@ -23,6 +44,19 @@ export default function CoachPanel({ lessons, currentIndex, onNavigate, onReveal
         <p className="coach-panel__empty-msg">
           Complete the analysis to see coaching insights.
         </p>
+        {isAdmin && (
+          <div className="coach-panel__admin">
+            <button
+              className="coach-panel__reset-btn"
+              onClick={handleResetLessons}
+              disabled={resetting}
+              type="button"
+            >
+              {resetting ? 'Resetting…' : '🗑 Reset All Lessons'}
+            </button>
+            {resetMsg && <p className="coach-panel__reset-msg">{resetMsg}</p>}
+          </div>
+        )}
       </div>
     )
   }
@@ -97,6 +131,21 @@ export default function CoachPanel({ lessons, currentIndex, onNavigate, onReveal
           )
         }
       </div>
+
+      {/* Admin tools */}
+      {isAdmin && (
+        <div className="coach-panel__admin">
+          <button
+            className="coach-panel__reset-btn"
+            onClick={handleResetLessons}
+            disabled={resetting}
+            type="button"
+          >
+            {resetting ? 'Resetting…' : '🗑 Reset All Lessons'}
+          </button>
+          {resetMsg && <p className="coach-panel__reset-msg">{resetMsg}</p>}
+        </div>
+      )}
     </div>
   )
 }

@@ -29,10 +29,16 @@ interface GameServerResponse {
   created_at: string
 }
 
+interface GameSyncResult {
+  platform_game_id: string
+  db_id: number
+}
+
 interface BatchResponse {
   created: number
   updated: number
   errors: string[]
+  results: GameSyncResult[]
 }
 
 export interface SyncResult {
@@ -89,6 +95,11 @@ export async function syncGames(): Promise<SyncResult> {
     }))
     const result = await api.post<BatchResponse>('/games/batch', batch)
     uploaded += result.created + result.updated
+    // Write backendGameId back to each IndexedDB record so coaching can do direct PK lookup
+    for (const { platform_game_id, db_id } of result.results ?? []) {
+      const record = chunk.find(g => g.id === platform_game_id)
+      if (record) await saveAnalyzedGame({ ...record, backendGameId: db_id })
+    }
   }
 
   // Download games the client doesn't have
@@ -109,6 +120,7 @@ export async function syncGames(): Promise<SyncResult> {
       result: (serverGame.result ?? 'D') as 'W' | 'L' | 'D',
       timeControl: serverGame.time_control ?? '',
       endTime: serverGame.end_time ?? 0,
+      backendGameId: serverGame.id,
     }
     await saveAnalyzedGame(record)
     downloaded++
@@ -119,9 +131,10 @@ export async function syncGames(): Promise<SyncResult> {
 
 /**
  * Push a single game to the server (called after each analysis completes).
+ * Returns the backend DB id so callers can update the IndexedDB record.
  */
-export async function pushGame(game: AnalyzedGameRecord): Promise<void> {
-  await api.post('/games', {
+export async function pushGame(game: AnalyzedGameRecord): Promise<number | null> {
+  const response = await api.post<{ id: number }>('/games', {
     platform: game.platform,
     platform_game_id: game.id,
     pgn: game.rawPgn || game.cleanedPgn,
@@ -136,6 +149,11 @@ export async function pushGame(game: AnalyzedGameRecord): Promise<void> {
     critical_moments: game.criticalMoments,
     analyzed_at: game.analyzedAt ? new Date(game.analyzedAt).toISOString() : null,
   })
+  const backendGameId = response?.id ?? null
+  if (backendGameId !== null) {
+    await saveAnalyzedGame({ ...game, backendGameId })
+  }
+  return backendGameId
 }
 
 /**

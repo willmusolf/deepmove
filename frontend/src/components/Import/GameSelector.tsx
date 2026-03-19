@@ -22,6 +22,8 @@ interface GameSelectorProps {
   onGamesAppended: (games: ChessComGame[] | LichessGame[], pagination: PaginationState) => void
 }
 
+import { normalizeChessCom, normalizeLichess, type NormalizedGame } from './normalizeGame'
+
 function formatTimestamp(ms: number): string {
   const d = new Date(ms)
   const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -29,83 +31,8 @@ function formatTimestamp(ms: number): string {
   return `${date} - ${time}`
 }
 
-function formatTimeControl(tc: string): string {
-  if (tc.includes('+')) return tc
-  const secs = parseInt(tc, 10)
-  if (isNaN(secs)) return tc
-  const mins = Math.round(secs / 60)
-  return `${mins} min`
-}
-
 function isChessComGame(g: ChessComGame | LichessGame): g is ChessComGame {
   return 'end_time' in g
-}
-
-export interface NormalizedGame {
-  pgn: string
-  opponent: string
-  opponentRating: number
-  userRating: number
-  result: 'W' | 'L' | 'D'
-  timeControl: string
-  date: string
-  isWhite: boolean
-  gameId: string        // canonical IndexedDB key
-  endTime: number       // unix ms, for sorting
-  isCachedOnly: boolean // true if game came from IndexedDB (fell off API window)
-}
-
-export function normalizeChessCom(game: ChessComGame, username: string): NormalizedGame {
-  const isWhite = game.white.username.toLowerCase() === username.toLowerCase()
-  const opponent = isWhite ? game.black : game.white
-  const myResult = isWhite ? game.white.result : game.black.result
-
-  let result: 'W' | 'L' | 'D'
-  if (myResult === 'win') result = 'W'
-  else if (['checkmated', 'resigned', 'timeout', 'abandoned', 'lose'].includes(myResult)) result = 'L'
-  else result = 'D'
-
-  return {
-    pgn: game.pgn,
-    opponent: opponent.username,
-    opponentRating: opponent.rating,
-    userRating: (isWhite ? game.white : game.black).rating,
-    result,
-    timeControl: formatTimeControl(game.time_control),
-    date: formatTimestamp(game.end_time * 1000),
-    isWhite,
-    gameId: getGameId(game, 'chesscom'),
-    endTime: game.end_time * 1000,
-    isCachedOnly: false,
-  }
-}
-
-export function normalizeLichess(game: LichessGame, username: string): NormalizedGame {
-  const isWhite = game.players.white.user?.name?.toLowerCase() === username.toLowerCase()
-  const opponent = isWhite ? game.players.black : game.players.white
-
-  let result: 'W' | 'L' | 'D' = 'D'
-  if ((game as unknown as Record<string, unknown>).winner === (isWhite ? 'white' : 'black')) result = 'W'
-  else if ((game as unknown as Record<string, unknown>).winner === (isWhite ? 'black' : 'white')) result = 'L'
-  else if (game.status === 'draw' || game.status === 'stalemate') result = 'D'
-
-  const clock = game.clock
-  const timeControl = clock ? `${Math.round(clock.initial / 60)}+${clock.increment}` : game.speed
-
-  const userPlayer = isWhite ? game.players.white : game.players.black
-  return {
-    pgn: game.pgn,
-    opponent: opponent.user?.name ?? '?',
-    opponentRating: opponent.rating,
-    userRating: userPlayer.rating,
-    result,
-    timeControl,
-    date: formatTimestamp(game.createdAt),
-    isWhite,
-    gameId: getGameId(game, 'lichess'),
-    endTime: game.createdAt,
-    isCachedOnly: false,
-  }
 }
 
 function normalizeFromCache(record: AnalyzedGameRecord): NormalizedGame {
@@ -135,6 +62,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
   const setMoveEvals = useGameStore(s => s.setMoveEvals)
   const setCriticalMoments = useGameStore(s => s.setCriticalMoments)
   const setCurrentGameId = useGameStore(s => s.setCurrentGameId)
+  const setBackendGameId = useGameStore(s => s.setBackendGameId)
   const setCurrentGameMeta = useGameStore(s => s.setCurrentGameMeta)
   const setSkipNextAnalysis = useGameStore(s => s.setSkipNextAnalysis)
   const reset = useGameStore(s => s.reset)
@@ -212,6 +140,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     const cached = await getAnalyzedGame(g.gameId)
     if (cached) {
       // Load instantly from cache — no re-analysis needed
+      setBackendGameId(cached.backendGameId ?? null)
       setSkipNextAnalysis(true)
       setRawPgn(cached.rawPgn)
       setLoadedPgn(cached.rawPgn)
@@ -227,7 +156,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     setLoadedPgn(g.pgn)
     setPgn(cleanPgn(g.pgn))
     onGameLoaded()
-  }, [reset, setCurrentGameId, setCurrentGameMeta, setSkipNextAnalysis, setUserColor, setUserElo, setPlatform, setRawPgn, setLoadedPgn, setPgn, setMoveEvals, setCriticalMoments, onGameLoaded, platform])
+  }, [reset, setCurrentGameId, setBackendGameId, setCurrentGameMeta, setSkipNextAnalysis, setUserColor, setUserElo, setPlatform, setRawPgn, setLoadedPgn, setPgn, setMoveEvals, setCriticalMoments, onGameLoaded, platform])
 
   const handleLoadMore = useCallback(async () => {
     if (!pagination?.hasMore || loadingMore) return

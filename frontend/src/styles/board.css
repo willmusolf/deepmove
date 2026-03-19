@@ -5,6 +5,15 @@
 @import 'chessground/assets/chessground.brown.css';
 @import 'chessground/assets/chessground.cburnett.css';
 
+/* CSS variable aliases — board.css uses shorthand names that must map to
+   the semantic tokens defined in global.css */
+:root {
+  --accent: var(--color-accent);
+  --border: var(--color-border);
+  --text-primary: var(--color-text);
+  --text-secondary: var(--color-text-muted);
+}
+
 /* Dim chessground's default vivid check highlight */
 cg-board square.check {
   background: radial-gradient(
@@ -1722,6 +1731,8 @@ cg-board {
 
 .auth-eye {
   position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
   right: 0.5rem;
   background: none;
   border: none;
@@ -1861,13 +1872,28 @@ cg-board {
   align-items: center;
   gap: 0.5rem;
   width: 100%;
-  padding: 0.35rem 0;
+  padding: 0.35rem 0.4rem;
   background: none;
   border: none;
+  border-radius: 6px;
   color: var(--text-primary);
   cursor: pointer;
   font-size: 0.8rem;
   text-align: left;
+  transition: background 0.15s;
+}
+
+.nav-user-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.nav-user-btn.active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-user-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .nav-user-avatar {
@@ -1881,40 +1907,29 @@ cg-board {
   justify-content: center;
   font-size: 0.75rem;
   font-weight: 600;
-  flex-shrink: 0;
 }
 
-.nav-user-email {
+.nav-user-avatar--img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--accent);
+}
+
+.nav-user-admin-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  font-size: 0.6rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.nav-user-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.nav-user-dropdown {
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-
-.nav-user-link {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  padding: 0.2rem 0;
-}
-
-.nav-user-logout {
-  width: 100%;
-  margin-top: 0.5rem;
-  padding: 0.35rem;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
 }
 
 .nav-user-logout:hover {
@@ -1930,37 +1945,25 @@ cg-board {
 }
 
 /* ── Board color themes (overrides chessground.brown.css) ──────────────── */
-/* Uses CSS checkerboard pattern at 12.5% per square to match 8x8 grid */
+/* Uses SVG background (same approach as chessground.brown.css) — a 2×2 tile  */
+/* that tiles at 25%×25% to produce a crisp 8×8 checkerboard. Gradients were  */
+/* incorrect and caused the "warping" visual artifact.                         */
 
 [data-board="blue"] cg-board {
   background-color: #dee3e6;
-  background-image:
-    linear-gradient(45deg, #8ca2ad 25%, transparent 25%),
-    linear-gradient(-45deg, #8ca2ad 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #8ca2ad 75%),
-    linear-gradient(-45deg, transparent 75%, #8ca2ad 75%);
+  background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyIDIiIHNoYXBlLXJlbmRlcmluZz0iY3Jpc3BFZGdlcyI+PHJlY3Qgd2lkdGg9IjIiIGhlaWdodD0iMiIgZmlsbD0iI2RlZTNlNiIvPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiM4Y2EyYWQiLz48cmVjdCB4PSIxIiB5PSIxIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSIjOGNhMmFkIi8+PC9zdmc+');
   background-size: 25% 25%;
-  background-position: 0 0, 12.5% 0, 12.5% -12.5%, 0 12.5%;
 }
 
 [data-board="green"] cg-board {
   background-color: #ffffdd;
-  background-image:
-    linear-gradient(45deg, #86a666 25%, transparent 25%),
-    linear-gradient(-45deg, #86a666 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #86a666 75%),
-    linear-gradient(-45deg, transparent 75%, #86a666 75%);
+  background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyIDIiIHNoYXBlLXJlbmRlcmluZz0iY3Jpc3BFZGdlcyI+PHJlY3Qgd2lkdGg9IjIiIGhlaWdodD0iMiIgZmlsbD0iI2ZmZmZkZCIvPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiM4NmE2NjYiLz48cmVjdCB4PSIxIiB5PSIxIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSIjODZhNjY2Ii8+PC9zdmc+');
   background-size: 25% 25%;
-  background-position: 0 0, 12.5% 0, 12.5% -12.5%, 0 12.5%;
 }
 
 [data-board="purple"] cg-board {
   background-color: #e8d0e0;
-  background-image:
-    linear-gradient(45deg, #9c6b9c 25%, transparent 25%),
-    linear-gradient(-45deg, #9c6b9c 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #9c6b9c 75%),
-    linear-gradient(-45deg, transparent 75%, #9c6b9c 75%);
+  background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyIDIiIHNoYXBlLXJlbmRlcmluZz0iY3Jpc3BFZGdlcyI+PHJlY3Qgd2lkdGg9IjIiIGhlaWdodD0iMiIgZmlsbD0iI2U4ZDBlMCIvPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiM5YzZiOWMiLz48cmVjdCB4PSIxIiB5PSIxIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSIjOWM2YjljIi8+PC9zdmc+');
   background-size: 25% 25%;
   background-position: 0 0, 12.5% 0, 12.5% -12.5%, 0 12.5%;
 }
@@ -2435,4 +2438,86 @@ cg-board {
 
 .socratic-prompt__reveal-btn:hover {
   background: var(--color-accent-hover);
+}
+
+/* Admin tools (dev-only, shown only to is_admin users) */
+.coach-panel__admin {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.coach-panel__reset-btn {
+  background: rgba(220, 50, 50, 0.15);
+  border: 1px solid rgba(220, 50, 50, 0.35);
+  border-radius: 6px;
+  color: #f87171;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.coach-panel__reset-btn:hover:not(:disabled) {
+  background: rgba(220, 50, 50, 0.28);
+}
+
+.coach-panel__reset-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.coach-panel__reset-msg {
+  font-size: 0.75rem;
+  color: #a3e635;
+  margin: 0;
+}
+
+/* ── Admin badge (Profile page) ─────────────────────────────────────────── */
+.profile-admin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(124, 58, 237, 0.2);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  color: #c4b5fd;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+}
+
+/* ── Detected Ratings grid (Profile page) ───────────────────────────────── */
+.profile-ratings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.profile-rating-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.profile-rating-mode {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.profile-rating-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.2;
 }

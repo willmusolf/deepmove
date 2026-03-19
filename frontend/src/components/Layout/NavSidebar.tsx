@@ -10,7 +10,6 @@ interface NavSidebarProps {
 const NAV_ITEMS = [
   { id: 'review' as const,    label: 'Review',    icon: '♟', soon: false },
   { id: 'dashboard' as const, label: 'Dashboard', icon: '▦', soon: true  },
-  { id: 'settings' as const,  label: 'Settings',  icon: '⚙', soon: true  },
   { id: 'about' as const,     label: 'About',     icon: 'ⓘ', soon: true  },
 ]
 
@@ -33,7 +32,7 @@ export default function NavSidebar({ currentPage, onNavigate }: NavSidebarProps)
         </div>
       ))}
       <div className="nav-spacer" />
-      <UserMenu />
+      <UserMenu currentPage={currentPage} onNavigate={onNavigate} />
     </nav>
   )
 }

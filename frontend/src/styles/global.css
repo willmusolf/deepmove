@@ -48,6 +48,23 @@ body {
   overflow: hidden;
 }
 
+/* ── Light theme override ──────────────────────────────────────────────── */
+html.theme-light {
+  --color-bg: #f0f2f5;
+  --color-surface: #ffffff;
+  --color-surface-2: #e4e8ef;
+  --color-border: #ccd3e0;
+  --color-accent: #3a8eff;
+  --color-accent-hover: #2070dd;
+  --color-text: #1a1a2e;
+  --color-text-muted: #5a6a8a;
+}
+
+html.theme-light body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
 /* ── Responsive: allow scrolling on small screens ─────────────────────── */
 @media (max-width: 860px) {
   html, body { overflow: auto; }
