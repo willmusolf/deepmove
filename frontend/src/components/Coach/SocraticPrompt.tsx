@@ -1,12 +1,41 @@
-// SocraticPrompt.tsx — Think First mode Socratic questioning
-// Shows the coach's question BEFORE revealing the lesson.
-// Sub-1400: Blunder check checklist (3 questions)
-// 1400+: Single Socratic question about the position
-//
-// Handles low-effort responses ("idk", "lol") with hints, not full reveals.
-// See CLAUDE.md — "Handling Low-Effort Socratic Responses"
+// SocraticPrompt.tsx — Think First mode blunder-check checklist
+// MVP scope: only the blunder-check habit checklist for TACTICAL_01/02.
+// Shows 3 questions before revealing the lesson to build the scanning habit.
 
-export default function SocraticPrompt() {
-  // TODO (Track C): Implement question flow, hint system, and lesson reveal
-  return <div className="socratic-prompt" />
+interface SocraticPromptProps {
+  principleId: string
+  onReveal: () => void
+}
+
+const BLUNDER_CHECK_QUESTIONS = [
+  "What was your opponent threatening after their last move?",
+  "After your move, are any of your pieces undefended?",
+  "What changed on the board?",
+]
+
+export default function SocraticPrompt({ principleId: _pid, onReveal }: SocraticPromptProps) {
+  return (
+    <div className="socratic-prompt">
+      <div className="socratic-prompt__header">
+        <span className="socratic-prompt__icon">🔍</span>
+        <p className="socratic-prompt__intro">
+          Before we look at what happened — run through this checklist:
+        </p>
+      </div>
+
+      <ol className="socratic-prompt__questions">
+        {BLUNDER_CHECK_QUESTIONS.map((q, i) => (
+          <li key={i} className="socratic-prompt__question">{q}</li>
+        ))}
+      </ol>
+
+      <button
+        className="socratic-prompt__reveal-btn"
+        onClick={onReveal}
+        type="button"
+      >
+        Show me what happened →
+      </button>
+    </div>
+  )
 }

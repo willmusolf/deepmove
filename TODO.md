@@ -1,74 +1,115 @@
 # DeepMove Development TODO
 
-**Current Status**: Board logic ✅ complete. Chess mechanics (branching, navigation, board sync) confirmed correct and tested. Coach integration is the next major push.
+**Current Status**: Board logic ✅ complete. Backend ✅ running (Supabase connected, auth working). 50 backend tests passing. First end-to-end coaching loop ✅ working (3B-2 complete).
 
 **Launch Target**: Complete product with coaching, accounts, and mobile compatibility.
 
-**Last Session**: Audit round 4 — memoized GameReport stats + PlayerInfoBox material calc, fixed PGN nesting bug, debounced EvalGraph ResizeObserver, added Vite chunk splitting, wired userElo from game metadata, stable React keys. All 78 tests pass.
+**Last Session**: 3B-2 coaching slice complete — feature extraction (threats, moveImpact, material, gamePhase), classifier (TACTICAL_01/02, OPENING_01/02/05), backend lesson endpoint wired, full coaching UI (CoachPanel, LessonCard, SocraticPrompt), App.tsx wired. 158 tests passing.
 
-**Audit Rounds Completed**: 4 (branch collision, GameReport O(n²), memoization/dedup, perf round 4)
+## 🟠 NEXT PHASE (COACHING FOUNDATION)
 
+### TRACK B.1: Backend Setup + Database Connection ✅ DONE
+Backend running at localhost:8000. Supabase connected via session pooler. All auth endpoints verified.
+Fixes applied: psycopg3 URL rewriting, bcrypt 4.x pin, datetime.UTC → timezone.utc, JSONB mutation detection.
 
+### COACHING PIPELINE (Prompt 3B) — ACTIVE PLAN
+**Status**: 🟡 NEXT
+**Scope**: Feature extraction → classifier → backend endpoint → coaching UI → data collection
+**Goal for 3B:** one trustworthy coaching loop works end-to-end on a real imported game.
 
-## �🟠 NEXT PHASE (COACHING FOUNDATION)
+**Locked product decisions (2026-03-18):**
+- Classifier scope: TACTICAL_01, TACTICAL_02, OPENING_01, OPENING_02, OPENING_05 only (+ OPENING_03 only if detection is clearly reliable)
+- Think First: IN MVP — lightweight blunder-check habit checklist for TACTICAL_01/TACTICAL_02 high-confidence moments ONLY
+- No broad Socratic system, no strategic Think First, no hint loop this pass
+- 5-step lesson format: keep as-is
+- LLM = wording layer only (never chess reasoning)
+- One trustworthy end-to-end loop > broad principle coverage
 
-### TRACK B.1: Validate Backend Readiness (Session: 1 hour)
-**Status**: ❌ NOT STARTED (environment not set up)
-**Why**: Need to verify FastAPI coaching endpoint works before building UI.
+**Current focus this week**
+- [x] `3B-1a` ✅ DONE (commit f94908c)
+- [x] Finish `3B-1b` and `3B-1c` ✅ DONE (material.ts, gamePhase.ts, threats.ts)
+- [x] Get `features.ts` returning real non-placeholder data on one real game ✅ DONE
+- [x] Land the first classifier pass for TACTICAL_01/TACTICAL_02/OPENING_01/OPENING_02/OPENING_05 ✅ DONE
+- [x] Build minimal Think First checklist for high-confidence tactical moments only ✅ DONE
+- [ ] Pause for product review before broadening principle coverage
 
-**Note**: Backend environment isn't configured (missing pip/uvicorn). Needs setup session.
+**Working order (easiest to hardest)**
+- [x] `3B-1a` ✅ DONE (commit f94908c): `openFiles.ts`, `development.ts`
+- [x] `3B-1b` ✅ DONE (partial): material.ts, gamePhase.ts created
+- [x] `3B-1c` ✅ DONE: threats.ts — hangingPieces, threatsIgnored, piecesLeftUndefended
+- [x] `3B-1d` ✅ DONE: moveImpact.ts — MVP: capture/check/development/castling/hadClearPurpose
+- [x] `3B-2a` ✅ DONE: features.ts orchestrator + enrichCriticalMoments()
+- [x] `3B-2b` ✅ DONE: classifier.ts — TACTICAL_01/02, OPENING_01/02/05, Elo gates, buildVerifiedFacts()
+- [x] `3B-3` ✅ DONE: POST /coaching/lesson wired to coaching service
+- [x] `3B-4` ✅ DONE: useCoaching hook + CoachPanel + LessonCard + SocraticPrompt + App.tsx wiring
+- [ ] `3B-5` Add persistence + cleanup after first real loop works
 
-**Todo:**
-- [ ] Configure Python environment (venv or conda)
-- [ ] Install backend dependencies
-- [ ] Start: `uvicorn app.main:app --reload --port 8000`
-- [ ] Try hitting `/api/coaching/lesson` endpoint with test data
-- [ ] Verify LLM response structure (expect `lesson`, `confidence`, `cached`)
-- [ ] Document any connection issues
-- currently authStore.ts:42 
- POST http://localhost:8000/auth/refresh net::ERR_CONNECTION_REFUSED
-### TRACK B.2: Feature Extraction Validation (Session: 2-3 hours)
-**Status**: ⏸️ BLOCKED on B.1
-**Why**: Catch classification bugs early via real games.
+**3B-1a: Easy Foundations** (client-side TypeScript) ✅ DONE
+- [x] Implement `openFiles.ts`
+- [x] Implement `development.ts`
+- [x] Definition of done: helper tests pass and outputs are no longer placeholders
+- ✅ Completed in commit f94908c
 
-**Todo:**
-- [ ] Run classifier on 5 moosetheman123 games
-- [ ] Print: features extracted, principle detected, confidence score, lesson generated
-- [ ] Document any suspicious outputs
-- [ ] Fix obvious classifier bugs
-- [ ] Add tests for each feature extractor (target: 10+ positions per extractor)
+**3B-1b: Positional Helpers** ✅ DONE (partial)
+- [x] Implement `material.ts` ✅ DONE
+- [x] Implement `gamePhase.ts` ✅ DONE
+- [ ] Implement `kingSafety.ts` (stub — V2)
+- [ ] Implement `pieceActivity.ts` (stub — V2)
+- [ ] Definition of done: each module returns stable typed data on representative positions
 
-### TRACK C.1: Build Coaching Panel UI (Session: 3-4 hours) — **MVP**
-**Status**: ⏸️ BLOCKED on A.3 + B.1
-**Why**: Makes coaching visible on screen. Simplest version first.
+**3B-1c: Tactical Detection** ✅ DONE
+- [x] Implement `threats.ts` — hangingPieces, threatsIgnored, piecesLeftUndefended
+- [x] Definition of done: 9 unit tests passing, detects hanging pieces and ignored threats
 
-**Todo:**
-- [ ] ReviewPanel: Compose board (with player boxes) + coach panel layout
-- [ ] CoachPanel: Right side (desktop) / below board (mobile), fixed-width sidebar style
-- [ ] LessonCard: Render 5-step lesson (hardcoded test lesson for now)
-- [ ] Style to match board professionalism
-- [ ] Make responsive (coach panel stacks below on mobile)
+**3B-1d: Move Delta Logic** ✅ DONE
+- [x] Implement `moveImpact.ts` — capture/check/development/castling/hadClearPurpose
+- [x] Definition of done: one move can be described in concrete before/after terms
 
-### TRACK C.2: Connect Frontend to Backend Lesson (Session: 2-3 hours) — **MVP**
-**Status**: ⏸️ BLOCKED  
-**Why**: Actual coaching flow. Determine if everything wires together.
+**3B-1: Extraction Foundations Summary**
+- [ ] Keep `pawnStructure.ts` as a stub for now
+- [ ] Keep tactics/basic tactical detection minimal unless classifier truly needs it
+- [ ] Add tests as each extractor lands instead of saving them all for later
+- [ ] After each sub-step, sanity-check output on one real game position
 
-**Todo:**
-- [ ] Hook up CoachPanel to useCoaching hook
-- [ ] When critical moment detected, fetch lesson from backend
-- [ ] Render lesson in LessonCard
-- [ ] Show loading state while LLM generates
-- [ ] Handle errors gracefully
-- [ ] Test on moosetheman123 games
+**3B-2a: Orchestration** ✅ DONE
+- [x] Wire `features.ts` orchestrator
+- [x] Add material.ts + gamePhase.ts helper modules
+- [x] enrichCriticalMoments() via PGN replay with full Chess instance history
+- [x] Definition of done: one critical moment can produce a full `PositionFeatures` object
 
-### TRACK C.3: Game Summary (Session: 1-2 hours)
-**Status**: ⏸️ BLOCKED
-**Why**: Close the game review loop. Simple recap of critical moments.
+**3B-2b: Classifier** ✅ DONE
+- [x] Build classifier rules in `classifier.ts`
+- [x] MVP principles: TACTICAL_01, TACTICAL_02, OPENING_01, OPENING_02, OPENING_05
+- [x] Apply Elo gates and confidence thresholds
+- [x] 14 unit tests passing
+- [x] Definition of done: classifier returns one believable lesson target or null fallback
 
-**Todo:**
-- [ ] After game finishes, show GameSummary card
-- [ ] List top 2-3 critical moments + principles learned
-- [ ] "Try focusing on [principle] in your next games"
+**3B-3: Backend Lesson Endpoint** ✅ DONE
+- [x] Wire `POST /coaching/lesson` in `routes/coaching.py`
+- [x] Prompt shaping in `lesson.py` and system prompt in `system.py`
+- [x] Definition of done: lesson endpoint returns payload from verified facts
+
+**3B-4: Coaching UI MVP** ✅ DONE
+- [x] Build `useCoaching` hook (enrichment + LLM fetch + Think First state)
+- [x] Build `CoachPanel` (lesson display + navigation)
+- [x] Build `LessonCard` (5-step format, confidence dots)
+- [x] Build `SocraticPrompt` (blunder-check checklist for TACTICAL_01/02)
+- [x] App.tsx wired with CoachPanel in coach mode
+- [ ] Product checkpoint: manually verify lessons on moosetheman123 game (next session)
+
+**3B-5: Persistence + Follow-up**
+- [ ] Update `gameDB.ts` schema (`principleViolations`, `schemaVersion`)
+- [ ] Store enough coaching metadata to avoid unnecessary re-analysis
+- [ ] Add feature extraction tests as each extractor lands
+- [ ] Cleanup only after the first vertical slice is actually working
+
+**Notes / guardrails for 3B**
+- [ ] Do not broaden MVP to all 19 principles yet
+- [ ] Do not remove raw planning notes below
+- [ ] Think First IN MVP — lightweight only: blunder-check habit checklist for TACTICAL_01/TACTICAL_02 at confidence ≥ 70. No broad Socratic system, no strategic Think First, no hint system yet.
+- [ ] Prefer correctness over coverage in extractor logic
+- [ ] After each major block, stop and ask: is this teaching the right concept, at the right Elo, in the right tone?
+- [ ] If the answer is "technically works but not coach-like", fix product quality before adding scope
 
 ---
 
@@ -89,38 +130,26 @@
 - [ ] Test on real phones
 - we really need to flesh this out and perfect it. and also we need to think about making this an app at some point too pretty soon after launch will that be simple and easy? lichess has an app
 
-### TRACK C.5: Think First Mode (Socratic) — **ITERATE LATER**
-- [ ] For MVP: Just 5-step lesson (no Socratic)
-- [ ] Later: Add Socratic toggle
-- [ ] Later: Blunder check checklist
-- [ ] Later: Hint system
+### TRACK C.5: Think First Mode (Socratic)
+- [ ] MVP (3B): Lightweight blunder-check habit checklist for TACTICAL_01/TACTICAL_02 high-confidence moments only
+- [ ] Later: Full Socratic toggle and question flow
+- [ ] Later: Strategic Think First (only after tactical coaching is proven)
+- [ ] Later: Hint system for repeated low-effort responses
 
 ---
 
-## 🟣 TRACK D: Accounts & Auth (Partially Complete)
+## 🟣 TRACK D: Accounts & Auth
 
 ### D.1 — Core Auth + Game Sync ✅ DONE
-- [x] SQLAlchemy models: User, Game, Lesson, UserPrinciple
-- [x] Alembic migration (001_initial_schema.py)
-- [x] JWT auth: register, login, refresh, logout (access token 15min + refresh HttpOnly cookie 7d)
-- [x] bcrypt password hashing, token versioning for revocation
-- [x] Auth dependency (get_current_user / get_optional_user)
-- [x] User routes: GET/PATCH /users/me, DELETE /users/me (GDPR), GET /users/me/export
-- [x] Game routes: CRUD + batch upload (50/req) + sync-status
-- [x] Frontend authStore (Zustand): login/register/refresh/logout
-- [x] API client: auto Bearer token + 401 retry with silent refresh
-- [x] AuthModal: email+password form + OAuth button stubs
-- [x] UserMenu in NavSidebar: avatar, dropdown, logout
-- [x] syncService: IndexedDB ↔ PostgreSQL bi-directional sync
-- [x] Auto-migration on signup: pushes local games + links usernames to account
-- [x] Silent auth refresh on app load (non-blocking)
+- [x] SQLAlchemy models, Alembic migration, JWT auth, bcrypt, token versioning
+- [x] User routes (GET/PATCH/DELETE /users/me, /users/me/export)
+- [x] Game routes (CRUD, batch upload, sync-status)
+- [x] Frontend authStore, API client, AuthModal, UserMenu, syncService
+- [x] Password requirements checklist UI (inline validation, no browser popup)
 
-### D.2 — Connect Database ⏸️ BLOCKED (needs Supabase credentials)
-- [ ] Create Supabase project, get DATABASE_URL
-- [ ] Add DATABASE_URL to backend .env
-- [ ] Run: `cd backend && alembic upgrade head`
-- [ ] Verify tables created in Supabase dashboard
-- [ ] Test register → login → sync flow end-to-end
+### D.2 — Connect Database ✅ DONE
+- [x] Supabase PostgreSQL connected via session pooler
+- [x] Alembic migrations, auth flow verified end-to-end
 
 ### D.3 — OAuth (Not Started)
 **Lichess OAuth** (do first — best documented, standard OAuth2 + PKCE)
@@ -143,128 +172,21 @@
 - [ ] Attempt Chess.com OAuth if credentials are available
 - [ ] Fallback plan: if Chess.com OAuth is unstable, drop it — manual username linking already works via AccountLink.tsx
 
-### D.4 — Backend Tests (Not Started, 1 health check test exists)
-- [ ] Auth flow: register → login → access protected route → refresh → logout
-- [ ] Duplicate email registration returns 409
-- [ ] Wrong password returns 401
-- [ ] Expired/invalid token returns 401
-- [ ] Token version revocation (logout invalidates old tokens)
-- [ ] Game batch upload + sync-status round-trip
-- [ ] GDPR delete cascades all user data
-- [ ] Use pytest + httpx AsyncClient with a test DB (separate DATABASE_URL for tests)
+### D.4 — Backend Tests ✅ DONE (50 tests passing)
+- [x] Auth flow, duplicate email, wrong password, expired/invalid tokens, token revocation
+- [x] Game batch upload + sync-status round-trip
+- [x] GDPR delete cascades all user data
+- [x] CI: pytest + TestClient with PostgreSQL service container
 
 ---
 
 
-## 💰 MONETIZATION & LAUNCH
-
-### Pricing Model (Decided)
-- **Domain:** deepmove.io (purchased, $60)
-- **Free tier:** Unlimited Stockfish analysis + unlimited game imports + 1 AI-coached game review/day (all 2-3 critical moments with full lessons + game summary) + minimal ads
-- **Premium ($5/mo or $40/year, 20% annual discount):** Unlimited AI coaching + full account analysis (last 50-100 games) + principle tracker dashboard + weekly coaching email + lesson bookmarking + no ads + priority LLM queue
-- **No one-time purchases or credits** — subscription only, keep it simple
-- **Break-even target:** ~200 active users with 10% premium conversion + ads
-
-### LLM Model Strategy: Elo-Based Selection
-- **Under 1600:** Haiku 4.5 (~$0.003/lesson) — tactical + basic strategic coaching is structured enough for Haiku
-- **1600+:** Sonnet 4.6 (~$0.008/lesson) — advanced strategic concepts need richer explanation
-- Free vs Premium = quantity + features, not AI quality. Everyone gets the right model for their level.
-- ~80% of users are under 1600, so costs stay very close to pure Haiku
-
-### Cost Model (with 60% cache hit rate)
-- Per lesson: ~$0.003 (Haiku) / ~$0.008 (Sonnet)
-- Per game (2-3 lessons): ~$0.008
-- Per free user/month (1 game/day): ~$0.24
-- Per premium user/month (3 games/day): ~$0.72
-- 200 users total cost: ~$136/mo (hosting + LLM)
-- 500 users total cost: ~$352/mo
-- 1,000 users total cost: ~$753/mo
-- Hosting: Vercel (free) + Railway ($5/mo) + Supabase (free until ~1K users)
-
-### Revenue Projections (10% premium conversion + ads)
-- 200 users: $154/mo revenue vs $144/mo cost = +$10
-- 500 users: $385/mo revenue vs $352/mo cost = +$33
-- 1,000 users: $770/mo revenue vs $753/mo cost = +$17
-- 2,000 users: $1,540/mo revenue vs $1,400/mo cost = +$140
-- Margins widen as cache hit rate improves over time (→70-80%)
-
-### Competitive Positioning
-- vs Chess.com: Way cheaper ($5 vs $15-30), better AI coaching, no platform lock-in
-- vs Chessigma: We add principle-based coaching on top of free analysis, fewer/better ads
-- vs Lichess: We add AI coaching layer (Lichess has none)
-- vs DecodeChess: Cheaper ($5 vs $15), principle-based not position-based
-- vs Aimchess: Similar price ($5 vs $5-7), but we teach WHY not just WHAT
-
-### M.1: Stripe Integration (2-3 hours)
-- [ ] Create Stripe account + products (Premium Monthly $5, Premium Annual $40)
-- [ ] Stripe Checkout for subscription signup (no custom payment UI)
-- [ ] Stripe Customer Portal for card management + cancellation
-- [ ] Webhook handler: checkout.session.completed → set is_premium = true
-- [ ] Webhook handler: customer.subscription.deleted → set is_premium = false
-- [ ] Add is_premium and stripe_customer_id to User model
-- [ ] Alembic migration for new fields
-
-### M.2: Rate Limiting (1 hour)
-- [ ] Middleware: track daily AI coaching usage per user
-- [ ] Free users: 1 coached game/day (2-3 lessons count as 1 game)
-- [ ] Premium users: unlimited
-- [ ] Return 429 with friendly message: "You've used your free coaching for today. Upgrade to Premium for unlimited."
-- [ ] Reset counters at midnight UTC
-
-### M.3: Ad Integration (1 hour)
-- [ ] Sign up for EthicalAds or Carbon Ads
-- [ ] Single banner placement (bottom of page or sidebar)
-- [ ] Hide ads for Premium users (check is_premium)
-- [ ] Keep it tasteful — one ad max, never intrusive, less than Chessigma
-
-### M.4: Full Account Analysis (3-4 hours) — POST-LAUNCH
-- [ ] Batch analysis: pull last 50-100 recent games → run full pipeline on each
-- [ ] Aggregate principle violations across all games
-- [ ] Generate weakness report: top 3 recurring mistakes + trends + examples
-- [ ] Store results for dashboard display
-- [ ] Monthly rescan capability (Premium only — tracks improvement over time)
-- [ ] Cost per scan: 50 games × $0.008 = ~$0.40 (huge margin on $5/mo)
-
-### M.5: Principle Tracker Dashboard (2-3 hours) — POST-LAUNCH
-- [ ] Visual dashboard: principle violation frequency over time
-- [ ] Top 3 weaknesses highlighted with specific game examples
-- [ ] Progress tracking: "You've reduced blunders by 20% this month"
-- [ ] Premium-only feature
-
-### M.6: Deploy to deepmove.io (2-3 hours)
-- [ ] Deploy frontend to Vercel, connect deepmove.io domain
-- [ ] Deploy backend to Railway
-- [ ] Set up Supabase project (production PostgreSQL)
-- [ ] Configure env vars, SSL, CORS for production
-- [ ] Smoke test full flow: import → analysis → coaching → payment
-
-### Launch Timeline (estimated 4-6 weeks)
-1. Finish coaching pipeline (Tracks B + C) — weeks 1-3
-2. Monetization infrastructure (Stripe, rate limiting, ads) — weeks 3-4
-3. Deploy to deepmove.io — week 4-5
-4. Launch + marketing push — week 5-6
-
-### What to Skip for Launch
-- OAuth (email/password works fine)
-- Weekly coaching emails (post-launch)
-- Principle tracker dashboard (post-launch)
-- Mobile polish beyond basics
-- Think First / Socratic mode (just 5-step lessons)
-- Coaching packs / micro-transactions
-
-## 🔵 FUTURE (POST-LAUNCH)
-
-- Recurring mistake detection across games ("3rd time ignoring opponent threats")
-- Weakness dashboard (principle tracker — powered by user_principles table)
-- Premium tier (~$4/mo) — Stripe integration (separate planning session)
-- Ad integration (Carbon Ads / EthicalAds, free tier only)
-- Shareable lessons
-- Chrome extension
+---
 
 ---
 
-## SESSION PLANNING
-
+## Raw Notes / Prompt Archive
+Keep everything below as scratch notes, planning context, and prompt history. Do not delete just because the active plan above is cleaner.
 
 PROMPT 3B: Coaching Intelligence — Design + Build (do this after 3A)
 
@@ -513,69 +435,7 @@ This is large. If time runs out, stop cleanly at a phase boundary and report:
 - A continuation prompt for the next session
 
 more to think about for coaching logic / plan:
-Will Musolf:
-	I distilled 186+ replies from a massive X thread on 10x-ing Claude Code. Here's the actual playbook people are running.
 
-[u/toddsaunders on X](https://x.com/toddsaunders/status/2031436358233760063) kicked off a thread about 10x-ing Claude Code output and it turned into one of the best crowdsourced playbooks I've seen. 186+ replies, all practitioners, mostly converging on the same handful of setups. Not vibes — actual configs people are running daily.
-
-I went through the whole thing and distilled it down. Posting here because I think a lot of people in this sub are still running Claude Code "stock" and leaving a ton on the table.
-
-
-
-**The two things literally everyone agrees on:**
-
-**1.** `.env` **in project root with your API keys**
-
-This was the single most-mentioned unlock. Drop your Anthropic key (and any other service keys) into a `.env` at project root. Claude Code auto-loads it. No more copy-pasting keys, no more approving every tool call manually. Multiple people said this alone removed \~80% of the babysitting they were doing. One person called it "the difference between Claude doing work *for* you vs. you doing work *through* Claude."
-
-**2. Take your** [`CLAUDE.md`](http://CLAUDE.md) **seriously — like, dead seriously**
-
-Stop treating it like a README nobody reads. The people getting the most out of Claude Code are stuffing their [`CLAUDE.md`](http://CLAUDE.md) with full project architecture, file conventions, naming rules, decision boundaries, tech stack details — everything. Every new session starts with real context instead of you burning 10 minutes re-explaining your codebase. One dev said they run 7 autonomous agents off a shared [`CLAUDE.md`](http://CLAUDE.md) \+ per-agent context files and hasn't touched manual config in weeks. Boris (the literal creator of Claude Code) has said essentially the same thing — his team checks their [`CLAUDE.md`](http://CLAUDE.md) into git and updates it multiple times a week. Anytime Claude makes a mistake, they add a rule so it doesn't happen again. Compounding knowledge.
-
-If you do nothing else today: set up `.env` \+ write a real `CLAUDE.md`. That was the consensus #1 lever across the entire thread.
-
-
-
-**The rest of the stack people are layering on top:**
-
-**Pair Claude Code with Codex for verification.** Tell Claude to use Codex to verify assumptions and run tests. Several replies (one with 19 likes, which is a lot for a reply) said this combo catches edge cases and hallucinations that pure Claude misses. The move is apparently "Claude builds, Codex reviews" — and it pulls ahead of either one solo.
-
-**Autopilot wrappers to kill the approval loop.** The "approve 80 tool calls" friction was a huge pain point. Two repos kept coming up:
-
-* [executive](https://github.com/ncr5012/executive) — one comment called it "literally more than a 10x speed up" once prompts are dialed in
-* [get-shit-done](https://github.com/gsd-build/get-shit-done) — does what it says on the tin
-
-These basically keep Claude in full autonomous mode so you're not babysitting every file write.
-
-**Exa MCP for search.** This one surprised me. Exa apparently hijacks the default search tool — you don't even call it manually. Claude Code just starts pulling fresh docs, research, and implementations automatically. Multiple devs said they "barely open Chrome anymore." If you're still alt-tabbing to Google while Claude waits, this is apparently the fix.
-
-**Plan mode 80% of the time.** Stay in plan mode. Pour energy into the plan. Let Claude one-shot the implementation once the plan is bulletproof. One person has Claude write the plan, then spins up a second Claude to review it as a staff engineer. Boris himself said most of his sessions start in plan mode (shift+tab twice). This tracks with everything I've seen — the people who jump straight to code generation waste the most tokens.
-
-**Obsidian as an external memory layer.** Keep your notes, decisions, and research in Obsidian and link it into Claude Code sessions. Gives you a knowledge graph that survives across projects. Not everyone does this but the people who do are very loud about it.
-
-
-
-**Bonus stuff that kept coming up:**
-
-* **Voice dictation** — now built in, plus people running StreamDeck/Wispr push-to-talk setups
-* **Ghostty + tmux + phone app** — same Claude session on your phone. Someone called it "more addictive than TikTok" (I believe them)
-* **Parallel git worktrees** — spin up experimental branches without breaking main. Boris and his team do this with 5+ parallel Claude instances in numbered terminal tabs
-* **Custom session save/resume skills** — savemysession, Claude-mem, etc. to auto-save top learnings and reload context
-* **Sleep** — the top reply with the most laughs, but multiple devs said fatigue kills the 10x faster than any missing config. Not wrong.
-
-
-
-**The full stack in order:**
-
-1. Clone your repo → add `.env` \+ rich [`CLAUDE.md`](http://CLAUDE.md)
-2. Install an autopilot wrapper (executive or similar)
-3. Point Claude Code at Exa for search + Codex for verification
-4. Open Obsidian side-by-side, stay in plan mode until the plan is airtight
-5. Turn on voice + tmux so you can dictate and context-switch from mobile
-
-The thread consensus: once this stack is running, a single Claude Code session replaces hours of prompt engineering, browser tabs, and manual testing. The top-voted comments called it "not even close" to stock Claude Code.
-
-Start with `.env` \+ [`CLAUDE.md`](http://CLAUDE.md) today. Layer the rest as you go. That's it. That's the post.
 
 Will Musolf:
 	https://www.reddit.com/r/chessbeginners/s/eZnRnSufHI
@@ -608,42 +468,208 @@ Learning to convert marginally winning positions
 
 
 
+## 💰 MONETIZATION & LAUNCH
+
+- we need to protect against cost abuse early. DeepMove should feel generous, but we cannot rely on ideal usage patterns or strong ad revenue right away
+
+### Pricing Model (Recommended)
+- **Domain:** deepmove.io (purchased, $60)
+- **Free tier:** Unlimited Stockfish analysis + unlimited game imports + 3 AI-coached game reviews/week + minimal ads
+- **Premium ($5/mo or $40/year, 20% annual discount):** Generous AI coaching + full account analysis (last 50-100 games) + recurring mistake tracking + principle tracker dashboard + lesson bookmarking + no ads + priority LLM queue
+- **No one-time purchases or credits** — subscription only, keep it simple
+- **Important note:** Premium can be presented as generous/unlimited, but should still have fair-use protections behind the scenes
+- **Break-even target:** aim for premium revenue to work even if ads underperform
+
+### Why This Structure Is Safer
+- 1 coached game/day may be too generous before we know real retention, abuse rate, and actual LLM cost
+- 3 coached reviews/week still gives people a real taste of the product
+- the strongest Premium value is not just "more lessons," it is:
+- full account analysis
+- recurring-pattern diagnosis across many games
+- progress tracking over time
+
+### LLM Model Strategy
+- **Under 1600:** Haiku 4.5 for most tactical/basic coaching moments
+- **1600+:** Sonnet 4.6 when explanation quality clearly matters
+- **Optimization rule:** if the lesson is simple and high-confidence, prefer the cheaper model when possible regardless of rating
+- Free vs Premium = quantity + long-term features, not "good AI vs bad AI"
+- ~80% of users are under 1600, so keeping most traffic on the cheaper model is important
+
+### Cost Model (Treat Current Numbers as Optimistic)
+- Per lesson: current estimate ~$0.003 (Haiku) / ~$0.008 (Sonnet)
+- Main risk factors:
+- cache hit rate may be lower than expected
+- prompts and responses may get longer over time
+- "unlimited" premium can be abused
+- ads may underperform
+- active users may use the app more than modeled
+- We should treat early projections conservatively and revisit them after launch with real usage data
+
+### Revenue Projections (Conservative Framing)
+- do not rely on thin margins staying stable
+- do not treat ads as core survival revenue
+- subscriptions should carry the business; ads are a bonus
+- the best long-term margin feature is full account analysis + recurring weakness tracking
+
+### Competitive Positioning
+- vs Chess.com: much cheaper, more focused on coaching, no platform lock-in
+- vs Chessigma: cleaner product thesis, less ad-heavy, stronger coaching identity
+- vs Lichess: adds an AI coaching layer on top of free analysis of your Chess.com games
+- vs DecodeChess: cheaper and more principle-based
+- vs Aimchess: similar price range, but stronger "teach WHY from your own games" positioning
+
+### M.1: Stripe Integration (2-3 hours)
+- [ ] Create Stripe account + products (Premium Monthly $5, Premium Annual $40)
+- [ ] Stripe Checkout for subscription signup
+- [ ] Stripe Customer Portal for card management + cancellation
+- [ ] Webhook handler: `checkout.session.completed` → set `is_premium = true`
+- [ ] Webhook handler: subscription end/cancel events → set `is_premium = false`
+- [ ] Add `is_premium` and `stripe_customer_id` to User model
+- [ ] Alembic migration for new fields
+
+### M.2: Usage Protection / Rate Limiting (1-2 hours)
+- [ ] Track coached games, not just raw lesson calls
+- [ ] Free users: 3 coached game reviews/week
+- [ ] Premium users: generous usage with fair-use throttles
+- [ ] Return 429 / limit response with friendly upgrade copy
+- [ ] Add basic abuse detection for extreme usage
+- [ ] Reset counters automatically on schedule
+
+### M.3: Ad Integration (1 hour)
+- [ ] Sign up for EthicalAds or Carbon Ads
+- [ ] Single tasteful banner only
+- [ ] Hide ads for Premium users
+- [ ] Keep ads minimal and never intrusive
+- [ ] Do not overbuild ads before traffic exists
+
+### M.4: Full Account Analysis (3-4 hours) — HIGH-VALUE PREMIUM FEATURE
+- [ ] Batch analysis: pull last 50-100 recent games → run full pipeline on each
+- [ ] Aggregate principle violations / recurring mistakes across all games
+- [ ] Generate weakness report: top 3 recurring mistakes + examples + trends
+- [ ] Store results for dashboard display
+- [ ] Monthly rescan capability (Premium only)
+- [ ] This is one of the strongest Premium differentiators and should be treated as core value, not just a nice add-on
+
+### M.5: Principle Tracker Dashboard (2-3 hours) — POST-LAUNCH / PREMIUM
+- [ ] Visual dashboard: mistake frequency over time
+- [ ] Top 3 weaknesses highlighted with specific game examples
+- [ ] Progress tracking: "You've reduced X mistake by Y%"
+- [ ] Premium-only feature
+- [ ] Use this to increase retention, not just as a vanity dashboard
+
+### M.6: Deploy to deepmove.io (2-3 hours)
+- [ ] Deploy frontend to Vercel, connect deepmove.io domain
+- [ ] Deploy backend to Railway
+- [ ] Set up Supabase project (production PostgreSQL)
+- [ ] Configure env vars, SSL, CORS for production
+- [ ] Smoke test full flow: import → analysis → coaching → payment
+
+### Launch Timeline (estimated 4-6 weeks)
+1. Finish coaching pipeline (Tracks B + C)
+2. Add monetization basics: Stripe + usage caps
+3. Deploy to deepmove.io
+4. Launch with one clean free offer and one clear Premium offer
+5. Use real usage data to tune caps, prompts, and pricing assumptions
+
+### What to Skip for Launch
+- OAuth (email/password works fine)
+- Weekly coaching emails
+- heavy dashboard polish
+- Think First / Socratic mode
+- broad mobile polish beyond basics
+- coaching packs / micro-transactions
+- complex ad optimization
+
+## 🔵 FUTURE (POST-LAUNCH)
+
+- Recurring mistake detection across games should move toward the core Premium experience
+- Weakness dashboard (principle tracker — powered by user_principles table)
+- Shareable lessons
+- Chrome extension
+- coaching emails once retention is proven
+- pricing experiments only after we understand conversion and usage behavior
+
+---
+
+## SESSION PLANNING
+
+
 
 
 ## 📣 MARKETING & GROWTH
 
+### Launch Positioning
+- DeepMove teaches why you keep making the same mistakes
+- not just engine review
+- not just move suggestions
+- coaching from your own games, focused on recurring patterns and principles
+
 ### Launch Channels
-- [ ] r/chess announcement post (show real coaching example, ask for feedback)
-- [ ] r/chessbeginners post (primary target audience for AI coaching)
+- [ ] r/chessbeginners post — primary target audience
 - [ ] r/learnchess post
+- [ ] r/chess post with a strong real example
 - [ ] chess.com community forums
 - [ ] lichess forum
 - [ ] ProductHunt launch
 
 ### Content Marketing (post-launch)
-- [ ] Blog on deepmove.io/blog — chess improvement articles using DeepMove's coaching philosophy
-- [ ] Example post: "Why your chess accuracy score is lying to you" (Studer's leaky roof concept)
+- [ ] Blog on deepmove.io/blog — chess improvement articles tied to DeepMove's coaching philosophy
+- [ ] Example post: "Why your chess accuracy score is lying to you"
 - [ ] Example post: "The one habit that fixes 80% of blunders under 1400"
+- [ ] Example post: "What your own games reveal about how you actually think"
 - [ ] SEO targets: "free chess coaching", "AI chess coach", "chess game review free"
 
 ### Partnerships (post-launch)
-- [ ] Chess YouTuber/streamer outreach — offer free Premium for honest reviews
-- [ ] Chess club partnerships — bulk Premium for clubs
-- [ ] Chess.com/Lichess content creator programs
+- [ ] Reach out to smaller chess YouTubers/streamers first
+- [ ] Offer free Premium for honest reviews and real feedback
+- [ ] Chess club partnerships later if retention is strong
+- [ ] Creator programs later, not as a launch dependency
 
-### Growth Metrics to Track
+### Growth Metrics To Track
 - DAU / MAU
-- Free → Premium conversion rate (target: 10%)
-- Coaching lessons served per day
-- LLM cost per user per month
+- Free → Premium conversion rate
+- percent of users who hit the free cap
+- coached games per active user
+- LLM cost per active user per month
+- retention after first coached game
+- retention after first recurring-pattern insight
 - Churn rate (monthly)
+
+### Core Growth Principle
+- lead with strong real examples, not broad claims
+- one believable coaching example will market the product better than ten feature bullets
+- the long-term hook is recurring-pattern diagnosis across many games, not just one-off lesson generation
 
 ---
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
+-flip game for searched user to be at bottom in load
 
+
+-the best lines thuing that loads up in depth is wack while the stockfish is analyzing, also are they running in parallel? or onyl one at a teim (either stockifsh anayzing and making report or eval and best moves are claucalting?) it says m5 sometimes which is right idk i think we just need to fix that part or get rid of it or something
+
+
+-eval bar still bouncing for some reaosn. on specific moves?
+on branched moves its happening not that often but i found some rare use cases 
+
+-add admin priveliges to my email account willmusolf@gmail.com like resetting analyses to simulate a new user or when we make changes to the analysis
+
+-make the eye to show password centered and correct color (hard to see)
+
+-make sign in an actual button? when its highlighted i see it but just looks like floating text normally
+
+-still mvoe letters to right just a tiny bit
+-player box a little lighter gray to see taken pieces easier
+
+-lines still a bit jumpy/too transparent/start a little too late? should load a bit faster from like 150ms whatever it is
+-suggested moves should be there right awya? even on a new game or on a game reivew, only its after i make a move it shows the default suggested moves
 
 -if game is abandoned, and you do a new move on the analysis board, it should be a branch rather than just continuing notation, right?
 
+-are we able to use chess.com sounds?? theyre so bussin but also maybe illegal? how can they tell? idk might have to use lichess? or something else lets use lichess instead
+
+-sort loaded games in numerous different ways?
+
+-make sure if we load in a game have it analyzing then we exit to a new game or reset that the eval bar goes back to 0.0 as well. currently its not
 
 
 -something better for default. can go back in moves without a game loaded? auto labels common openings/labeling positions etc or something? in the default game that you can mess with or in your own transcripts and links to lessons?
@@ -651,8 +677,10 @@ Learning to convert marginally winning positions
 -when you make a move it unlocks the moves section and it starts like a new game in default?
 -and have no eval by default? if playing a bot. or have game analysis board that you can just mess with and see best moves and lines and evals etc like starts a new manual game or something and can reset the transcript or something
 -and have the positioning be better? theres no player box so the default board is higher than when it is when we load a game so maybe something more consistent/lower/centered when a game isnt loaded in?
+-what happens when you go in analysis after messing with the default board and no game is loaded in? just anlayzing the dfault board with transcript should be an option? you move a piece and it switches to analysis and starts a trasncirpt?
 
--alt colorways and pieces
+
+
 -have similar dropdown next to move arrows as chessigma
 -test FEN string
 -make taking more obvious as a suggested move? slightly like make the dots bigger or bolder maybe?
@@ -665,24 +693,5 @@ Learning to convert marginally winning positions
 
 
 -make this into an ios app
-
-
-
-
-
-scaling / pricing plan? → DECIDED — see "💰 MONETIZATION & LAUNCH" section above
-
-PRICING/MONETIZATION PLAN
-Free tier is generous on purpose: Unlimited imports + Stockfish + 2-3 coaching lessons per game. The goal is to build a large free user base that loves the product. Premium upgrades from love, not frustration.
-Premium (~$4/mo, may increase to $6-8): No ads, bulk account rescans (re-analyze last 50 games with latest improvements), principle tracker dashboard, weekly coaching summary email, lesson bookmarking, priority LLM queue.
-Rate limiting is the natural gate: Free users get ~10 LLM coaching calls/day. Premium gets 100. Stockfish analysis is always unlimited (client-side, zero cost). This means free users can review ~3-5 games/day with coaching — generous but bounded.
-Stripe Checkout + Customer Portal: Don't build custom payment UI. Stripe handles the checkout page, card management, cancellation. You just handle webhooks to flip is_premium.
-Consider annual pricing: $4/mo or $36/year (25% discount). Annual plans reduce churn and lock in revenue.
-Consider "coaching packs": Instead of subscription, sell packs of N coaching sessions. Lower commitment, good for casual users. Could coexist with subscription.
-Ad revenue (free tier): Single tasteful banner (Carbon Ads / EthicalAds). Expect ~$2-5 CPM. At 10K MAU = ~$20-50/month. Won't pay the bills alone but offsets LLM costs.
-Key question for the session: What's the MUST-HAVE that makes someone pay? Principle tracker? Bulk rescans? Or is it just "no ads + more coaching"? The answer shapes everything.
-
-
-
 
 

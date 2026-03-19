@@ -14,7 +14,10 @@ import type { ChessComGame } from './api/chesscom'
 import type { LichessGame } from './api/lichess'
 import NavSidebar from './components/Layout/NavSidebar'
 import type { Page } from './components/Layout/NavSidebar'
+import ProfilePage from './components/Profile/ProfilePage'
+import CoachPanel from './components/Coach/CoachPanel'
 import { useGameReview } from './hooks/useGameReview'
+import { useCoaching } from './hooks/useCoaching'
 import { useStockfish } from './hooks/useStockfish'
 import { useSound } from './hooks/useSound'
 import { useAuthStore } from './stores/authStore'
@@ -22,7 +25,6 @@ import { useGameStore } from './stores/gameStore'
 import type { TopLine } from './engine/stockfish'
 import type { Key } from 'chessground/types'
 import { STARTING_FEN } from './chess/constants'
-import { clearAllAnalyses } from './services/gameDB'
 import './styles/board.css'
 
 // Lichess-style thickness brushes — all green, varying weight
@@ -68,9 +70,24 @@ export default function App() {
   const userColor = useGameStore(s => s.userColor)
   const criticalMoments = useGameStore(s => s.criticalMoments)
   const platform = useGameStore(s => s.platform)
+  const userElo = useGameStore(s => s.userElo)
+  const currentGameMeta = useGameStore(s => s.currentGameMeta)
 
   const { isReady, engineStatus, runAnalysis, analyzePositionLines, stopPositionAnalysis } = useStockfish()
   const { enabled: soundEnabled, toggle: toggleSound, playMoveSound } = useSound()
+
+  const {
+    lessons: coachLessons,
+    currentIndex: coachIndex,
+    setCurrentIndex: setCoachIndex,
+    revealLesson: revealCoachLesson,
+  } = useCoaching({
+    criticalMoments,
+    moveEvals,
+    pgn: pgn ?? '',
+    userElo,
+    timeControl: currentGameMeta?.timeControl ?? '600',
+  })
 
   // Silent auth refresh on app load — non-blocking, app works without it
   const authRefresh = useAuthStore(s => s.refresh)
@@ -450,6 +467,16 @@ export default function App() {
 
               {/* ── Right panel ─────────────────────────────────────── */}
               <div className="side-col">
+                {/* In coach mode, show coaching panel above the tabs */}
+                {viewMode === 'coach' && isLoaded && !isAnalyzing && (
+                  <CoachPanel
+                    lessons={coachLessons}
+                    currentIndex={coachIndex}
+                    onNavigate={setCoachIndex}
+                    onReveal={revealCoachLesson}
+                  />
+                )}
+
                 <div className="panel-tabs">
                   <button
                     className={`panel-tab${panelTab === 'load' ? ' active' : ''}`}
@@ -652,23 +679,19 @@ export default function App() {
 
           {currentPage === 'dashboard' && <div className="stub-page">Dashboard coming soon.</div>}
           {currentPage === 'settings' && (
-            <div className="stub-page">
-              <h3>Settings</h3>
-              <div style={{ marginTop: '1rem' }}>
-                <button
-                  className="btn btn-secondary"
-                  onClick={async () => {
-                    const count = await clearAllAnalyses()
-                    alert(`Cleared ${count} cached analyses. Games will re-analyze on next load.`)
-                  }}
-                >
-                  Reset All Analyses
-                </button>
-                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem', marginTop: '0.5rem' }}>
-                  Clears cached analysis from IndexedDB. Games will re-run Stockfish on next view.
-                </p>
-              </div>
-            </div>
+            <ProfilePage
+              onUsernameLinked={(platform, username) => {
+                if (platform === 'chesscom') {
+                  setChesscomUsername(username)
+                  setImportTab('chesscom')
+                } else {
+                  setLichessUsername(username)
+                  setImportTab('lichess')
+                }
+                setCurrentPage('review')
+                setPanelTab('load')
+              }}
+            />
           )}
           {currentPage === 'about' && <div className="stub-page">About coming soon.</div>}
         </div>
