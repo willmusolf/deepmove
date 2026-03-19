@@ -4,7 +4,6 @@ import { loadMoreLichessGames, type LichessGame } from '../../api/lichess'
 import type { PaginationState } from './AccountLink'
 import { useGameStore } from '../../stores/gameStore'
 import { cleanPgn } from '../../chess/pgn'
-import { getMyUsername } from '../../services/identity'
 import {
   getGameId,
   getAnalyzedGame,
@@ -132,7 +131,8 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
       timeControl: g.timeControl,
       endTime: g.endTime,
     })
-    const myUser = getMyUsername(platform); const browsingOther = myUser && myUser !== username.toLowerCase(); setUserColor(browsingOther ? null : (g.isWhite ? 'white' : 'black'))
+    // Always orient to the searched user — username IS who we're watching
+    setUserColor(g.isWhite ? 'white' : 'black')
     if (g.userRating && g.userRating > 0) setUserElo(g.userRating)
     setPlatform(platform)
 
