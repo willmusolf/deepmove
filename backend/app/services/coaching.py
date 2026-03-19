@@ -58,3 +58,10 @@ async def generate_lesson(coaching_request: dict) -> dict:
 
 def _build_cache_key(req: dict) -> str:
     return f"{req.get('principle_id')}:{req.get('game_phase')}:{req.get('elo_band')}:{req.get('position_hash', '')}"
+
+
+def clear_lesson_cache() -> int:
+    """Clear the in-memory LRU lesson cache. Returns number of entries cleared."""
+    count = len(_lesson_cache)
+    _lesson_cache.clear()
+    return count

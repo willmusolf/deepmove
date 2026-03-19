@@ -1,17 +1,31 @@
 // UserMenu.tsx — User avatar/sign-in button for the sidebar.
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { migrateOnSignup, syncGames } from '../../services/syncService'
+import { getPlayerProfile } from '../../api/chesscom'
 import AuthModal from './AuthModal'
+import type { Page } from '../Layout/NavSidebar'
 
-export default function UserMenu() {
+interface UserMenuProps {
+  currentPage: Page
+  onNavigate: (page: Page) => void
+}
+
+export default function UserMenu({ currentPage, onNavigate }: UserMenuProps) {
   const user = useAuthStore(s => s.user)
   const isLoading = useAuthStore(s => s.isLoading)
-  const logout = useAuthStore(s => s.logout)
   const [showAuth, setShowAuth] = useState(false)
-  const [showDropdown, setShowDropdown] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const wasLoggedIn = useRef(!!user)
+
+  // Fetch Chess.com avatar when username is available
+  useEffect(() => {
+    if (!user?.chesscom_username) { setAvatarUrl(null); return }
+    getPlayerProfile(user.chesscom_username).then(p => {
+      setAvatarUrl(p?.avatar ?? null)
+    })
+  }, [user?.chesscom_username])
 
   if (isLoading) return null
 
@@ -39,10 +53,7 @@ export default function UserMenu() {
       setSyncMsg('')
     }
 
-    // Clear sync message after 3 seconds
-    if (syncMsg || true) {
-      setTimeout(() => setSyncMsg(''), 3000)
-    }
+    setTimeout(() => setSyncMsg(''), 3000)
   }
 
   if (!user) {
@@ -63,34 +74,35 @@ export default function UserMenu() {
     )
   }
 
-  const initial = user.email[0].toUpperCase()
+  // Display name: prefer chess platform username, fall back to email prefix
+  const displayName =
+    user.chesscom_username ||
+    user.lichess_username ||
+    user.email.split('@')[0]
+
+  const initial = displayName[0].toUpperCase()
 
   return (
     <div className="nav-user">
       {syncMsg && <div className="nav-sync-msg">{syncMsg}</div>}
       <button
-        className="nav-user-btn"
-        onClick={() => setShowDropdown(v => !v)}
+        className={`nav-user-btn${currentPage === 'settings' ? ' active' : ''}`}
+        onClick={() => onNavigate('settings')}
+        title="Profile & Settings"
       >
-        <span className="nav-user-avatar">{initial}</span>
-        <span className="nav-user-email">{user.email}</span>
+        <span className="nav-user-avatar-wrap">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={displayName}
+              className="nav-user-avatar nav-user-avatar--img"
+            />
+          ) : (
+            <span className="nav-user-avatar">{initial}</span>
+          )}
+        </span>
+        <span className="nav-user-name">{displayName}</span>
       </button>
-      {showDropdown && (
-        <div className="nav-user-dropdown">
-          {user.chesscom_username && (
-            <div className="nav-user-link">Chess.com: {user.chesscom_username}</div>
-          )}
-          {user.lichess_username && (
-            <div className="nav-user-link">Lichess: {user.lichess_username}</div>
-          )}
-          <button
-            className="nav-user-logout"
-            onClick={() => { logout(); setShowDropdown(false); wasLoggedIn.current = false }}
-          >
-            Log Out
-          </button>
-        </div>
-      )}
     </div>
   )
 }

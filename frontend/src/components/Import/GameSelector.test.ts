@@ -3,7 +3,7 @@ import type { ChessComGame } from '../../api/chesscom'
 import type { LichessGame } from '../../api/lichess'
 
 // normalizeChessCom and normalizeLichess are not exported — export them for testing
-import { normalizeChessCom, normalizeLichess } from './GameSelector'
+import { normalizeChessCom, normalizeLichess } from './normalizeGame'
 
 function makeChessComGame(overrides: Partial<ChessComGame> = {}): ChessComGame {
   return {

@@ -17,6 +17,7 @@ class User(Base):
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     is_premium: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     elo_estimate: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Linked chess platform accounts

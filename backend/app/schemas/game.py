@@ -67,7 +67,13 @@ class SyncStatusResponse(BaseModel):
     to_download: list[GameResponse]  # games the client doesn't have
 
 
+class GameSyncResult(BaseModel):
+    platform_game_id: str
+    db_id: int
+
+
 class BatchCreateResponse(BaseModel):
     created: int
     updated: int
     errors: list[str]
+    results: list[GameSyncResult]

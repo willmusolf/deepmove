@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routes import auth, coaching, games, users
+from app.routes import admin, auth, coaching, games, users
 
 app = FastAPI(
     title="DeepMove API",
@@ -25,6 +25,7 @@ app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(games.router, prefix="/games", tags=["games"])
 app.include_router(coaching.router, prefix="/coaching", tags=["coaching"])
+app.include_router(admin.router, prefix="/admin", tags=["admin"])
 
 
 @app.get("/health")

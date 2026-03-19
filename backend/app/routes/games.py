@@ -1,5 +1,5 @@
 """games.py — Game storage, retrieval, and sync endpoints."""
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from app.schemas.game import (
     GameCreate,
     GameListResponse,
     GameResponse,
+    GameSyncResult,
     SyncStatusRequest,
     SyncStatusResponse,
 )
@@ -87,7 +88,7 @@ async def create_game(
             existing.move_evals = body.move_evals
             existing.critical_moments = body.critical_moments
             existing.analyzed_at = datetime.fromisoformat(body.analyzed_at) if body.analyzed_at else None
-            existing.synced_at = datetime.now(datetime.UTC)
+            existing.synced_at = datetime.now(timezone.utc)
             db.commit()
             db.refresh(existing)
             return GameResponse.model_validate(existing)
@@ -115,6 +116,8 @@ async def batch_create(
     created = 0
     updated = 0
     errors: list[str] = []
+    sync_results: list[GameSyncResult] = []
+    new_games: list[tuple[str, Game]] = []  # (platform_game_id, game_obj) for ID capture
 
     for body in games:
         try:
@@ -130,18 +133,25 @@ async def batch_create(
                     existing.analyzed_at = (
                         datetime.fromisoformat(body.analyzed_at) if body.analyzed_at else None
                     )
-                    existing.synced_at = datetime.now(datetime.UTC)
+                    existing.synced_at = datetime.now(timezone.utc)
+                    sync_results.append(GameSyncResult(platform_game_id=body.platform_game_id, db_id=existing.id))
                     updated += 1
                     continue
 
             game = _game_from_create(body, user.id)
             db.add(game)
+            if body.platform_game_id:
+                new_games.append((body.platform_game_id, game))
             created += 1
         except Exception as e:
             errors.append(f"{body.platform_game_id}: {e!s}")
 
     db.commit()
-    return BatchCreateResponse(created=created, updated=updated, errors=errors)
+    for platform_game_id, game_obj in new_games:
+        db.refresh(game_obj)
+        sync_results.append(GameSyncResult(platform_game_id=platform_game_id, db_id=game_obj.id))
+
+    return BatchCreateResponse(created=created, updated=updated, errors=errors, results=sync_results)
 
 
 @router.post("/sync-status", response_model=SyncStatusResponse)

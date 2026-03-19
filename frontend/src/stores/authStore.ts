@@ -1,5 +1,6 @@
 // authStore.ts — Authentication state (Zustand)
 import { create } from 'zustand'
+import { usePrefsStore } from './prefsStore'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
@@ -7,6 +8,7 @@ export interface UserResponse {
   id: number
   email: string
   is_premium: boolean
+  is_admin: boolean
   elo_estimate: number | null
   chesscom_username: string | null
   lichess_username: string | null
@@ -39,11 +41,16 @@ interface AuthState {
 }
 
 async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include', // Send HttpOnly cookies
-    ...options,
-  })
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // Send HttpOnly cookies
+      ...options,
+    })
+  } catch {
+    throw new Error('Could not reach the server. Is the backend running?')
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: `Error ${res.status}` }))
     throw new Error(body.detail ?? `Error ${res.status}`)
@@ -67,6 +74,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accessToken: data.access_token,
       isPremium: data.user.is_premium,
     })
+    usePrefsStore.getState().loadFromUser(data.user.preferences)
   },
 
   login: async (email, password) => {
@@ -79,6 +87,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accessToken: data.access_token,
       isPremium: data.user.is_premium,
     })
+    usePrefsStore.getState().loadFromUser(data.user.preferences)
   },
 
   logout: async () => {
@@ -105,6 +114,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isPremium: data.user.is_premium,
         isLoading: false,
       })
+      usePrefsStore.getState().loadFromUser(data.user.preferences)
     } catch {
       // No valid refresh token — user is anonymous (that's fine)
       set({ user: null, accessToken: null, isPremium: false, isLoading: false })

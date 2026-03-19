@@ -25,6 +25,7 @@ import { useGameStore } from './stores/gameStore'
 import type { TopLine } from './engine/stockfish'
 import type { Key } from 'chessground/types'
 import { STARTING_FEN } from './chess/constants'
+import { cacheRatingsFromGameList, readCachedRatings } from './components/Import/normalizeGame'
 import './styles/board.css'
 
 // Lichess-style thickness brushes — all green, varying weight
@@ -71,6 +72,7 @@ export default function App() {
   const criticalMoments = useGameStore(s => s.criticalMoments)
   const platform = useGameStore(s => s.platform)
   const userElo = useGameStore(s => s.userElo)
+  const setUserElo = useGameStore(s => s.setUserElo)
   const currentGameMeta = useGameStore(s => s.currentGameMeta)
   const currentGameId = useGameStore(s => s.currentGameId)
   const backendGameId = useGameStore(s => s.backendGameId)
@@ -97,6 +99,16 @@ export default function App() {
   // Silent auth refresh on app load — non-blocking, app works without it
   const authRefresh = useAuthStore(s => s.refresh)
   useEffect(() => { void authRefresh() }, [authRefresh])
+
+  // Initialize userElo from cached detected ratings (instant — cached at import time, no analysis needed)
+  useEffect(() => {
+    const ratings = readCachedRatings()
+    if (ratings) {
+      const mode = ratings.primaryMode
+      const elo = mode ? ratings[mode] : null
+      if (elo) setUserElo(elo)
+    }
+  }, [setUserElo])
 
   const [currentAnalysisDepth, setCurrentAnalysisDepth] = useState(0)
   // FEN → TopLine[] cache so revisiting a position never re-analyzes
@@ -603,6 +615,7 @@ export default function App() {
                               setChesscomGames(games as ChessComGame[])
                               setChesscomUsername(uname)
                               setChesscomPagination(pagination)
+                              cacheRatingsFromGameList(games as ChessComGame[], uname, 'chesscom')
                             }}
                           />
                           {chesscomGames.length > 0 && (
@@ -629,6 +642,7 @@ export default function App() {
                               setLichessGames(games as LichessGame[])
                               setLichessUsername(uname)
                               setLichessPagination(pagination)
+                              cacheRatingsFromGameList(games as LichessGame[], uname, 'lichess')
                             }}
                           />
                           {lichessGames.length > 0 && (

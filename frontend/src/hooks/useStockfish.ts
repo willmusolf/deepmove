@@ -110,6 +110,7 @@ export function useStockfish() {
           result: state.currentGameMeta.result,
           timeControl: state.currentGameMeta.timeControl,
           endTime: state.currentGameMeta.endTime,
+          backendGameId: state.backendGameId ?? null,
         }).catch(err => console.error('Failed to save game to IndexedDB:', err))
       }
     } catch (err) {

@@ -8,7 +8,7 @@ It receives verified facts and writes the lesson text.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db, get_optional_user
+from app.dependencies import get_current_user, get_db, get_optional_user
 from app.models.game import Game
 from app.models.lesson import Lesson
 from app.models.user import User
@@ -35,7 +35,14 @@ async def generate_lesson(
     """
     # ── 1. Look up game row ──────────────────────────────────────────────────
     game: Game | None = None
-    if user and request.platform_game_id and request.platform:
+    if user and request.backend_game_id:
+        # Direct PK lookup — fast path, used when game was synced this session
+        game = (
+            db.query(Game)
+            .filter(Game.id == request.backend_game_id, Game.user_id == user.id)
+            .first()
+        )
+    elif user and request.platform_game_id and request.platform:
         game = (
             db.query(Game)
             .filter(
@@ -95,3 +102,12 @@ async def generate_socratic_question():
     # Think First blunder-check checklist is rendered client-side from classification data.
     # This endpoint is reserved for future server-side Socratic question generation.
     return {"status": "not_implemented"}
+
+
+@router.delete("/cache")
+def flush_lesson_cache(current_user: User = Depends(get_current_user)):
+    """Flush the in-memory LRU lesson cache (admin only)."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin only")
+    count = coaching_service.clear_lesson_cache()
+    return {"cleared": True, "entries_removed": count}

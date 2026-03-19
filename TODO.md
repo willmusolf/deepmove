@@ -652,20 +652,19 @@ Learning to convert marginally winning positions
 
 ---
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
--flip game for searched user to be at bottom in load
+-should we be relying on the engine more? the ai should really be doing the bare minimum right i feel like relying on the llm is not gonna be that valuable for actually makign intelligent and helpful chess coaching insights. open to discussion
+
+-board color changing in setting does not work at all the chess board warps lke crazy. only the original works properly
+
+-flip game for searched user to be at bottom in load even if its not the crowned user or profile account the searched name is the one thats at the bottom for every game they load in. they can always flip it if they want manually with the flip button so
 
 
 -the best lines thuing that loads up in depth is wack while the stockfish is analyzing, also are they running in parallel? or onyl one at a teim (either stockifsh anayzing and making report or eval and best moves are claucalting?) it says m5 sometimes which is right idk i think we just need to fix that part or get rid of it or something
 
 
--eval bar still bouncing for some reaosn. on specific moves?
-on branched moves its happening not that often but i found some rare use cases 
 
--add admin priveliges to my email account willmusolf@gmail.com like resetting analyses to simulate a new user or when we make changes to the analysis
 
--make the eye to show password centered and correct color (hard to see)
 
--make sign in an actual button? when its highlighted i see it but just looks like floating text normally
 
 -still mvoe letters to right just a tiny bit
 -player box a little lighter gray to see taken pieces easier
@@ -675,7 +674,7 @@ on branched moves its happening not that often but i found some rare use cases
 
 -if game is abandoned, and you do a new move on the analysis board, it should be a branch rather than just continuing notation, right?
 
--are we able to use chess.com sounds?? theyre so bussin but also maybe illegal? how can they tell? idk might have to use lichess? or something else lets use lichess instead
+-use lichess sounds instead but make sure we have check checkmate castle all accounted for last time we tried we couldnt get those sounds so maybe just have me go grab all them somewhere
 
 -sort loaded games in numerous different ways?
 
@@ -690,7 +689,7 @@ on branched moves its happening not that often but i found some rare use cases
 -what happens when you go in analysis after messing with the default board and no game is loaded in? just anlayzing the dfault board with transcript should be an option? you move a piece and it switches to analysis and starts a trasncirpt?
 
 
-
+-tactics trainer
 -have similar dropdown next to move arrows as chessigma
 -test FEN string
 -make taking more obvious as a suggested move? slightly like make the dots bigger or bolder maybe?

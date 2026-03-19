@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { usePrefsStore, type AppTheme, type BoardTheme } from '../../stores/prefsStore'
 import { clearAllAnalyses } from '../../services/gameDB'
+import { readCachedRatings, type DetectedRatings } from '../Import/normalizeGame'
 
 interface ProfilePageProps {
   /** Called when user saves a chess platform username so the Review tab can pre-fill it */
@@ -12,6 +13,7 @@ interface ProfilePageProps {
 export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   const user = useAuthStore(s => s.user)
   const updateProfile = useAuthStore(s => s.updateProfile)
+  const logout = useAuthStore(s => s.logout)
   const { appTheme, boardTheme, soundEnabled, setAppTheme, setBoardTheme, setSoundEnabled } = usePrefsStore()
 
   // Chess account fields
@@ -20,10 +22,8 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   const [accountSaving, setAccountSaving] = useState(false)
   const [accountMsg, setAccountMsg] = useState('')
 
-  // Elo field
-  const [eloInput, setEloInput] = useState(String(user?.elo_estimate ?? ''))
-  const [eloSaving, setEloSaving] = useState(false)
-  const [eloMsg, setEloMsg] = useState('')
+  // Detected ratings — read synchronously from localStorage (cached at import time)
+  const [detectedRatings] = useState<DetectedRatings | null>(() => readCachedRatings())
 
   // Cache clear
   const [clearMsg, setClearMsg] = useState('')
@@ -64,25 +64,6 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
     }
   }
 
-  async function handleSaveElo() {
-    const parsed = parseInt(eloInput, 10)
-    if (isNaN(parsed) || parsed < 100 || parsed > 3500) {
-      setEloMsg('Enter a rating between 100 and 3500')
-      setTimeout(() => setEloMsg(''), 3000)
-      return
-    }
-    setEloSaving(true)
-    setEloMsg('')
-    try {
-      await updateProfile({ elo_estimate: parsed })
-      setEloMsg('Saved!')
-    } catch (err) {
-      setEloMsg(err instanceof Error ? err.message : 'Failed to save')
-    } finally {
-      setEloSaving(false)
-      setTimeout(() => setEloMsg(''), 3000)
-    }
-  }
 
   async function handleSaveAppearance() {
     if (!user) return
@@ -150,6 +131,12 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
               <span className="profile-info-label">Plan</span>
               <span className="profile-info-value">{user.is_premium ? 'Premium' : 'Free'}</span>
             </div>
+            {user.is_admin && (
+              <div className="profile-info-row">
+                <span className="profile-info-label">Role</span>
+                <span className="profile-admin-badge">👑 Admin</span>
+              </div>
+            )}
           </div>
         ) : (
           <p className="profile-guest-note">Sign in to save your settings and link chess accounts.</p>
@@ -200,39 +187,25 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
         </div>
       </section>
 
-      {/* ── Elo Estimate ─────────────────────────────────────────────── */}
+      {/* ── Your Ratings ─────────────────────────────────────────────── */}
       <section className="profile-section">
-        <h3 className="profile-section-title">Your Rating</h3>
-        <p className="profile-section-desc">Helps the coach tailor lessons to your level.</p>
-        <div className="profile-field-group">
-          <div className="profile-field">
-            <label className="profile-field-label">Estimated rating</label>
-            <input
-              className="profile-input profile-input--short"
-              type="number"
-              placeholder="e.g. 1330"
-              min={100}
-              max={3500}
-              value={eloInput}
-              onChange={e => setEloInput(e.target.value)}
-              disabled={!user}
-            />
-          </div>
-          <div className="profile-field-row">
-            <button
-              className="btn btn-primary"
-              onClick={handleSaveElo}
-              disabled={!user || eloSaving}
-            >
-              {eloSaving ? 'Saving…' : 'Save'}
-            </button>
-            {eloMsg && (
-              <span className={`profile-msg${eloMsg === 'Saved!' ? ' profile-msg--ok' : ' profile-msg--err'}`}>
-                {eloMsg}
+        <h3 className="profile-section-title">Your Ratings</h3>
+        <p className="profile-section-desc">Auto-detected from your imported games. Import more games to improve accuracy.</p>
+        <div className="profile-ratings-grid">
+          {(['bullet', 'blitz', 'rapid', 'classical'] as const).map(mode => (
+            <div key={mode} className="profile-rating-item">
+              <span className="profile-rating-mode">{mode.charAt(0).toUpperCase() + mode.slice(1)}</span>
+              <span className="profile-rating-value">
+                {detectedRatings === null ? '…' : (detectedRatings[mode] ?? '——')}
               </span>
-            )}
-          </div>
+            </div>
+          ))}
         </div>
+        {detectedRatings !== null && !detectedRatings.primaryMode && (
+          <p className="profile-help-text" style={{ marginTop: '0.5rem' }}>
+            Import games from Chess.com or Lichess to detect your ratings.
+          </p>
+        )}
       </section>
 
       {/* ── Appearance ───────────────────────────────────────────────── */}
@@ -317,6 +290,20 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
             <p className="profile-help-text">
               Games will re-run Stockfish analysis on next view.
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Account ──────────────────────────────────────────────────── */}
+      <section className="profile-section">
+        <h3 className="profile-section-title">Sign Out</h3>
+        <div className="profile-field-group">
+          <div className="profile-field">
+            <div className="profile-field-row">
+              <button className="btn btn-secondary" onClick={logout}>
+                Log Out
+              </button>
+            </div>
           </div>
         </div>
       </section>
