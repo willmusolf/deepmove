@@ -218,9 +218,12 @@ export default function ChessBoard({
   // set() can never accidentally clear movable.dests during an arrows update.
   useEffect(() => {
     if (!apiRef.current) return
+    // Guard: chessground computes arrow coords from the board's bounding rect.
+    // If the board hasn't been laid out yet (width === 0), skip — the effect
+    // will re-run once the board resizes and shapes change again.
+    if (!containerRef.current || containerRef.current.getBoundingClientRect().width === 0) return
     apiRef.current.set({
       drawable: { autoShapes: shapes },
-
     })
   }, [shapes])
 

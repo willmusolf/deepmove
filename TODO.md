@@ -42,7 +42,7 @@ Fixes applied: psycopg3 URL rewriting, bcrypt 4.x pin, datetime.UTC → timezone
 - [x] `3B-2b` ✅ DONE: classifier.ts — TACTICAL_01/02, OPENING_01/02/05, Elo gates, buildVerifiedFacts()
 - [x] `3B-3` ✅ DONE: POST /coaching/lesson wired to coaching service
 - [x] `3B-4` ✅ DONE: useCoaching hook + CoachPanel + LessonCard + SocraticPrompt + App.tsx wiring
-- [ ] `3B-5` Add persistence + cleanup after first real loop works
+- [x] `3B-5` ✅ DONE: lesson persistence — backend saves to DB, checks DB before calling Claude
 
 **3B-1a: Easy Foundations** (client-side TypeScript) ✅ DONE
 - [x] Implement `openFiles.ts`
@@ -95,13 +95,23 @@ Fixes applied: psycopg3 URL rewriting, bcrypt 4.x pin, datetime.UTC → timezone
 - [x] Build `LessonCard` (5-step format, confidence dots)
 - [x] Build `SocraticPrompt` (blunder-check checklist for TACTICAL_01/02)
 - [x] App.tsx wired with CoachPanel in coach mode
-- [ ] Product checkpoint: manually verify lessons on moosetheman123 game (next session)
+- [ ] Product checkpoint: manually verify lessons on moosetheman123 game — run servers, load game, switch to Coach tab
 
-**3B-5: Persistence + Follow-up**
-- [ ] Update `gameDB.ts` schema (`principleViolations`, `schemaVersion`)
-- [ ] Store enough coaching metadata to avoid unnecessary re-analysis
-- [ ] Add feature extraction tests as each extractor lands
-- [ ] Cleanup only after the first vertical slice is actually working
+**3B-5: Persistence** ✅ DONE
+- [x] `CoachingRequest` schema: added `platform_game_id`, `platform`, `color` fields
+- [x] `POST /coaching/lesson`: checks DB for existing lesson before calling Claude (survives server restart)
+- [x] After generation: saves lesson to `lessons` table for logged-in users whose game is in DB
+- [x] Skips silently for guests (no auth token → no save)
+- [x] `useCoaching` hook: passes `platformGameId`, `platform`, `color` in request body
+- [x] `App.tsx`: passes `currentGameId` and `platform` from gameStore to `useCoaching`
+- [ ] **Known gap**: DB cache only hits if game has been synced to backend first (needs 3B-6)
+
+**3B-6: Close the DB Cache Loop (NEXT)**
+- [ ] For the lesson DB cache to actually hit on game reload, the game must exist in the backend DB
+- [ ] Current flow: IndexedDB stores games locally; sync to PostgreSQL only on login + explicit sync
+- [ ] Option A: Store `backendGameId: number | null` on `AnalyzedGameRecord` in IndexedDB — populated on sync
+- [ ] Option B: Trigger a background game sync after analysis completes for logged-in users
+- [ ] Decision: Option A is simpler — add `backendGameId` to `AnalyzedGameRecord`, populate in `syncService.ts` after upload, read it in `gameStore` and pass to `useCoaching`
 
 **Notes / guardrails for 3B**
 - [ ] Do not broaden MVP to all 19 principles yet

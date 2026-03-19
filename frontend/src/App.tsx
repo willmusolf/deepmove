@@ -72,6 +72,7 @@ export default function App() {
   const platform = useGameStore(s => s.platform)
   const userElo = useGameStore(s => s.userElo)
   const currentGameMeta = useGameStore(s => s.currentGameMeta)
+  const currentGameId = useGameStore(s => s.currentGameId)
 
   const { isReady, engineStatus, runAnalysis, analyzePositionLines, stopPositionAnalysis } = useStockfish()
   const { enabled: soundEnabled, toggle: toggleSound, playMoveSound } = useSound()
@@ -87,6 +88,8 @@ export default function App() {
     pgn: pgn ?? '',
     userElo,
     timeControl: currentGameMeta?.timeControl ?? '600',
+    platformGameId: currentGameId ?? undefined,
+    platform: platform ?? undefined,
   })
 
   // Silent auth refresh on app load — non-blocking, app works without it
