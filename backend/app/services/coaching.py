@@ -32,12 +32,12 @@ async def generate_lesson(coaching_request: dict) -> dict:
     if cache_key in _lesson_cache:
         return {**_lesson_cache[cache_key], "cached": True}
 
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     prompt = build_lesson_prompt(coaching_request)
     confidence = coaching_request.get("confidence", 0)
     model = settings.lesson_model
 
-    message = client.messages.create(
+    message = await client.messages.create(
         model=model,
         max_tokens=512,  # 6-8 sentences max — coach is concise
         system=SYSTEM_PROMPT,
