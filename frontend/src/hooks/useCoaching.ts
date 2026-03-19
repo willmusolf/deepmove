@@ -45,6 +45,10 @@ interface UseCoachingOptions {
   userElo: number
   /** Time control in seconds (e.g. "600"). Defaults to "600". */
   timeControl?: string
+  /** Platform-specific game ID (e.g. Chess.com game ID). Used for DB lesson cache. */
+  platformGameId?: string
+  /** Game platform ("chesscom" | "lichess" | "pgn-paste"). Used for DB lesson cache. */
+  platform?: string
 }
 
 export function useCoaching({
@@ -53,6 +57,8 @@ export function useCoaching({
   pgn,
   userElo,
   timeControl = '600',
+  platformGameId,
+  platform,
 }: UseCoachingOptions) {
   const [lessons, setLessons] = useState<CoachingLesson[]>([])
   const [enrichedMoments, setEnrichedMoments] = useState<CriticalMoment[]>([])
@@ -142,6 +148,9 @@ export function useCoaching({
         engine_move_idea: moment.engineBest[0] ? `Engine preferred ${moment.engineBest[0]}` : 'Engine found a better move',
         elo_band: eloBand,
         position_hash: positionHash,
+        color: moment.color,
+        platform_game_id: platformGameId ?? null,
+        platform: platform ?? null,
       }
 
       api.post<LessonResponse>('/coaching/lesson', requestBody)
@@ -161,7 +170,7 @@ export function useCoaching({
           console.error('[useCoaching] lesson fetch failed:', err)
         })
     })
-  }, [pgn, criticalMoments, moveEvals, userElo, timeControl])
+  }, [pgn, criticalMoments, moveEvals, userElo, timeControl, platformGameId, platform])
 
   /** Reveal the lesson for a Think First moment (after user engages with checklist) */
   const revealLesson = (idx: number) => {

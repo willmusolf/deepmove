@@ -30,6 +30,11 @@ class CoachingRequest(BaseModel):
     elo_band: str              # e.g. "1200-1400"
     position_hash: str         # Hash of key position features
 
+    # Persistence identifiers (optional — guests and PGN-paste skip DB save)
+    platform_game_id: str | None = None   # platform-specific game ID (e.g. Chess.com game ID)
+    platform: str | None = None           # "chesscom" | "lichess" | "pgn-paste"
+    color: str = "white"                  # "white" | "black" — whose move this was
+
 
 class CoachingResponse(BaseModel):
     lesson: str
