@@ -12,6 +12,8 @@ def build_lesson_prompt(req: dict) -> str:
     move_played = req.get("move_played", "?")
     eval_swing = req.get("eval_swing_cp", 0)
     principle_name = req.get("principle_name", "")
+    principle_description = req.get("principle_description", "")
+    principle_takeaway = req.get("principle_takeaway", "")
     verified_facts = req.get("verified_facts", [])
     engine_idea = req.get("engine_move_idea", "")
     game_phase = req.get("game_phase", "middlegame")
@@ -19,24 +21,37 @@ def build_lesson_prompt(req: dict) -> str:
     facts_block = "\n".join(f"- {fact}" for fact in verified_facts)
 
     if confidence >= 70:
+        principle_block = f"- Principle to teach: {principle_name}"
+        if principle_description:
+            principle_block += f"\n- What this principle means: {principle_description}"
+        if principle_takeaway:
+            principle_block += f'\n- Rule for the student to leave with: "{principle_takeaway}"'
+
+        step4_instruction = f'Give ONE rule the student can use in their next game (1 sentence — use or rephrase: "{principle_takeaway}")' if principle_takeaway else 'Give ONE concrete rule (1 sentence, memorable)'
+
         return f"""STUDENT: {elo}-rated, {time_control} game.
 
-VERIFIED DATA (all facts confirmed by our analysis engine):
+WHAT WENT WRONG (verified by engine and position analysis):
 - Move {move_number} of the {game_phase}
 - User played: {move_played}
-- Eval swing: {eval_swing} centipawns against the student
-- Engine's main idea: {engine_idea}
+- Position worsened by {eval_swing} centipawns
 {facts_block}
-- Classifier confidence: {confidence}% → {principle_name}
+- Better approach: {engine_idea}
 
-FORMAT (follow exactly, no deviations):
-Step 1: Identify the moment (1 sentence)
-Step 2: Highlight the issue (1 sentence)
-Step 3: Name the principle (1-2 sentences)
-Step 4: Give a concrete rule (1 sentence, memorable)
-Step 5: Show what's better and why (1-2 sentences)
+WHAT TO TEACH:
+{principle_block}
+- Classifier confidence: {confidence}%
 
-Total: 6-8 sentences maximum. Be direct. Talk like a chess club coach."""
+FORMAT (follow exactly — no extra sections, no deviations):
+Step 1: Name the move and what happened (1 sentence — reference the specific move)
+Step 2: Point at the concrete problem in THIS position (1 sentence — use a specific fact from above, not a general statement)
+Step 3: State the principle in plain language (1-2 sentences — anchor to the definition above)
+Step 4: {step4_instruction}
+Step 5: Show what better looks like and why it matters in this position (1-2 sentences)
+
+Total: 6-8 sentences. Be specific to THIS game and THIS move.
+Never say "this is an example of..." — say what matters directly."""
+
     else:
         # Low confidence — describe what changed without asserting a principle
         return f"""STUDENT: {elo}-rated, {time_control} game.
@@ -44,11 +59,12 @@ Total: 6-8 sentences maximum. Be direct. Talk like a chess club coach."""
 VERIFIED DATA:
 - Move {move_number} of the {game_phase}
 - User played: {move_played}
-- Eval swing: {eval_swing} centipawns against the student
+- Position dropped {eval_swing} centipawns
 {facts_block}
 
-The analysis isn't certain which principle applies here. Describe what changed in the
-position in simple terms without naming a specific principle. Be honest: "this position
-got worse because..." is better than confidently teaching the wrong concept.
+The analysis detected a problem but isn't certain which principle explains it best.
+Describe what concretely got worse using the facts above. Be honest and specific.
+Do NOT name a principle or assert chess theory confidently.
+If there is one actionable reminder, give it.
 
-Maximum 4 sentences. Direct and honest."""
+4 sentences maximum."""

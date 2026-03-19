@@ -618,16 +618,6 @@ cg-board {
   opacity: 0.5;
 }
 
-.btn-view-mode {
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  min-width: 58px;
-}
-.btn-view-mode.coach {
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.3);
-}
-
 /* ── Responsive: stack on small screens ───────────────────────────────── */
 /* ── Nav sidebar ──────────────────────────────────────────────────────── */
 .nav-logo {
