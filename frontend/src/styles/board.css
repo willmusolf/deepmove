@@ -1719,6 +1719,33 @@ cg-board {
   gap: 0.75rem;
 }
 
+.auth-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.auth-input-wrap .auth-input {
+  width: 100%;
+  padding-right: 2.5rem;
+}
+
+.auth-eye {
+  position: absolute;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  user-select: none;
+}
+
+.auth-eye:hover { opacity: 1; }
+
 .auth-input {
   padding: 0.6rem 0.75rem;
   background: rgba(255,255,255,0.06);
@@ -1737,6 +1764,29 @@ cg-board {
   color: #e55;
   font-size: 0.8rem;
   padding: 0.25rem 0;
+}
+
+.auth-requirements {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: -0.25rem;
+}
+
+.auth-req-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  transition: color 0.15s;
+}
+
+.auth-req-unmet {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.auth-req-met {
+  color: #4ade80;
 }
 
 .auth-submit {
@@ -1887,4 +1937,512 @@ cg-board {
   color: var(--accent);
   padding: 0.25rem 0;
   text-align: center;
+}
+
+/* ── Board color themes (overrides chessground.brown.css) ──────────────── */
+/* Uses CSS checkerboard pattern at 12.5% per square to match 8x8 grid */
+
+[data-board="blue"] cg-board {
+  background-color: #dee3e6;
+  background-image:
+    linear-gradient(45deg, #8ca2ad 25%, transparent 25%),
+    linear-gradient(-45deg, #8ca2ad 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #8ca2ad 75%),
+    linear-gradient(-45deg, transparent 75%, #8ca2ad 75%);
+  background-size: 25% 25%;
+  background-position: 0 0, 12.5% 0, 12.5% -12.5%, 0 12.5%;
+}
+
+[data-board="green"] cg-board {
+  background-color: #ffffdd;
+  background-image:
+    linear-gradient(45deg, #86a666 25%, transparent 25%),
+    linear-gradient(-45deg, #86a666 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #86a666 75%),
+    linear-gradient(-45deg, transparent 75%, #86a666 75%);
+  background-size: 25% 25%;
+  background-position: 0 0, 12.5% 0, 12.5% -12.5%, 0 12.5%;
+}
+
+[data-board="purple"] cg-board {
+  background-color: #e8d0e0;
+  background-image:
+    linear-gradient(45deg, #9c6b9c 25%, transparent 25%),
+    linear-gradient(-45deg, #9c6b9c 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #9c6b9c 75%),
+    linear-gradient(-45deg, transparent 75%, #9c6b9c 75%);
+  background-size: 25% 25%;
+  background-position: 0 0, 12.5% 0, 12.5% -12.5%, 0 12.5%;
+}
+
+/* ── Profile / Settings page ───────────────────────────────────────────── */
+.profile-page {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+  max-width: 640px;
+}
+
+.profile-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 1.5rem;
+}
+
+.profile-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.profile-section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+}
+
+.profile-section-desc {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.profile-info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.profile-info-row {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+
+.profile-info-label {
+  color: var(--color-text-muted);
+  min-width: 100px;
+  flex-shrink: 0;
+}
+
+.profile-info-value {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.profile-guest-note {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.profile-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.profile-field-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.profile-input {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  padding: 0.45rem 0.65rem;
+  outline: none;
+  width: 100%;
+  max-width: 320px;
+}
+
+.profile-input:focus {
+  border-color: var(--color-accent);
+}
+
+.profile-input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.profile-input--short {
+  max-width: 120px;
+}
+
+.profile-field-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.profile-msg {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.profile-msg--ok { color: #4ade80; }
+.profile-msg--err { color: #f87171; }
+
+.profile-help-text {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 0.15rem;
+}
+
+/* Theme toggle buttons */
+.profile-toggle-group {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  width: fit-content;
+}
+
+.profile-toggle-btn {
+  padding: 0.35rem 1rem;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.profile-toggle-btn + .profile-toggle-btn {
+  border-left: 1px solid var(--color-border);
+}
+
+.profile-toggle-btn:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.profile-toggle-btn.active {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+/* Board color swatches */
+.profile-board-themes {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.profile-board-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  background: none;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.3rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  width: 60px;
+}
+
+.profile-board-swatch:hover {
+  border-color: var(--color-text-muted);
+}
+
+.profile-board-swatch.active {
+  border-color: var(--color-accent);
+}
+
+.swatch-half {
+  display: block;
+  width: 40px;
+  height: 16px;
+}
+
+.swatch-light { border-radius: 3px 3px 0 0; }
+.swatch-dark  { border-radius: 0 0 3px 3px; }
+
+.swatch-label {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* ── Coach Panel ──────────────────────────────────────────────────────── */
+.coach-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+  margin-bottom: 0.5rem;
+}
+
+.coach-panel--empty {
+  padding: 1rem;
+  text-align: center;
+}
+
+.coach-panel__empty-msg {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+/* Nav header */
+.coach-panel__nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(74, 158, 255, 0.05);
+  flex-shrink: 0;
+}
+
+.coach-panel__nav-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0.15rem 0.45rem;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.coach-panel__nav-btn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.coach-panel__nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.coach-panel__nav-label {
+  flex: 1;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* Content area */
+.coach-panel__content {
+  padding: 0.75rem;
+  overflow-y: auto;
+  max-height: 320px;
+}
+
+/* Loading state */
+.coach-panel__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.coach-panel__spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: coach-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes coach-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error state */
+.coach-panel__error {
+  padding: 0.6rem;
+  background: rgba(255, 80, 80, 0.08);
+  border: 1px solid rgba(255, 80, 80, 0.25);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  color: #ff8080;
+}
+
+/* No lesson state */
+.coach-panel__no-lesson-msg {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+/* ── Lesson Card ──────────────────────────────────────────────────────── */
+.lesson-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.lesson-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.lesson-card__move {
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  border-radius: var(--radius);
+  padding: 0.15rem 0.45rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.lesson-card__principle {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  flex: 1;
+}
+
+.lesson-card__confidence {
+  font-size: 0.7rem;
+  color: var(--color-accent);
+  opacity: 0.7;
+  letter-spacing: 0.05em;
+}
+
+/* Steps */
+.lesson-card__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.lesson-card__step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  line-height: 1.45;
+}
+
+.lesson-card__step-icon {
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  width: 1.4rem;
+  text-align: center;
+  margin-top: 0.05rem;
+}
+
+.lesson-card__step-text {
+  font-size: 0.83rem;
+  color: var(--color-text);
+  flex: 1;
+}
+
+/* ── Socratic Prompt (Think First) ───────────────────────────────────── */
+.socratic-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.socratic-prompt__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.socratic-prompt__icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.socratic-prompt__intro {
+  font-size: 0.83rem;
+  color: var(--color-text);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.socratic-prompt__questions {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  counter-reset: q-counter;
+}
+
+.socratic-prompt__question {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.81rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+  counter-increment: q-counter;
+  padding: 0.35rem 0.5rem;
+  background: rgba(74, 158, 255, 0.04);
+  border-left: 2px solid var(--color-border);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.socratic-prompt__question::before {
+  content: counter(q-counter) ".";
+  color: var(--color-accent);
+  font-weight: 700;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+  min-width: 1rem;
+}
+
+.socratic-prompt__reveal-btn {
+  align-self: flex-start;
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-top: 0.1rem;
+}
+
+.socratic-prompt__reveal-btn:hover {
+  background: var(--color-accent-hover);
 }
