@@ -45,6 +45,8 @@ interface UseCoachingOptions {
   userElo: number
   /** Time control in seconds (e.g. "600"). Defaults to "600". */
   timeControl?: string
+  /** Backend DB primary key — preferred over platformGameId for cache lookup. */
+  backendGameId?: number | null
   /** Platform-specific game ID (e.g. Chess.com game ID). Used for DB lesson cache. */
   platformGameId?: string
   /** Game platform ("chesscom" | "lichess" | "pgn-paste"). Used for DB lesson cache. */
@@ -57,6 +59,7 @@ export function useCoaching({
   pgn,
   userElo,
   timeControl = '600',
+  backendGameId,
   platformGameId,
   platform,
 }: UseCoachingOptions) {
@@ -82,10 +85,12 @@ export function useCoaching({
       console.error('[useCoaching] enrichCriticalMoments failed:', err)
       enriched = criticalMoments
     }
-    setEnrichedMoments(enriched)
+    // Only keep moments where the classifier found a principle
+    const classified = enriched.filter(m => m.classification !== null)
+    setEnrichedMoments(classified)
 
     // Step 2: Initialize lesson placeholders
-    const initial: CoachingLesson[] = enriched.map(moment => {
+    const initial: CoachingLesson[] = classified.map(moment => {
       const { classification } = moment
       const isThinkFirst = !!(
         classification &&
@@ -108,7 +113,7 @@ export function useCoaching({
     setCurrentIndex(0)
 
     // Step 3: Fetch lessons from backend for each classified moment
-    enriched.forEach((moment, idx) => {
+    classified.forEach((moment, idx) => {
       if (!moment.classification) return
 
       const { classification } = moment
@@ -143,12 +148,15 @@ export function useCoaching({
         eval_swing_cp: moment.evalSwing,
         principle_id: classification.principleId,
         principle_name: principle?.name ?? null,
+        principle_description: principle?.description ?? null,
+        principle_takeaway: principle?.takeawayTemplate ?? null,
         confidence: classification.confidence,
         verified_facts: verifiedFacts,
         engine_move_idea: moment.engineBest[0] ? `Engine preferred ${moment.engineBest[0]}` : 'Engine found a better move',
         elo_band: eloBand,
         position_hash: positionHash,
         color: moment.color,
+        backend_game_id: backendGameId ?? null,
         platform_game_id: platformGameId ?? null,
         platform: platform ?? null,
       }
@@ -170,7 +178,7 @@ export function useCoaching({
           console.error('[useCoaching] lesson fetch failed:', err)
         })
     })
-  }, [pgn, criticalMoments, moveEvals, userElo, timeControl, platformGameId, platform])
+  }, [pgn, criticalMoments, moveEvals, userElo, timeControl, backendGameId, platformGameId, platform])
 
   /** Reveal the lesson for a Think First moment (after user engages with checklist) */
   const revealLesson = (idx: number) => {

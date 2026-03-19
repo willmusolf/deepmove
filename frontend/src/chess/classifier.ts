@@ -135,10 +135,27 @@ export function buildVerifiedFacts(
     }
   }
 
+  if (principleId === 'TACTICAL_01' && threats.hangingPieces.length > 0) {
+    const hp = threats.hangingPieces[0]
+    const name = PIECE_NAME_MAP[hp.piece] ?? hp.piece
+    facts.push(`The ${name} on ${hp.square} has no defender — opponent can take it for free next move`)
+    if (threats.piecesLeftUndefended.length > 0) {
+      const pu = threats.piecesLeftUndefended[0]
+      const defName = PIECE_NAME_MAP[pu.piece] ?? pu.piece
+      facts.push(`The moved piece was the only defender of the ${defName} on ${pu.square}`)
+    }
+  }
+
   if (threats.threatsIgnored.length > 0) {
     for (const ti of threats.threatsIgnored) {
       facts.push(`Threat ignored: ${ti.description}`)
     }
+  }
+
+  if (principleId === 'TACTICAL_02' && threats.threatsIgnored.length > 0) {
+    const ti = threats.threatsIgnored[0]
+    facts.push(`Opponent's move (${ti.opponentMove}) created a direct threat: ${ti.description}`)
+    facts.push(`User's move (${moment.movePlayed}) did not address this — attack succeeded`)
   }
 
   if (threats.piecesLeftUndefended.length > 0) {
@@ -152,14 +169,18 @@ export function buildVerifiedFacts(
     facts.push(`Minor pieces still undeveloped: ${userDev.undevelopedMinorPieces} of 4`)
     facts.push(`Castled: ${userDev.castled ? 'yes' : 'no'}`)
     if (userDev.earlyQueenMove) facts.push('Early queen move detected in this game')
-    if (userDev.sameMovedTwice) facts.push('Same piece moved twice in the opening')
+    if (userDev.sameMovedTwice) facts.push('Same piece moved twice in the opening — costs a tempo, opponent gets free development')
+    if (userDev.undevelopedMinorPieces >= 2)
+      facts.push(`With ${userDev.undevelopedMinorPieces} pieces not yet off the back rank, coordination is impossible`)
+    if (!userDev.castled && moment.moveNumber > 10)
+      facts.push(`King still uncastled on move ${moment.moveNumber} — exposed in the center`)
   }
 
-  if (moveImpact.hadClearPurpose === false) {
-    facts.push(`Move had no clear purpose: no capture, check, development, or castling`)
-  } else {
-    facts.push(`Move description: ${moveImpact.description}`)
-  }
+  facts.push(`User's move: ${moveImpact.description}`)
+  if (!moveImpact.hadClearPurpose) facts.push(`This move achieved nothing concrete — no capture, check, development, or castling`)
+  if (moveImpact.developedPiece) facts.push(`This move developed a piece off the back rank`)
+  if (moveImpact.wasCapture) facts.push(`This move was a capture`)
+  if (moveImpact.wasCheck) facts.push(`This move gave check`)
 
   return facts
 }

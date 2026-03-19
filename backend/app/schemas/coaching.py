@@ -20,6 +20,8 @@ class CoachingRequest(BaseModel):
     # Classification result
     principle_id: str | None
     principle_name: str | None
+    principle_description: str | None = None  # Full principle definition
+    principle_takeaway: str | None = None     # Memorable rule for the student
     confidence: float          # 0-100
 
     # Pre-verified facts from feature extraction
@@ -31,6 +33,7 @@ class CoachingRequest(BaseModel):
     position_hash: str         # Hash of key position features
 
     # Persistence identifiers (optional — guests and PGN-paste skip DB save)
+    backend_game_id: int | None = None    # DB primary key — preferred over platform_game_id lookup
     platform_game_id: str | None = None   # platform-specific game ID (e.g. Chess.com game ID)
     platform: str | None = None           # "chesscom" | "lichess" | "pgn-paste"
     color: str = "white"                  # "white" | "black" — whose move this was

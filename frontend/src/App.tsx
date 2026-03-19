@@ -30,7 +30,7 @@ import './styles/board.css'
 // Lichess-style thickness brushes — all green, varying weight
 const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
 
-type PanelTab = "analysis" | "load"
+type PanelTab = "analysis" | "load" | "coach"
 type ImportTab = "chesscom" | "lichess" | "pgn"
 
 export default function App() {
@@ -73,6 +73,7 @@ export default function App() {
   const userElo = useGameStore(s => s.userElo)
   const currentGameMeta = useGameStore(s => s.currentGameMeta)
   const currentGameId = useGameStore(s => s.currentGameId)
+  const backendGameId = useGameStore(s => s.backendGameId)
 
   const { isReady, engineStatus, runAnalysis, analyzePositionLines, stopPositionAnalysis } = useStockfish()
   const { enabled: soundEnabled, toggle: toggleSound, playMoveSound } = useSound()
@@ -88,6 +89,7 @@ export default function App() {
     pgn: pgn ?? '',
     userElo,
     timeControl: currentGameMeta?.timeControl ?? '600',
+    backendGameId: backendGameId ?? undefined,
     platformGameId: currentGameId ?? undefined,
     platform: platform ?? undefined,
   })
@@ -185,7 +187,7 @@ export default function App() {
   const [lichessPagination, setLichessPagination] = useState<PaginationState | null>(null)
   const [currentPage, setCurrentPage] = useState<Page>('review')
   const [showEvalBar, setShowEvalBar] = useState(true)
-  const [viewMode, setViewMode] = useState<'classic' | 'coach'>('classic')
+  const viewMode = panelTab === 'coach' ? 'coach' : 'classic'
   const [showArrows, setShowArrows] = useState(true)
 
 
@@ -289,6 +291,14 @@ export default function App() {
     goToMove(index)
   }
 
+  const handleCoachNavigate = useCallback((idx: number) => {
+    setCoachIndex(idx)
+    const moment = coachLessons[idx]?.moment
+    if (!moment) return
+    const ply = (moment.moveNumber - 1) * 2 + (moment.color === 'black' ? 1 : 0)
+    handleGoToMove(ply + 1)
+  }, [setCoachIndex, coachLessons]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Are we currently in a branch (off the main line)?
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
@@ -299,9 +309,13 @@ export default function App() {
   const posLine = currentPositionLines[0]
   const mainEval = currentMoveIndex > 0 ? moveEvals[currentMoveIndex - 1] : undefined
   const useMainEval = mainEval && !inBranch
-  const evalCp = useMainEval ? mainEval.eval.score : (posLine?.score ?? mainEval?.eval.score)
-  const evalIsMate = useMainEval ? (mainEval.eval.isMate ?? false) : (posLine?.isMate ?? mainEval?.eval.isMate ?? false)
-  const evalMateIn = useMainEval ? (mainEval.eval.mateIn ?? null) : (posLine?.mateIn ?? mainEval?.eval.mateIn ?? null)
+  // In branch mode: only use posLine (live engine result). Don't fall back to mainEval —
+  // that value is for a different position and would cause a bounce as the bar flashes
+  // the main-line eval then snaps to the branch eval when the engine responds.
+  // EvalBar + lastEvalRef below hold the last known value when evalCp is undefined.
+  const evalCp = useMainEval ? mainEval.eval.score : posLine?.score
+  const evalIsMate = useMainEval ? (mainEval.eval.isMate ?? false) : (posLine?.isMate ?? false)
+  const evalMateIn = useMainEval ? (mainEval.eval.mateIn ?? null) : (posLine?.mateIn ?? null)
 
   // Stable eval: never undefined — falls back to last known value
   if (evalCp !== undefined) {
@@ -451,13 +465,7 @@ export default function App() {
                   >
                     {soundEnabled ? 'SFX' : 'Mute'}
                   </button>
-                  <button
-                    className={`btn btn-secondary btn-view-mode ${viewMode}`}
-                    onClick={() => setViewMode(v => v === 'classic' ? 'coach' : 'classic')}
-                    title={viewMode === 'classic' ? 'Switch to Coach mode' : 'Switch to Classic mode'}
-                  >
-                    {viewMode === 'classic' ? 'Classic' : 'Coach'}
-                  </button>
+
                   <button
                     className={`btn btn-secondary${showArrows ? '' : ' muted'}`}
                     onClick={() => setShowArrows(v => !v)}
@@ -470,16 +478,6 @@ export default function App() {
 
               {/* ── Right panel ─────────────────────────────────────── */}
               <div className="side-col">
-                {/* In coach mode, show coaching panel above the tabs */}
-                {viewMode === 'coach' && isLoaded && !isAnalyzing && (
-                  <CoachPanel
-                    lessons={coachLessons}
-                    currentIndex={coachIndex}
-                    onNavigate={setCoachIndex}
-                    onReveal={revealCoachLesson}
-                  />
-                )}
-
                 <div className="panel-tabs">
                   <button
                     className={`panel-tab${panelTab === 'load' ? ' active' : ''}`}
@@ -492,6 +490,12 @@ export default function App() {
                     onClick={() => setPanelTab('analysis')}
                   >
                     Analysis
+                  </button>
+                  <button
+                    className={`panel-tab${panelTab === 'coach' ? ' active' : ''}`}
+                    onClick={() => setPanelTab('coach')}
+                  >
+                    Coach
                   </button>
                 </div>
 
@@ -563,6 +567,15 @@ export default function App() {
                         rootBranchIds={rootBranchIds}
                       />
                     </>
+                  )}
+
+                  {panelTab === 'coach' && (
+                    <CoachPanel
+                      lessons={coachLessons}
+                      currentIndex={coachIndex}
+                      onNavigate={handleCoachNavigate}
+                      onReveal={revealCoachLesson}
+                    />
                   )}
 
                   {panelTab === 'load' && (

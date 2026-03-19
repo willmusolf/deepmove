@@ -65,7 +65,7 @@ export default function CoachPanel({ lessons, currentIndex, onNavigate, onReveal
           )
           : lesson.error ? (
             <div className="coach-panel__error">
-              <p>Couldn't load lesson. Check your connection and API key.</p>
+              <p>Couldn't load lesson — is the backend running? Try: <code>make dev-backend</code></p>
             </div>
           )
           : !lesson.principleId ? (
