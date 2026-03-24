@@ -78,9 +78,9 @@ describe('normalizeChessCom', () => {
     expect(normalizeChessCom(g, 'Alice').timeControl).toBe('10 min')
   })
 
-  it('passes through "300+3" unchanged', () => {
+  it('converts "300+3" base seconds to minutes "5+3"', () => {
     const g = makeChessComGame({ time_control: '300+3' })
-    expect(normalizeChessCom(g, 'Alice').timeControl).toBe('300+3')
+    expect(normalizeChessCom(g, 'Alice').timeControl).toBe('5+3')
   })
 
   it('returns opponent rating', () => {
