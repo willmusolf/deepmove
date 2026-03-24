@@ -30,7 +30,7 @@ interface Props {
 }
 
 export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis, onNavigateToReview }: Props) {
-  const { handleUserMove, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
+  const { handleUserMove, handlePremoveSet, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
   const { enabled: soundEnabled, toggle: toggleSound } = useSound()
 
   // Play store state
@@ -363,6 +363,8 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
               lastMove={lastMove}
               pathKey={browseStep}
               premoveColor={status === 'playing' && config && !browsePosition ? config.userColor : undefined}
+              externalPremoveHandling={true}
+              onPremoveSet={handlePremoveSet}
               shapes={boardShapes}
               forceCheck={endReason === 'resigned' && config && browsePosition === null ? config.userColor : undefined}
             />

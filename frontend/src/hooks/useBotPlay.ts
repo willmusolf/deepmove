@@ -10,6 +10,11 @@
 // caused by chessground's callUserFunction using setTimeout(..., 1) combined with
 // extra React re-renders (browse snap-back, StrictMode double-fire) that could call
 // api.set({fen}) and conflict with chessground's post-premove internal state.
+//
+// KEY INVARIANT: ChessBoard is told NOT to call playPremove() (via
+// externalPremoveHandling=true). Instead, this hook applies premoves via chess.js
+// and writes the result directly to the store. Chessground's premove visual is
+// cleared by the subsequent api.set({fen}) that React triggers on re-render.
 
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { Chess } from 'chess.js'
@@ -77,12 +82,78 @@ function generatePgn(
   return `${header}\n\n${parts.join(' ')}`
 }
 
+/**
+ * Build a MoveNode and atomically append it to the play store tree.
+ * Returns the constructed MoveNode.
+ */
+function applyMoveToStore(
+  from: string,
+  to: string,
+  san: string,
+  newFen: string,
+  preMoveState: { moveCounter: number; currentPath: string[]; currentFen: string },
+): MoveNode {
+  const moveColor = preMoveState.currentFen.split(' ')[1] === 'w' ? 'white' : 'black'
+  const moveNum = parseInt(preMoveState.currentFen.split(' ')[5] ?? '1', 10)
+  const counter = preMoveState.moveCounter + 1
+  const nodeId = `p${counter}`
+  const parentId = preMoveState.currentPath[preMoveState.currentPath.length - 1] ?? null
+
+  const node: MoveNode = {
+    id: nodeId,
+    san,
+    from,
+    to,
+    fen: newFen,
+    childIds: [],
+    parentId,
+    moveNumber: moveNum,
+    color: moveColor,
+    isMainLine: true,
+  }
+
+  usePlayStore.setState(s => {
+    const newTree = { ...s.tree, [node.id]: node }
+    if (node.parentId && newTree[node.parentId]) {
+      const parent = { ...newTree[node.parentId] }
+      if (!parent.childIds.includes(node.id)) {
+        parent.childIds = [...parent.childIds, node.id]
+      }
+      newTree[node.parentId] = parent
+    }
+    const newPath = [...s.currentPath, node.id]
+    const newRootId = s.rootId ?? node.id
+    return {
+      moveCounter: s.moveCounter + 1,
+      tree: newTree,
+      rootId: newRootId,
+      currentPath: newPath,
+      currentFen: newFen,
+    }
+  })
+
+  return node
+}
+
 export function useBotPlay(onNavigateToReview: () => void) {
   const botEngineRef = useRef<StockfishEngine | null>(null)
   const clockRafRef = useRef<number | null>(null)
   const lastTickRef = useRef<number>(0)
   const audioRefs = useRef<Partial<Record<string, HTMLAudioElement>>>({})
   const [botEngineReady, setBotEngineReady] = useState(false)
+
+  // ── Premove queue ─────────────────────────────────────────────────────────
+  // Stores the user's premove intent (orig, dest squares). Set by ChessBoard's
+  // onPremoveSet callback. Consumed synchronously by scheduleBotMove after the
+  // bot move lands — this avoids the setTimeout(1ms) race in chessground's
+  // callUserFunction that can cause tree corruption when combined with React
+  // re-renders resetting the board position mid-premove.
+  const pendingPremoveRef = useRef<{ orig: string; dest: string } | null>(null)
+
+  // ── Mutual exclusion guard ────────────────────────────────────────────────
+  // Prevents concurrent execution of move processing. Guards against stale
+  // chessground `after` callbacks arriving via setTimeout(1).
+  const isProcessingMoveRef = useRef(false)
 
   const store = usePlayStore
   const gameStore = useGameStore
@@ -199,6 +270,52 @@ export function useBotPlay(onNavigateToReview: () => void) {
     return false
   }
 
+  // ── Try applying a pending premove ─────────────────────────────────────
+  // Called synchronously after the bot move is committed to the store.
+  // Validates the premove with chess.js against the post-bot-move FEN.
+  // Returns the FEN after the premove if successful, or null if invalid.
+  function tryApplyPremove(postBotFen: string): string | null {
+    const premove = pendingPremoveRef.current
+    if (!premove) return null
+
+    // Clear the premove immediately — we consume it regardless of validity
+    pendingPremoveRef.current = null
+
+    const state = store.getState()
+    if (state.status !== 'playing') return null
+
+    // Validate with chess.js
+    const chess = new Chess(postBotFen)
+    let moveResult
+    try {
+      moveResult = chess.move({ from: premove.orig, to: premove.dest, promotion: 'q' })
+    } catch {
+      return null  // illegal premove for this position
+    }
+    if (!moveResult) return null
+
+    const premoveFen = chess.fen()
+    const premoveSan = moveResult.san
+
+    // Read fresh state since the bot move setState just ran synchronously
+    const freshState = store.getState()
+    const moveColor = freshState.currentFen.split(' ')[1] === 'w' ? 'white' : 'black'
+
+    // Sanity check: it should be the user's turn
+    if (moveColor !== freshState.config!.userColor) return null
+
+    isProcessingMoveRef.current = true
+    applyMoveToStore(premove.orig, premove.dest, premoveSan, premoveFen, freshState)
+
+    // Add increment to user's clock
+    usePlayStore.getState().addIncrement(moveColor)
+
+    playSound(premoveSan)
+    isProcessingMoveRef.current = false
+
+    return premoveFen
+  }
+
   // ── Bot move ─────────────────────────────────────────────────────────────
   const scheduleBotMove = useCallback(async (fen: string) => {
     const state = store.getState()
@@ -248,10 +365,10 @@ export function useBotPlay(onNavigateToReview: () => void) {
       return
     }
 
-    const newFen = chess.fen()
+    const botNewFen = chess.fen()
     const san = moveResult.san
 
-    // Build MoveNode
+    // Build MoveNode for the bot move
     const currentState = store.getState()
     const counter = currentState.moveCounter + 1
     const nodeId = `p${counter}`
@@ -264,7 +381,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
       san,
       from,
       to,
-      fen: newFen,
+      fen: botNewFen,
       childIds: [],
       parentId,
       moveNumber: moveNum,
@@ -273,8 +390,6 @@ export function useBotPlay(onNavigateToReview: () => void) {
     }
 
     // Update store in one atomic batch so React renders once with fully consistent state.
-    // This is critical for premove reliability: chessground must see currentFen + isBotThinking=false
-    // in the same render, otherwise it gets conflicting movable.color signals across renders.
     usePlayStore.setState(s => {
       const newTree = { ...s.tree, [node.id]: node }
       if (node.parentId && newTree[node.parentId]) {
@@ -291,76 +406,71 @@ export function useBotPlay(onNavigateToReview: () => void) {
         tree: newTree,
         rootId: newRootId,
         currentPath: newPath,
-        currentFen: newFen,
+        currentFen: botNewFen,
         isBotThinking: false,
       }
     })
 
-    // Add increment to bot's clock after move (separate — clock update doesn't affect premove)
+    // Add increment to bot's clock after move
     usePlayStore.getState().addIncrement(moveColor)
-
-    // Stop bot clock, start user clock
-    // (clockRunning stays true — the RAF loop ticks whichever side's turn it is)
 
     playSound(san)
 
-    // Check terminal
-    const chess3 = new Chess(newFen)
+    // Check terminal after bot move
+    const chess3 = new Chess(botNewFen)
     if (checkTerminal(chess3)) return
+
+    // ── Premove handling ──────────────────────────────────────────────────
+    // Process any pending premove SYNCHRONOUSLY before yielding to React.
+    // This runs in the same microtask as the bot move's setState, so by the
+    // time React re-renders, the store already contains both the bot move
+    // AND the user's premove. No setTimeout(1) race, no stale FEN refs.
+    const premoveFen = tryApplyPremove(botNewFen)
+    if (premoveFen) {
+      // Check terminal after premove
+      const chess4 = new Chess(premoveFen)
+      if (checkTerminal(chess4)) return
+
+      // The premove was applied — schedule the NEXT bot move
+      await scheduleBotMove(premoveFen)
+      return
+    }
+
+    // No premove — React will render the board with the bot's new FEN and
+    // the user can make their move normally.
 
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── User move handler ────────────────────────────────────────────────────
   const handleUserMove = useCallback(async (from: string, to: string, san: string, newFen: string) => {
+    // Guard against stale chessground `after` callbacks arriving via setTimeout(1)
+    // after we already processed the same move as a premove in scheduleBotMove.
+    if (isProcessingMoveRef.current) return
+
     const state = store.getState()
     if (state.status !== 'playing' || state.isBotThinking) return
 
     const moveColor = state.currentFen.split(' ')[1] === 'w' ? 'white' : 'black'
     if (moveColor !== state.config!.userColor) return  // not user's turn
 
-    // Build MoveNode
-    const counter = state.moveCounter + 1
-    const nodeId = `p${counter}`
-    const parentId = state.currentPath[state.currentPath.length - 1] ?? null
-    const moveNum = parseInt(state.currentFen.split(' ')[5] ?? '1', 10)
+    // If the store already has this FEN as the current tip, the premove path
+    // in scheduleBotMove already applied this move — skip the duplicate.
+    const lastNodeId = state.currentPath[state.currentPath.length - 1]
+    if (lastNodeId && state.tree[lastNodeId]?.fen === newFen) return
 
-    const node: MoveNode = {
-      id: nodeId,
-      san,
-      from,
-      to,
-      fen: newFen,
-      childIds: [],
-      parentId,
-      moveNumber: moveNum,
-      color: moveColor,
-      isMainLine: true,
-    }
+    isProcessingMoveRef.current = true
 
-    usePlayStore.setState(s => {
-      const newTree = { ...s.tree, [node.id]: node }
-      if (node.parentId && newTree[node.parentId]) {
-        const parent = { ...newTree[node.parentId] }
-        if (!parent.childIds.includes(node.id)) {
-          parent.childIds = [...parent.childIds, node.id]
-        }
-        newTree[node.parentId] = parent
-      }
-      const newPath = [...s.currentPath, node.id]
-      const newRootId = s.rootId ?? node.id
-      return {
-        moveCounter: s.moveCounter + 1,
-        tree: newTree,
-        rootId: newRootId,
-        currentPath: newPath,
-        currentFen: newFen,
-      }
-    })
+    applyMoveToStore(from, to, san, newFen, state)
 
     // Add increment to user's clock after move
     usePlayStore.getState().addIncrement(moveColor)
 
     playSound(san)
+
+    isProcessingMoveRef.current = false
+
+    // Clear any pending premove — the user made a regular move instead
+    pendingPremoveRef.current = null
 
     // Check terminal
     const chess2 = new Chess(newFen)
@@ -370,9 +480,20 @@ export function useBotPlay(onNavigateToReview: () => void) {
     await scheduleBotMove(newFen)
   }, [scheduleBotMove])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Premove set/unset callbacks for ChessBoard ─────────────────────────
+  const handlePremoveSet = useCallback((orig: string | null, dest: string | null) => {
+    if (orig && dest) {
+      pendingPremoveRef.current = { orig, dest }
+    } else {
+      pendingPremoveRef.current = null
+    }
+  }, [])
+
   // ── Start game ───────────────────────────────────────────────────────────
   const startGame = useCallback((config: PlayConfig) => {
     cancelClockRaf()
+    pendingPremoveRef.current = null
+    isProcessingMoveRef.current = false
     store.getState().startGame(config)
 
     if (config.timeControl !== 'none') {
@@ -389,6 +510,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
   const resignGame = useCallback(() => {
     const state = store.getState()
     if (state.status !== 'playing') return
+    pendingPremoveRef.current = null
     state.setResult('user-loss', 'resigned')
     cancelClockRaf()
   }, [])
@@ -420,6 +542,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
 
   return {
     handleUserMove,
+    handlePremoveSet,
     startGame,
     resignGame,
     reviewGame,
