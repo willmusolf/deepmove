@@ -5,11 +5,9 @@ invalid/expired tokens, token version revocation.
 """
 import time
 
-import pytest
 from jose import jwt
 
 from app.config import settings
-
 
 # ── Registration ─────────────────────────────────────────────────────────────
 
@@ -218,8 +216,8 @@ class TestTokenValidation:
 
     def test_expired_token_returns_401(self, client, db_session):
         """Forge an expired JWT and verify it's rejected."""
-        from app.utils.security import hash_password
         from app.models.user import User
+        from app.utils.security import hash_password
 
         user = User(email="expired@deepmove.io", hashed_password=hash_password("pw"))
         db_session.add(user)
@@ -238,8 +236,8 @@ class TestTokenValidation:
 
     def test_refresh_token_rejected_as_access(self, client, db_session):
         """A refresh token should not grant access to protected routes."""
-        from app.utils.security import create_refresh_token, hash_password
         from app.models.user import User
+        from app.utils.security import create_refresh_token, hash_password
 
         user = User(email="refreshonly@deepmove.io", hashed_password=hash_password("pw"))
         db_session.add(user)

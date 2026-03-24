@@ -1,5 +1,4 @@
 """test_games.py — Game CRUD, batch upload, sync, and deletion tests."""
-import pytest
 
 from tests.conftest import SAMPLE_PGN, make_game_payload
 
