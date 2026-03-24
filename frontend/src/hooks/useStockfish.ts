@@ -80,7 +80,7 @@ export function useStockfish() {
       const results = await analyzeGame(pgn, engine, getAnalysisDepth(userElo), (done, total) => {
         if (done === 1) setTotalMovesCount(total)
         setAnalyzedCount(done)
-      }, controller.signal)
+      }, controller.signal, 5000)
 
       if (controller.signal.aborted) { setAnalyzedCount(0); setTotalMovesCount(0); return }
 
