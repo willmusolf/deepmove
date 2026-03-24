@@ -6,6 +6,7 @@ import type { ChessComGame } from '../../api/chesscom'
 import type { LichessGame } from '../../api/lichess'
 import { classifyTimeControl } from '../../chess/eloConfig'
 import { getGameId } from '../../services/gameDB'
+import { formatTimestamp } from '../../utils/format'
 
 export interface NormalizedGame {
   pgn: string
@@ -22,7 +23,15 @@ export interface NormalizedGame {
 }
 
 export function formatTimeControl(tc: string): string {
-  if (tc.includes('+')) return tc
+  // "300+2" → "5+2" (convert base seconds to minutes, keep increment)
+  if (tc.includes('+')) {
+    const [baseSecs, inc] = tc.split('+')
+    const baseNum = parseInt(baseSecs, 10)
+    if (!isNaN(baseNum) && baseNum >= 60) {
+      return `${Math.round(baseNum / 60)}+${inc}`
+    }
+    return tc
+  }
   const secs = parseInt(tc, 10)
   if (isNaN(secs)) return tc
   return `${Math.round(secs / 60)} min`
@@ -46,13 +55,6 @@ export function tcToSeconds(tc: string): number {
   return isNaN(raw) ? 1800 : raw
 }
 
-
-function formatTimestamp(ms: number): string {
-  const d = new Date(ms)
-  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).replace(',', '')
-  return `${date} - ${time}`
-}
 
 export function normalizeChessCom(game: ChessComGame, username: string): NormalizedGame {
   const lowerUser = username.toLowerCase()

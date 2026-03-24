@@ -38,6 +38,9 @@ export function extractFeatures(
   const whiteMat = countMaterial(afterChess, 'white')
   const blackMat = countMaterial(afterChess, 'black')
 
+  // Analyze what the engine's preferred move would have achieved
+  const engineMoveImpact = describeEngineMoveIdea(beforeChess, input.engineBest, color)
+
   return {
     material: {
       white: whiteMat,
@@ -76,11 +79,91 @@ export function extractFeatures(
     gamePhase: detectGamePhase(afterChess, moveNumber),
     threats: analyzeThreats(beforeChess, afterChess, (opponentLastMove as string | null) ?? null, color),
     moveImpact: analyzeMoveImpact(beforeChess, afterChess, input.movePlayed, color),
-    engineMoveImpact: {
-      description: input.engineBest[0] ? `Engine preferred ${input.engineBest[0]}` : '',
-      mainIdea: '',
-    },
+    engineMoveImpact,
   }
+}
+
+// ─── Engine move idea generation ──────────────────────────────────────────────
+
+const PIECE_NAMES: Record<string, string> = {
+  p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king',
+}
+
+/**
+ * Generate a plain-English description of what the engine's preferred move would achieve.
+ * This replaces the generic "Engine preferred Bf1" with something the LLM can use for coaching.
+ */
+function describeEngineMoveIdea(
+  beforeChess: Chess,
+  engineBest: string[],
+  _userColor: string,
+): { description: string; mainIdea: string } {
+  const bestMove = engineBest[0]
+  if (!bestMove) return { description: '', mainIdea: '' }
+
+  // Try to play the engine move on a copy of the position
+  const testChess = new Chess(beforeChess.fen())
+  const result = testChess.move(bestMove)
+  if (!result) return { description: `Better move was ${bestMove}`, mainIdea: '' }
+
+  const pieceName = PIECE_NAMES[result.piece] ?? result.piece
+  const ideas: string[] = []
+
+  // Check if it's a capture
+  if (result.captured) {
+    const capturedName = PIECE_NAMES[result.captured] ?? result.captured
+    ideas.push(`captures the ${capturedName} on ${result.to}`)
+  }
+
+  // Check if it gives check
+  if (testChess.inCheck()) {
+    ideas.push('gives check')
+  }
+
+  // Check if it's castling
+  if (result.san === 'O-O' || result.san === 'O-O-O') {
+    ideas.push('gets the king to safety and connects the rooks')
+  }
+
+  // Check if it develops a minor piece from the back rank
+  const minorStarts = new Set(
+    result.color === 'w'
+      ? ['b1', 'g1', 'c1', 'f1']
+      : ['b8', 'g8', 'c8', 'f8'],
+  )
+  if ((result.piece === 'n' || result.piece === 'b') && minorStarts.has(result.from)) {
+    ideas.push(`develops the ${pieceName} into the game`)
+  }
+
+  // Check if the move defends a hanging piece (piece was attacked before)
+  if (result.to && !result.captured) {
+    // Simple heuristic: if the piece moved TO a square that's adjacent to a friendly piece
+    // that was under attack, it might be a defensive move
+    const beforeBoard = beforeChess.board()
+    const colorCode = result.color
+    for (const row of beforeBoard) {
+      for (const cell of row) {
+        if (cell && cell.color === colorCode && cell.type !== 'k') {
+          if (beforeChess.isAttacked(cell.square, colorCode === 'w' ? 'b' : 'w')) {
+            // A friendly piece was under attack — the engine move might address this
+            // Only add if we haven't found a more specific idea
+            if (ideas.length === 0) {
+              ideas.push(`addresses a threat against a piece`)
+            }
+            break
+          }
+        }
+      }
+      if (ideas.length > 0 && ideas[ideas.length - 1].includes('addresses')) break
+    }
+  }
+
+  const description = `The better approach was ${result.san} (moving the ${pieceName} to ${result.to})`
+  const mainIdea = ideas.length > 0
+    ? `This ${ideas.join(' and ')}`
+    : `This repositions the ${pieceName} to a more active square`
+
+  return { description, mainIdea }
 }
 
 // ─── Game replay helper ───────────────────────────────────────────────────────

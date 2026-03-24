@@ -85,8 +85,13 @@ export function useCoaching({
       console.error('[useCoaching] enrichCriticalMoments failed:', err)
       enriched = criticalMoments
     }
-    // Only keep moments where the classifier found a principle
-    const classified = enriched.filter(m => m.classification !== null)
+    // Only keep moments where the classifier found a principle with meaningful confidence.
+    // Filter out moments with null classification, zero confidence, or empty principle IDs.
+    const classified = enriched.filter(m =>
+      m.classification !== null &&
+      m.classification.confidence >= 60 &&
+      m.classification.principleId
+    )
     setEnrichedMoments(classified)
 
     // Step 2: Initialize lesson placeholders
@@ -152,7 +157,11 @@ export function useCoaching({
         principle_takeaway: principle?.takeawayTemplate ?? null,
         confidence: classification.confidence,
         verified_facts: verifiedFacts,
-        engine_move_idea: moment.engineBest[0] ? `Engine preferred ${moment.engineBest[0]}` : 'Engine found a better move',
+        engine_move_idea: [
+          moment.features.engineMoveImpact?.description,
+          moment.features.engineMoveImpact?.mainIdea,
+        ].filter(Boolean).join('. ')
+          || (moment.engineBest[0] ? `A better approach existed in this position` : 'A better move existed'),
         elo_band: eloBand,
         position_hash: positionHash,
         color: moment.color,

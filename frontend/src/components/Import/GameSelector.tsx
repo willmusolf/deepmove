@@ -12,6 +12,7 @@ import {
   type AnalyzedGameRecord,
 } from '../../services/gameDB'
 import { normalizeChessCom, normalizeLichess, tcToSeconds, type NormalizedGame } from './normalizeGame'
+import { formatTimestamp } from '../../utils/format'
 
 interface GameSelectorProps {
   games: ChessComGame[] | LichessGame[]
@@ -35,13 +36,6 @@ function tcCategory(tc: string): TCFilter {
   if (secs < 600) return 'blitz'
   if (secs < 1800) return 'rapid'
   return 'classical'
-}
-
-function formatTimestamp(ms: number): string {
-  const d = new Date(ms)
-  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).replace(',', '')
-  return `${date} - ${time}`
 }
 
 function isChessComGame(g: ChessComGame | LichessGame): g is ChessComGame {

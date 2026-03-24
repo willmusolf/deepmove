@@ -446,8 +446,11 @@ export default function App() {
     setCoachIndex(idx)
     const moment = coachLessons[idx]?.moment
     if (!moment) return
+    // Navigate to the position BEFORE the user's mistake so they can see
+    // the board state they were looking at when they made the error.
+    // Ply is 0-indexed: white move N = (N-1)*2, black move N = (N-1)*2+1
     const ply = (moment.moveNumber - 1) * 2 + (moment.color === 'black' ? 1 : 0)
-    handleGoToMove(ply + 1)
+    handleGoToMove(ply)
   }, [setCoachIndex, coachLessons]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Are we currently in a branch (off the main line)?
@@ -464,7 +467,10 @@ export default function App() {
   // that value is for a different position and would cause a bounce as the bar flashes
   // the main-line eval then snaps to the branch eval when the engine responds.
   // EvalBar + lastEvalRef below hold the last known value when evalCp is undefined.
-  const evalCp = useMainEval ? mainEval.eval.score : posLine?.score
+  // At move 0 on the main line (starting position), use 0cp so the bar doesn't stick
+  // at the previous position's eval while waiting for multi-PV to respond.
+  const atStartOnMainLine = isLoaded && currentMoveIndex === 0 && !inBranch
+  const evalCp = atStartOnMainLine ? 0 : (useMainEval ? mainEval.eval.score : posLine?.score)
   const evalIsMate = useMainEval ? (mainEval.eval.isMate ?? false) : (posLine?.isMate ?? false)
   const evalMateIn = useMainEval ? (mainEval.eval.mateIn ?? null) : (posLine?.mateIn ?? null)
 
@@ -493,10 +499,22 @@ export default function App() {
   const visibleLines = useMemo(() => {
     const lines = currentPositionLines
     if (lines.length === 0) return []
-    const best = lines[0].score
+    const best = lines[0]
     return lines.filter((line, i) => {
       if (i === 0) return true
-      const gap = Math.abs(line.score - best)
+      // If the best move involves mate and this one doesn't (or vice versa),
+      // the difference is decisive — never show as a "suggestion".
+      if (best.isMate !== line.isMate) return false
+      // If both are mate: only show alternatives with the same or better mate-in.
+      // e.g. M3 and M5 are both fine; M3 and -M2 (opponent mates) are not.
+      if (best.isMate && line.isMate) {
+        // Same sign = both sides mating in same direction? Only show if equal or faster.
+        if (best.mateIn !== null && line.mateIn !== null) {
+          if ((best.mateIn > 0) !== (line.mateIn > 0)) return false  // opposite mate direction
+        }
+        return true
+      }
+      const gap = Math.abs(line.score - best.score)
       if (i === 1) return gap <= 150
       if (i === 2) return gap <= 50
       return false

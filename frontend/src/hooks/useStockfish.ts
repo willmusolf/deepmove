@@ -18,6 +18,8 @@ import { analyzeGame } from '../engine/analysis'
 import { detectCriticalMoments } from '../engine/criticalMoments'
 import { useGameStore } from '../stores/gameStore'
 import { saveAnalyzedGame } from '../services/gameDB'
+import { pushGame } from '../services/syncService'
+import { useAuthStore } from '../stores/authStore'
 
 export type EngineStatus = 'loading' | 'ready' | 'error'
 
@@ -94,7 +96,7 @@ export function useStockfish() {
         const username = localStorage.getItem(
           state.platform === 'lichess' ? 'deepmove_lichess_username' : 'deepmove_chesscom_username'
         ) ?? ''
-        saveAnalyzedGame({
+        const gameRecord = {
           id: state.currentGameId,
           username,
           platform: (state.platform ?? 'pgn-paste') as 'chesscom' | 'lichess' | 'pgn-paste',
@@ -111,7 +113,20 @@ export function useStockfish() {
           timeControl: state.currentGameMeta.timeControl,
           endTime: state.currentGameMeta.endTime,
           backendGameId: state.backendGameId ?? null,
-        }).catch(err => console.error('Failed to save game to IndexedDB:', err))
+        }
+        saveAnalyzedGame(gameRecord).catch(err => console.error('Failed to save game to IndexedDB:', err))
+
+        // 3B-6: Push to backend if user is authenticated, so coaching can cache-hit on reload
+        const accessToken = useAuthStore.getState().accessToken
+        if (accessToken && !state.backendGameId) {
+          pushGame(gameRecord)
+            .then(backendId => {
+              if (backendId !== null) {
+                useGameStore.getState().setBackendGameId(backendId)
+              }
+            })
+            .catch(err => console.error('Failed to push game to backend:', err))
+        }
       }
     } catch (err) {
       console.error('Analysis failed:', err)

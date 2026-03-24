@@ -91,7 +91,7 @@ export function useGameReview() {
   const baseData = useMemo<ParsedGame>(() => {
     if (!pgn) return { tree: {}, rootId: null, parseError: null, headers: {} }
     return buildTreeFromPgn(pgn, rawPgn ?? undefined)
-  }, [pgn])
+  }, [pgn, rawPgn])
 
   // All branch/navigation state in one object keyed by pgnKey
   const [branchState, setBranchState] = useState<BranchState>(EMPTY_BRANCH)
