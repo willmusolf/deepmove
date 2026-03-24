@@ -9,12 +9,14 @@ import type { EvalResult } from './stockfish'
 
 export type MoveGrade =
   | 'brilliant'
+  | 'great'
   | 'best'
   | 'excellent'
   | 'good'
   | 'inaccuracy'
   | 'mistake'
   | 'blunder'
+  | 'miss'
   | 'forced'
   | null
 
@@ -54,9 +56,15 @@ function capScore(s: number): number {
 
 /**
  * Classify a move based on centipawn loss from the player's perspective.
+ * Thresholds aligned with Lichess (inaccuracy≥50, mistake≥100, blunder≥300)
+ * but with finer top-end buckets to distinguish excellent/good play.
  * Scores are treated as white-perspective (positive = white advantage).
  * Mate scores are capped at ±1000cp before computing loss.
  * cpLoss: positive = player's position worsened.
+ *
+ * Also detects chess.com-style "Great" and "Miss":
+ *   Great: player was losing (≤-200cp) but this move saves the game (now ≥-50cp)
+ *   Miss:  opponent's previous move was a blunder AND this move fails to capitalize (cpLoss > 60)
  */
 export function classifyMove(
   evalBefore: number,
@@ -64,6 +72,7 @@ export function classifyMove(
   color: 'white' | 'black',
   legalMoveCount: number,
   sacrifice = false,
+  prevOpponentGrade: MoveGrade = null,
 ): MoveGrade {
   // Forced: only one legal move, no agency
   if (legalMoveCount === 1) return 'forced'
@@ -72,18 +81,58 @@ export function classifyMove(
   const before = capScore(evalBefore)
   const after = capScore(evalAfter)
 
-  // cpLoss from the player's perspective (positive = worsened)
-  const cpLoss = color === 'white'
-    ? (before - after)
-    : (after - before)
+  // Player's eval before/after from their own perspective (positive = they're winning)
+  const playerBefore = color === 'white' ? before : -before
+  const playerAfter  = color === 'white' ? after  : -after
 
-  if (cpLoss <= 5 && sacrifice) return 'brilliant'
-  if (cpLoss <= 5)   return 'best'
-  if (cpLoss <= 15)  return 'excellent'
-  if (cpLoss <= 50)  return 'good'
-  if (cpLoss <= 150) return 'inaccuracy'
+  // cpLoss from the player's perspective (positive = worsened)
+  const cpLoss = playerBefore - playerAfter
+
+  // Great: player was losing, this move saves the position
+  if (playerBefore <= -200 && playerAfter >= -50 && cpLoss <= 25) return 'great'
+
+  // Miss: opponent just blundered AND player fails to capitalize
+  if (prevOpponentGrade === 'blunder' && cpLoss > 60) return 'miss'
+
+  if (cpLoss <= 10 && sacrifice) return 'brilliant'
+  if (cpLoss <= 10)  return 'best'
+  if (cpLoss <= 25)  return 'excellent'
+  if (cpLoss <= 60)  return 'good'
+  if (cpLoss <= 120) return 'inaccuracy'
   if (cpLoss <= 300) return 'mistake'
   return 'blunder'
+}
+
+// ── Accuracy % (Lichess open formula) ────────────────────────────────────────
+
+function cpToWinPct(cp: number): number {
+  return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1)
+}
+
+function moveAccuracy(winBefore: number, winAfter: number): number {
+  const loss = Math.max(0, winBefore - winAfter)
+  return Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * loss) - 3.1669))
+}
+
+/**
+ * Compute accuracy % for one color using Lichess's published win% formula.
+ * Uses harmonic mean to penalize very bad moves more than simple average.
+ */
+export function computeAccuracy(moveEvals: MoveEval[], color: 'white' | 'black'): number {
+  const accs: number[] = []
+  let prevScore = 0
+  for (const me of moveEvals) {
+    const score = me.eval.score
+    if (me.color !== color) { prevScore = score; continue }
+    const winBefore = color === 'white' ? cpToWinPct(prevScore) : cpToWinPct(-prevScore)
+    const winAfter  = color === 'white' ? cpToWinPct(score)     : cpToWinPct(-score)
+    accs.push(moveAccuracy(winBefore, winAfter))
+    prevScore = score
+  }
+  if (accs.length === 0) return 100
+  // Harmonic mean — penalizes catastrophic blunders more than simple average
+  const harmonic = accs.length / accs.reduce((sum, a) => sum + 1 / Math.max(1, a), 0)
+  return Math.round(harmonic * 10) / 10
 }
 
 export async function analyzeGame(
@@ -92,6 +141,7 @@ export async function analyzeGame(
   depth = 18,
   onProgress?: (completed: number, total: number) => void,
   signal?: AbortSignal,
+  movetime?: number,
 ): Promise<MoveEval[]> {
   const chess = new Chess()
   chess.loadPgn(cleanPgn(pgn))
@@ -110,13 +160,14 @@ export async function analyzeGame(
   }
 
   let prevScore = 0  // Starting position eval (assume ~0)
+  let prevOpponentGrade: MoveGrade = null
 
   for (let i = 0; i < history.length; i++) {
     if (signal?.aborted) break
     const move = history[i]
     const fen = positions[i + 1]
     const color: 'white' | 'black' = i % 2 === 0 ? 'white' : 'black'
-    const evalResult = await engine.analyzePosition(fen, depth)
+    const evalResult = await engine.analyzePosition(fen, depth, movetime)
 
     // Stockfish score cp is from the side-to-move's perspective.
     // After white's move, black is to move → negate to get white-perspective.
@@ -130,7 +181,7 @@ export async function analyzeGame(
       : null
 
     const sacrifice = isSacrificeFn(history[i], positions[i + 1])
-    const grade = classifyMove(prevScore, scoreWhite, color, legalMoveCounts[i], sacrifice)
+    const grade = classifyMove(prevScore, scoreWhite, color, legalMoveCounts[i], sacrifice, prevOpponentGrade)
 
     const moveEval: MoveEval = {
       moveNumber: Math.floor(i / 2) + 1,
@@ -143,6 +194,7 @@ export async function analyzeGame(
     results.push(moveEval)
     onProgress?.(i + 1, history.length)
     prevScore = scoreWhite
+    prevOpponentGrade = grade  // this move's grade becomes next move's prevOpponentGrade
   }
 
   return results

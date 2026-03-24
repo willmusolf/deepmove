@@ -25,8 +25,6 @@ export default function EvalBar({
   hidden,
   orientation = 'white',
 }: EvalBarProps) {
-  if (hidden) return null
-
   // Hold the last known eval so the bar never flashes to 50/50 during
   // transient undefined frames (branch entry, position change debounce).
   const lastRef = useRef<{ cp: number; isMate: boolean; mateIn: number | null }>({ cp: 0, isMate: false, mateIn: null })
@@ -65,7 +63,7 @@ export default function EvalBar({
   }
 
   return (
-    <div className="eval-bar-container">
+    <div className="eval-bar-container" style={hidden ? { visibility: 'hidden' } : undefined}>
       {/* Inner wrapper clips the bar segments to rounded corners */}
       <div className="eval-bar-inner">
         {/* Black: grows down from top. White: grows up from bottom.

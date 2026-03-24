@@ -72,3 +72,33 @@ Log every significant technical decision here. Date, decision, rationale, altern
 **Status:** Implemented (Track A)
 **Decision:** After analysis, overlay arrows on the board showing the engine's top moves for the current position.
 **Implementation:** Multi-PV arrows via chessground `autoShapes` (green=best, paleBlue=2nd, yellow=3rd). BestLines panel above move list — click to enter variation mode (arrow keys step through PV, Esc exits). Position analysis triggered after full-game analysis completes.
+
+### ADR-013: Move Grading System Research — Expected Points vs. Centipawn Loss
+**Status:** Research complete (2026-03-22)
+
+#### Chess.com CAPS2
+Uses an **Expected Points** model based on win probability, not raw centipawns. Each move is graded by how much expected value (0.0–1.0) was lost. Thresholds are adjusted by player rating.
+- Best ≤0.00, Excellent ≤0.02, Good ≤0.05, Inaccuracy ≤0.10, Mistake ≤0.20, Blunder >0.20
+- Formula is proprietary and not publicly disclosed.
+
+#### Lichess Accuracy
+Open-source win% formula: `50 + 50 * (2 / (1 + exp(-0.00368208 * cp)) - 1)`
+Per-move accuracy: `103.1668 * exp(-0.04354 * delta) - 3.1669`
+Uses harmonic mean to heavily penalize blunders. DeepMove already implements this formula in `cpToWinPct` + `computeAccuracy` in `engine/analysis.ts`.
+
+#### Chessigma
+Uses custom labels (Sigma, Awesome, Best, Nice, Ok, Theoretical, Strange, Bad, Clown). Unknown thresholds, centipawn-based. Depth 14 for most positions.
+
+#### DeepMove Current Approach
+Raw centipawn-loss thresholds (ADR-011). Transparent and debuggable. 90% of the value of Expected Points for MVP.
+
+**Upgrade path:** The Lichess logistic function (`cpToWinPct`) is already in `analysis.ts`. To adopt chess.com-style grading, swap `classifyMove()` to use win-probability delta (winBefore - winAfter) instead of raw cp loss, then tune per-Elo threshold tables. Defer to post-MVP.
+
+**Open-source reference:** [Chesskit by GuillaumeSD](https://github.com/GuillaumeSD/Chesskit) — similar architecture, useful for comparison.
+
+### ADR-014: Background Tab Analysis — No Special Handling Needed
+**Status:** Verified (2026-03-22)
+
+**Decision:** No keepalive or visibility API handling required for Stockfish background analysis.
+
+**Reason:** Web Workers using `postMessage` are not subject to browser background throttling. Only `setTimeout`/`setInterval`/`requestAnimationFrame` are throttled in background tabs. The entire analysis pipeline in DeepMove uses pure `postMessage` UCI communication with zero timers in the analysis loop (the only timer is a one-time 60s init safety timeout in `stockfish.ts`). Analysis will continue at full speed regardless of tab visibility.

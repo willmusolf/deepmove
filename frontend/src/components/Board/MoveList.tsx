@@ -9,20 +9,23 @@ import { getPathToNode } from '../../hooks/useGameReview'
 
 // ─── Grade badge ─────────────────────────────────────────────────────────────
 
-const GRADE_CONFIG: Record<NonNullable<MoveGrade>, { label: string; cls: string }> = {
+const GRADE_CONFIG: Record<NonNullable<MoveGrade>, { label: string | null; cls: string }> = {
   brilliant:  { label: '!!', cls: 'grade-brilliant' },
-  best:       { label: '★',  cls: 'grade-best' },
-  excellent:  { label: '^^', cls: 'grade-excellent' },
-  good:       { label: '✓',  cls: 'grade-good' },
+  great:      { label: '!',  cls: 'grade-great' },
+  best:       { label: null, cls: '' },
+  excellent:  { label: null, cls: '' },
+  good:       { label: null, cls: '' },
   inaccuracy: { label: '?!', cls: 'grade-inaccuracy' },
   mistake:    { label: '?',  cls: 'grade-mistake' },
   blunder:    { label: '??', cls: 'grade-blunder' },
-  forced:     { label: '→',  cls: 'grade-forced' },
+  miss:       { label: '✗',  cls: 'grade-miss' },
+  forced:     { label: null, cls: '' },
 }
 
 function GradeBadge({ grade }: { grade: MoveGrade | undefined }) {
   if (!grade) return null
   const cfg = GRADE_CONFIG[grade]
+  if (!cfg.label) return null
   return <span className={`move-grade ${cfg.cls}`}>{cfg.label}</span>
 }
 
@@ -66,14 +69,16 @@ function MoveToken({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
 function PairLine({ startId, ctx, depth }: { startId: string; ctx: RenderCtx; depth: number }) {
   const { tree } = ctx
 
-  // Collect nodes along childIds[0]
+  // Collect nodes along childIds[0] — stay within the same isMainLine lane
+  const lineIsMainLine = tree[startId]?.isMainLine ?? true
   const nodes: MoveNode[] = []
   let id: string | null = startId
   while (id !== null) {
     const node: MoveNode | undefined = tree[id]
     if (!node) break
     nodes.push(node)
-    id = node.childIds[0] ?? null
+    const nextId: string | null = node.childIds[0] ?? null
+    id = (nextId && tree[nextId]?.isMainLine === lineIsMainLine) ? nextId : null
   }
   if (nodes.length === 0) return null
 
@@ -105,8 +110,8 @@ function PairLine({ startId, ctx, depth }: { startId: string; ctx: RenderCtx; de
 
         // Collect all branches: from primary (white or partial-black) + from secondary (black)
         const branches = [
-          ...primary.childIds.slice(1),
-          ...(secondary ? secondary.childIds.slice(1) : []),
+          ...(depth === 0 ? primary.childIds.filter(id => !tree[id]?.isMainLine) : primary.childIds.slice(1)),
+          ...(secondary ? (depth === 0 ? secondary.childIds.filter(id => !tree[id]?.isMainLine) : secondary.childIds.slice(1)) : []),
         ]
 
         return (
