@@ -1,5 +1,4 @@
 """test_users.py — User profile, update, GDPR delete, and data export tests."""
-import pytest
 
 from tests.conftest import make_game_payload
 
