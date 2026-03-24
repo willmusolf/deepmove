@@ -44,7 +44,7 @@ export interface ChessComLoadResult {
   hasMore: boolean
 }
 
-export async function getRecentGames(username: string, limit = 50): Promise<ChessComLoadResult> {
+export async function getRecentGames(username: string): Promise<ChessComLoadResult> {
   const archives = await getPlayerArchives(username)
   if (archives.length === 0) return { games: [], fetchedArchives: [], allArchives: [], hasMore: false }
 
@@ -53,7 +53,7 @@ export async function getRecentGames(username: string, limit = 50): Promise<Ches
   const games = await fetchArchives(recentArchives)
 
   return {
-    games: games.sort((a, b) => b.end_time - a.end_time).slice(0, limit),
+    games: games.sort((a, b) => b.end_time - a.end_time),
     fetchedArchives: recentArchives,
     allArchives: archives,
     hasMore: archives.length > recentArchives.length,

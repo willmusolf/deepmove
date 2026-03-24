@@ -29,6 +29,39 @@ const HISTORY_KEY: Record<Platform, string> = {
   lichess: 'deepmove_search_history_lichess',
 }
 
+const GAMELIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+interface GameListCache {
+  games: ChessComGame[] | LichessGame[]
+  pagination: PaginationState
+  fetchedAt: number
+}
+
+function gameListCacheKey(platform: Platform, username: string): string {
+  return `deepmove_gamelist_${platform}_${username.toLowerCase()}`
+}
+
+function saveGameListCache(platform: Platform, username: string, games: ChessComGame[] | LichessGame[], pagination: PaginationState) {
+  try {
+    const entry: GameListCache = { games, pagination, fetchedAt: Date.now() }
+    localStorage.setItem(gameListCacheKey(platform, username), JSON.stringify(entry))
+  } catch {
+    // Silently skip if localStorage quota exceeded
+  }
+}
+
+function getGameListCache(platform: Platform, username: string): GameListCache | null {
+  try {
+    const raw = localStorage.getItem(gameListCacheKey(platform, username))
+    if (!raw) return null
+    const entry: GameListCache = JSON.parse(raw)
+    if (Date.now() - entry.fetchedAt > GAMELIST_CACHE_TTL) return null
+    return entry
+  } catch {
+    return null
+  }
+}
+
 function getHistory(platform: Platform): string[] {
   try {
     return JSON.parse(localStorage.getItem(HISTORY_KEY[platform]) ?? '[]')
@@ -45,8 +78,7 @@ function addToHistory(platform: Platform, username: string) {
 
 export default function AccountLink({ platform, onGamesLoaded }: AccountLinkProps) {
   const [username, setUsername] = useState(() => {
-    const identity = getMyUsername(platform)
-    return identity ?? localStorage.getItem(STORAGE_KEY[platform]) ?? ''
+    return localStorage.getItem(STORAGE_KEY[platform]) ?? getMyUsername(platform) ?? ''
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -68,7 +100,7 @@ export default function AccountLink({ platform, onGamesLoaded }: AccountLinkProp
       let games: ChessComGame[] | LichessGame[]
       let pagination: PaginationState
       if (platform === 'chesscom') {
-        const result: ChessComLoadResult = await getRecentGames(trimmed, 100)
+        const result: ChessComLoadResult = await getRecentGames(trimmed)
         games = result.games
         pagination = { platform, fetchedArchives: result.fetchedArchives, allArchives: result.allArchives, hasMore: result.hasMore }
       } else {
@@ -80,6 +112,7 @@ export default function AccountLink({ platform, onGamesLoaded }: AccountLinkProp
       addToHistory(platform, trimmed)
       setHistory(getHistory(platform))
       setLoadedUser(trimmed)
+      saveGameListCache(platform, trimmed, games, pagination)
       onGamesLoaded(games, trimmed, pagination)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
@@ -91,12 +124,19 @@ export default function AccountLink({ platform, onGamesLoaded }: AccountLinkProp
     }
   }, [platform, onGamesLoaded])
 
+  // On mount: restore game list from cache if fresh, skipping the API call
+  useEffect(() => {
+    const savedUsername = localStorage.getItem(STORAGE_KEY[platform]) ?? getMyUsername(platform)
+    if (!savedUsername) return
+    const cached = getGameListCache(platform, savedUsername)
+    if (!cached) return
+    setLoadedUser(savedUsername)
+    onGamesLoaded(cached.games, savedUsername, cached.pagination)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [platform])
+
   useEffect(() => {
     setHistory(getHistory(platform))
-    const identity = getMyUsername(platform)
-    const saved = identity ?? localStorage.getItem(STORAGE_KEY[platform])
-    if (saved) void fetchGames(saved)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [platform])
 
   // Close suggestions on outside click
@@ -166,7 +206,7 @@ export default function AccountLink({ platform, onGamesLoaded }: AccountLinkProp
           onClick={() => void fetchGames(username)}
           disabled={loading || !username.trim()}
         >
-          {loading ? 'Loading…' : 'Load'}
+          {loading ? 'Loading…' : loadedUser ? 'Reload' : 'Load'}
         </button>
       </div>
       {error && <div className="import-error">{error}</div>}
