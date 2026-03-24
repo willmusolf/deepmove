@@ -26,6 +26,8 @@ async def update_me(
         user.chesscom_username = body.chesscom_username
     if body.lichess_username is not None:
         user.lichess_username = body.lichess_username
+    if body.elo_estimate is not None:
+        user.elo_estimate = body.elo_estimate
     if body.preferences is not None:
         # Merge preferences (don't overwrite the whole dict)
         current = dict(user.preferences or {})
