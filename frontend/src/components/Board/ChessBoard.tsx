@@ -26,6 +26,9 @@ export interface ChessBoardProps {
   onPremoveSet?: (orig: string | null, dest: string | null) => void
   premoveColor?: "white" | "black"  // Keep movable.color set for premoves even when not interactive
   forceCheck?: 'white' | 'black'   // Force king highlight (e.g. on resign, even without check)
+  externalPremoveHandling?: boolean // When true, cancel premoves on FEN change instead of playing them.
+                                    // The parent hook (useBotPlay) handles premove processing directly
+                                    // to avoid chessground's setTimeout(1) race condition.
 }
 
 
@@ -57,6 +60,7 @@ export default function ChessBoard({
   onPremoveSet,
   premoveColor,
   forceCheck,
+  externalPremoveHandling = false,
 }: ChessBoardProps) {
   // Compute check highlight + legal move destinations + turn color from a single Chess instance
   const { checkColor, legalDests, turnColor: fenTurnColor } = useMemo(() => {
@@ -235,13 +239,21 @@ export default function ChessBoard({
       draggable: { enabled: interactive || !!premoveColor },
     })
 
-    // Fire any queued premove now that chessground has the updated position/turnColor/dests.
-    // Must happen after api.set() — canMove() checks turnColor which is stale until set() is called.
-    // No-op if no premove is queued. Only applies during active bot games (premoveColor is set).
+    // Premove handling after FEN update:
+    // - externalPremoveHandling=true (bot play): The parent hook (useBotPlay) processes
+    //   premoves synchronously via chess.js. We just cancel the chessground premove visual
+    //   here so it doesn't fire its own setTimeout(1) `after` callback, which would race
+    //   with React re-renders and cause tree corruption.
+    // - externalPremoveHandling=false (default): Let chessground play the premove itself.
+    //   This is the standard lichess behavior for non-bot contexts.
     if (premoveColor) {
-      apiRef.current.playPremove()
+      if (externalPremoveHandling) {
+        apiRef.current.cancelPremove()
+      } else {
+        apiRef.current.playPremove()
+      }
     }
-  }, [fen, lastMove, orientation, interactive, pathKey, checkColor, premoveColor, forceCheck])
+  }, [fen, lastMove, orientation, interactive, pathKey, checkColor, premoveColor, forceCheck, externalPremoveHandling])
 
   // Sync engine arrow shapes — always re-pass movable so chessground's partial
   // set() can never accidentally clear movable.dests during an arrows update.
