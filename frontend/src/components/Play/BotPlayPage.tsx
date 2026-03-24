@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { Key } from 'chessground/types'
 import { usePlayStore, STARTING_FEN } from '../../stores/playStore'
+import { msToHHMMSS } from '../../utils/format'
 import { useBotPlay } from '../../hooks/useBotPlay'
 import { useSound } from '../../hooks/useSound'
 import ChessBoard from '../Board/ChessBoard'
@@ -26,15 +27,6 @@ interface Props {
   ) => Promise<TopLine[]>
   stopPositionAnalysis: () => void
   onNavigateToReview: () => void
-}
-
-function msToHHMMSS(ms: number | null): string | undefined {
-  if (ms === null) return undefined
-  const total = Math.max(0, Math.floor(ms / 1000))
-  const h = Math.floor(total / 3600)
-  const m = Math.floor((total % 3600) / 60)
-  const s = total % 60
-  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
 export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis, onNavigateToReview }: Props) {

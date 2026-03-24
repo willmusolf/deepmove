@@ -166,8 +166,16 @@ export function buildVerifiedFacts(
   }
 
   if (principleId === 'OPENING_01' || principleId === 'OPENING_02' || principleId === 'OPENING_05') {
+    const opponentDev = moment.color === 'white' ? development.black : development.white
     facts.push(`Minor pieces still undeveloped: ${userDev.undevelopedMinorPieces} of 4`)
     facts.push(`Castled: ${userDev.castled ? 'yes' : 'no'}`)
+    // Compare to opponent development — helps the coach paint a contrast
+    if (opponentDev.undevelopedMinorPieces < userDev.undevelopedMinorPieces) {
+      facts.push(`Opponent has ${opponentDev.undevelopedMinorPieces} undeveloped minor pieces — better developed than you`)
+    }
+    if (opponentDev.castled && !userDev.castled) {
+      facts.push(`Opponent has already castled — their king is safe while yours is exposed`)
+    }
     if (userDev.earlyQueenMove) facts.push('Early queen move detected in this game')
     if (userDev.sameMovedTwice) facts.push('Same piece moved twice in the opening — costs a tempo, opponent gets free development')
     if (userDev.undevelopedMinorPieces >= 2)
@@ -176,11 +184,54 @@ export function buildVerifiedFacts(
       facts.push(`King still uncastled on move ${moment.moveNumber} — exposed in the center`)
   }
 
+  const pieceName = PIECE_NAME_MAP[moveImpact.pieceMoved] ?? moveImpact.pieceMoved
   facts.push(`User's move: ${moveImpact.description}`)
-  if (!moveImpact.hadClearPurpose) facts.push(`This move achieved nothing concrete — no capture, check, development, or castling`)
+  facts.push(`Piece moved: ${pieceName} from ${moveImpact.fromSquare} to ${moveImpact.toSquare}`)
+  if (!moveImpact.hadClearPurpose) facts.push(`This move achieved nothing concrete — no capture, check, development, or castling. It was a "nothing move."`)
   if (moveImpact.developedPiece) facts.push(`This move developed a piece off the back rank`)
   if (moveImpact.wasCapture) facts.push(`This move was a capture`)
   if (moveImpact.wasCheck) facts.push(`This move gave check`)
+  if (moveImpact.createdWeakness) facts.push(`This move created a weakness in the pawn structure or king safety`)
+  if (moveImpact.changedPawnStructure) facts.push(`This move changed the pawn structure`)
+
+  // King safety context — useful for middlegame lessons
+  const userKS = moment.color === 'white' ? features.kingSafety.white : features.kingSafety.black
+  const opponentKS = moment.color === 'white' ? features.kingSafety.black : features.kingSafety.white
+  if (userKS.castled === 'none' && features.gamePhase !== 'endgame') {
+    facts.push(`User's king has not castled (still in the center)`)
+  }
+  if (userKS.score >= 60) {
+    facts.push(`User's king safety is poor (score ${userKS.score}/100) — ${userKS.openFilesNearKing.length > 0 ? 'open files near king' : 'weak pawn shield'}`)
+  }
+  if (opponentKS.score >= 60) {
+    facts.push(`Opponent's king is also vulnerable (score ${opponentKS.score}/100)`)
+  }
+
+  // Piece activity context — passive pieces are coaching gold
+  const userActivity = moment.color === 'white' ? features.pieceActivity.white : features.pieceActivity.black
+  if (userActivity.passivePieces.length > 0) {
+    facts.push(`User has passive pieces on: ${userActivity.passivePieces.join(', ')}`)
+  }
+  if (userActivity.badBishop) {
+    facts.push(`User has a bad bishop on ${userActivity.badBishop} (blocked by own pawns)`)
+  }
+
+  // Pawn structure context
+  const userPawns = moment.color === 'white' ? features.pawnStructure.white : features.pawnStructure.black
+  if (userPawns.isolatedPawns.length > 0) {
+    facts.push(`User has isolated pawns on: ${userPawns.isolatedPawns.join(', ')}`)
+  }
+  if (userPawns.passedPawns.length > 0) {
+    facts.push(`User has passed pawns on: ${userPawns.passedPawns.join(', ')}`)
+  }
+
+  // Engine move idea — what the better move would have achieved
+  if (features.engineMoveImpact.description) {
+    facts.push(features.engineMoveImpact.description)
+  }
+  if (features.engineMoveImpact.mainIdea) {
+    facts.push(features.engineMoveImpact.mainIdea)
+  }
 
   return facts
 }

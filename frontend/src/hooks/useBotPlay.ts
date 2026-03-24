@@ -1,11 +1,21 @@
 // useBotPlay.ts — Core game loop for Play vs Bot mode.
 // Manages a dedicated StockfishEngine instance (3rd worker), move tree, and clocks.
 // All persistent state lives in playStore; this hook owns the async lifecycle.
+//
+// PREMOVE ARCHITECTURE (2026-03-24 fix):
+// Premoves are handled entirely inside this hook — NOT in ChessBoard's React render
+// cycle. ChessBoard reports premove intent via onPremoveSet (orig/dest). After the
+// bot move lands, scheduleBotMove checks the pendingPremoveRef and applies the user's
+// premove synchronously before yielding to React. This eliminates the race condition
+// caused by chessground's callUserFunction using setTimeout(..., 1) combined with
+// extra React re-renders (browse snap-back, StrictMode double-fire) that could call
+// api.set({fen}) and conflict with chessground's post-premove internal state.
 
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { Chess } from 'chess.js'
 import { StockfishEngine } from '../engine/stockfish'
 import { usePlayStore, STARTING_FEN, type PlayConfig, type TimeControl } from '../stores/playStore'
+import { msToHHMMSS } from '../utils/format'
 import { useGameStore } from '../stores/gameStore'
 import { classifySan } from './useSound'
 import type { MoveNode } from '../chess/types'
@@ -16,15 +26,6 @@ function getBotMovetime(tc: TimeControl): number {
   if (tc === '10+0') return 300
   if (tc === '15+10') return 500
   return 300  // 'none' (untimed)
-}
-
-function msToHHMMSS(ms: number | null): string | undefined {
-  if (ms === null) return undefined
-  const total = Math.max(0, Math.floor(ms / 1000))
-  const h = Math.floor(total / 3600)
-  const m = Math.floor((total % 3600) / 60)
-  const s = total % 60
-  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
 /** Generate a PGN string from the play tree main line */
@@ -64,7 +65,7 @@ function generatePgn(
   ].join('\n')
 
   const parts: string[] = []
-  let firstBlackMove = nodes.length > 0 && nodes[0].color === 'black'
+  const firstBlackMove = nodes.length > 0 && nodes[0].color === 'black'
   if (firstBlackMove) parts.push('1...')
 
   nodes.forEach((node) => {
@@ -321,7 +322,6 @@ export function useBotPlay(onNavigateToReview: () => void) {
     const counter = state.moveCounter + 1
     const nodeId = `p${counter}`
     const parentId = state.currentPath[state.currentPath.length - 1] ?? null
-    const chess = new Chess(state.currentFen)
     const moveNum = parseInt(state.currentFen.split(' ')[5] ?? '1', 10)
 
     const node: MoveNode = {
@@ -336,7 +336,6 @@ export function useBotPlay(onNavigateToReview: () => void) {
       color: moveColor,
       isMainLine: true,
     }
-    void chess  // parse for future use if needed
 
     usePlayStore.setState(s => {
       const newTree = { ...s.tree, [node.id]: node }
