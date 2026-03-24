@@ -65,14 +65,14 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   }
 
 
-  async function handleSaveAppearance() {
+  async function handleSaveAppearance(overrides: { appTheme?: AppTheme; boardTheme?: BoardTheme; soundEnabled?: boolean } = {}) {
     if (!user) return
     try {
       await updateProfile({
         preferences: {
-          appTheme,
-          boardTheme,
-          soundEnabled,
+          appTheme: overrides.appTheme ?? appTheme,
+          boardTheme: overrides.boardTheme ?? boardTheme,
+          soundEnabled: overrides.soundEnabled ?? soundEnabled,
         },
       })
     } catch {
@@ -82,17 +82,17 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
 
   function handleThemeToggle(theme: AppTheme) {
     setAppTheme(theme)
-    void handleSaveAppearance()
+    void handleSaveAppearance({ appTheme: theme })
   }
 
   function handleBoardTheme(theme: BoardTheme) {
     setBoardTheme(theme)
-    void handleSaveAppearance()
+    void handleSaveAppearance({ boardTheme: theme })
   }
 
   function handleSoundToggle(v: boolean) {
     setSoundEnabled(v)
-    void handleSaveAppearance()
+    void handleSaveAppearance({ soundEnabled: v })
   }
 
   async function handleClearAnalyses() {
@@ -102,8 +102,8 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   }
 
   const BOARD_THEMES: { id: BoardTheme; label: string; lightColor: string; darkColor: string }[] = [
-    { id: 'brown',  label: 'Brown',  lightColor: '#f0d9b5', darkColor: '#b58863' },
     { id: 'blue',   label: 'Blue',   lightColor: '#dee3e6', darkColor: '#8ca2ad' },
+    { id: 'brown',  label: 'Brown',  lightColor: '#f0d9b5', darkColor: '#b58863' },
     { id: 'green',  label: 'Green',  lightColor: '#ffffdd', darkColor: '#86a666' },
     { id: 'purple', label: 'Purple', lightColor: '#e8d0e0', darkColor: '#9c6b9c' },
   ]

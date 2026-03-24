@@ -654,53 +654,48 @@ Learning to convert marginally winning positions
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
 -should we be relying on the engine more? the ai should really be doing the bare minimum right i feel like relying on the llm is not gonna be that valuable for actually makign intelligent and helpful chess coaching insights. open to discussion
 
--board color changing in setting does not work at all the chess board warps lke crazy. only the original works properly
-
--flip game for searched user to be at bottom in load even if its not the crowned user or profile account the searched name is the one thats at the bottom for every game they load in. they can always flip it if they want manually with the flip button so
-
-
--the best lines thuing that loads up in depth is wack while the stockfish is analyzing, also are they running in parallel? or onyl one at a teim (either stockifsh anayzing and making report or eval and best moves are claucalting?) it says m5 sometimes which is right idk i think we just need to fix that part or get rid of it or something
+-use lichess sounds instead but make sure we have check checkmate castle all accounted for last time we tried we couldnt get those sounds like castle capture or check so maybe just have me go grab all them somewhere
 
 
 
 
+-for lesson: not jumping to correct cirtical moments in the notation / chess board? doesnt change position to the move at all. may be something with the fact we are in the coaching tab now instead of analysis. we also maybe want access to the transcript tho in coach?? so not sure of best way to split it up. 
 
 
--still mvoe letters to right just a tiny bit
--player box a little lighter gray to see taken pieces easier
-
--lines still a bit jumpy/too transparent/start a little too late? should load a bit faster from like 150ms whatever it is
--suggested moves should be there right awya? even on a new game or on a game reivew, only its after i make a move it shows the default suggested moves
-
--if game is abandoned, and you do a new move on the analysis board, it should be a branch rather than just continuing notation, right?
-
--use lichess sounds instead but make sure we have check checkmate castle all accounted for last time we tried we couldnt get those sounds so maybe just have me go grab all them somewhere
-
--sort loaded games in numerous different ways?
-
--make sure if we load in a game have it analyzing then we exit to a new game or reset that the eval bar goes back to 0.0 as well. currently its not
+-giong back one move doesnt update the eval bar properly?
 
 
--something better for default. can go back in moves without a game loaded? auto labels common openings/labeling positions etc or something? in the default game that you can mess with or in your own transcripts and links to lessons?
--bot options or manual option by default with box for elo name timer coach maybe etc
--when you make a move it unlocks the moves section and it starts like a new game in default?
--and have no eval by default? if playing a bot. or have game analysis board that you can just mess with and see best moves and lines and evals etc like starts a new manual game or something and can reset the transcript or something
--and have the positioning be better? theres no player box so the default board is higher than when it is when we load a game so maybe something more consistent/lower/centered when a game isnt loaded in?
--what happens when you go in analysis after messing with the default board and no game is loaded in? just anlayzing the dfault board with transcript should be an option? you move a piece and it switches to analysis and starts a trasncirpt?
+-can only pull 300 games from lichess?
+
+
+
+-arrows for manual games look weird ? just 0 no /
+
 
 
 -tactics trainer
+
+
+
+
+-need to fix move suggestions lines. a little buggy ocassionaly and suggests shitty moves or moves that are losing. -still suggesting bad moves. like if mate can be prevented in only one way it will still recommend other mvoes? that instatnyl lose.
+
+-way to cache analyses and best move lines? are we already doing this? or only way to finish an analysis is by staying on the page the whole time (cant go back to load page otherwise analysis stops and you have to fully start over)
+
+
+
+-have arrows button and other buttons be better? and more concistent across that row of buttons visually
+
+
+-for dropdowns when it says 300+2 instead of the min (so would be 5+2?)
+
 -have similar dropdown next to move arrows as chessigma
 -test FEN string
--make taking more obvious as a suggested move? slightly like make the dots bigger or bolder maybe?
--have arrows button and classic button be better and more concistent across that row of buttons visually
 
+
+-refresh on play page doesnt hold stats and takes you back to load?
 
 -thorough systematic audits to make sure everything is as simple and efficient yet powerful as it can possibly be
 
-
-
-
 -make this into an ios app
-
 

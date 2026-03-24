@@ -17,7 +17,7 @@ const PREFS_KEY = 'deepmove_prefs'
 
 function loadPrefs(): Prefs {
   const soundEnabled = localStorage.getItem('soundEnabled') !== 'false'
-  const defaults: Prefs = { appTheme: 'dark', boardTheme: 'brown', soundEnabled }
+  const defaults: Prefs = { appTheme: 'dark', boardTheme: 'blue', soundEnabled }
   try {
     const saved = localStorage.getItem(PREFS_KEY)
     if (saved) return { ...defaults, ...JSON.parse(saved), soundEnabled }
@@ -74,21 +74,24 @@ export const usePrefsStore = create<PrefsState>((set, get) => {
 
     // Called on login to merge server preferences into local state
     loadFromUser: (userPrefs) => {
+      const defaults: Prefs = { appTheme: 'dark', boardTheme: 'blue', soundEnabled: true }
       const update: Partial<Prefs> = {}
       if (userPrefs.appTheme === 'light' || userPrefs.appTheme === 'dark') {
         update.appTheme = userPrefs.appTheme as AppTheme
+      } else {
+        update.appTheme = defaults.appTheme
       }
       if (['brown', 'blue', 'green', 'purple'].includes(userPrefs.boardTheme as string)) {
         update.boardTheme = userPrefs.boardTheme as BoardTheme
+      } else {
+        update.boardTheme = defaults.boardTheme
       }
       if (typeof userPrefs.soundEnabled === 'boolean') {
         update.soundEnabled = userPrefs.soundEnabled
       }
-      if (Object.keys(update).length > 0) {
-        const merged = { ...get(), ...update }
-        set(merged)
-        persist(update)
-      }
+      const merged = { ...get(), ...update }
+      set(merged)
+      persist(update)
     },
   }
 })
