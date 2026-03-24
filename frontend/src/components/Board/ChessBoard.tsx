@@ -14,6 +14,7 @@ import { PIECE_IMAGES } from '../../chess/pieceImages'
 
 export type { DrawShape }
 
+
 export interface ChessBoardProps {
   fen?: string
   orientation?: 'white' | 'black'
@@ -22,6 +23,9 @@ export interface ChessBoardProps {
   shapes?: DrawShape[]
   lastMove?: [Key, Key]
   pathKey?: number  // Changes whenever position navigates; ensures FEN sync always fires
+  onPremoveSet?: (orig: string | null, dest: string | null) => void
+  premoveColor?: "white" | "black"  // Keep movable.color set for premoves even when not interactive
+  forceCheck?: 'white' | 'black'   // Force king highlight (e.g. on resign, even without check)
 }
 
 
@@ -50,6 +54,9 @@ export default function ChessBoard({
   shapes = [],
   lastMove,
   pathKey = 0,
+  onPremoveSet,
+  premoveColor,
+  forceCheck,
 }: ChessBoardProps) {
   // Compute check highlight + legal move destinations + turn color from a single Chess instance
   const { checkColor, legalDests, turnColor: fenTurnColor } = useMemo(() => {
@@ -70,6 +77,7 @@ export default function ChessBoard({
   }, [fen])
 
   const [pendingPromotion, setPendingPromotion] = useState<{ from: Key; to: Key; color: 'white' | 'black'; orientation: 'white' | 'black' } | null>(null)
+  const [boardReady, setBoardReady] = useState(false)
 
   const orientationRef = useRef(orientation)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -77,8 +85,10 @@ export default function ChessBoard({
   const apiRef = useRef<Api | null>(null)
   const fenRef = useRef(fen)
   const onMoveRef = useRef(onMove)
+  const onPremoveSetRef = useRef(onPremoveSet)
   const interactiveRef = useRef(interactive)
   const prevPathKeyRef = useRef(pathKey)
+
 
   // Snap board container to nearest multiple of 8 to prevent chessground square misalignment
   useEffect(() => {
@@ -89,6 +99,7 @@ export default function ChessBoard({
       const size = Math.floor(Math.min(width, height) / 8) * 8
       el.style.width = `${size}px`
       el.style.height = `${size}px`
+      if (size > 0) setBoardReady(true)
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -97,6 +108,7 @@ export default function ChessBoard({
   // Keep refs current without triggering re-init
   fenRef.current = fen
   onMoveRef.current = onMove
+  onPremoveSetRef.current = onPremoveSet
   interactiveRef.current = interactive
   orientationRef.current = orientation
 
@@ -153,12 +165,21 @@ export default function ChessBoard({
         duration: 150,
       },
       draggable: {
-        enabled: interactive,
+        enabled: interactive || !!premoveColor,
         showGhost: true,
         distance: 3,
       },
       premovable: {
-        enabled: false,
+        enabled: true,
+        showDests: true,
+        events: {
+          set: (orig: Key, dest: Key) => {
+            onPremoveSetRef.current?.(orig, dest)
+          },
+          unset: () => {
+            onPremoveSetRef.current?.(null, null)
+          },
+        },
       },
       drawable: {
         enabled: true,
@@ -205,27 +226,34 @@ export default function ChessBoard({
       fen,
       lastMove: lastMove ?? [],
       orientation,
-      check: checkColor,
+      check: forceCheck ?? checkColor,
       turnColor: fenTurnColor,
       movable: {
-        color: interactive ? fenTurnColor : undefined,
+        color: interactive ? fenTurnColor : (premoveColor ?? undefined),
         dests: interactive ? legalDests : undefined,
       },
+      draggable: { enabled: interactive || !!premoveColor },
     })
-  }, [fen, lastMove, orientation, interactive, pathKey, checkColor])
+
+    // Fire any queued premove now that chessground has the updated position/turnColor/dests.
+    // Must happen after api.set() — canMove() checks turnColor which is stale until set() is called.
+    // No-op if no premove is queued. Only applies during active bot games (premoveColor is set).
+    if (premoveColor) {
+      apiRef.current.playPremove()
+    }
+  }, [fen, lastMove, orientation, interactive, pathKey, checkColor, premoveColor, forceCheck])
 
   // Sync engine arrow shapes — always re-pass movable so chessground's partial
   // set() can never accidentally clear movable.dests during an arrows update.
+  // boardReady is included so that if shapes arrive before the board has laid out
+  // (width === 0), this effect re-runs once the ResizeObserver reports a real size.
   useEffect(() => {
     if (!apiRef.current) return
-    // Guard: chessground computes arrow coords from the board's bounding rect.
-    // If the board hasn't been laid out yet (width === 0), skip — the effect
-    // will re-run once the board resizes and shapes change again.
     if (!containerRef.current || containerRef.current.getBoundingClientRect().width === 0) return
     apiRef.current.set({
       drawable: { autoShapes: shapes },
     })
-  }, [shapes])
+  }, [shapes, boardReady])
 
   const handlePromotion = useCallback((piece: string) => {
     if (!pendingPromotion) return

@@ -1,6 +1,6 @@
 import UserMenu from '../Auth/UserMenu'
 
-export type Page = 'review' | 'dashboard' | 'settings' | 'about'
+export type Page = 'review' | 'play' | 'dashboard' | 'settings' | 'about'
 
 interface NavSidebarProps {
   currentPage: Page
@@ -8,9 +8,10 @@ interface NavSidebarProps {
 }
 
 const NAV_ITEMS = [
-  { id: 'review' as const,    label: 'Review',    icon: '♟', soon: false },
+  { id: 'review'    as const, label: 'Review',    icon: '♟', soon: false },
+  { id: 'play'      as const, label: 'Play',       icon: '⚔', soon: false },
   { id: 'dashboard' as const, label: 'Dashboard', icon: '▦', soon: true  },
-  { id: 'about' as const,     label: 'About',     icon: 'ⓘ', soon: true  },
+  { id: 'about'     as const, label: 'About',     icon: 'ⓘ', soon: true  },
 ]
 
 export default function NavSidebar({ currentPage, onNavigate }: NavSidebarProps) {

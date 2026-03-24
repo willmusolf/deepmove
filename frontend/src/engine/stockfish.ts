@@ -35,6 +35,10 @@ interface QueueItem {
   multiPV?: number
   multiPvResolve?: (lines: TopLine[]) => void
   multiPvOnUpdate?: (lines: TopLine[], depth: number) => void
+  // Bot play fields
+  botMoveResolve?: (uci: string) => void
+  botElo?: number
+  movetime?: number
 }
 
 export class StockfishEngine {
@@ -58,6 +62,10 @@ export class StockfishEngine {
   private lastEmittedMultiPvDepth = 0
   private latestMultiPvLines: Map<number, TopLine> = new Map()
   private currentSideToMove: 'w' | 'b' = 'w'
+
+  // Bot move state
+  private currentIsBotMove = false
+  private currentBotMoveResolve: ((uci: string) => void) | null = null
 
   async initialize(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -186,7 +194,21 @@ export class StockfishEngine {
 
     // 'bestmove e2e4 ponder e7e5'
     if (line.startsWith('bestmove')) {
-      if (this.currentIsMultiPV) {
+      if (this.currentIsBotMove) {
+        const bmMatch = line.match(/^bestmove (\S+)/)
+        const uci = bmMatch ? bmMatch[1] : ''
+
+        const resolve = this.currentBotMoveResolve
+        this.currentBotMoveResolve = null
+        this.currentIsBotMove = false
+        this.busy = false
+
+        // Reset strength limiting for subsequent analysis
+        this.worker!.postMessage('setoption name UCI_LimitStrength value false')
+
+        if (resolve) resolve(uci)
+        this.drainQueue()
+      } else if (this.currentIsMultiPV) {
         const lines = Array.from(this.latestMultiPvLines.values())
           .sort((a, b) => a.rank - b.rank)
 
@@ -237,14 +259,28 @@ export class StockfishEngine {
     this.currentFen = item.fen
     this.currentSideToMove = item.fen.split(' ')[1] === 'b' ? 'b' : 'w'
 
-    if (item.multiPV && item.multiPvResolve) {
+    if (item.botMoveResolve && item.botElo !== undefined && item.movetime !== undefined) {
+      this.currentIsBotMove = true
+      this.currentBotMoveResolve = item.botMoveResolve
+      this.currentIsMultiPV = false
+      this.latestBestMove = ''
+      this.pendingResolve = null
+      this.worker!.postMessage('setoption name UCI_LimitStrength value true')
+      this.worker!.postMessage(`setoption name UCI_Elo value ${item.botElo}`)
+      this.worker!.postMessage(`position fen ${item.fen}`)
+      this.worker!.postMessage(`go movetime ${item.movetime}`)
+    } else if (item.multiPV && item.multiPvResolve) {
+      this.currentIsBotMove = false
       this.currentIsMultiPV = true
       this.currentMultiPvResolve = item.multiPvResolve
       this.currentMultiPvOnUpdate = item.multiPvOnUpdate ?? null
       this.lastEmittedMultiPvDepth = 0
       this.latestMultiPvLines = new Map()
       this.worker!.postMessage(`setoption name MultiPV value ${item.multiPV}`)
+      this.worker!.postMessage(`position fen ${item.fen}`)
+      this.worker!.postMessage(`go depth ${item.depth}`)
     } else {
+      this.currentIsBotMove = false
       this.currentIsMultiPV = false
       this.latestScore = 0
       this.latestIsMate = false
@@ -253,17 +289,16 @@ export class StockfishEngine {
       this.latestBestMove = ''
       this.latestPv = []
       this.pendingResolve = item.resolve
+      this.worker!.postMessage(`position fen ${item.fen}`)
+      this.worker!.postMessage(item.movetime ? `go depth ${item.depth} movetime ${item.movetime}` : `go depth ${item.depth}`)
     }
-
-    this.worker!.postMessage(`position fen ${item.fen}`)
-    this.worker!.postMessage(`go depth ${item.depth}`)
   }
 
-  analyzePosition(fen: string, depth = 15): Promise<EvalResult> {
+  analyzePosition(fen: string, depth = 15, movetime?: number): Promise<EvalResult> {
     if (!this.worker) return Promise.reject(new Error('Engine not initialized'))
 
     return new Promise((resolve) => {
-      const item: QueueItem = { fen, depth, resolve }
+      const item: QueueItem = { fen, depth, movetime, resolve }
       if (this.busy) {
         this.queue.push(item)
       } else {
@@ -318,6 +353,29 @@ export class StockfishEngine {
     }
   }
 
+  /** Get the best move for a position at limited strength (for bot play).
+   *  Uses UCI_LimitStrength + UCI_Elo to simulate a weaker player.
+   *  movetime in milliseconds. Returns the UCI move string e.g. "e2e4". */
+  getBotMove(fen: string, elo: number, movetime: number): Promise<string> {
+    if (!this.worker) return Promise.reject(new Error('Engine not initialized'))
+
+    return new Promise((resolve) => {
+      const item: QueueItem = {
+        fen,
+        depth: 0,          // unused — go movetime is used instead
+        resolve: () => {}, // unused — botMoveResolve handles resolution
+        botMoveResolve: resolve,
+        botElo: elo,
+        movetime,
+      }
+      if (this.busy) {
+        this.queue.push(item)
+      } else {
+        this.dispatch(item)
+      }
+    })
+  }
+
   terminate(): void {
     if (this._initTimeoutId !== null) {
       clearTimeout(this._initTimeoutId)
@@ -326,6 +384,7 @@ export class StockfishEngine {
     this.queue = []
     this.pendingResolve = null
     this.currentMultiPvResolve = null
+    this.currentBotMoveResolve = null
     this.busy = false
     if (this.worker) {
       this.worker.postMessage('quit')
