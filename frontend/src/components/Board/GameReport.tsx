@@ -3,6 +3,7 @@
 
 import { useMemo } from 'react'
 import type { MoveEval } from '../../engine/analysis'
+import { computeAccuracy } from '../../engine/analysis'
 
 interface GameReportProps {
   moveEvals: MoveEval[]
@@ -43,22 +44,24 @@ export function computeSideStats(allEvals: MoveEval[], side: 'white' | 'black'):
   if (moveCount === 0) return null
 
   const acpl = totalLoss / moveCount
-  // Lichess-style accuracy formula
-  const accuracy = Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * acpl) - 3.1669))
+  // Per-move win% accuracy (Lichess harmonic mean formula — more accurate than ACPL-based)
+  const accuracy = computeAccuracy(allEvals, side)
 
-  return { acpl: Math.round(acpl), accuracy: Math.round(accuracy), counts }
+  return { acpl: Math.round(acpl), accuracy, counts }
 }
 
-const GRADE_ORDER = ['brilliant', 'best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder'] as const
+const GRADE_ORDER = ['brilliant', 'great', 'best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder', 'miss'] as const
 
 const GRADE_DISPLAY: Record<string, { symbol: string; cls: string }> = {
   brilliant:  { symbol: '!!', cls: 'gr-brilliant' },
+  great:      { symbol: '!',  cls: 'gr-great' },
   best:       { symbol: '!',  cls: 'gr-best' },
-  excellent:  { symbol: '!',  cls: 'gr-excellent' },
+  excellent:  { symbol: '',   cls: 'gr-excellent' },
   good:       { symbol: '',   cls: 'gr-good' },
   inaccuracy: { symbol: '?!', cls: 'gr-inaccuracy' },
   mistake:    { symbol: '?',  cls: 'gr-mistake' },
   blunder:    { symbol: '??', cls: 'gr-blunder' },
+  miss:       { symbol: '✗',  cls: 'gr-miss' },
 }
 
 function accuracyColor(pct: number): string {

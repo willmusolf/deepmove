@@ -1,6 +1,5 @@
-// EvalGraph.tsx — Smooth bezier eval curve, pixel-accurate SVG, HTML annotation strip
-// Uses ResizeObserver to track real container width → viewBox units = pixels → no stretching.
-// Annotation symbols rendered as HTML badges below the graph (Chess.com style).
+// EvalGraph.tsx — Smooth bezier eval curve, Lichess-style annotation circles on curve
+// Fixed 120px height, ResizeObserver for width, annotation circles rendered inline in SVG.
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import type { MoveEval } from '../../engine/analysis'
@@ -15,9 +14,10 @@ interface EvalGraphProps {
   viewMode?: 'classic' | 'coach'
 }
 
-const HEIGHT = 96
+const HEIGHT = 120
 const CLAMP = 700    // centipawns at which curve hits ~100%
 const TENSION = 0.4  // Catmull-Rom tension
+const DOT_R = 7      // radius of annotation circles
 
 type Point = { x: number; y: number }
 
@@ -46,7 +46,7 @@ function buildBezierPath(pts: Point[]): string {
   return d
 }
 
-/** Build closed bezier area path: bezier trace clipped to midY, then close along midY */
+/** Build closed bezier area path */
 function buildBezierArea(pts: Point[], midY: number, above: boolean): string {
   if (pts.length < 2) return ''
   const clipped = pts.map(p => ({
@@ -59,12 +59,32 @@ function buildBezierArea(pts: Point[], midY: number, above: boolean): string {
   return d
 }
 
-interface Annotation {
-  moveIndex: number
+interface AnnotationCircle {
+  moveIndex: number   // 1-based
+  x: number
+  y: number
+  fill: string
   grade: string
-  symbol: string
-  colorClass: string
-  pctX: number  // 0-100 percentage for HTML positioning
+}
+
+// Grade → circle fill color. Only notable grades get circles.
+const GRADE_CIRCLE_COLOR: Partial<Record<string, string>> = {
+  blunder:    '#ef4444',
+  mistake:    '#fb923c',
+  inaccuracy: '#facc15',
+  brilliant:  '#22d3ee',
+  great:      '#22c55e',
+  miss:       '#a78bfa',
+}
+
+// Grade → text label shown inside circle on graph
+const GRADE_LABEL: Partial<Record<string, string>> = {
+  blunder:    '??',
+  mistake:    '?',
+  inaccuracy: '?!',
+  brilliant:  '!!',
+  great:      '!',
+  miss:       '✗',
 }
 
 export default function EvalGraph({
@@ -95,7 +115,9 @@ export default function EvalGraph({
   }, [])
 
   const analyzed = moveEvals.length
-  const total = Math.max(totalMoves, analyzed)
+  // Use the larger of totalMoves prop and analyzed count — totalMoves should always be the
+  // full game length from PGN, so x-positions are stable even as analysis fills in.
+  const total = Math.max(totalMoves, analyzed, 1)
 
   if (total === 0) return null
 
@@ -109,53 +131,20 @@ export default function EvalGraph({
       pts.push({ x: mx(i + 1), y: cpToY(moveEvals[i].eval.score, HEIGHT) })
     }
 
-    const anns: Annotation[] = []
+    const anns: AnnotationCircle[] = []
     for (let i = 0; i < moveEvals.length; i++) {
       const me = moveEvals[i]
-      const prevScore = i === 0 ? 0 : moveEvals[i - 1].eval.score
-      const cpGain = me.color === 'white'
-        ? (me.eval.score - prevScore)
-        : (prevScore - me.eval.score)
-
-      let symbol: string | null = null
-      let colorClass = ''
       const grade = me.grade ?? ''
 
-      if (viewMode === 'classic') {
-        // Classic: show blunder, mistake, inaccuracy, brilliant, best/excellent
-        if (me.grade === 'blunder') {
-          symbol = '??'; colorClass = 'eval-graph-badge--blunder'
-        } else if (me.grade === 'mistake') {
-          symbol = '?'; colorClass = 'eval-graph-badge--mistake'
-        } else if (me.grade === 'inaccuracy') {
-          symbol = '?!'; colorClass = 'eval-graph-badge--inaccuracy'
-        } else if (me.grade === 'brilliant') {
-          symbol = '!!'; colorClass = 'eval-graph-badge--brilliant'
-        } else if (me.grade === 'best' || me.grade === 'excellent') {
-          symbol = '!'; colorClass = 'eval-graph-badge--best'
-        }
-      } else {
-        // Coach: only blunder, mistake, brilliant, best/excellent with big gain
-        if (me.grade === 'blunder') {
-          symbol = '??'; colorClass = 'eval-graph-badge--blunder'
-        } else if (me.grade === 'mistake') {
-          symbol = '?'; colorClass = 'eval-graph-badge--mistake'
-        } else if (me.grade === 'brilliant') {
-          symbol = '!!'; colorClass = 'eval-graph-badge--brilliant'
-        } else if ((me.grade === 'best' || me.grade === 'excellent') && cpGain > 150) {
-          symbol = '!'; colorClass = 'eval-graph-badge--best'
-        }
-      }
+      // Coach mode: only blunder + mistake circles
+      if (viewMode === 'coach' && grade !== 'blunder' && grade !== 'mistake') continue
 
-      if (symbol) {
-        anns.push({
-          moveIndex: i + 1,
-          grade,
-          symbol,
-          colorClass,
-          pctX: Math.max(1, Math.min(99, (mx(i + 1) / svgWidth) * 100)),
-        })
-      }
+      const fill = GRADE_CIRCLE_COLOR[grade]
+      if (!fill) continue
+
+      const x = mx(i + 1)
+      const y = cpToY(me.eval.score, HEIGHT)
+      anns.push({ moveIndex: i + 1, x, y, fill, grade })
     }
 
     const bands: number[] = []
@@ -182,7 +171,6 @@ export default function EvalGraph({
     ? moveEvals[hoveredIndex - 1] : null
   const hoveredX = hoveredIndex !== null ? moveX(hoveredIndex) : null
 
-  // Tooltip left % (clamped so it stays within bounds)
   const tooltipLeftPct = hoveredX !== null
     ? Math.max(4, Math.min(96, (hoveredX / svgWidth) * 100))
     : null
@@ -209,7 +197,7 @@ export default function EvalGraph({
 
   return (
     <div className="eval-graph-wrap" ref={containerRef}>
-      {/* Tooltip — floats above the container */}
+      {/* Tooltip */}
       {hoveredEval && tooltipLeftPct !== null && (
         <div className="eval-graph-tooltip" style={{ left: `${tooltipLeftPct}%` }}>
           <span className="eval-graph-tooltip-move">
@@ -287,8 +275,8 @@ export default function EvalGraph({
             <path
               d={buildBezierPath(points)}
               fill="none"
-              stroke="rgba(255,255,255,0.30)"
-              strokeWidth="0.8"
+              stroke="rgba(255,255,255,0.35)"
+              strokeWidth="1.2"
             />
           )}
 
@@ -302,6 +290,43 @@ export default function EvalGraph({
             />
           )}
 
+          {/* Annotation circles + labels — rendered on the curve */}
+          {annotations.map(a => {
+            const label = GRADE_LABEL[a.grade]
+            const textColor = a.grade === 'inaccuracy' ? '#1a1a1a' : '#fff'
+            return (
+              <g
+                key={`ann-${a.moveIndex}`}
+                style={{ cursor: 'pointer' }}
+                onClick={(e) => { e.stopPropagation(); onNavigate(a.moveIndex) }}
+                onMouseEnter={() => setHoveredIndex(a.moveIndex)}
+              >
+                <circle
+                  cx={a.x}
+                  cy={a.y}
+                  r={DOT_R}
+                  fill={a.fill}
+                  stroke="rgba(15,17,23,0.7)"
+                  strokeWidth="1.5"
+                />
+                {label && (
+                  <text
+                    x={a.x}
+                    y={a.y}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fontSize="6.5"
+                    fontWeight="800"
+                    fill={textColor}
+                    style={{ pointerEvents: 'none', userSelect: 'none' }}
+                  >
+                    {label}
+                  </text>
+                )}
+              </g>
+            )
+          })}
+
           {/* Cursor line + dot */}
           {cursorX !== null && (
             <>
@@ -312,7 +337,7 @@ export default function EvalGraph({
                 opacity="0.88"
               />
               <circle
-                cx={cursorX} cy={cursorY} r="2.5"
+                cx={cursorX} cy={cursorY} r="2.8"
                 fill="var(--color-accent)"
                 stroke="rgba(255,255,255,0.6)"
                 strokeWidth="0.8"
@@ -322,22 +347,6 @@ export default function EvalGraph({
           )}
         </svg>
       </div>
-
-      {/* Annotation strip — HTML badges, immune to SVG coordinate stretching */}
-      {annotations.length > 0 && (
-        <div className="eval-graph-annotations">
-          {annotations.map(a => (
-            <span
-              key={a.moveIndex}
-              className={`eval-graph-badge ${a.colorClass}`}
-              style={{ left: `${a.pctX}%` }}
-              title={`${a.symbol} — move ${Math.ceil(a.moveIndex / 2)}`}
-            >
-              {a.symbol}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
