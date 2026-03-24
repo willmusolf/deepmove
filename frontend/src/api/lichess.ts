@@ -41,9 +41,15 @@ export async function loadMoreLichessGames(
   return { games, hasMore: games.length >= limit }
 }
 
-async function fetchLichessGames(username: string, limit: number, before?: number): Promise<LichessGame[]> {
+export async function searchGamesByOpponent(username: string, opponent: string, limit = 100): Promise<LichessLoadResult> {
+  const games = await fetchLichessGames(username, limit, undefined, opponent)
+  return { games, hasMore: games.length >= limit }
+}
+
+async function fetchLichessGames(username: string, limit: number, before?: number, vs?: string): Promise<LichessGame[]> {
   let url = `${LICHESS_BASE}/games/user/${username}?max=${limit}&pgnInJson=true&clocks=false&opening=false`
   if (before) url += `&until=${before}`
+  if (vs) url += `&vs=${encodeURIComponent(vs)}`
   const res = await fetch(url, { headers: { Accept: 'application/x-ndjson' } })
   if (!res.ok) throw new Error(`Lichess API error: ${res.status}`)
   const text = await res.text()

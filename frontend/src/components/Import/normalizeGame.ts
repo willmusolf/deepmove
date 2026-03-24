@@ -27,6 +27,25 @@ export function formatTimeControl(tc: string): string {
   if (isNaN(secs)) return tc
   return `${Math.round(secs / 60)} min`
 }
+/** Parse any time control string to total seconds, for categorization. */
+export function tcToSeconds(tc: string): number {
+  // "10 min" → 600
+  const minMatch = tc.match(/^(\d+)\s*min$/)
+  if (minMatch) return parseInt(minMatch[1], 10) * 60
+  // "10+0" or "3+2" → base minutes * 60 + increment seconds
+  const plusMatch = tc.match(/^(\d+)\+(\d+)$/)
+  if (plusMatch) return parseInt(plusMatch[1], 10) * 60 + parseInt(plusMatch[2], 10)
+  // Lichess speed strings (when no clock data)
+  const speedMap: Record<string, number> = {
+    bullet: 120, blitz: 300, rapid: 600, classical: 1800,
+    ultrabullet: 30, correspondence: 86400, daily: 86400,
+  }
+  if (speedMap[tc.toLowerCase()] !== undefined) return speedMap[tc.toLowerCase()]
+  // Raw seconds fallback
+  const raw = parseInt(tc, 10)
+  return isNaN(raw) ? 1800 : raw
+}
+
 
 function formatTimestamp(ms: number): string {
   const d = new Date(ms)
@@ -36,9 +55,14 @@ function formatTimestamp(ms: number): string {
 }
 
 export function normalizeChessCom(game: ChessComGame, username: string): NormalizedGame {
-  const isWhite = game.white.username.toLowerCase() === username.toLowerCase()
+  const lowerUser = username.toLowerCase()
+  // Determine which side the searched user is on. If neither matches, default to white.
+  const isWhite = game.black.username.toLowerCase() === lowerUser ? false
+    : game.white.username.toLowerCase() === lowerUser ? true
+    : true // fallback: treat as white if username not found (e.g. casing mismatch)
+  const me = isWhite ? game.white : game.black
   const opponent = isWhite ? game.black : game.white
-  const myResult = isWhite ? game.white.result : game.black.result
+  const myResult = me.result
   let result: 'W' | 'L' | 'D'
   if (myResult === 'win') result = 'W'
   else if (['checkmated', 'resigned', 'timeout', 'abandoned', 'lose'].includes(myResult)) result = 'L'
@@ -47,7 +71,7 @@ export function normalizeChessCom(game: ChessComGame, username: string): Normali
     pgn: game.pgn,
     opponent: opponent.username,
     opponentRating: opponent.rating,
-    userRating: (isWhite ? game.white : game.black).rating,
+    userRating: me.rating,
     result,
     timeControl: formatTimeControl(game.time_control),
     date: formatTimestamp(game.end_time * 1000),
@@ -95,15 +119,7 @@ export interface DetectedRatings {
 
 const LS_KEY = 'deepmove_detected_ratings'
 
-function tcToSeconds(tc: string): number {
-  if (tc.includes('+')) {
-    const base = parseInt(tc, 10)
-    if (isNaN(base)) return 600
-    return base >= 60 ? base : base * 60
-  }
-  const mins = parseInt(tc, 10)
-  return isNaN(mins) ? 600 : mins * 60
-}
+
 
 /**
  * Compute ratings from a freshly loaded game list and cache to localStorage.
