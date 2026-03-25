@@ -981,22 +981,22 @@ cg-board {
 .board-grade-badge {
   position: absolute;
   z-index: 10;
-  width: 18%;
-  max-width: 42px;
+  width: 22%;
+  max-width: 48px;
   aspect-ratio: 1;
   border-radius: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-75%, 25%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   font-weight: 900;
   font-family: var(--font-mono);
-  font-size: clamp(0.55rem, 2.2vw, 0.85rem);
+  font-size: clamp(0.6rem, 2.4vw, 0.9rem);
   line-height: 1;
   pointer-events: none;
   letter-spacing: 0.02em;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35), 0 2px 8px rgba(0,0,0,0.55);
 }
 
 /* Move list adjustments for badges */
