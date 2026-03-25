@@ -638,8 +638,8 @@ export default function App() {
                           key={destSquare}
                           className="board-grade-badge"
                           style={{
-                            left: `${(leftCell + 1) * 12.5}%`,
-                            top: `${(topCell + 1) * 12.5}%`,
+                            left: `${(leftCell + 0.5) * 12.5}%`,
+                            top: `${(topCell + 0.5) * 12.5}%`,
                             background: g.color,
                           }}
                         >
