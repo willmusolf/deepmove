@@ -38,6 +38,7 @@ export default function GameResultBanner({ result, reason, onReview, onNewGame }
   const icon = getIcon(result)
   const isWin = result === 'user-win'
   const isDraw = result === 'draw'
+  const isLoss = result === 'user-loss'
 
   return (
     <div className={`game-result-banner${isWin ? ' game-result-banner--win' : isDraw ? ' game-result-banner--draw' : ' game-result-banner--loss'}`}>
@@ -45,10 +46,17 @@ export default function GameResultBanner({ result, reason, onReview, onNewGame }
       <div className="game-result-title">{title}</div>
       {subtitle && <div className="game-result-subtitle">{subtitle}</div>}
       <div className="game-result-actions">
-        <button className="game-result-btn game-result-btn--primary" onClick={onReview}>
+        {/* After a loss, Review is the primary action — learning > rematch */}
+        <button
+          className={`game-result-btn ${isLoss ? 'game-result-btn--primary' : 'game-result-btn--secondary'}`}
+          onClick={onReview}
+        >
           Review This Game
         </button>
-        <button className="game-result-btn game-result-btn--secondary" onClick={onNewGame}>
+        <button
+          className={`game-result-btn ${isLoss ? 'game-result-btn--secondary' : 'game-result-btn--primary'}`}
+          onClick={onNewGame}
+        >
           New Game
         </button>
       </div>
