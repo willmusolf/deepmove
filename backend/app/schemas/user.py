@@ -12,6 +12,7 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     chesscom_username: str | None = None
     lichess_username: str | None = None
+    elo_estimate: int | None = None
     preferences: dict | None = None
 
 
