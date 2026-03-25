@@ -1,10 +1,10 @@
 # DeepMove Development TODO
 
-**Current Status**: Board logic ✅ complete. Backend ✅ running (Supabase connected, auth working). 50 backend tests passing. First end-to-end coaching loop ✅ working (3B-2 complete).
+**Current Status**: Board logic ✅ complete. Backend ✅ running (54 tests passing, CI green). Coaching pipeline ✅ complete (3B-6 done). Play vs Bot mode ✅ complete. Move grading overhaul ✅. Game import filters ✅.
 
 **Launch Target**: Complete product with coaching, accounts, and mobile compatibility.
 
-**Last Session**: 3B-2 coaching slice complete — feature extraction (threats, moveImpact, material, gamePhase), classifier (TACTICAL_01/02, OPENING_01/02/05), backend lesson endpoint wired, full coaching UI (CoachPanel, LessonCard, SocraticPrompt), App.tsx wired. 158 tests passing.
+**Last Session**: 2026-03-24 — Play vs Bot mode, move grading overhaul (Great/Miss grades, Lichess accuracy), game import filters/sort/cache, premove race condition fixed (chessground setTimeout(1) root cause), coaching prompts improved (Elo-calibrated, Think First checklist), eval bar back-nav fixed, bad move suggestions near mate fixed, utilities consolidated. 9 commits, CI green.
 
 ## 🟠 NEXT PHASE (COACHING FOUNDATION)
 
@@ -104,14 +104,14 @@ Fixes applied: psycopg3 URL rewriting, bcrypt 4.x pin, datetime.UTC → timezone
 - [x] Skips silently for guests (no auth token → no save)
 - [x] `useCoaching` hook: passes `platformGameId`, `platform`, `color` in request body
 - [x] `App.tsx`: passes `currentGameId` and `platform` from gameStore to `useCoaching`
-- [ ] **Known gap**: DB cache only hits if game has been synced to backend first (needs 3B-6)
+- [x] **Known gap resolved**: DB cache loop closed — pushGame called after analysis, backendGameId persisted
 
-**3B-6: Close the DB Cache Loop (NEXT)**
-- [ ] For the lesson DB cache to actually hit on game reload, the game must exist in the backend DB
-- [ ] Current flow: IndexedDB stores games locally; sync to PostgreSQL only on login + explicit sync
-- [ ] Option A: Store `backendGameId: number | null` on `AnalyzedGameRecord` in IndexedDB — populated on sync
-- [ ] Option B: Trigger a background game sync after analysis completes for logged-in users
-- [ ] Decision: Option A is simpler — add `backendGameId` to `AnalyzedGameRecord`, populate in `syncService.ts` after upload, read it in `gameStore` and pass to `useCoaching`
+**3B-6: Close the DB Cache Loop** ✅ DONE
+- [x] For the lesson DB cache to actually hit on game reload, the game must exist in the backend DB
+- [x] Current flow: IndexedDB stores games locally; sync to PostgreSQL only on login + explicit sync
+- [x] Option A implemented: Store `backendGameId: number | null` on `AnalyzedGameRecord` in IndexedDB — populated on sync
+- [x] Option B: Trigger a background game sync after analysis completes for logged-in users
+- [x] Decision: Option A is simpler — add `backendGameId` to `AnalyzedGameRecord`, populate in `syncService.ts` after upload, read it in `gameStore` and pass to `useCoaching`
 
 **Notes / guardrails for 3B**
 - [ ] Do not broaden MVP to all 19 principles yet
@@ -676,7 +676,8 @@ Learning to convert marginally winning positions
 -tactics trainer
 
 
-
+-wehn we are doing the moves on an analysis board game and we have the "opponent" (which is manually controlled by the user) take a piece, the pieces taekn dont show up properly. instead there is a ---?
+s
 
 -need to fix move suggestions lines. a little buggy ocassionaly and suggests shitty moves or moves that are losing. -still suggesting bad moves. like if mate can be prevented in only one way it will still recommend other mvoes? that instatnyl lose.
 
