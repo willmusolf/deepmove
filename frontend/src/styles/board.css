@@ -997,12 +997,6 @@ cg-board {
   pointer-events: none;
   letter-spacing: 0.02em;
   box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-  animation: grade-pop 0.18s ease-out;
-}
-
-@keyframes grade-pop {
-  from { transform: scale(0.65); opacity: 0; }
-  to   { transform: scale(1);    opacity: 1; }
 }
 
 /* Move list adjustments for badges */
