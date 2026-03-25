@@ -425,6 +425,11 @@ export default function App() {
     goToMove(index)
   }
 
+  function goToMoveSilent(index: number) {
+    pathKeyRef.current++
+    goToMove(index)
+  }
+
   // Free-play: enter first move of a best line (clicked in BestLines panel or via arrow)
   function handleAnalysisBestLineClick(line: TopLine) {
     const uci = line.pv[0]
@@ -446,13 +451,12 @@ export default function App() {
     setCoachIndex(idx)
     const moment = coachLessons[idx]?.moment
     if (!moment) return
-    // Navigate to the position BEFORE the user's mistake so they can see
-    // the board state they were looking at when they made the error.
+    // Navigate silently to the position BEFORE the mistake (no sound),
+    // then after 1s play the move with sound so the user sees and hears what they did.
     // Ply is 0-indexed: white move N = (N-1)*2, black move N = (N-1)*2+1
     const ply = (moment.moveNumber - 1) * 2 + (moment.color === 'black' ? 1 : 0)
-    handleGoToMove(ply)
-    // After a short delay, play the move so the user sees what they did
-    setTimeout(() => handleGoToMove(ply + 1), 650)
+    goToMoveSilent(ply)
+    setTimeout(() => handleGoToMove(ply + 1), 1000)
   }, [setCoachIndex, coachLessons]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // When the user switches to the Coach tab, auto-navigate to the current lesson's moment
@@ -462,8 +466,8 @@ export default function App() {
       const moment = coachLessons[coachIndex]?.moment
       if (!moment) return
       const ply = (moment.moveNumber - 1) * 2 + (moment.color === 'black' ? 1 : 0)
-      handleGoToMove(ply)
-      setTimeout(() => handleGoToMove(ply + 1), 650)
+      goToMoveSilent(ply)
+      setTimeout(() => handleGoToMove(ply + 1), 1000)
     }
   }, [panelTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -631,7 +635,7 @@ export default function App() {
                       const topCell  = orientation === 'white' ? (7 - rank) : rank
                       return (
                         <div
-                          key={currentMoveIndex}
+                          key={destSquare}
                           className="board-grade-badge"
                           style={{
                             left: `${(leftCell + 1) * 12.5}%`,
