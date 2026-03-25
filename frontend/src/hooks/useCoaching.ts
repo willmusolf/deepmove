@@ -70,6 +70,16 @@ export function useCoaching({
   const lastPgnRef = useRef('')
   const lastEloRef = useRef(0)
 
+  // Clear stale lessons immediately when a new game loads — prevents old game's
+  // lessons from flashing before the new game's lessons arrive.
+  useEffect(() => {
+    setLessons([])
+    setEnrichedMoments([])
+    setCurrentIndex(0)
+    lastPgnRef.current = ''
+    lastEloRef.current = 0
+  }, [pgn])
+
   useEffect(() => {
     if (!pgn || criticalMoments.length === 0 || moveEvals.length === 0) return
     if (pgn === lastPgnRef.current && userElo === lastEloRef.current) return
@@ -130,6 +140,8 @@ export function useCoaching({
           moveNumber: moment.moveNumber,
           color: moment.color,
           movePlayed: moment.movePlayed,
+          fen: moment.fen,
+          fenAfter: moment.fenAfter,
         },
         classification.principleId,
       )

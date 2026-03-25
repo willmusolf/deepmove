@@ -451,7 +451,21 @@ export default function App() {
     // Ply is 0-indexed: white move N = (N-1)*2, black move N = (N-1)*2+1
     const ply = (moment.moveNumber - 1) * 2 + (moment.color === 'black' ? 1 : 0)
     handleGoToMove(ply)
+    // After a short delay, play the move so the user sees what they did
+    setTimeout(() => handleGoToMove(ply + 1), 650)
   }, [setCoachIndex, coachLessons]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When the user switches to the Coach tab, auto-navigate to the current lesson's moment
+  // so the board always reflects the coaching position.
+  useEffect(() => {
+    if (panelTab === 'coach' && coachLessons.length > 0) {
+      const moment = coachLessons[coachIndex]?.moment
+      if (!moment) return
+      const ply = (moment.moveNumber - 1) * 2 + (moment.color === 'black' ? 1 : 0)
+      handleGoToMove(ply)
+      setTimeout(() => handleGoToMove(ply + 1), 650)
+    }
+  }, [panelTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Are we currently in a branch (off the main line)?
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine

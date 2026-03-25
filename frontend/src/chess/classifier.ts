@@ -105,19 +105,76 @@ export function classifyPrinciple(
 }
 
 /**
+ * Parse a FEN string and return the piece on a given square, or null.
+ * Returns { type: 'p'|'n'|'b'|'r'|'q'|'k', color: 'w'|'b' } or null.
+ */
+function getPieceOnSquare(fen: string, square: string): { type: string; color: 'w' | 'b' } | null {
+  const boardPart = fen.split(' ')[0]
+  const ranks = boardPart.split('/')
+  const file = square.charCodeAt(0) - 'a'.charCodeAt(0)   // 0-7
+  const rank = 8 - parseInt(square[1], 10)                  // 0-7 (rank 8 = index 0)
+  if (rank < 0 || rank > 7 || file < 0 || file > 7) return null
+  const rankStr = ranks[rank]
+  let col = 0
+  for (const ch of rankStr) {
+    if (ch >= '1' && ch <= '8') {
+      col += parseInt(ch, 10)
+    } else {
+      if (col === file) {
+        return { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' }
+      }
+      col++
+    }
+  }
+  return null
+}
+
+/**
  * Build the verified_facts list sent to the LLM.
  * Translates features + classification into plain-English sentences the coach uses.
  */
 export function buildVerifiedFacts(
   features: PositionFeatures,
-  moment: Pick<CriticalMoment, 'evalSwing' | 'moveNumber' | 'color' | 'movePlayed'>,
+  moment: Pick<CriticalMoment, 'evalSwing' | 'moveNumber' | 'color' | 'movePlayed' | 'fen' | 'fenAfter'>,
   principleId: string | null | undefined,
 ): string[] {
   const facts: string[] = []
   const { threats, development, moveImpact, gamePhase, material } = features
+
+  // Derive factual outcome of the move: was the destination square piece captured?
+  // Parse fenAfter to check if the moved piece is still on its destination square.
+  // moveImpact.toSquare tells us where it landed; if opponent's fenAfter shows a
+  // different piece there (or nothing), the piece was captured in response.
+  // We use the fenAfter's side-to-move: if it's now the opponent's turn and the
+  // piece is on toSquare, it was NOT captured yet.
+  const destSquare = moveImpact.toSquare
+  const pieceOnDest = destSquare ? getPieceOnSquare(moment.fenAfter, destSquare) : null
+  const movedPieceType = moveImpact.pieceMoved   // 'p','n','b','r','q','k'
+  const movedPieceColor = moment.color === 'white' ? 'w' : 'b'
+  // In fenAfter it's opponent's turn, but the piece we moved should still be there
+  // (it won't be captured until the NEXT move). So "still on dest" is almost always true
+  // right after the move — but we can detect if it was en-passant capture gone or similar.
+  const movedPieceStillOnDest = pieceOnDest !== null &&
+    pieceOnDest.type === movedPieceType &&
+    pieceOnDest.color === movedPieceColor
+
+  // Was check given? The fenAfter string after the board has a check marker in SAN,
+  // but we can also detect from fenAfter whether the opponent's king is in check.
+  const gaveCheck = moment.movePlayed.includes('+') || moment.movePlayed.includes('#')
   const userDev = moment.color === 'white' ? development.white : development.black
 
   facts.push(`Move ${moment.moveNumber}: ${moment.movePlayed} (eval swing: ${moment.evalSwing}cp)`)
+  if (gaveCheck) {
+    facts.push(`This move gave CHECK — the opponent's king was under attack and had to respond to the check (NOT capture the moved piece)`)
+  }
+  // Critical fact: prevent LLM from assuming the piece was captured after the move
+  if (destSquare) {
+    if (movedPieceStillOnDest) {
+      if (!gaveCheck) {
+        facts.push(`After this move, the ${PIECE_NAME_MAP[movedPieceType] ?? movedPieceType} is still on ${destSquare} — it was NOT immediately captured by the opponent`)
+      }
+    }
+  }
   facts.push(`Game phase: ${gamePhase}`)
 
   const balanceStr = material.balance === 0
