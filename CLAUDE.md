@@ -174,6 +174,8 @@ deepmove/
 │   └── tests/
 │
 ├── scripts/
+│   ├── slideshow_generator.py  # daily TikTok/Instagram slideshow generator (Claude + DALL-E 3)
+│   ├── requirements_slideshow.txt  # pip deps for slideshow_generator.py
 │   ├── test_prompts.py
 │   ├── pull_games.py
 │   ├── validate_features.py
@@ -525,7 +527,7 @@ uvicorn app.main:app --reload               # FastAPI on :8000
 
 # Required env vars:
 ANTHROPIC_API_KEY=
-DATABASE_URL=postgresql://...    # Supabase connection string
+DATABASE_URL=postgresql://...    # Neon connection string
 SECRET_KEY=                      # any long random string
 ```
 

@@ -25,10 +25,11 @@ Log every significant technical decision here. Date, decision, rationale, altern
 **Rationale:** Redis adds operational complexity and a failure point. In-memory LRU is sufficient until we have meaningful traffic. Cache resets on server restart — acceptable for MVP.
 **Upgrade path:** Swap `cachetools.LRUCache` for Upstash Redis client. Single service change, rest of codebase unchanged.
 
-### ADR-005: Supabase for PostgreSQL
-**Decision:** Use Supabase managed PostgreSQL instead of self-hosted.
-**Rationale:** No Docker, no database admin, free dev tier. Supabase also used by Chessigma and many other successful apps. Scales to production without operational overhead.
-**Upgrade path:** If we outgrow Supabase free tier, migrate to Supabase Pro ($25/mo) or Neon Serverless.
+### ADR-005: Neon for PostgreSQL
+**Decision:** Use Neon serverless PostgreSQL. Migrated from Supabase (2026-03-27).
+**Original rationale:** No Docker, no database admin, free dev tier.
+**Migration rationale:** Neon offers serverless auto-scaling, branching for dev/preview, and a more generous free tier. Supabase was only used as a plain Postgres host — no SDK features were in use, making the migration a connection string swap.
+**Upgrade path:** Neon Pro ($19/mo) if we exceed free tier limits.
 
 ### ADR-006: Vercel (Frontend) + Railway (Backend)
 **Decision:** Frontend on Vercel, backend on Railway.

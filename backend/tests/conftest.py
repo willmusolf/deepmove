@@ -1,6 +1,6 @@
 """conftest.py — Test fixtures for DeepMove backend.
 
-Uses a real PostgreSQL database (same Supabase instance in dev,
+Uses a real PostgreSQL database (same Neon instance in dev,
 GitHub Actions service container in CI). Creates/drops all tables
 per test session for isolation.
 """
