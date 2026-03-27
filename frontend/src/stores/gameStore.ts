@@ -50,6 +50,8 @@ interface GameState {
   setBackendGameId: (id: number | null) => void
   setCurrentGameMeta: (meta: GameMeta | null) => void
   setSkipNextAnalysis: (v: boolean) => void
+  resumeFromIndex: number              // 0 = fresh analysis, N = resume from move N
+  setResumeFromIndex: (n: number) => void
   reset: () => void
 }
 
@@ -71,6 +73,7 @@ const initialState = {
   backendGameId: null as number | null,
   currentGameMeta: null as GameMeta | null,
   skipNextAnalysis: false,
+  resumeFromIndex: 0,
 }
 
 export const useGameStore = create<GameState>(set => ({
@@ -92,5 +95,6 @@ export const useGameStore = create<GameState>(set => ({
   setBackendGameId: backendGameId => set({ backendGameId }),
   setCurrentGameMeta: currentGameMeta => set({ currentGameMeta }),
   setSkipNextAnalysis: skipNextAnalysis => set({ skipNextAnalysis }),
+  setResumeFromIndex: resumeFromIndex => set({ resumeFromIndex }),
   reset: () => set(initialState),
 }))

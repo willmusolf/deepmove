@@ -8,6 +8,7 @@ interface BestLinesProps {
   isAnalyzingPosition: boolean
   onLineClick: (line: TopLine) => void
   depth?: number
+  targetDepth?: number
 }
 
 const LINE_COLORS = ['#4ade80', '#60a5fa', '#facc15']  // green, blue, yellow
@@ -20,7 +21,7 @@ function formatScore(line: TopLine): string {
   return line.score >= 0 ? `+${pawns}` : pawns
 }
 
-export default function BestLines({ lines, isAnalyzingPosition, onLineClick, depth }: BestLinesProps) {
+export default function BestLines({ lines, isAnalyzingPosition, onLineClick, depth, targetDepth }: BestLinesProps) {
   if (!isAnalyzingPosition && lines.length === 0) return null
 
   return (
@@ -47,7 +48,7 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, dep
           ))}
           {depth != null && depth > 0 && (
             <div className="best-lines-depth">
-              depth: {depth}{isAnalyzingPosition ? ' ↑' : ''}
+              depth: {depth}{targetDepth ? ` / ${targetDepth}` : ''}{isAnalyzingPosition ? ' ...' : ''}
             </div>
           )}
         </>

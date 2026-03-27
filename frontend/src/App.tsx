@@ -172,7 +172,9 @@ export default function App() {
   const isPieceMoveRef = useRef(false)
 
   function triggerPositionAnalysis(fen: string) {
-    stopPositionAnalysis()
+    // NOTE: callers are responsible for calling stopPositionAnalysis() before this.
+    // Do NOT call stopPositionAnalysis() here — it would send a second 'stop' command
+    // to the worker, which races with the new analysis dispatch and kills it at low depth.
 
     const cached = positionCache.current.get(fen)
     if (cached) {
@@ -182,11 +184,25 @@ export default function App() {
       return
     }
 
+    // Cap multi-PV to legal move count (avoids duplicate arrows on forced moves)
+    let numLines = 3
+    try {
+      const chess = new Chess(fen)
+      const legalMoveCount = chess.moves().length
+      if (legalMoveCount === 0) {
+        // Terminal position (checkmate/stalemate) — nothing to analyze
+        setCurrentPositionLines([])
+        setAnalyzingPosition(false)
+        return
+      }
+      numLines = Math.min(3, legalMoveCount)
+    } catch { /* invalid FEN — fall through with default 3 */ }
+
     const token = ++positionTokenRef.current
     setAnalyzingPosition(true)
     setCurrentAnalysisDepth(0)
 
-    analyzePositionLines(fen, 18, 3, (lines, depth) => {
+    analyzePositionLines(fen, 16, numLines, (lines, depth) => {
       if (positionTokenRef.current !== token) return
       setCurrentPositionLines(lines)
       setCurrentAnalysisDepth(depth)
@@ -214,8 +230,6 @@ export default function App() {
       return
     }
 
-    // DON'T clear lines here — keep showing the previous position's lines until
-    // new results arrive. This prevents the 50ms blank flash on every move.
     stopPositionAnalysis()
 
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
@@ -237,15 +251,25 @@ export default function App() {
       lastNavTimeRef.current = now
 
       if (gap < 100) {
-        // Flying through moves with arrow keys — clear stale arrows immediately so they
-        // don't linger on the wrong position, then wait for pause before analyzing.
+        // Flying through moves — check cache first for instant display
+        const fastCached = positionCache.current.get(displayFen)
+        if (fastCached) {
+          setCurrentPositionLines(fastCached)
+          setCurrentAnalysisDepth(fastCached[0]?.depth ?? 0)
+          setAnalyzingPosition(false)
+          return
+        }
+        // Not cached — clear stale arrows and defer analysis until user pauses
         setCurrentPositionLines([])
         setCurrentAnalysisDepth(0)
         navHoldTimerRef.current = setTimeout(() => {
           triggerPositionAnalysis(displayFen)
         }, 180)
       } else {
-        // Single arrow key press — fire immediately (keep old lines visible until new arrive)
+        // Single arrow key press — clear stale arrows immediately, then fire analysis.
+        // Old arrows belong to a different position; showing them is misleading.
+        setCurrentPositionLines([])
+        setCurrentAnalysisDepth(0)
         triggerPositionAnalysis(displayFen)
       }
     }
@@ -529,6 +553,7 @@ export default function App() {
         // Same sign = both sides mating in same direction? Only show if equal or faster.
         if (best.mateIn !== null && line.mateIn !== null) {
           if ((best.mateIn > 0) !== (line.mateIn > 0)) return false  // opposite mate direction
+          return Math.abs(line.mateIn) <= Math.abs(best.mateIn)  // only show equal or faster mate
         }
         return true
       }
@@ -550,6 +575,7 @@ export default function App() {
   // ── Misc ───────────────────────────────────────────────────────────────────
 
   const moveGrades = useMemo(() => moveEvals.map(me => me.grade), [moveEvals])
+
   const showAnalyzingBar = isAnalyzing || (analyzedCount < totalMovesCount && totalMovesCount > 0)
 
 
@@ -585,13 +611,15 @@ export default function App() {
                         clockTime={topClock}
                       />
                     ) : (
-                      <div className="player-info-box player-info-placeholder">
-                        <div className="player-avatar"><div className="avatar-fallback avatar-fallback--neutral">♟</div></div>
-                        <div className="player-info-lines">
-                          <div className="player-line-1"><span className="player-name">Analysis Board</span></div>
-                          <div className="player-line-2"><span className="player-rating">—</span></div>
-                        </div>
-                      </div>
+                      <PlayerInfoBox
+                        username="Analysis Board"
+                        elo={null}
+                        isWhite={orientation !== 'white'}
+                        isToMove={displayFen.split(' ')[1] === (orientation === 'white' ? 'b' : 'w')}
+                        currentFen={displayFen}
+                        platform={null}
+                        clockTime={undefined}
+                      />
                     )}
                     <div style={{ position: 'relative' }}>
                     <ChessBoard
@@ -692,7 +720,7 @@ export default function App() {
                       <button className="nav-btn" onClick={analysisBoardGoBack}
                         disabled={analysisPath.length === 0}>←</button>
                       <span className="move-counter">
-                        {analysisPath.length}
+                        {analysisPath.length}{analysisMainLineSans.length > 0 ? ` / ${analysisMainLineSans.length}` : ""}
                       </span>
                       <button className="nav-btn" onClick={analysisBoardGoForward}
                         disabled={
@@ -806,9 +834,23 @@ export default function App() {
                           {isAnalyzingPosition && (
                             <span className="eval-display-depth">analyzing…</span>
                           )}
+                          {!isAnalyzingPosition && inBranch && currentAnalysisDepth > 0 && (
+                            <span className="eval-display-depth">depth {currentAnalysisDepth}</span>
+                          )}
                         </div>
                       )}
 
+
+                      {/* Best lines — shown in branches where we rely on live engine */}
+                      {inBranch && (
+                        <BestLines
+                          lines={visibleLines}
+                          isAnalyzingPosition={isAnalyzingPosition}
+                          onLineClick={handleAnalysisBestLineClick}
+                          depth={currentAnalysisDepth}
+                          targetDepth={16}
+                        />
+                      )}
                       {/* Eval graph — hidden during analysis, shown after completion */}
                       {!isAnalyzing && moveEvals.length > 0 && (
                         <EvalGraph
@@ -978,6 +1020,7 @@ export default function App() {
                         isAnalyzingPosition={isAnalyzingPosition}
                         onLineClick={handleAnalysisBestLineClick}
                         depth={currentAnalysisDepth}
+                        targetDepth={16}
                       />
 
                       {/* Analysis board move tree */}

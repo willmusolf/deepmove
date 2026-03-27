@@ -2,7 +2,7 @@
 // Reuses ChessBoard, PlayerInfoBox, EvalBar, MoveList from the review flow.
 // All game state comes from playStore; game loop is in useBotPlay.
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Key } from 'chessground/types'
 import { usePlayStore, STARTING_FEN } from '../../stores/playStore'
 import { msToHHMMSS } from '../../utils/format'
@@ -17,6 +17,7 @@ import GameResultBanner from './GameResultBanner'
 import { useAuthStore } from '../../stores/authStore'
 import type { TopLine } from '../../engine/stockfish'
 import type { DrawShape } from '../Board/ChessBoard'
+import { Chess } from 'chess.js'
 
 interface Props {
   analyzePositionLines: (
@@ -31,7 +32,7 @@ interface Props {
 
 export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis, onNavigateToReview }: Props) {
   const { handleUserMove, handlePremoveSet, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
-  const { enabled: soundEnabled, toggle: toggleSound } = useSound()
+  const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound } = useSound()
 
   // Play store state
   const status      = usePlayStore(s => s.status)
@@ -197,7 +198,16 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
     const fen = analysisFen
     analysisAbortRef.current = false
 
-    analyzePositionLines(fen, 18, 3, (lines) => {
+    // Cap multi-PV to legal move count
+    let numLines = 3
+    try {
+      const chess = new Chess(fen)
+      const legalMoveCount = chess.moves().length
+      if (legalMoveCount === 0) { setPositionLines([]); return }
+      numLines = Math.min(3, legalMoveCount)
+    } catch { /* invalid FEN */ }
+
+    analyzePositionLines(fen, 16, numLines, (lines) => {
       if (!analysisAbortRef.current) setPositionLines(lines)
     }).then(lines => {
       if (!analysisAbortRef.current) setPositionLines(lines)
@@ -222,10 +232,31 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   const isMate  = topLine?.isMate ?? false
   const mateIn  = topLine?.mateIn ?? null
 
+  // Filter lines by quality — only show alternatives close to the best move
+  const visibleLines = useMemo(() => {
+    const lines = positionLines
+    if (lines.length === 0) return []
+    const best = lines[0]
+    return lines.filter((line, i) => {
+      if (i === 0) return true
+      if (best.isMate !== line.isMate) return false
+      if (best.isMate && line.isMate) {
+        if (best.mateIn !== null && line.mateIn !== null) {
+          if ((best.mateIn > 0) !== (line.mateIn > 0)) return false
+        }
+        return true
+      }
+      const gap = Math.abs(line.score - best.score)
+      if (i === 1) return gap <= 150
+      if (i === 2) return gap <= 50
+      return false
+    })
+  }, [positionLines])
+
   // Arrow shapes for best-move suggestions (only shown on user's turn)
   const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
-  const boardShapes: DrawShape[] = (showArrows && positionLines.length > 0 && isUserTurn && !browsePosition)
-    ? positionLines
+  const boardShapes: DrawShape[] = (showArrows && visibleLines.length > 0 && isUserTurn && !browsePosition)
+    ? visibleLines
         .filter(l => l.pv.length >= 1)
         .map((line, i) => ({
           orig: line.pv[0].slice(0, 2) as Key,
@@ -360,6 +391,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
               orientation={orientation}
               interactive={boardInteractive}
               onMove={handleUserMove}
+              onIllegalMove={playIllegalSound}
               lastMove={lastMove}
               pathKey={browseStep}
               premoveColor={status === 'playing' && config && !browsePosition ? config.userColor : undefined}

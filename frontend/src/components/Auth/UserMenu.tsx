@@ -1,7 +1,6 @@
 // UserMenu.tsx — User avatar/sign-in button for the sidebar.
 import { useState, useRef, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
-import { migrateOnSignup, syncGames } from '../../services/syncService'
 import { getPlayerProfile } from '../../api/chesscom'
 import AuthModal from './AuthModal'
 import type { Page } from '../Layout/NavSidebar'
@@ -15,9 +14,7 @@ export default function UserMenu({ currentPage, onNavigate }: UserMenuProps) {
   const user = useAuthStore(s => s.user)
   const isLoading = useAuthStore(s => s.isLoading)
   const [showAuth, setShowAuth] = useState(false)
-  const [syncMsg, setSyncMsg] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const wasLoggedIn = useRef(!!user)
 
   // Fetch Chess.com avatar when username is available
   useEffect(() => {
@@ -29,31 +26,8 @@ export default function UserMenu({ currentPage, onNavigate }: UserMenuProps) {
 
   if (isLoading) return null
 
-  async function handleAuthSuccess() {
+  function handleAuthSuccess() {
     setShowAuth(false)
-    const isNewUser = !wasLoggedIn.current
-    wasLoggedIn.current = true
-
-    try {
-      if (isNewUser && !localStorage.getItem('deepmove_migrated')) {
-        setSyncMsg('Syncing your games...')
-        const result = await migrateOnSignup()
-        if (result.uploaded > 0) {
-          setSyncMsg(`Synced ${result.uploaded} game${result.uploaded !== 1 ? 's' : ''}`)
-        } else {
-          setSyncMsg('')
-        }
-      } else {
-        setSyncMsg('Syncing...')
-        const result = await syncGames()
-        const total = result.uploaded + result.downloaded
-        setSyncMsg(total > 0 ? `Synced ${total} game${total !== 1 ? 's' : ''}` : '')
-      }
-    } catch {
-      setSyncMsg('')
-    }
-
-    setTimeout(() => setSyncMsg(''), 3000)
   }
 
   if (!user) {
@@ -84,7 +58,6 @@ export default function UserMenu({ currentPage, onNavigate }: UserMenuProps) {
 
   return (
     <div className="nav-user">
-      {syncMsg && <div className="nav-sync-msg">{syncMsg}</div>}
       <button
         className={`nav-user-btn${currentPage === 'settings' ? ' active' : ''}`}
         onClick={() => onNavigate('settings')}

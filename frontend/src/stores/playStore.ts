@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import type { MoveNode, MoveTree } from '../chess/types'
 
 export type TimeControl = 'none' | '5+0' | '10+0' | '15+10'
+export type BotSpeed = 'instant' | 'fast' | 'normal' | 'slow'
 export type GameStatus = 'idle' | 'playing' | 'finished'
 export type GameResult = 'user-win' | 'user-loss' | 'draw' | null
 export type GameEndReason =
@@ -22,6 +23,7 @@ export interface PlayConfig {
   botElo: number                  // 500–3000
   timeControl: TimeControl
   incrementMs: number             // 0 for 5+0/10+0, 10000 for 15+10
+  botSpeed: BotSpeed              // UI think-time pad
 }
 
 export const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'

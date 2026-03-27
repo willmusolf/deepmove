@@ -14,6 +14,7 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   const user = useAuthStore(s => s.user)
   const updateProfile = useAuthStore(s => s.updateProfile)
   const logout = useAuthStore(s => s.logout)
+  const changePassword = useAuthStore(s => s.changePassword)
   const { appTheme, boardTheme, soundEnabled, setAppTheme, setBoardTheme, setSoundEnabled } = usePrefsStore()
 
   // Chess account fields
@@ -27,6 +28,43 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
 
   // Cache clear
   const [clearMsg, setClearMsg] = useState('')
+
+  // Password change
+  const [currentPw, setCurrentPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [confirmPw, setConfirmPw] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwMsg, setPwMsg] = useState('')
+  const [pwIsError, setPwIsError] = useState(false)
+
+  async function handleChangePassword() {
+    if (newPw !== confirmPw) {
+      setPwMsg('Passwords do not match')
+      setPwIsError(true)
+      return
+    }
+    if (newPw.length < 8) {
+      setPwMsg('New password must be at least 8 characters')
+      setPwIsError(true)
+      return
+    }
+    setPwSaving(true)
+    setPwMsg('')
+    try {
+      await changePassword(currentPw, newPw)
+      setPwMsg('Password changed!')
+      setPwIsError(false)
+      setCurrentPw('')
+      setNewPw('')
+      setConfirmPw('')
+    } catch (err) {
+      setPwMsg(err instanceof Error ? err.message : 'Failed to change password')
+      setPwIsError(true)
+    } finally {
+      setPwSaving(false)
+      setTimeout(() => setPwMsg(''), 4000)
+    }
+  }
 
   async function handleSaveAccounts() {
     setAccountSaving(true)
@@ -142,6 +180,57 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
           <p className="profile-guest-note">Sign in to save your settings and link chess accounts.</p>
         )}
       </section>
+
+
+      {/* ── Security ─────────────────────────────────────────────────── */}
+      {user && (
+        <section className="profile-section">
+          <h3 className="profile-section-title">Security</h3>
+          <div className="profile-field-group">
+            <div className="profile-field">
+              <label className="profile-field-label">Current password</label>
+              <input
+                className="profile-input"
+                type="password"
+                value={currentPw}
+                onChange={e => setCurrentPw(e.target.value)}
+              />
+            </div>
+            <div className="profile-field">
+              <label className="profile-field-label">New password</label>
+              <input
+                className="profile-input"
+                type="password"
+                value={newPw}
+                onChange={e => setNewPw(e.target.value)}
+              />
+            </div>
+            <div className="profile-field">
+              <label className="profile-field-label">Confirm new password</label>
+              <input
+                className="profile-input"
+                type="password"
+                value={confirmPw}
+                onChange={e => setConfirmPw(e.target.value)}
+              />
+            </div>
+            <div className="profile-field-row">
+              <button
+                className="btn btn-primary"
+                onClick={handleChangePassword}
+                disabled={pwSaving || !currentPw || !newPw || !confirmPw}
+              >
+                {pwSaving ? 'Changing…' : 'Change Password'}
+              </button>
+              {pwMsg && (
+                <span className={`profile-msg${pwIsError ? ' profile-msg--err' : ' profile-msg--ok'}`}>
+                  {pwMsg}
+                </span>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── Chess Accounts ───────────────────────────────────────────── */}
       <section className="profile-section">
@@ -300,7 +389,7 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
         <div className="profile-field-group">
           <div className="profile-field">
             <div className="profile-field-row">
-              <button className="btn btn-secondary" onClick={logout}>
+              <button className="btn btn-secondary" onClick={() => { if (window.confirm('Log out of DeepMove?')) logout() }}>
                 Log Out
               </button>
             </div>

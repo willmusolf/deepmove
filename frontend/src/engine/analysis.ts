@@ -142,6 +142,9 @@ export async function analyzeGame(
   onProgress?: (completed: number, total: number) => void,
   signal?: AbortSignal,
   movetime?: number,
+  onMoveComplete?: (eval_: MoveEval, index: number) => void,
+  startFromIndex = 0,
+  initialEvals: MoveEval[] = [],
 ): Promise<MoveEval[]> {
   const chess = new Chess()
   chess.loadPgn(cleanPgn(pgn))
@@ -150,7 +153,8 @@ export async function analyzeGame(
   // Build position list: [startFen, afterMove1, afterMove2, ...]
   const positions: string[] = [STARTING_FEN, ...history.map(m => m.after)]
 
-  const results: MoveEval[] = []
+  // Start with already-analyzed evals (from resume)
+  const results: MoveEval[] = [...initialEvals]
 
   // Pre-compute legal move counts at each position BEFORE the move
   const legalMoveCounts: number[] = []
@@ -159,10 +163,11 @@ export async function analyzeGame(
     legalMoveCounts.push(tempChess.moves().length)
   }
 
-  let prevScore = 0  // Starting position eval (assume ~0)
-  let prevOpponentGrade: MoveGrade = null
+  // Seed prevScore/prevOpponentGrade from the last known eval (for resume continuity)
+  let prevScore = results.length > 0 ? results[results.length - 1].eval.score : 0
+  let prevOpponentGrade: MoveGrade = results.length > 0 ? results[results.length - 1].grade : null
 
-  for (let i = 0; i < history.length; i++) {
+  for (let i = startFromIndex; i < history.length; i++) {
     if (signal?.aborted) break
     const move = history[i]
     const fen = positions[i + 1]
@@ -192,7 +197,8 @@ export async function analyzeGame(
       grade,
     }
     results.push(moveEval)
-    onProgress?.(i + 1, history.length)
+    onMoveComplete?.(moveEval, i)
+    onProgress?.(results.length, history.length)
     prevScore = scoreWhite
     prevOpponentGrade = grade  // this move's grade becomes next move's prevOpponentGrade
   }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { PlayConfig, TimeControl } from '../../stores/playStore'
+import type { PlayConfig, TimeControl, BotSpeed } from '../../stores/playStore'
 
 interface Props {
   initialOrientation: 'white' | 'black'
@@ -12,6 +12,13 @@ const TIME_CONTROLS: { value: TimeControl; label: string }[] = [
   { value: '5+0',   label: '5+0' },
   { value: '10+0',  label: '10+0' },
   { value: '15+10', label: '15+10' },
+]
+
+const BOT_SPEEDS: { value: BotSpeed; label: string; hint: string }[] = [
+  { value: 'instant', label: 'Instant', hint: 'Plays immediately' },
+  { value: 'fast',    label: 'Fast',    hint: '~0.8s think time' },
+  { value: 'normal',  label: 'Normal',  hint: '~1.5s think time' },
+  { value: 'slow',    label: 'Slow',    hint: '~3s think time' },
 ]
 
 function getEloLabel(elo: number): string {
@@ -30,6 +37,7 @@ function getIncrementMs(tc: TimeControl): number {
 export default function PlaySetupPanel({ initialOrientation, onStart, engineReady = true }: Props) {
   const [botElo, setBotElo] = useState(1200)
   const [timeControl, setTimeControl] = useState<TimeControl>('none')
+  const [botSpeed, setBotSpeed] = useState<BotSpeed>('normal')
 
   function handleStart() {
     onStart({
@@ -37,6 +45,7 @@ export default function PlaySetupPanel({ initialOrientation, onStart, engineRead
       botElo,
       timeControl,
       incrementMs: getIncrementMs(timeControl),
+      botSpeed,
     })
   }
 
@@ -82,6 +91,22 @@ export default function PlaySetupPanel({ initialOrientation, onStart, engineRead
       </div>
 
       <div className="play-setup-section">
+        <label className="play-setup-label">Bot Speed</label>
+        <div className="play-setup-pills">
+          {BOT_SPEEDS.map(s => (
+            <button
+              key={s.value}
+              className={`play-setup-pill${botSpeed === s.value ? ' active' : ''}`}
+              onClick={() => setBotSpeed(s.value)}
+              title={s.hint}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+            <div className="play-setup-section">
         <label className="play-setup-label">Coach Mode</label>
         <div className="play-setup-coach-row">
           <button className="play-setup-pill play-setup-pill--disabled" disabled>

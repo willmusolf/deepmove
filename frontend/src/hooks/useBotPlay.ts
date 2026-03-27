@@ -223,12 +223,12 @@ export function useBotPlay(onNavigateToReview: () => void) {
     if (localStorage.getItem('soundEnabled') === 'false') return
     const event = classifySan(san)
     const paths: Record<string, string> = {
-      move:    '/sounds/move-self.mp3',
+      move:    '/sounds/move.mp3',
       capture: '/sounds/capture.mp3',
       castle:  '/sounds/castle.mp3',
       check:   '/sounds/move-check.mp3',
-      mate:    '/sounds/game-end.mp3',
-      promote: '/sounds/promote.mp3',
+      mate:    '/sounds/checkmate.mp3',
+      promote: '/sounds/confirmation.mp3',
     }
     const path = paths[event] ?? paths.move
     if (!audioRefs.current[path]) {
@@ -342,9 +342,11 @@ export function useBotPlay(onNavigateToReview: () => void) {
       return
     }
 
-    // Pad to 1 second total bot move time
+    // Pad to configured think time (botSpeed controls how "human" the bot feels)
     const elapsed = performance.now() - botMoveStart
-    const remaining = Math.max(0, 1000 - elapsed)
+    const MIN_WAIT: Record<string, number> = { instant: 0, fast: 800, normal: 1500, slow: 3000 }
+    const minWait = MIN_WAIT[config.botSpeed ?? 'normal'] ?? 1500
+    const remaining = Math.max(0, minWait - elapsed)
     if (remaining > 0) {
       await new Promise<void>(r => setTimeout(r, remaining))
     }

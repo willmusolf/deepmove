@@ -72,17 +72,69 @@ export function useStockfish() {
     abortRef.current = controller
 
     setAnalyzing(true)
-    setMoveEvals([])
     setAnalyzedCount(0)
     setTotalMovesCount(0)
 
     const color = userColor ?? 'white'
 
+    // Resume support: read how many moves are already analyzed from the store
+    const startFromIndex = useGameStore.getState().resumeFromIndex
+    const initialEvals = startFromIndex > 0 ? useGameStore.getState().moveEvals : []
+    // Reset resumeFromIndex so a subsequent fresh analysis doesn't accidentally resume
+    useGameStore.getState().setResumeFromIndex(0)
+
+    if (startFromIndex === 0) {
+      setMoveEvals([])
+    }
+    // If resuming, moveEvals already has the cached evals (set by handleSelect) — don't clear them
+
+    // Build a partial game record template (filled in per-move and on completion)
+    function buildRecord(evals: import('../engine/analysis').MoveEval[], partial: boolean, moments?: import('../chess/types').CriticalMoment[]) {
+      const state = useGameStore.getState()
+      if (!state.currentGameId || !state.currentGameMeta) return null
+      const username = localStorage.getItem(
+        state.platform === 'lichess' ? 'deepmove_lichess_username' : 'deepmove_chesscom_username'
+      ) ?? ''
+      return {
+        id: state.currentGameId,
+        username,
+        platform: (state.platform ?? 'pgn-paste') as 'chesscom' | 'lichess' | 'pgn-paste',
+        rawPgn: state.rawPgn ?? pgn,
+        cleanedPgn: state.pgn ?? pgn,
+        userColor: state.userColor,
+        userElo: state.userElo,
+        moveEvals: evals,
+        criticalMoments: moments ?? [],
+        analyzedAt: Date.now(),
+        opponent: state.currentGameMeta.opponent,
+        opponentRating: state.currentGameMeta.opponentRating,
+        result: state.currentGameMeta.result,
+        timeControl: state.currentGameMeta.timeControl,
+        endTime: state.currentGameMeta.endTime,
+        backendGameId: state.backendGameId ?? null,
+        partial,
+      }
+    }
+
+    // Per-move callback: update store + save partial checkpoint to IndexedDB
+    const accumulatedEvals: import('../engine/analysis').MoveEval[] = [...initialEvals]
+    function onMoveComplete(moveEval: import('../engine/analysis').MoveEval) {
+      accumulatedEvals.push(moveEval)
+      setMoveEvals([...accumulatedEvals])
+      setAnalyzedCount(accumulatedEvals.length)
+      const record = buildRecord([...accumulatedEvals], true)
+      if (record) saveAnalyzedGame(record).catch(() => {})
+    }
+
     try {
-      const results = await analyzeGame(pgn, engine, getAnalysisDepth(userElo), (done, total) => {
-        if (done === 1) setTotalMovesCount(total)
-        setAnalyzedCount(done)
-      }, controller.signal, 5000)
+      const results = await analyzeGame(
+        pgn, engine, getAnalysisDepth(userElo),
+        (_done, total) => { if (accumulatedEvals.length === startFromIndex) setTotalMovesCount(total) },
+        controller.signal, 100,
+        onMoveComplete,
+        startFromIndex,
+        initialEvals,
+      )
 
       if (controller.signal.aborted) { setAnalyzedCount(0); setTotalMovesCount(0); return }
 
@@ -90,42 +142,24 @@ export function useStockfish() {
       const moments = detectCriticalMoments(results, color, userElo)
       setCriticalMoments(moments)
 
-      // Persist to IndexedDB
+      // Final save: partial: false (complete)
       const state = useGameStore.getState()
       if (state.currentGameId && state.currentGameMeta) {
-        const username = localStorage.getItem(
-          state.platform === 'lichess' ? 'deepmove_lichess_username' : 'deepmove_chesscom_username'
-        ) ?? ''
-        const gameRecord = {
-          id: state.currentGameId,
-          username,
-          platform: (state.platform ?? 'pgn-paste') as 'chesscom' | 'lichess' | 'pgn-paste',
-          rawPgn: state.rawPgn ?? pgn,
-          cleanedPgn: state.pgn ?? pgn,
-          userColor: state.userColor,
-          userElo: state.userElo,
-          moveEvals: results,
-          criticalMoments: moments,
-          analyzedAt: Date.now(),
-          opponent: state.currentGameMeta.opponent,
-          opponentRating: state.currentGameMeta.opponentRating,
-          result: state.currentGameMeta.result,
-          timeControl: state.currentGameMeta.timeControl,
-          endTime: state.currentGameMeta.endTime,
-          backendGameId: state.backendGameId ?? null,
-        }
-        saveAnalyzedGame(gameRecord).catch(err => console.error('Failed to save game to IndexedDB:', err))
+        const gameRecord = buildRecord(results, false, moments)
+        if (gameRecord) {
+          saveAnalyzedGame(gameRecord).catch(err => console.error('Failed to save game to IndexedDB:', err))
 
-        // 3B-6: Push to backend if user is authenticated, so coaching can cache-hit on reload
-        const accessToken = useAuthStore.getState().accessToken
-        if (accessToken && !state.backendGameId) {
-          pushGame(gameRecord)
-            .then(backendId => {
-              if (backendId !== null) {
-                useGameStore.getState().setBackendGameId(backendId)
-              }
-            })
-            .catch(err => console.error('Failed to push game to backend:', err))
+          // Push to backend if user is authenticated
+          const accessToken = useAuthStore.getState().accessToken
+          if (accessToken && !state.backendGameId) {
+            pushGame(gameRecord)
+              .then(backendId => {
+                if (backendId !== null) {
+                  useGameStore.getState().setBackendGameId(backendId)
+                }
+              })
+              .catch(err => console.error('Failed to push game to backend:', err))
+          }
         }
       }
     } catch (err) {

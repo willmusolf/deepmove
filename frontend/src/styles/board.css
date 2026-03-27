@@ -981,11 +981,11 @@ cg-board {
 .board-grade-badge {
   position: absolute;
   z-index: 10;
-  width: 22%;
-  max-width: 48px;
+  width: 16%;
+  max-width: 36px;
   aspect-ratio: 1;
   border-radius: 50%;
-  transform: translate(-75%, 25%);
+  transform: translate(-75%, -25%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2446,7 +2446,7 @@ cg-board {
 .coach-panel__content {
   padding: 0.75rem;
   overflow-y: auto;
-  max-height: 320px;
+  max-height: 400px;
 }
 
 /* Loading state */
@@ -2535,7 +2535,24 @@ cg-board {
   letter-spacing: 0.05em;
 }
 
-/* Steps */
+.lesson-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.lesson-card__para {
+  font-size: 0.83rem;
+  color: var(--color-text);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.lesson-card__para:last-child {
+  margin-bottom: 0;
+}
+
+/* Steps (legacy — kept for backward compat) */
 .lesson-card__steps {
   display: flex;
   flex-direction: column;
@@ -3140,3 +3157,4 @@ cg-board {
   background: var(--color-error, #f87171);
   color: #fff;
 }
+
