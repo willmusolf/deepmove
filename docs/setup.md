@@ -19,13 +19,12 @@ No Docker required.
 
 Budget ~$20 to start. Dev testing costs a few dollars/month.
 
-## Step 2: Set up Supabase (database)
+## Step 2: Set up Neon (database)
 
-1. Go to [supabase.com](https://supabase.com) and create a free account (personal, not org)
-2. Create a new project (pick any region close to you)
-3. Wait ~2 minutes for the project to spin up
-4. Go to **Settings → Database → Connection string → URI**
-5. Copy the connection string — it looks like: `postgresql://postgres:[password]@[host]:5432/postgres`
+1. Go to [neon.tech](https://neon.tech) and create a free account
+2. Create a new project (pick a region close to you)
+3. Go to **Connection Details** and select the **Pooled** connection option
+4. Copy the connection string — it looks like: `postgresql://username:[password]@ep-xxx-yyy-zzz.region.aws.neon.tech/neondb?sslmode=require`
 
 ## Step 3: Install dependencies
 
@@ -42,7 +41,7 @@ This runs `npm install` in `frontend/` and `pip install -r requirements.txt` in 
 cp .env.example backend/.env
 # Edit backend/.env and fill in:
 #   ANTHROPIC_API_KEY=sk-ant-...
-#   DATABASE_URL=postgresql://... (from Supabase step 3)
+#   DATABASE_URL=postgresql://... (from Neon step 3)
 #   SECRET_KEY=any-long-random-string
 
 # Frontend
@@ -104,7 +103,7 @@ See `docs/principle-taxonomy.md` for all coaching principles.
 
 - **Frontend:** Push to GitHub → Vercel auto-deploys (connect repo in Vercel dashboard)
 - **Backend:** Push to GitHub → Railway auto-deploys (connect repo in Railway dashboard)
-- **Database:** Already live on Supabase — use the same DATABASE_URL in production env vars
+- **Database:** Already live on Neon — use the same DATABASE_URL in production env vars
 
 ## Getting Stockfish
 

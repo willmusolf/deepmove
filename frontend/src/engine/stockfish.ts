@@ -6,7 +6,7 @@
 
 import { Chess } from 'chess.js'
 
-const MIN_MULTIPV_DISPLAY_DEPTH = 8
+const MIN_MULTIPV_DISPLAY_DEPTH = 5
 
 export interface EvalResult {
   fen: string
@@ -158,16 +158,15 @@ export class StockfishEngine {
 
         this.latestMultiPvLines.set(rank, { rank, score, isMate, mateIn: whiteMateIn, pv, san, depth })
 
-        // Emit progressive update once ALL expected lines are at the current depth.
-        // This ensures rank 2 and 3 are never stale when the callback fires.
-        // Stockfish emits all N multipv lines per depth in sequence, so waiting
-        // for the last rank guarantees consistency before updating the UI.
-        const allLines = Array.from(this.latestMultiPvLines.values())
-        const allReady = allLines.length >= this.currentNumLines &&
-          allLines.every(l => l.depth >= depth)
-        if (allReady && depth >= MIN_MULTIPV_DISPLAY_DEPTH && depth > this.lastEmittedMultiPvDepth && this.currentMultiPvOnUpdate) {
+        // Emit when the last expected rank arrives at a new depth.
+        // Stockfish emits ranks 1..N in sequence per depth, so rank N being present
+        // guarantees all earlier ranks are also at this depth — no stale lines.
+        if (rank === this.currentNumLines && depth >= MIN_MULTIPV_DISPLAY_DEPTH && depth > this.lastEmittedMultiPvDepth && this.currentMultiPvOnUpdate) {
           this.lastEmittedMultiPvDepth = depth
-          this.currentMultiPvOnUpdate(allLines.sort((a, b) => a.rank - b.rank), depth)
+          this.currentMultiPvOnUpdate(
+            Array.from(this.latestMultiPvLines.values()).sort((a, b) => a.rank - b.rank),
+            depth,
+          )
         }
       } else {
         // Single-PV parsing (existing logic)
@@ -282,7 +281,7 @@ export class StockfishEngine {
       this.latestMultiPvLines = new Map()
       this.worker!.postMessage(`setoption name MultiPV value ${item.multiPV}`)
       this.worker!.postMessage(`position fen ${item.fen}`)
-      this.worker!.postMessage(item.movetime ? `go depth ${item.depth} movetime ${item.movetime}` : `go depth ${item.depth}`)
+      this.worker!.postMessage(`go depth ${item.depth} movetime 25000`)
     } else {
       this.currentIsBotMove = false
       this.currentIsMultiPV = false

@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ (54 tests, CI green) · Coaching pipeline functional but quality needs overhaul · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-03-25 — Lichess pagination fix (all games now load), tab switch instant (CSS visibility, no remount), per-move analysis persistence (resume mid-analysis on re-select). Coaching pipeline overhaul is top launch blocker.
+**Last Session**: 2026-03-27 — Daily slideshow automation script (`scripts/slideshow_generator.py`) — Claude generates slide copy, DALL-E 3 generates backgrounds, Pillow composites final PNGs. Updated marketing positioning: added analysis-tool angle, second tagline, two-step funnel. Coaching pipeline overhaul is still top launch blocker.
 
 ---
 
@@ -38,7 +38,7 @@ The current coaching pipeline is functional but lessons are generic, often wrong
 ### 4. Deploy to deepmove.io
 - [ ] Frontend → Vercel, connect deepmove.io domain
 - [ ] Backend → Railway (or Render)
-- [ ] Production Supabase project (separate from dev)
+- [ ] Production Neon project (separate from dev)
 - [ ] Configure env vars, SSL, CORS for production domains
 - [ ] Set ANTHROPIC_API_KEY in production env
 - [ ] Smoke test full flow end-to-end on production URL
@@ -112,7 +112,12 @@ The current coaching pipeline is functional but lessons are generic, often wrong
 - "This free app taught me more than Chess.com Premium" — direct comparison, spicy
 - Build-in-public content — showing development, design decisions (people subscribe for the journey)
 
--also tiktok slide shows of like 5-10 images and isntagram too making like 5+ of these and posting them every day
+- **Daily TikTok/Instagram slideshows** — 6-10 images pitching a DeepMove feature, auto-generated daily and saved locally for manual review + posting
+  - Run: `python scripts/slideshow_generator.py`
+  - Output: `scripts/output/slideshows/YYYY-MM-DD/` — PNGs + caption.txt
+  - Rotates through 6 feature pitches: game review, analysis board, AI coach, move grading, tactics trainer, play vs bot
+  - Requires `OPENAI_API_KEY` in `.env` — see `scripts/requirements_slideshow.txt`
+  - Cron (8am daily): `0 8 * * * cd ~/deepmove-dev && python scripts/slideshow_generator.py`
 
 **Make it shareable (features to build):**
 - [ ] Shareable lesson cards — OG image with coaching moment summary for social posts
@@ -141,10 +146,14 @@ The current coaching pipeline is functional but lessons are generic, often wrong
 - [ ] r/deepmove subreddit (own the namespace even if not active initially)
 
 ### Positioning & Messaging
-- **Tagline:** "Every chess app tells you WHAT to play. DeepMove teaches you WHY."
-- **Core pitch:** "Free game analysis with AI coaching that teaches chess principles from your own games."
+- **Primary tagline:** "Every chess app tells you WHAT to play. DeepMove teaches you WHY."
+- **Analysis tagline:** "Free chess analysis. Sleek. Fast. Smart." *(use for social content targeting non-coaching users)*
+- **Core pitch (coaching angle):** "Free game analysis with AI coaching that teaches chess principles from your own games."
+- **Core pitch (analysis angle):** "Lichess-quality analysis, free, no account needed — plus AI coaching on your worst moments."
+- **Two-step funnel:** Lead with free analysis to acquire users → coach them once they're in → convert to premium
 - **vs Chessigma:** They show analysis. We teach concepts. Their Supercoach is vaporware; our coaching pipeline is built.
 - **vs Chess.com:** Free, 1 tasteful ad, coaching teaches principles not engine lines.
+- **vs Lichess:** Same free analysis quality, but with AI coaching layered on top.
 - **NEVER** say "Chess.com alternative" — Lichess fans will attack (lesson from Chessigma article)
 - **DO** say "for all chess players" — support both platforms, respect both communities
 
@@ -303,7 +312,7 @@ Every missed tactic from game reviews gets saved to the user's account. Train on
 - [x] SQLAlchemy models, JWT auth, bcrypt, token versioning
 - [x] User CRUD routes, game routes, batch upload, sync-status
 - [x] Frontend authStore, AuthModal, UserMenu, syncService
-- [x] Supabase PostgreSQL connected, Alembic migrations done
+- [x] PostgreSQL connected (Neon), Alembic migrations done
 - [x] CI: 54 backend tests passing
 
 ### OAuth (Post-Launch)
@@ -360,13 +369,14 @@ See above in "Next After Launch"
 -premoves not working in play mode
 
 
--what is chessreps.com and how do we make a free vesrion of it
-
 -badges in transcript are shifting moves to the right of it improperly?  maybe make a tiny bit more space for each move so the badge doesnt push it? chess.com puts hte badges to the left of the move
 
 -badges on board are the same on every branch? each move sould be re evaluated or no? thats what chessigma does and chess.com
 
 
+-sometimes in play mode when arrow move suggestions are on it flashes for a brief second on the opponents suggested moves. we should just turn off the lines for the opponent probably right?
+-and for play mode we want to add something in the todo with the coaches stuff to practice specific openings and gambits and defenses as well like chessreps?
+-what is chessreps.com and how do we make a free vesrion of it
 
 
 -chessigma / chess.com reviews have it so it shows what the best move is AFTER the move is already done in a green arrow. do we want that or keep our version of analysis? but sometimes its consistent and wswithces to suggesting the best moves for the current user in green arrows like ours?

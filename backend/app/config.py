@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     # Anthropic
     anthropic_api_key: str = ""
 
-    # Database (Supabase PostgreSQL connection string)
+    # Database (Neon PostgreSQL connection string)
     database_url: str = ""
 
     # App

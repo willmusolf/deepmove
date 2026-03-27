@@ -20,7 +20,7 @@ if settings.database_url:
         poolclass=QueuePool,
         pool_size=5,
         max_overflow=10,
-        pool_pre_ping=True,  # Reconnect on stale connections (Supabase PgBouncer compat)
+        pool_pre_ping=True,  # Reconnect on stale connections (hosted PgBouncer compat)
     )
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 else:
