@@ -95,7 +95,10 @@ export function useAnalysisBoard() {
       const parentHasChildren = parentId !== null
         ? (prev.tree[parentId]?.childIds.length ?? 0) > 0
         : prev.rootId !== null
-      const isMainLine = !parentHasChildren
+      // A node is on the main line only if its parent is also on the main line.
+      // Branch continuations must inherit isMainLine=false from their branch parent.
+      const parentIsMainLine = parentId === null ? true : (prev.tree[parentId]?.isMainLine ?? false)
+      const isMainLine = parentIsMainLine && !parentHasChildren
 
       const newId = `n${prev.branchCounter}`
 

@@ -72,6 +72,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
   const setBackendGameId = useGameStore(s => s.setBackendGameId)
   const setCurrentGameMeta = useGameStore(s => s.setCurrentGameMeta)
   const setSkipNextAnalysis = useGameStore(s => s.setSkipNextAnalysis)
+  const setResumeFromIndex = useGameStore(s => s.setResumeFromIndex)
   const reset = useGameStore(s => s.reset)
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -84,9 +85,10 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
   const [loadingMore, setLoadingMore] = useState(false)
   const [isLoadingAll, setIsLoadingAll] = useState(false)
   const cancelLoadAllRef = useRef(false)
+  const oldestTimestampRef = useRef<number>(Date.now())
 
   // Auto-load tracking — fires once per username load when hasMore is true
-  const hasAutoStarted = useRef(false)
+  const hasAutoStarted = useRef(games.length > 0)
 
   const [sortKey, setSortKey] = useState<SortKey>('date-desc')
   const [resultFilter, setResultFilter] = useState<ResultFilter>('all')
@@ -121,6 +123,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     cancelLoadAllRef.current = true
     setIsLoadingAll(false)
     hasAutoStarted.current = false
+    oldestTimestampRef.current = Date.now()
   }, [username])
 
   // Reset displayLimit when filters/sort change
@@ -168,6 +171,13 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
       ? normalizeChessCom(g, username)
       : normalizeLichess(g as LichessGame, username)
   ), [games, username])
+
+  // Keep oldestTimestampRef in sync with prop changes (initial load)
+  useEffect(() => {
+    if (normalized.length > 0) {
+      oldestTimestampRef.current = Math.min(...normalized.map(g => g.endTime))
+    }
+  }, [normalized])
 
   const allGames = useMemo(() => {
     if (cachedOnlyGames.length === 0) return normalized
@@ -226,12 +236,19 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     const cached = await getAnalyzedGame(g.gameId)
     if (cached) {
       setBackendGameId(cached.backendGameId ?? null)
-      setSkipNextAnalysis(true)
       setRawPgn(cached.rawPgn)
       setLoadedPgn(cached.rawPgn)
       setPgn(cached.cleanedPgn)
       setMoveEvals(cached.moveEvals)
-      setCriticalMoments(cached.criticalMoments)
+      if (cached.partial) {
+        // Partial analysis: restore evals, then let analysis resume from where it left off
+        setResumeFromIndex(cached.moveEvals.length)
+        setSkipNextAnalysis(false)
+      } else {
+        // Complete analysis: skip Stockfish entirely
+        setCriticalMoments(cached.criticalMoments)
+        setSkipNextAnalysis(true)
+      }
       onGameLoaded()
       return
     }
@@ -240,7 +257,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     setLoadedPgn(g.pgn)
     setPgn(cleanPgn(g.pgn))
     onGameLoaded()
-  }, [reset, setCurrentGameId, setBackendGameId, setCurrentGameMeta, setSkipNextAnalysis, setUserColor, setUserElo, setPlatform, setRawPgn, setLoadedPgn, setPgn, setMoveEvals, setCriticalMoments, onGameLoaded, platform])
+  }, [reset, setCurrentGameId, setBackendGameId, setCurrentGameMeta, setSkipNextAnalysis, setResumeFromIndex, setUserColor, setUserElo, setPlatform, setRawPgn, setLoadedPgn, setPgn, setMoveEvals, setCriticalMoments, onGameLoaded, platform])
 
   // Uses paginationRef for async safety — JSX uses pagination prop for rendering
   const handleLoadMore = useCallback(async (): Promise<boolean> => {
@@ -258,10 +275,15 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
         })
         return result.hasMore
       } else if (platform === 'lichess') {
-        const oldest = normalized.length > 0
-          ? Math.min(...normalized.map(g => g.endTime))
-          : Date.now()
-        const result = await loadMoreLichessGames(username, oldest, 100)
+        const before = oldestTimestampRef.current
+        const result = await loadMoreLichessGames(username, before, 100)
+        if (result.games.length > 0) {
+          const norm = result.games.map(g => normalizeLichess(g as LichessGame, username))
+          const newOldest = Math.min(...norm.map(g => g.endTime))
+          if (newOldest < oldestTimestampRef.current) {
+            oldestTimestampRef.current = newOldest
+          }
+        }
         onGamesAppended(result.games, { platform: 'lichess', hasMore: result.hasMore })
         return result.hasMore
       }
@@ -271,7 +293,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
       setLoadingMore(false)
     }
     return false
-  }, [loadingMore, platform, normalized, username, onGamesAppended])
+  }, [loadingMore, platform, username, onGamesAppended])
 
   const handleLoadAll = useCallback(async () => {
     cancelLoadAllRef.current = false

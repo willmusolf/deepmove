@@ -131,73 +131,82 @@ export function useCoaching({
     classified.forEach((moment, idx) => {
       if (!moment.classification) return
 
-      const { classification } = moment
-      const principle = PRINCIPLES[classification.principleId]
-      const verifiedFacts = buildVerifiedFacts(
-        moment.features,
-        {
-          evalSwing: moment.evalSwing,
-          moveNumber: moment.moveNumber,
+      try {
+        const { classification } = moment
+        const principle = PRINCIPLES[classification.principleId]
+        const verifiedFacts = buildVerifiedFacts(
+          moment.features,
+          {
+            evalSwing: moment.evalSwing,
+            moveNumber: moment.moveNumber,
+            color: moment.color,
+            movePlayed: moment.movePlayed,
+            fen: moment.fen,
+            fenAfter: moment.fenAfter,
+          },
+          classification.principleId,
+        )
+
+        const eloBand = getCacheBand(userElo)
+        const tcSeconds = parseInt(timeControl, 10) || 600
+        const tcLabel = classifyTimeControl(tcSeconds)
+        // Simple position hash: fen + principle + elo band (good enough for cache key)
+        const positionHash = btoa(`${moment.fenAfter}:${classification.principleId}:${eloBand}`).slice(0, 32)
+
+        const requestBody = {
+          user_elo: userElo,
+          opponent_elo: userElo,
+          time_control: timeControl,
+          time_control_label: tcLabel,
+          game_phase: moment.features.gamePhase,
+          move_number: moment.moveNumber,
+          move_played: moment.movePlayed,
+          eval_before: moment.evalBefore,
+          eval_after: moment.evalAfter,
+          eval_swing_cp: moment.evalSwing,
+          principle_id: classification.principleId,
+          principle_name: principle?.name ?? null,
+          principle_description: principle?.description ?? null,
+          principle_takeaway: principle?.takeawayTemplate ?? null,
+          confidence: classification.confidence,
+          verified_facts: verifiedFacts,
+          engine_move_idea: [
+            moment.features.engineMoveImpact?.description,
+            moment.features.engineMoveImpact?.mainIdea,
+          ].filter(Boolean).join('. ')
+            || (moment.engineBest[0] ? `A better approach existed in this position` : 'A better move existed'),
+          elo_band: eloBand,
+          position_hash: positionHash,
           color: moment.color,
-          movePlayed: moment.movePlayed,
-          fen: moment.fen,
-          fenAfter: moment.fenAfter,
-        },
-        classification.principleId,
-      )
+          backend_game_id: backendGameId ?? null,
+          platform_game_id: platformGameId ?? null,
+          platform: platform ?? null,
+        }
 
-      const eloBand = getCacheBand(userElo)
-      const tcSeconds = parseInt(timeControl, 10) || 600
-      const tcLabel = classifyTimeControl(tcSeconds)
-      // Simple position hash: fen + principle + elo band (good enough for cache key)
-      const positionHash = btoa(`${moment.fenAfter}:${classification.principleId}:${eloBand}`).slice(0, 32)
-
-      const requestBody = {
-        user_elo: userElo,
-        opponent_elo: userElo,
-        time_control: timeControl,
-        time_control_label: tcLabel,
-        game_phase: moment.features.gamePhase,
-        move_number: moment.moveNumber,
-        move_played: moment.movePlayed,
-        eval_before: moment.evalBefore,
-        eval_after: moment.evalAfter,
-        eval_swing_cp: moment.evalSwing,
-        principle_id: classification.principleId,
-        principle_name: principle?.name ?? null,
-        principle_description: principle?.description ?? null,
-        principle_takeaway: principle?.takeawayTemplate ?? null,
-        confidence: classification.confidence,
-        verified_facts: verifiedFacts,
-        engine_move_idea: [
-          moment.features.engineMoveImpact?.description,
-          moment.features.engineMoveImpact?.mainIdea,
-        ].filter(Boolean).join('. ')
-          || (moment.engineBest[0] ? `A better approach existed in this position` : 'A better move existed'),
-        elo_band: eloBand,
-        position_hash: positionHash,
-        color: moment.color,
-        backend_game_id: backendGameId ?? null,
-        platform_game_id: platformGameId ?? null,
-        platform: platform ?? null,
+        api.post<LessonResponse>('/coaching/lesson', requestBody)
+          .then(res => {
+            setLessons(prev => prev.map((l, i) =>
+              i === idx
+                ? { ...l, lessonText: res.lesson, isLoading: false }
+                : l,
+            ))
+          })
+          .catch(err => {
+            setLessons(prev => prev.map((l, i) =>
+              i === idx
+                ? { ...l, isLoading: false, error: 'Failed to load lesson' }
+                : l,
+            ))
+            console.error('[useCoaching] lesson fetch failed:', err)
+          })
+      } catch (err) {
+        console.error('[useCoaching] lesson setup failed synchronously:', err)
+        setLessons(prev => prev.map((l, i) =>
+          i === idx
+            ? { ...l, isLoading: false, error: 'Failed to prepare lesson' }
+            : l,
+        ))
       }
-
-      api.post<LessonResponse>('/coaching/lesson', requestBody)
-        .then(res => {
-          setLessons(prev => prev.map((l, i) =>
-            i === idx
-              ? { ...l, lessonText: res.lesson, isLoading: false }
-              : l,
-          ))
-        })
-        .catch(err => {
-          setLessons(prev => prev.map((l, i) =>
-            i === idx
-              ? { ...l, isLoading: false, error: 'Failed to load lesson' }
-              : l,
-          ))
-          console.error('[useCoaching] lesson fetch failed:', err)
-        })
     })
   }, [pgn, criticalMoments, moveEvals, userElo, timeControl, backendGameId, platformGameId, platform])
 

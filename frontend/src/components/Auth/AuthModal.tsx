@@ -37,6 +37,13 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
       } else {
         await register(email, password)
       }
+      // Tell the browser to save/update the credential so autofill works next time
+      if ('credentials' in navigator && window.PasswordCredential) {
+        try {
+          const cred = new window.PasswordCredential({ id: email, password })
+          await navigator.credentials.store(cred)
+        } catch { /* not supported in this browser — ignore */ }
+      }
       onSuccess()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')

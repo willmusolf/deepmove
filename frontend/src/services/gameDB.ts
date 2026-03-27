@@ -29,6 +29,7 @@ export interface AnalyzedGameRecord {
   timeControl: string
   endTime: number                         // unix ms, for sorting
   backendGameId: number | null            // DB primary key after sync (null until uploaded)
+  partial?: boolean                         // true = analysis incomplete, safe to resume
 }
 
 // ─── DB setup ──────────────────────────────────────────────────────────────

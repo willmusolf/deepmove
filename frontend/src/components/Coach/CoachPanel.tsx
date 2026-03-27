@@ -19,10 +19,10 @@ interface CoachPanelProps {
   lessons: CoachingLesson[]
   currentIndex: number
   onNavigate: (idx: number) => void
-  onReveal: (idx: number) => void
+  isAnalyzing?: boolean
 }
 
-export default function CoachPanel({ lessons, currentIndex, onNavigate }: CoachPanelProps) {
+export default function CoachPanel({ lessons, currentIndex, onNavigate, isAnalyzing }: CoachPanelProps) {
   const lesson = lessons[currentIndex]
   const total = lessons.length
   const user = useAuthStore(s => s.user)
@@ -47,9 +47,16 @@ export default function CoachPanel({ lessons, currentIndex, onNavigate }: CoachP
   if (total === 0) {
     return (
       <div className="coach-panel coach-panel--empty">
-        <p className="coach-panel__empty-msg">
-          Complete the analysis to see coaching insights.
-        </p>
+        {isAnalyzing ? (
+          <div className="coach-panel__loading">
+            <span className="coach-panel__spinner" />
+            <p>Analyzing your game...</p>
+          </div>
+        ) : (
+          <p className="coach-panel__empty-msg">
+            No major mistakes found in this game. Nice play.
+          </p>
+        )}
         {isAdmin && (
           <div className="coach-panel__admin">
             <button
@@ -71,30 +78,32 @@ export default function CoachPanel({ lessons, currentIndex, onNavigate }: CoachP
 
   return (
     <div className="coach-panel">
-      {/* Navigation header */}
-      <div className="coach-panel__nav">
-        <button
-          className="coach-panel__nav-btn"
-          onClick={() => onNavigate(Math.max(0, currentIndex - 1))}
-          disabled={currentIndex === 0}
-          type="button"
-          aria-label="Previous moment"
-        >
-          ←
-        </button>
-        <span className="coach-panel__nav-label">
-          Moment {currentIndex + 1} of {total}
-        </span>
-        <button
-          className="coach-panel__nav-btn"
-          onClick={() => onNavigate(Math.min(total - 1, currentIndex + 1))}
-          disabled={currentIndex === total - 1}
-          type="button"
-          aria-label="Next moment"
-        >
-          →
-        </button>
-      </div>
+      {/* Navigation header — hidden when there's only 1 moment */}
+      {total > 1 && (
+        <div className="coach-panel__nav">
+          <button
+            className="coach-panel__nav-btn"
+            onClick={() => onNavigate(Math.max(0, currentIndex - 1))}
+            disabled={currentIndex === 0}
+            type="button"
+            aria-label="Previous moment"
+          >
+            ←
+          </button>
+          <span className="coach-panel__nav-label">
+            Moment {currentIndex + 1} of {total}
+          </span>
+          <button
+            className="coach-panel__nav-btn"
+            onClick={() => onNavigate(Math.min(total - 1, currentIndex + 1))}
+            disabled={currentIndex === total - 1}
+            type="button"
+            aria-label="Next moment"
+          >
+            →
+          </button>
+        </div>
+      )}
 
       {/* Lesson content */}
       <div className="coach-panel__content">

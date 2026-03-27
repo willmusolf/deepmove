@@ -59,6 +59,7 @@ export class StockfishEngine {
   private currentIsMultiPV = false
   private currentMultiPvResolve: ((lines: TopLine[]) => void) | null = null
   private currentMultiPvOnUpdate: ((lines: TopLine[], depth: number) => void) | null = null
+  private currentNumLines = 1
   private lastEmittedMultiPvDepth = 0
   private latestMultiPvLines: Map<number, TopLine> = new Map()
   private currentSideToMove: 'w' | 'b' = 'w'
@@ -157,15 +158,16 @@ export class StockfishEngine {
 
         this.latestMultiPvLines.set(rank, { rank, score, isMate, mateIn: whiteMateIn, pv, san, depth })
 
-        // Emit progressive update whenever rank 1 (the best line) reaches a new depth.
-        // Stockfish doesn't always update all lines at every depth, so requiring
-        // allAtDepth would stall at the shallowest depth where all 3 lines agree.
-        if (rank === 1 && depth >= MIN_MULTIPV_DISPLAY_DEPTH && depth > this.lastEmittedMultiPvDepth && this.currentMultiPvOnUpdate) {
+        // Emit progressive update once ALL expected lines are at the current depth.
+        // This ensures rank 2 and 3 are never stale when the callback fires.
+        // Stockfish emits all N multipv lines per depth in sequence, so waiting
+        // for the last rank guarantees consistency before updating the UI.
+        const allLines = Array.from(this.latestMultiPvLines.values())
+        const allReady = allLines.length >= this.currentNumLines &&
+          allLines.every(l => l.depth >= depth)
+        if (allReady && depth >= MIN_MULTIPV_DISPLAY_DEPTH && depth > this.lastEmittedMultiPvDepth && this.currentMultiPvOnUpdate) {
           this.lastEmittedMultiPvDepth = depth
-          this.currentMultiPvOnUpdate(
-            Array.from(this.latestMultiPvLines.values()).sort((a, b) => a.rank - b.rank),
-            depth,
-          )
+          this.currentMultiPvOnUpdate(allLines.sort((a, b) => a.rank - b.rank), depth)
         }
       } else {
         // Single-PV parsing (existing logic)
@@ -216,6 +218,7 @@ export class StockfishEngine {
         this.currentMultiPvResolve = null
         this.currentMultiPvOnUpdate = null
         this.currentIsMultiPV = false
+        this.currentNumLines = 1
         this.latestMultiPvLines = new Map()
         this.busy = false
 
@@ -274,11 +277,12 @@ export class StockfishEngine {
       this.currentIsMultiPV = true
       this.currentMultiPvResolve = item.multiPvResolve
       this.currentMultiPvOnUpdate = item.multiPvOnUpdate ?? null
+      this.currentNumLines = item.multiPV
       this.lastEmittedMultiPvDepth = 0
       this.latestMultiPvLines = new Map()
       this.worker!.postMessage(`setoption name MultiPV value ${item.multiPV}`)
       this.worker!.postMessage(`position fen ${item.fen}`)
-      this.worker!.postMessage(`go depth ${item.depth}`)
+      this.worker!.postMessage(item.movetime ? `go depth ${item.depth} movetime ${item.movetime}` : `go depth ${item.depth}`)
     } else {
       this.currentIsBotMove = false
       this.currentIsMultiPV = false
@@ -384,6 +388,7 @@ export class StockfishEngine {
     this.queue = []
     this.pendingResolve = null
     this.currentMultiPvResolve = null
+    this.currentNumLines = 1
     this.currentBotMoveResolve = null
     this.busy = false
     if (this.worker) {

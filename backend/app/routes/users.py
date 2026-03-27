@@ -1,11 +1,17 @@
 """users.py — User profile endpoints."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.schemas.user import UserResponse, UserUpdate
-
+from app.schemas.user import AuthResponse, PasswordChange, UserResponse, UserUpdate
+from app.utils.security import (
+    create_access_token,
+    create_refresh_token,
+    hash_password,
+    verify_password,
+)
+from app.routes.auth import _set_refresh_cookie
 router = APIRouter()
 
 
@@ -118,3 +124,42 @@ async def export_me(
             for p in principles
         ],
     }
+
+
+@router.patch("/me/password")
+async def change_password(
+    body: PasswordChange,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Change the authenticated user's password."""
+    # OAuth-only users have no password to change
+    if not user.hashed_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account uses OAuth login — no password to change",
+        )
+
+    if not verify_password(body.current_password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect",
+        )
+
+    if len(body.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="New password must be at least 8 characters",
+        )
+
+    user.hashed_password = hash_password(body.new_password)
+    user.token_version += 1  # Invalidate all existing sessions
+    db.commit()
+
+    # Issue fresh tokens so current session stays alive
+    access = create_access_token(user.id, user.token_version)
+    refresh = create_refresh_token(user.id, user.token_version)
+    _set_refresh_cookie(response, refresh)
+
+    return AuthResponse(access_token=access, user=UserResponse.model_validate(user))

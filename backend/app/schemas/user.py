@@ -38,3 +38,8 @@ class AuthResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     user: UserResponse
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str

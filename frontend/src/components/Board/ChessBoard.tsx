@@ -20,6 +20,7 @@ export interface ChessBoardProps {
   orientation?: 'white' | 'black'
   interactive?: boolean
   onMove?: (from: string, to: string, san: string, fen: string) => void
+  onIllegalMove?: () => void
   shapes?: DrawShape[]
   lastMove?: [Key, Key]
   pathKey?: number  // Changes whenever position navigates; ensures FEN sync always fires
@@ -61,6 +62,7 @@ export default function ChessBoard({
   premoveColor,
   forceCheck,
   externalPremoveHandling = false,
+  onIllegalMove,
 }: ChessBoardProps) {
   // Compute check highlight + legal move destinations + turn color from a single Chess instance
   const { checkColor, legalDests, turnColor: fenTurnColor } = useMemo(() => {
@@ -148,6 +150,7 @@ export default function ChessBoard({
               onMoveRef.current(from, to, move.san, chess.fen())
             } else {
               // Move failed validation — snap back and re-enable the board.
+              onIllegalMove?.()
               apiRef.current?.set({
                 fen: currentFen,
                 turnColor: getTurnColor(currentFen),

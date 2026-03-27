@@ -37,19 +37,29 @@ interface AuthState {
     elo_estimate?: number
     preferences?: Record<string, unknown>
   }) => Promise<void>
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   clearAuth: () => void
 }
 
 async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  // Merge caller's signal with a 5s timeout so auth calls never hang indefinitely
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 5000)
+  const { signal: callerSignal, ...restOptions } = options ?? {}
+  if (callerSignal) callerSignal.addEventListener('abort', () => controller.abort())
+
   let res: Response
   try {
     res = await fetch(`${API_BASE}${path}`, {
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include', // Send HttpOnly cookies
-      ...options,
+      ...restOptions,
+      signal: controller.signal,
     })
   } catch {
     throw new Error('Could not reach the server. Is the backend running?')
+  } finally {
+    clearTimeout(timer)
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: `Error ${res.status}` }))
@@ -106,8 +116,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   refresh: async () => {
     set({ isLoading: true })
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 3000)
     try {
-      const data = await authFetch<AuthResponse>('/auth/refresh', { method: 'POST' })
+      const data = await authFetch<AuthResponse>('/auth/refresh', {
+        method: 'POST',
+        signal: controller.signal,
+      })
+      clearTimeout(timer)
       set({
         user: data.user,
         accessToken: data.access_token,
@@ -116,7 +132,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       })
       usePrefsStore.getState().loadFromUser(data.user.preferences)
     } catch {
-      // No valid refresh token — user is anonymous (that's fine)
+      clearTimeout(timer)
+      // No valid refresh token or backend unreachable — user is anonymous (that's fine)
       set({ user: null, accessToken: null, isPremium: false, isLoading: false })
     }
   },
@@ -135,5 +152,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user: updated, isPremium: updated.is_premium })
   },
 
+
+  changePassword: async (currentPassword, newPassword) => {
+    const token = get().accessToken
+    if (!token) throw new Error('Not authenticated')
+    const data = await authFetch<AuthResponse>('/users/me/password', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    })
+    set({
+      user: data.user,
+      accessToken: data.access_token,
+      isPremium: data.user.is_premium,
+    })
+  },
   clearAuth: () => set({ user: null, accessToken: null, isPremium: false }),
 }))
