@@ -366,10 +366,8 @@ See above in "Next After Launch"
 
 
 
--premoves not working in play mode
+-premoves not working in play mode (might be resolved)
 
-
--badges in transcript are shifting moves to the right of it improperly?  maybe make a tiny bit more space for each move so the badge doesnt push it? chess.com puts hte badges to the left of the move
 
 -badges on board are the same on every branch? each move sould be re evaluated or no? thats what chessigma does and chess.com
 

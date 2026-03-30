@@ -140,12 +140,15 @@ export default function App() {
   const setSkipNextAnalysis = useGameStore(s => s.setSkipNextAnalysis)
   useEffect(() => {
     if (pgn && isReady) {
+      // Always clear the position cache when a new game loads — even for cached
+      // games where skipNextAnalysis is true — so stale per-position multi-PV
+      // results from the previous game never bleed into the new one.
+      positionCache.current.clear()
+      lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
       if (useGameStore.getState().skipNextAnalysis) {
         setSkipNextAnalysis(false)
         return
       }
-      positionCache.current.clear()
-      lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
       void runAnalysis(pgn)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -185,7 +188,7 @@ export default function App() {
     }
 
     // Cap multi-PV to legal move count (avoids duplicate arrows on forced moves)
-    let numLines = 3
+    let numLines = 2
     try {
       const chess = new Chess(fen)
       const legalMoveCount = chess.moves().length
@@ -195,7 +198,7 @@ export default function App() {
         setAnalyzingPosition(false)
         return
       }
-      numLines = Math.min(3, legalMoveCount)
+      numLines = Math.min(2, legalMoveCount)
     } catch { /* invalid FEN — fall through with default 3 */ }
 
     const token = ++positionTokenRef.current
@@ -221,6 +224,14 @@ export default function App() {
   }
 
   useEffect(() => {
+    // Always cancel in-flight analysis and pending timers first — even if the new
+    // position is cached.  Without this, a deferred 180ms timer for position A can
+    // fire after the user has navigated to a cached position B, calling
+    // triggerPositionAnalysis(fenA) which then hits the cache and sets stale arrows
+    // without any token check.
+    stopPositionAnalysis()
+    if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
+
     // Show cached result immediately — no blank flash, no delay
     const cached = positionCache.current.get(displayFen)
     if (cached) {
@@ -229,10 +240,6 @@ export default function App() {
       setAnalyzingPosition(false)
       return
     }
-
-    stopPositionAnalysis()
-
-    if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
 
     if (!isReady) return  // engine not ready yet — isReady effect will seed analysis
 
@@ -326,6 +333,10 @@ export default function App() {
 
   useEffect(() => {
     if (isLoaded) {
+      // Clear any arrows that were showing in free-play mode so they don't flash
+      // on the first position of the newly loaded game.
+      setCurrentPositionLines([])
+      setAnalyzingPosition(false)
       setPanelTab('analysis')
       analysisBoardReset()
     }
@@ -414,12 +425,23 @@ export default function App() {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   function handleNewGame() {
+    stopPositionAnalysis()
+    positionTokenRef.current++
+    if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
     reset()
     lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
     positionCache.current.clear()
     analysisBoardReset()
     setOpeningName(null)
     setPanelTab('load')
+  }
+
+  // Called by GameSelector before loading a new game — stops any in-flight
+  // position analysis so stale arrows can't flash on the new game's position.
+  function handleBeforeGameLoad() {
+    stopPositionAnalysis()
+    positionTokenRef.current++
+    if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
   }
 
   // Board move during game review: advance main line or create branch.
@@ -831,12 +853,11 @@ export default function App() {
                           {mainEval && !inBranch && (
                             <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
                           )}
-                          {isAnalyzingPosition && (
+                          {inBranch && currentAnalysisDepth > 0 ? (
+                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / 16{isAnalyzingPosition ? ' …' : ''}</span>
+                          ) : isAnalyzingPosition ? (
                             <span className="eval-display-depth">analyzing…</span>
-                          )}
-                          {!isAnalyzingPosition && inBranch && currentAnalysisDepth > 0 && (
-                            <span className="eval-display-depth">depth {currentAnalysisDepth}</span>
-                          )}
+                          ) : null}
                         </div>
                       )}
 
@@ -923,6 +944,7 @@ export default function App() {
                               username={chesscomUsername}
                               platform="chesscom"
                               onGameLoaded={() => setPanelTab('analysis')}
+                              onBeforeGameLoad={handleBeforeGameLoad}
                               pagination={chesscomPagination}
                                               onGamesAppended={(newGames, newPagination) => {
                                 setChesscomGames(prev => {
@@ -961,6 +983,7 @@ export default function App() {
                               username={lichessUsername}
                               platform="lichess"
                               onGameLoaded={() => setPanelTab('analysis')}
+                              onBeforeGameLoad={handleBeforeGameLoad}
                               pagination={lichessPagination}
                                               onGamesAppended={(newGames, newPagination) => {
                                 setLichessGames(prev => {
@@ -1006,12 +1029,11 @@ export default function App() {
                           <span className="eval-display-value">
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
                           </span>
-                          {isAnalyzingPosition && (
+                          {currentAnalysisDepth > 0 ? (
+                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / 16{isAnalyzingPosition ? ' …' : ''}</span>
+                          ) : isAnalyzingPosition ? (
                             <span className="eval-display-depth">analyzing…</span>
-                          )}
-                          {!isAnalyzingPosition && currentAnalysisDepth > 0 && (
-                            <span className="eval-display-depth">depth {currentAnalysisDepth}</span>
-                          )}
+                          ) : null}
                         </div>
                       )}
 

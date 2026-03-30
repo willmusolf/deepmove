@@ -19,6 +19,7 @@ interface GameSelectorProps {
   username: string
   platform: 'chesscom' | 'lichess'
   onGameLoaded: () => void
+  onBeforeGameLoad?: () => void
   pagination: PaginationState | null
   onGamesAppended: (games: ChessComGame[] | LichessGame[], pagination: PaginationState) => void
 }
@@ -58,7 +59,7 @@ function normalizeFromCache(record: AnalyzedGameRecord): NormalizedGame {
   }
 }
 
-export default function GameSelector({ games, username, platform, onGameLoaded, pagination, onGamesAppended }: GameSelectorProps) {
+export default function GameSelector({ games, username, platform, onGameLoaded, onBeforeGameLoad, pagination, onGamesAppended }: GameSelectorProps) {
   const setPgn = useGameStore(s => s.setPgn)
   const setRawPgn = useGameStore(s => s.setRawPgn)
   const setLoadedPgn = useGameStore(s => s.setLoadedPgn)
@@ -220,6 +221,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
   }, [moveEvalsLength, isAnalyzing, username, platform])
 
   const handleSelect = useCallback(async (g: NormalizedGame) => {
+    onBeforeGameLoad?.()
     reset()
     setCurrentGameId(g.gameId)
     setCurrentGameMeta({
