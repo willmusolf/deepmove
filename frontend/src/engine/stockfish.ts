@@ -158,10 +158,11 @@ export class StockfishEngine {
 
         this.latestMultiPvLines.set(rank, { rank, score, isMate, mateIn: whiteMateIn, pv, san, depth })
 
-        // Emit when the last expected rank arrives at a new depth.
-        // Stockfish emits ranks 1..N in sequence per depth, so rank N being present
-        // guarantees all earlier ranks are also at this depth — no stale lines.
-        if (rank === this.currentNumLines && depth >= MIN_MULTIPV_DISPLAY_DEPTH && depth > this.lastEmittedMultiPvDepth && this.currentMultiPvOnUpdate) {
+        // Emit when rank 1 reaches a new depth. Rank 1 is emitted first by Stockfish,
+        // so this fires as early as possible at each depth. Ranks 2/3 may lag by
+        // one depth in the emitted array, which is acceptable — the depth counter
+        // progresses smoothly and rank 1 (the best move) is always current.
+        if (rank === 1 && depth >= MIN_MULTIPV_DISPLAY_DEPTH && depth > this.lastEmittedMultiPvDepth && this.currentMultiPvOnUpdate) {
           this.lastEmittedMultiPvDepth = depth
           this.currentMultiPvOnUpdate(
             Array.from(this.latestMultiPvLines.values()).sort((a, b) => a.rank - b.rank),
@@ -281,7 +282,7 @@ export class StockfishEngine {
       this.latestMultiPvLines = new Map()
       this.worker!.postMessage(`setoption name MultiPV value ${item.multiPV}`)
       this.worker!.postMessage(`position fen ${item.fen}`)
-      this.worker!.postMessage(`go depth ${item.depth} movetime 25000`)
+      this.worker!.postMessage(`go depth ${item.depth} movetime 45000`)
     } else {
       this.currentIsBotMove = false
       this.currentIsMultiPV = false

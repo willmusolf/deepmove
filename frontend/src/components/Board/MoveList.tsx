@@ -23,9 +23,9 @@ const GRADE_CONFIG: Record<NonNullable<MoveGrade>, { label: string | null; cls: 
 }
 
 function GradeBadge({ grade }: { grade: MoveGrade | undefined }) {
-  if (!grade) return null
+  if (!grade) return <span className="grade-placeholder" />
   const cfg = GRADE_CONFIG[grade]
-  if (!cfg.label) return null
+  if (!cfg.label) return <span className="grade-placeholder" />
   return <span className={`move-grade ${cfg.cls}`}>{cfg.label}</span>
 }
 
@@ -50,6 +50,7 @@ function MoveToken({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
 
   return (
     <span className="move-cell">
+      {node.isMainLine && <GradeBadge grade={isAnalyzing ? undefined : grade} />}
       <span
         className={['move-san', active ? 'move-active' : '', inPath && !active ? 'move-in-path' : ''].filter(Boolean).join(' ')}
         data-node-id={node.id}
@@ -57,7 +58,6 @@ function MoveToken({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
       >
         {node.san}
       </span>
-      {node.isMainLine && <GradeBadge grade={isAnalyzing ? undefined : grade} />}
     </span>
   )
 }
