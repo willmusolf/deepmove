@@ -3202,3 +3202,417 @@ cg-board {
   background: var(--color-error, #f87171);
   color: #fff;
 }
+
+/* ── Coach Panel: Game Narrative ─────────────────────────────────────────── */
+.coach-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.coach-panel--empty {
+  justify-content: center;
+  align-items: center;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.coach-panel__analyzing-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--color-surface-2, rgba(255,255,255,0.04));
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.coach-narrative {
+  overflow-y: auto;
+  flex: 1;
+  padding: 0.25rem 0;
+}
+
+.coach-narrative__move-pair {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Every move row */
+.coach-narrative__row {
+  display: flex;
+  flex-direction: column;
+  padding: 0.2rem 0.75rem 0.2rem 0.75rem;
+  border-left: 2px solid transparent;
+  transition: background 0.1s;
+}
+
+.coach-narrative__row:hover {
+  background: var(--color-surface-2, rgba(255,255,255,0.03));
+}
+
+/* Critical moment rows get a colored left border */
+.coach-narrative__row--critical {
+  border-left-color: var(--color-accent, #f59e0b);
+  background: rgba(245, 158, 11, 0.04);
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  margin: 0.25rem 0;
+}
+
+.coach-narrative__move-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+  color: var(--color-text);
+}
+
+.coach-narrative__move-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.coach-narrative__move-btn:hover .coach-narrative__move-label {
+  color: var(--color-accent, #f59e0b);
+}
+
+/* Grade symbols */
+.coach-narrative__grade {
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.coach-narrative__grade--brilliant { color: #c084fc; }
+.coach-narrative__grade--great     { color: #34d399; }
+.coach-narrative__grade--best      { color: #34d399; }
+.coach-narrative__grade--excellent { color: #6ee7b7; }
+.coach-narrative__grade--good      { color: var(--color-text-muted); }
+.coach-narrative__grade--inaccuracy { color: #fbbf24; }
+.coach-narrative__grade--mistake   { color: #f97316; }
+.coach-narrative__grade--blunder   { color: #ef4444; }
+.coach-narrative__grade--miss      { color: #f97316; }
+
+/* Category dot for critical moves */
+.coach-narrative__category-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+/* Short neutral comment below the move */
+.coach-narrative__comment {
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+  margin: 0.1rem 0 0 0;
+  line-height: 1.4;
+}
+
+/* Inline lesson card container */
+.coach-narrative__lesson {
+  margin-top: 0.5rem;
+}
+
+.coach-panel__loading--inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  padding: 0.4rem 0;
+}
+
+.coach-panel__error-inline {
+  font-size: 0.78rem;
+  color: var(--color-error, #f87171);
+  margin: 0.25rem 0 0 0;
+}
+
+.coach-panel__empty-msg--inline {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  padding: 1rem 0.75rem;
+  margin: 0;
+}
+
+.coach-panel__spinner--small {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+
+
+/* ── Move Coach Comment (Analysis tab inline coaching) ───────────────────── */
+.move-coach-comment {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  background: var(--color-surface-2, rgba(255,255,255,0.03));
+  border: 1px solid var(--color-border);
+  margin: 0 0 0.5rem 0;
+  min-height: 2.5rem;
+  transition: border-color 0.15s;
+}
+
+.move-coach-comment--critical {
+  border-color: var(--color-accent, #f59e0b);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.move-coach-comment__badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  margin-bottom: 0.3rem;
+}
+
+.move-coach-comment__text {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.move-coach-comment__lesson {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.move-coach-comment__lesson-text {
+  font-size: 0.82rem;
+  color: var(--color-text);
+  margin: 0;
+  line-height: 1.55;
+}
+
+.move-coach-comment__loading {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  font-style: italic;
+}
+
+.move-coach-comment__error {
+  font-size: 0.78rem;
+  color: var(--color-error, #f87171);
+  margin: 0;
+}
+
+
+/* ── GameTranscript ──────────────────────────────────────────────────────── */
+.game-transcript {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 0.25rem 0;
+  font-size: 0.82rem;
+}
+
+.game-transcript--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 1rem;
+}
+
+.game-transcript__placeholder {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  margin: 0;
+  text-align: center;
+}
+
+/* One full-move row (white + black side by side) */
+.transcript-pair {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0 0.5rem;
+}
+
+.transcript-pair__num {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  min-width: 1.8rem;
+  padding-top: 0.25rem;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.transcript-pair__moves {
+  display: flex;
+  flex: 1;
+  gap: 0.15rem;
+  flex-wrap: wrap;
+}
+
+/* Individual half-move cell */
+.transcript-move {
+  flex: 1;
+  min-width: 0;
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
+  transition: background 0.1s;
+}
+
+.transcript-move--active {
+  background: var(--color-surface-active, rgba(255, 255, 255, 0.1));
+}
+
+.transcript-move--critical {
+  border-left: 2px solid var(--color-accent, #f59e0b);
+}
+
+.transcript-move__token-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.transcript-move__btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  color: var(--color-text);
+  font-size: 0.82rem;
+}
+
+.transcript-move__btn:hover .transcript-move__san {
+  color: var(--color-accent, #f59e0b);
+}
+
+.transcript-move__san {
+  font-family: var(--font-mono, monospace);
+  font-weight: 500;
+}
+
+.transcript-move__grade {
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+
+.transcript-move__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* "View Lesson" toggle button */
+.transcript-move__lesson-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  padding: 0 0.2rem;
+  line-height: 1;
+  margin-left: auto;
+  opacity: 0.7;
+}
+.transcript-move__lesson-btn:hover {
+  opacity: 1;
+  color: var(--color-accent, #f59e0b);
+}
+
+/* Short comment under active / critical move */
+.transcript-move__comment {
+  font-size: 0.73rem;
+  color: var(--color-text-muted);
+  margin: 0.1rem 0 0 0;
+  line-height: 1.4;
+}
+
+/* Inline expanded lesson card */
+.transcript-move__lesson {
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--color-surface-2, rgba(255,255,255,0.04));
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+}
+
+.transcript-move__lesson-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  margin-bottom: 0.35rem;
+}
+
+.transcript-move__lesson-text {
+  font-size: 0.8rem;
+  color: var(--color-text);
+  margin: 0;
+  line-height: 1.55;
+}
+
+.transcript-move__lesson-loading,
+.transcript-move__lesson-error {
+  font-size: 0.78rem;
+  margin: 0;
+  font-style: italic;
+}
+.transcript-move__lesson-error { color: var(--color-error, #f87171); }
+.transcript-move__lesson-loading { color: var(--color-text-muted); }
+
+/* MoveCoachComment idle state */
+.move-coach-comment--idle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+}
+
+.move-coach-comment__idle-text {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  margin: 0;
+  font-style: italic;
+}
+
+/* "View in transcript" button */
+.move-coach-comment__view-lesson-btn {
+  display: inline-block;
+  margin-top: 0.5rem;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.move-coach-comment__view-lesson-btn:hover {
+  color: var(--color-accent, #f59e0b);
+  border-color: var(--color-accent, #f59e0b);
+}
+

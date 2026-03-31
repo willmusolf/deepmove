@@ -1,15 +1,15 @@
 # DeepMove Development TODO
 
-**Current Status**: Board ✅ · Backend ✅ (54 tests, CI green) · Coaching pipeline functional but quality needs overhaul · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
+**Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-03-27 — Daily slideshow automation script (`scripts/slideshow_generator.py`) — Claude generates slide copy, DALL-E 3 generates backgrounds, Pillow composites final PNGs. Updated marketing positioning: added analysis-tool angle, second tagline, two-step funnel. Coaching pipeline overhaul is still top launch blocker.
+**Last Session**: 2026-03-31 — Coaching pipeline overhaul shipped: analysis-first classification, 6 mistake categories, MoveCoachComment box in Coach tab (replaces graph/report), MoveList shared between Analysis + Coach. Grade badge text-color bug fixed. Next session: coaching UX polish pass (see section below).
 
 ---
 
 ## 🧭 RECOMMENDED BUILD ORDER FROM HERE
 
 Follow this order unless something urgent breaks:
-- [ ] 1. Coaching pipeline overhaul
+- [x] 1. Coaching pipeline overhaul ✅
 - [ ] 2. Stripe + rate limiting
 - [ ] 3. Deploy production stack to `deepmove.io`
 - [ ] 4. Responsive layout + resizing pass
@@ -354,6 +354,56 @@ The LLM becomes a **copywriter**, not a chess analyst. All chess intelligence st
 - [ ] **pawnStructure extractor** — implement for 1600+ coaching (V2)
 - [ ] **Full account analysis** — last 50 games, recurring weakness detection (PREMIUM)
 
+
+---
+
+## 🎨 COACHING UX — NEXT PASS (flesh out in next convo)
+
+### Goals
+- Make the Coach tab feel alive and personal, not just text in a box
+- Give users an easy way to jump between lessons without scrolling
+- Explore coaching styles / presentation modes
+
+### Ideas to discuss and spec out
+
+#### 1. Jump to Lessons flow
+- "Lessons" sub-tab or button row at the top of Coach tab showing lesson count badges
+- Clicking jumps the board + transcript to that moment
+- Keyboard shortcut (J?) to cycle through critical moments only
+- Open question: numbered pills (1 · 2 · 3) or a "Next Mistake →" button?
+
+#### 2. Coach persona / presentation style
+- Chess.com has a animated figure (character) that speaks the coaching text
+- Options to explore: subtle avatar icon next to the coach box, speech-bubble style callout, or animated thinking emoji while lesson loads
+- Open question: how much personality does the coach have? One voice or selectable?
+
+#### 3. Coaching style toggle
+- "Hint first" mode — coach asks a Socratic question before revealing the lesson (original Think First concept)
+- "Direct" mode (current) — lesson shown immediately
+- "Blunt" mode — one-sentence rule, no explanation
+- Open question: is this a per-game setting or a global preference?
+
+#### 4. Lesson quality improvements (ongoing)
+- Better "aimless move" fallback when all categories miss — describe what DID change positionally
+- Sacrifice / trap detection needs real eval recovery logic (currently using futureUserScores proxy)
+- Add `missed_tactic` lesson quality — right now the LLM doesn't have enough tactic-specific facts
+- Open question: should we show engine best move arrow when lesson is expanded?
+
+#### 6. QA inputs needed before next coaching session
+To diagnose and fix lesson quality, bring these to the next session:
+- **2-3 bad lessons** — paste the full lesson text + one sentence on what actually happened on the board
+- **2-3 wrong category labels** — e.g. "it said Aimless Move but I was playing a rook to an open file"
+- **Browser devtools → Network → `/coaching/lesson` request body** — specifically the `verified_facts` array for a bad lesson
+- **Backend terminal output** — any errors or warnings logged during lesson generation
+- **1 good lesson** — so we know what the quality bar looks like when it works
+These examples are the single highest-leverage input for improving lesson accuracy.
+
+#### 5. Summary screen after game review
+- After stepping through all moves, show a "Game Summary" panel
+- Top 1-2 themes from the game ("You struggled with: Hung Pieces (2x), Ignored Threats (1x)")
+- "Your biggest habit to fix" callout
+- Open question: this replaces the EvalGraph area, or is it a separate screen?
+
 ---
 
 ## 🟡 NEXT AFTER LAUNCH
@@ -464,11 +514,14 @@ See above in "Next After Launch"
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
 
+
 -reload should only pull newest games?? not reload all games every time
 
 -going back a move sometimes doesnt affect move suggestsion/eval bar showing for the wrong position. do an audit to fix this and make sure its alwways right and as fast/efficient/great as possible ask questions for big changes or anything else
 also -get rid of the the depth / 16 BELOW the move lines. keep the one above it (theyre both there saying the same exact thing fro some reason, only need 1 of them)
-
+-and also now tis doing the thing where some positions or on move 0 it doesnt show receommended moves idk it was working before we did something to break it for both analysis and loaded games
+-it starts working better after you make a move but move 0 and the analysis tab doesnt look right until a move is made. make it consistent. even while its analyzing. 
+and also in the coaching tab too 
 
 
 -resizing is a nightmare on desktop as well befoer mobile responsiveness maybe work that into the official todo as well
@@ -480,7 +533,6 @@ also -get rid of the the depth / 16 BELOW the move lines. keep the one above it 
 -enable multiple premoves like on chess.com? or not necessary
 
 
--badges on board are the same on every branch? each move sould be re evaluated or no? thats what chessigma does and chess.com
 
 
 

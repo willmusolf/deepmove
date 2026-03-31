@@ -112,11 +112,19 @@ function describeMistakeType(features: PositionFeatures): AnalysisFacts['mistake
 function determineCategory(
   features: PositionFeatures,
   moment: Pick<CriticalMoment, 'moveNumber' | 'color' | 'evalSwing'>,
+  futureUserScores: number[] = [],
 ): MistakeCategory {
   const userDev = moment.color === 'white' ? features.development.white : features.development.black
   const userKing = moment.color === 'white' ? features.kingSafety.white : features.kingSafety.black
 
-  if (features.threats.hangingPieces.length > 0) return 'hung_piece'
+  if (features.threats.hangingPieces.length > 0) {
+    // Sacrifice / trap guard: if eval recovers within 3 half-moves, this was likely
+    // intentional — don't label it as a blunder when it isn't.
+    // futureUserScores are player-perspective: positive = good for user
+    const evalRecovers = futureUserScores.slice(0, 3).some(s => s > 50)
+    if (!evalRecovers) return 'hung_piece'
+    // eval recovers → fall through to other checks
+  }
   if (features.threats.threatsIgnored.length > 0) return 'ignored_threat'
   if (features.engineMoveImpact.isForcing && moment.evalSwing >= 90) return 'missed_tactic'
   if (
@@ -186,7 +194,16 @@ function buildBetterIdeaFact(features: PositionFeatures): string {
   if (features.engineMoveImpact.description) {
     return `What the better move would have done: ${features.engineMoveImpact.description}.`
   }
-  return 'What the better move would have done: improved the position with a more purposeful idea.'
+  // Derive a basic description from the engine move SAN when extraction failed
+  const san = features.engineMoveImpact.bestMoveSan ?? ''
+  if (san) {
+    if (san.startsWith('O-O')) return 'What the better move would have done: castling first kept the king safe and connected the rooks.'
+    if (san.includes('+')) return 'What the better move would have done: it gave check, creating immediate threats the opponent had to answer.'
+    if (san.includes('x')) return 'What the better move would have done: it made a capture that won material or opened lines.'
+    if (san[0] === 'R') return 'What the better move would have done: it activated the rook on an open or important file.'
+    if (san[0] === 'Q') return 'What the better move would have done: it put the queen on a more active and threatening square.'
+  }
+  return 'What the better move would have done: it solved the most urgent problem in the position.'
 }
 
 function formatCp(cp: number): string {
@@ -219,7 +236,7 @@ export function buildAnalysisFacts(
   moment: Pick<CriticalMoment, 'evalSwing' | 'moveNumber' | 'color' | 'movePlayed' | 'evalAfter'>,
   futureUserScores: number[] = [],
 ): AnalysisFacts {
-  const category = determineCategory(features, moment)
+  const category = determineCategory(features, moment, futureUserScores)
   const categoryName = CATEGORIES[category]?.name ?? CATEGORIES.unknown.name
   const mistakeType = describeMistakeType(features)
   const primaryIssue = `Mistake type: ${mistakeType}. The better move was ${features.engineMoveImpact.isForcing ? 'forcing' : 'a quiet improvement'}.`

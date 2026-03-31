@@ -3,7 +3,6 @@ import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
 import EvalGraph from './components/Board/EvalGraph'
-import GameReport from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
 import PlayerInfoBox from './components/Board/PlayerInfoBox'
 import ImportPanel from './components/Import/ImportPanel'
@@ -15,7 +14,7 @@ import type { LichessGame } from './api/lichess'
 import NavSidebar from './components/Layout/NavSidebar'
 import type { Page } from './components/Layout/NavSidebar'
 import ProfilePage from './components/Profile/ProfilePage'
-import CoachPanel from './components/Coach/CoachPanel'
+import MoveCoachComment from './components/Coach/MoveCoachComment'
 import BotPlayPage from './components/Play/BotPlayPage'
 import { useGameReview } from './hooks/useGameReview'
 import { useAnalysisBoard } from './hooks/useAnalysisBoard'
@@ -26,6 +25,8 @@ import { useSound } from './hooks/useSound'
 import { useAuthStore } from './stores/authStore'
 import { useGameStore } from './stores/gameStore'
 import type { TopLine } from './engine/stockfish'
+import { classifyMove } from './engine/analysis'
+import type { MoveGrade } from './engine/analysis'
 import type { Key } from 'chessground/types'
 import { cacheRatingsFromGameList, readCachedRatings } from './components/Import/normalizeGame'
 import { Chess } from 'chess.js'
@@ -49,9 +50,10 @@ export default function App() {
     goToMove,
     goForward,
     goBack,
-    navigateTo,
     addVariationMove,
+    lastAddedNodeIdRef,
     nextMainLineNode,
+    navigateTo,
     rootBranchIds,
     isLoaded,
     whitePlayer,
@@ -100,9 +102,7 @@ export default function App() {
 
   const {
     lessons: coachLessons,
-    currentIndex: coachIndex,
-    setCurrentIndex: setCoachIndex,
-    revealLesson: revealCoachLesson,
+    moveComments: coachMoveComments,
   } = useCoaching({
     criticalMoments,
     moveEvals,
@@ -130,6 +130,7 @@ export default function App() {
   }, [setUserElo])
 
   const [currentAnalysisDepth, setCurrentAnalysisDepth] = useState(0)
+  const [branchGrades, setBranchGrades] = useState<Map<string, MoveGrade>>(new Map())
   // FEN → TopLine[] cache so revisiting a position never re-analyzes
   const positionCache = useRef<Map<string, TopLine[]>>(new Map())
   const pathKeyRef = useRef(0)
@@ -144,6 +145,7 @@ export default function App() {
       // games where skipNextAnalysis is true — so stale per-position multi-PV
       // results from the previous game never bleed into the new one.
       positionCache.current.clear()
+      setBranchGrades(new Map())
       lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
       if (useGameStore.getState().skipNextAnalysis) {
         setSkipNextAnalysis(false)
@@ -431,6 +433,7 @@ export default function App() {
     reset()
     lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
     positionCache.current.clear()
+    setBranchGrades(new Map())
     analysisBoardReset()
     setOpeningName(null)
     setPanelTab('load')
@@ -453,27 +456,48 @@ export default function App() {
     if (next && next.from === from && next.to === to && next.san === san) {
       goForward()
     } else {
+      const parentFen = currentFen
       addVariationMove(from, to, san, newFen)
+      // lastAddedNodeIdRef is set synchronously inside addVariationMove
+      const nodeId = lastAddedNodeIdRef.current
+      if (nodeId && isReady) {
+        void evaluateBranchMove(nodeId, parentFen, newFen)
+      }
+    }
+  }
+
+  async function evaluateBranchMove(nodeId: string, parentFen: string, newFen: string) {
+    try {
+      const chess = new Chess(parentFen)
+      const legalCount = chess.moves().length
+      const color: 'white' | 'black' = parentFen.split(' ')[1] === 'w' ? 'white' : 'black'
+
+      const [beforeLines, afterLines] = await Promise.all([
+        analyzePositionLines(parentFen, 14, 1),
+        analyzePositionLines(newFen, 14, 1),
+      ])
+
+      const evalBefore = beforeLines[0]?.score ?? 0
+      const evalAfter = afterLines[0]?.score ?? 0
+      const grade = classifyMove(evalBefore, evalAfter, color, legalCount)
+      setBranchGrades(prev => new Map(prev).set(nodeId, grade))
+    } catch {
+      // Silently ignore evaluation failures — branch just shows no badge
     }
   }
 
   // Best Lines click: enter first move of that PV as a branch
-  function handleNavigateTo(path: string[]) {
-    pathKeyRef.current++
-    const nodeId = path[path.length - 1]
-    if (nodeId && moveTree[nodeId]) playMoveSound(moveTree[nodeId].san)
-    navigateTo(path)
-  }
-
   function handleGoToMove(index: number) {
     pathKeyRef.current++
     if (index > 0 && index <= moves.length) playMoveSound(moves[index - 1])
     goToMove(index)
   }
 
-  function goToMoveSilent(index: number) {
+  function handleNavigateTo(path: string[]) {
     pathKeyRef.current++
-    goToMove(index)
+    const nodeId = path[path.length - 1]
+    if (nodeId && moveTree[nodeId]) playMoveSound(moveTree[nodeId].san)
+    navigateTo(path)
   }
 
   // Free-play: enter first move of a best line (clicked in BestLines panel or via arrow)
@@ -493,32 +517,19 @@ export default function App() {
     setPanelTab('analysis')
   }
 
-  const handleCoachNavigate = useCallback((idx: number) => {
-    setCoachIndex(idx)
-    const moment = coachLessons[idx]?.moment
-    if (!moment) return
-    // Navigate silently to the position BEFORE the mistake (no sound),
-    // then after 1s play the move with sound so the user sees and hears what they did.
-    // Ply is 0-indexed: white move N = (N-1)*2, black move N = (N-1)*2+1
-    const ply = (moment.moveNumber - 1) * 2 + (moment.color === 'black' ? 1 : 0)
-    goToMoveSilent(ply)
-    setTimeout(() => handleGoToMove(ply + 1), 1000)
-  }, [setCoachIndex, coachLessons]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When the user switches to the Coach tab, auto-navigate to the current lesson's moment
-  // so the board always reflects the coaching position.
-  useEffect(() => {
-    if (panelTab === 'coach' && coachLessons.length > 0) {
-      const moment = coachLessons[coachIndex]?.moment
-      if (!moment) return
-      const ply = (moment.moveNumber - 1) * 2 + (moment.color === 'black' ? 1 : 0)
-      goToMoveSilent(ply)
-      setTimeout(() => handleGoToMove(ply + 1), 1000)
-    }
-  }, [panelTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const moveGrades = useMemo(() => moveEvals.map(me => me.grade), [moveEvals])
 
   // Are we currently in a branch (off the main line)?
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
+
+  // Lightweight coaching blurb for the current branch move (no full LLM lesson)
+  const currentNodeId = currentPath.length > 0 ? currentPath[currentPath.length - 1] : null
+  const currentNode = currentNodeId ? moveTree[currentNodeId] : null
+  const branchComment = (inBranch && currentNode && currentNodeId && branchGrades.has(currentNodeId))
+    ? { grade: branchGrades.get(currentNodeId)!, san: currentNode.san }
+    : null
 
   // ── Eval ───────────────────────────────────────────────────────────────────
 
@@ -601,7 +612,6 @@ export default function App() {
 
   // ── Misc ───────────────────────────────────────────────────────────────────
 
-  const moveGrades = useMemo(() => moveEvals.map(me => me.grade), [moveEvals])
 
   const showAnalyzingBar = isAnalyzing || (analyzedCount < totalMovesCount && totalMovesCount > 0)
 
@@ -886,17 +896,13 @@ export default function App() {
                         />
                       )}
 
-                      {/* Game report — only after analysis completes */}
-                      {!isAnalyzing && moveEvals.length > 0 && (
-                        <GameReport moveEvals={moveEvals} userColor={userColor} />
-                      )}
-
                       {/* Move list — tree renderer */}
                       <MoveList
                         tree={moveTree}
                         rootId={rootId}
                         currentPath={currentPath}
                         moveGrades={moveGrades}
+                        branchGrades={branchGrades}
                         onNodeClick={handleNavigateTo}
                         isAnalyzing={isAnalyzing}
                         rootBranchIds={rootBranchIds}
@@ -904,14 +910,66 @@ export default function App() {
                     </>
                   )}
 
-                  {panelTab === 'coach' && (
-                    <CoachPanel
-                      lessons={coachLessons}
-                      currentIndex={coachIndex}
-                      onNavigate={handleCoachNavigate}
-                      onReveal={revealCoachLesson}
-                      isAnalyzing={isAnalyzing}
-                    />
+                  {panelTab === 'coach' && isLoaded && (
+                    <>
+                      {/* Engine / analyzing status */}
+                      {engineStatus === 'error' && (
+                        <div className="analyzing-bar analyzing-bar--error">
+                          <span className="analyzing-text">⚠ Engine failed to load</span>
+                        </div>
+                      )}
+                      {engineStatus === 'loading' && !isReady && (
+                        <div className="analyzing-bar">
+                          <span className="analyzing-dot" />
+                          <span className="analyzing-text">Engine loading…</span>
+                        </div>
+                      )}
+                      {showAnalyzingBar && (
+                        <div className="analyzing-bar">
+                          <span className="analyzing-dot" />
+                          <span className="analyzing-text">
+                            Analyzing…
+                            {totalMovesCount > 0 && ` ${analyzedCount} / ${totalMovesCount}`}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Eval display */}
+                      {(posLine || mainEval) && (
+                        <div className="eval-display">
+                          <span className="eval-display-value">
+                            {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
+                          </span>
+                          {currentAnalysisDepth > 0 ? (
+                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / 16{isAnalyzingPosition ? ' …' : ''}</span>
+                          ) : isAnalyzingPosition ? (
+                            <span className="eval-display-depth">analyzing…</span>
+                          ) : mainEval && !inBranch ? (
+                            <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
+                          ) : null}
+                        </div>
+                      )}
+
+                      {/* Coach comment box — where the graph/report was */}
+                      <MoveCoachComment
+                        moveComments={coachMoveComments}
+                        lessons={coachLessons}
+                        currentMoveIndex={currentMoveIndex}
+                        branchComment={branchComment}
+                      />
+
+                      {/* Move list — same as Analysis tab */}
+                      <MoveList
+                        tree={moveTree}
+                        rootId={rootId}
+                        currentPath={currentPath}
+                        moveGrades={moveGrades}
+                        branchGrades={branchGrades}
+                        onNodeClick={handleNavigateTo}
+                        isAnalyzing={isAnalyzing}
+                        rootBranchIds={rootBranchIds}
+                      />
+                    </>
                   )}
 
                   <div className="load-panel" style={{ display: panelTab === 'load' ? undefined : 'none' }}>
