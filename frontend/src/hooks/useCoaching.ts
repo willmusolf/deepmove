@@ -1,9 +1,10 @@
 // useCoaching.ts — Coaching pipeline hook
-// Orchestrates: feature extraction → analysis facts → LLM lesson fetch → checklist reminder
+// Orchestrates: feature extraction → analysis facts → LLM lesson fetch
+// Also builds MoveComment[] — a narrative comment for every move in the game.
 
 import { useState, useEffect, useRef } from 'react'
 import type { AnalysisFacts, CriticalMoment, MistakeType } from '../chess/types'
-import type { MoveEval } from '../engine/analysis'
+import type { MoveEval, MoveGrade } from '../engine/analysis'
 import { enrichCriticalMoments } from '../chess/features'
 import { getCacheBand, classifyTimeControl } from '../chess/eloConfig'
 import { CATEGORIES } from '../chess/taxonomy'
@@ -24,11 +25,19 @@ export interface CoachingLesson {
   confidence: number
   isLoading: boolean
   error: string | null
-  requiresChecklistFirst: boolean
-  checklistRevealed: boolean
 }
 
-const CHECKLIST_CATEGORIES = new Set(['hung_piece', 'ignored_threat'])
+/** A short comment for every move in the game — shown in the narrative view. */
+export interface MoveComment {
+  moveNumber: number
+  color: 'white' | 'black'
+  moveSan: string
+  comment: string
+  grade: MoveGrade
+  isCritical: boolean
+  /** Index into lessons[] if isCritical, otherwise null */
+  lessonIdx: number | null
+}
 
 function buildFallbackAnalysisFacts(moment: CriticalMoment): AnalysisFacts {
   const category = 'unknown'
@@ -54,6 +63,22 @@ function buildFallbackAnalysisFacts(moment: CriticalMoment): AnalysisFacts {
     betterIdea,
     consequence,
     factList: [primaryIssue, moveEffect, missedResponsibility, betterIdea, consequence],
+  }
+}
+
+export function gradeToComment(grade: MoveGrade, moveSan: string): string {
+  switch (grade) {
+    case 'brilliant': return `Brilliant — ${moveSan} was a spectacular find.`
+    case 'great': return `Great defensive resource.`
+    case 'best': return `Best move.`
+    case 'excellent': return `Good, solid choice.`
+    case 'good': return `Reasonable move.`
+    case 'inaccuracy': return `Slight inaccuracy — a better option was available.`
+    case 'mistake': return `Mistake — this gave away some of your advantage.`
+    case 'blunder': return `Blunder — this significantly hurt your position.`
+    case 'miss': return `Missed opportunity — your opponent just blundered and you didn't capitalize.`
+    case 'forced': return `Forced move.`
+    default: return ''
   }
 }
 
@@ -83,16 +108,16 @@ export function useCoaching({
   platform,
 }: UseCoachingOptions) {
   const [lessons, setLessons] = useState<CoachingLesson[]>([])
+  const [moveComments, setMoveComments] = useState<MoveComment[]>([])
   const [enrichedMoments, setEnrichedMoments] = useState<CriticalMoment[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
-  // Track which pgn+elo combination we last processed to avoid re-running on re-render
   const lastPgnRef = useRef('')
   const lastEloRef = useRef(0)
 
-  // Clear stale lessons immediately when a new game loads — prevents old game's
-  // lessons from flashing before the new game's lessons arrive.
+  // Clear stale data when a new game loads
   useEffect(() => {
     setLessons([])
+    setMoveComments([])
     setEnrichedMoments([])
     setCurrentIndex(0)
     lastPgnRef.current = ''
@@ -116,27 +141,64 @@ export function useCoaching({
     }
     setEnrichedMoments(enriched)
 
-    // Step 2: Initialize lesson placeholders
+    // Step 2: Build a lookup of critical moment positions
+    const criticalKey = (moveNumber: number, color: 'white' | 'black') => `${moveNumber}:${color}`
+    const criticalMap = new Map<string, { idx: number; moment: CriticalMoment }>()
+    enriched.forEach((m, idx) => {
+      criticalMap.set(criticalKey(m.moveNumber, m.color), { idx, moment: m })
+    })
+
+    // Step 3: Build MoveComment for every move
+    const comments: MoveComment[] = moveEvals.map(me => {
+      const key = criticalKey(me.moveNumber, me.color)
+      const critical = criticalMap.get(key)
+      const isCritical = !!critical
+      const analysisFacts = isCritical
+        ? (critical!.moment.analysisFacts ?? buildFallbackAnalysisFacts(critical!.moment))
+        : null
+
+      let comment: string
+      if (isCritical && analysisFacts) {
+        // Use the deterministic one-line failure fact as the inline comment
+        comment = analysisFacts.missedResponsibility
+          .replace(/^What your move failed to do: /, '')
+          .replace(/\.$/, '')
+        // Capitalize first letter
+        comment = comment.charAt(0).toUpperCase() + comment.slice(1)
+      } else {
+        comment = gradeToComment(me.grade, me.san)
+      }
+
+      return {
+        moveNumber: me.moveNumber,
+        color: me.color,
+        moveSan: me.san,
+        comment,
+        grade: me.grade,
+        isCritical,
+        lessonIdx: isCritical ? critical!.idx : null,
+      }
+    })
+    setMoveComments(comments)
+
+    // Step 4: Initialize lesson placeholders
     const initial: CoachingLesson[] = enriched.map(moment => {
       const analysisFacts = moment.analysisFacts ?? buildFallbackAnalysisFacts(moment)
       const category = analysisFacts.category
-      const isThinkFirst = CHECKLIST_CATEGORIES.has(category)
       return {
         moment,
         lessonText: null,
         category,
         categoryName: analysisFacts.categoryName ?? CATEGORIES[category]?.name ?? null,
-        confidence: 100,
+        confidence: moment.classification?.confidence ?? 80,
         isLoading: true,
         error: null,
-        requiresChecklistFirst: isThinkFirst,
-        checklistRevealed: !isThinkFirst, // immediately revealed for non-think-first
       }
     })
     setLessons(initial)
     setCurrentIndex(0)
 
-    // Step 3: Fetch lessons from backend for each enriched moment
+    // Step 5: Fetch LLM lessons from backend for each enriched moment
     enriched.forEach((moment, idx) => {
       try {
         const analysisFacts = moment.analysisFacts ?? buildFallbackAnalysisFacts(moment)
@@ -209,22 +271,15 @@ export function useCoaching({
     })
   }, [pgn, criticalMoments, moveEvals, userElo, timeControl, backendGameId, platformGameId, platform])
 
-  /** Reveal the lesson for a Think First moment (after user engages with checklist) */
-  const revealLesson = (idx: number) => {
-    setLessons(prev => prev.map((l, i) =>
-      i === idx ? { ...l, checklistRevealed: true } : l,
-    ))
-  }
-
   const currentLesson = lessons[currentIndex] ?? null
 
   return {
     enrichedMoments,
     lessons,
+    moveComments,
     currentLesson,
     currentIndex,
     setCurrentIndex,
-    revealLesson,
     totalLessons: lessons.length,
   }
 }

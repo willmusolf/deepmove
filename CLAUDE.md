@@ -19,17 +19,17 @@ PGN Input
   → Stockfish WASM (client-side, runs in a WEB WORKER — never on main thread)
   → Critical Moment Detection (client-side, finds 2-3 key moments per game)
   → Feature Extraction Engine (client-side, extracts verified positional facts)
-  → Principle Classifier (rules-based, maps features → principle + CONFIDENCE SCORE)
-  → IF confidence >= 70%: LLM generates full principle lesson
-    IF confidence < 70%: LLM generates simplified observation-based lesson
-      (describes what changed in the position without asserting a specific principle)
-  → LLM Lesson Generation (server-side, Claude API — writes the coaching lesson)
-  → Coaching UI (alongside interactive game review board)
+  → Category Classifier (rules-based, maps features → 1 of 6 mistake categories)
+      hung_piece | ignored_threat | missed_tactic | aimless_move | didnt_develop | didnt_castle
+  → Analysis Facts Builder (builds 5 verified fact sentences for the LLM)
+  → LLM Lesson Generation (server-side, Claude API — writes 2-4 sentence coaching lesson)
+  → MoveCoachComment box (Coach tab — updates per move, shows lesson at critical moments)
+  → MoveList transcript (shared between Analysis + Coach tabs)
 ```
 
 **PERFORMANCE RULE:** Stockfish MUST run in a Web Worker. Never on the main thread. The UI must never freeze during analysis. Use `new Worker()` with the Stockfish WASM binary. Analysis runs in background; results stream to the UI progressively.
 
-**CONFIDENCE SCORING:** The principle classifier outputs a confidence score (0-100) alongside the principle. High confidence (70+) = the features clearly point to one principle. Low confidence = multiple principles could apply or the position is ambiguous. Low-confidence moments get a simpler, safer coaching response that describes the position change without teaching the wrong concept. This prevents the LLM from writing convincing lessons about the wrong principle.
+**CATEGORY CLASSIFICATION:** The classifier maps features → 1 of 6 mistake categories (hung_piece, ignored_threat, missed_tactic, aimless_move, didnt_develop, didnt_castle) plus a confidence score. The category drives which facts are extracted and how the LLM lesson is framed. If no category fits (confidence too low), the lesson falls back to a general observation.
 
 **CRITICAL RULES:**
 1. The LLM NEVER analyzes chess positions directly. It receives pre-verified facts only.

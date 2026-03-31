@@ -1,5 +1,5 @@
 // useGameReview.ts — Tree-based game navigation with branch/variation support
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { Chess } from 'chess.js'
 import { useGameStore } from '../stores/gameStore'
 import { cleanPgn, extractClockTimes } from '../chess/pgn'
@@ -96,12 +96,16 @@ export function useGameReview() {
   // All branch/navigation state in one object keyed by pgnKey
   const [branchState, setBranchState] = useState<BranchState>(EMPTY_BRANCH)
 
+  // Ref to the most recently added branch node ID (set synchronously in addVariationMove)
+  const lastAddedNodeIdRef = useRef<string | null>(null)
+
   // Synchronous reset when game changes — React re-renders immediately without flash
   let activeBranch = branchState
   if (branchState.pgnKey !== pgn) {
     const fresh: BranchState = { pgnKey: pgn, nodes: {}, extraChildren: {}, currentPath: [], branchCounter: 0 }
     setBranchState(fresh)
     activeBranch = fresh
+    lastAddedNodeIdRef.current = null
   }
 
   // Merge base + branch nodes, applying extra children to each parent
@@ -242,6 +246,12 @@ export function useGameReview() {
     // This avoids stale-closure issues where siblingCount derived from `tree`
     // could produce duplicate IDs if two branches are added before a re-render.
     const extraKey = parentId ?? '__root__'
+    // Compute newId ahead of setBranchState so we can expose it synchronously via ref.
+    // We read branchState.branchCounter directly here (safe: addVariationMove only runs in event handlers).
+    const nextId = parentId
+      ? `${parentId}-b${branchState.branchCounter}`
+      : `root-b${branchState.branchCounter}`
+    lastAddedNodeIdRef.current = nextId
     setBranchState(prev => {
       const newId = parentId ? `${parentId}-b${prev.branchCounter}` : `root-b${prev.branchCounter}`
       const newNode: MoveNode = {
@@ -275,6 +285,7 @@ export function useGameReview() {
     goBack,
     navigateTo,
     addVariationMove,
+    lastAddedNodeIdRef,
     nextMainLineNode,
     isLoaded,
     parseError: baseData.parseError,

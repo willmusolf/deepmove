@@ -103,3 +103,27 @@ Raw centipawn-loss thresholds (ADR-011). Transparent and debuggable. 90% of the 
 **Decision:** No keepalive or visibility API handling required for Stockfish background analysis.
 
 **Reason:** Web Workers using `postMessage` are not subject to browser background throttling. Only `setTimeout`/`setInterval`/`requestAnimationFrame` are throttled in background tabs. The entire analysis pipeline in DeepMove uses pure `postMessage` UCI communication with zero timers in the analysis loop (the only timer is a one-time 60s init safety timeout in `stockfish.ts`). Analysis will continue at full speed regardless of tab visibility.
+
+### ADR-015: Analysis-First Coaching Pipeline — 6 Categories Replace 19 Principles
+**Status:** Implemented (2026-03-31)
+
+**Decision:** Replace the principle-first coaching model (19 taxonomy principles + confidence gates) with an analysis-first model using 6 mistake categories derived directly from feature extraction output.
+
+**Categories:** `hung_piece` · `ignored_threat` · `missed_tactic` · `aimless_move` · `didnt_develop` · `didnt_castle`
+
+**Key changes:**
+- `determineCategory()` in `classifier.ts` maps features → category (no principle lookup required)
+- `buildAnalysisFacts()` builds 5 deterministic fact sentences fed to the LLM — the LLM never guesses at position details
+- `hadClearPurpose` in `moveImpact.ts` widened: pawn moves, rook moves, and centralizing moves are never `aimless_move`
+- Sacrifice guard in `determineCategory`: if `futureUserScores` recovers >+50cp within 3 half-moves, suppress `hung_piece` (deliberate sacrifice)
+
+**Rationale:** The 19-principle model required the classifier to be confident about subtle strategic concepts it couldn't reliably detect. The 6-category model only labels things the feature extractor can verify directly (e.g. "piece is literally hanging" → `hung_piece`). This eliminates wrong-concept lessons at the cost of some granularity — acceptable for MVP.
+
+### ADR-016: Coach Tab Layout — MoveCoachComment Above Shared MoveList
+**Status:** Implemented (2026-03-31)
+
+**Decision:** Coach tab = eval display + `MoveCoachComment` box (where the graph was) + `MoveList`. Analysis tab = unchanged (eval display + BestLines + EvalGraph + MoveList). Both tabs share the same `MoveList` component and `currentMoveIndex` state.
+
+**Rationale:** Avoids building a parallel transcript component. The MoveList already handles variations, grades, and navigation correctly. The only addition to the Coach tab is the `MoveCoachComment` box which updates reactively as `currentMoveIndex` changes — zero new navigation logic required.
+
+**Removed:** `CoachPanel.tsx` (replaced by `MoveCoachComment` + `MoveList` directly). `GameTranscript.tsx` was built then deleted in the same session — the MoveList approach was simpler and already existed.

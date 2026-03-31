@@ -35,6 +35,7 @@ interface RenderCtx {
   tree: MoveTree
   currentPath: string[]
   moveGrades: (MoveGrade | undefined)[]
+  branchGrades?: Map<string, MoveGrade>
   onNodeClick: (path: string[]) => void
   isAnalyzing: boolean
 }
@@ -46,11 +47,13 @@ function MoveToken({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
   const active = currentPath[currentPath.length - 1] === node.id
   const inPath = currentPath.includes(node.id)
   const mainIdx = node.isMainLine ? parseInt(node.id.slice(1), 10) : -1
-  const grade = (!isAnalyzing && mainIdx >= 0) ? moveGrades[mainIdx] : undefined
+  const grade = (!isAnalyzing && mainIdx >= 0)
+    ? moveGrades[mainIdx]
+    : (!isAnalyzing ? ctx.branchGrades?.get(node.id) : undefined)
 
   return (
     <span className="move-cell">
-      {node.isMainLine && <GradeBadge grade={isAnalyzing ? undefined : grade} />}
+      <GradeBadge grade={isAnalyzing ? undefined : grade} />
       <span
         className={['move-san', active ? 'move-active' : '', inPath && !active ? 'move-in-path' : ''].filter(Boolean).join(' ')}
         data-node-id={node.id}
@@ -149,6 +152,7 @@ interface MoveListProps {
   rootId: string | null
   currentPath: string[]
   moveGrades: (MoveGrade | undefined)[]
+  branchGrades?: Map<string, MoveGrade>
   onNodeClick: (path: string[]) => void
   isAnalyzing?: boolean
   rootBranchIds?: string[]
@@ -159,6 +163,7 @@ export default function MoveList({
   rootId,
   currentPath,
   moveGrades,
+  branchGrades,
   onNodeClick,
   isAnalyzing = false,
   rootBranchIds = [],
@@ -175,7 +180,7 @@ export default function MoveList({
 
   if (!rootId) return <div className="move-list" />
 
-  const ctx: RenderCtx = { tree, currentPath, moveGrades, onNodeClick, isAnalyzing }
+  const ctx: RenderCtx = { tree, currentPath, moveGrades, branchGrades, onNodeClick, isAnalyzing }
 
   return (
     <div className="move-list" ref={containerRef}>

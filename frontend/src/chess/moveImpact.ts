@@ -62,8 +62,21 @@ export function analyzeMoveImpact(
   const kingAfter = getKingSquare(after, userColor)
   const changedKingSafety = kingBefore !== kingAfter
 
-  // A move has "clear purpose" if it: captures, checks, develops, or castles
+  // Is this a pawn or rook move? Always intentional — never "aimless".
+  const isPawnMove = pieceType === 'p'
+  const isRookMove = pieceType === 'r'
+
+  // Did the piece move toward the center? Central squares = d4/d5/e4/e5 and neighbors.
+  // file: a=1 … h=8, rank: 1-8. Central distance ≤ 2.5 covers c3–f6 region.
+  const toFile = toSq ? toSq.charCodeAt(0) - 96 : 0  // a=1, h=8
+  const toRank = toSq ? parseInt(toSq[1], 10) : 0
+  const centralDist = Math.abs(toFile - 4.5) + Math.abs(toRank - 4.5)
+  const movesToCenter = toSq !== '' && centralDist <= 2.5
+
+  // A move has "clear purpose" if it: captures, checks, develops, castles,
+  // pushes a pawn, moves a rook, or improves piece centralization.
   const hadClearPurpose = wasCapture || wasCheck || developedPiece || castled
+    || isPawnMove || isRookMove || movesToCenter
 
   // Build a plain-English description
   const parts: string[] = []
