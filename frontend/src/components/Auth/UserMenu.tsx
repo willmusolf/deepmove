@@ -1,5 +1,5 @@
 // UserMenu.tsx — User avatar/sign-in button for the sidebar.
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { getPlayerProfile } from '../../api/chesscom'
 import AuthModal from './AuthModal'

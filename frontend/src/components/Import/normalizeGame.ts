@@ -23,17 +23,23 @@ export interface NormalizedGame {
 }
 
 export function formatTimeControl(tc: string): string {
-  // "300+2" → "5+2" (convert base seconds to minutes, keep increment)
+  // "7200+60" → "2h+60s", "300+2" → "5+2", "600" → "10 min"
+  function fmtBase(secs: number): string {
+    if (secs >= 3600) return `${Math.round(secs / 3600)}h`
+    if (secs >= 60)   return `${Math.round(secs / 60)}`
+    return `${secs}s`
+  }
   if (tc.includes('+')) {
     const [baseSecs, inc] = tc.split('+')
     const baseNum = parseInt(baseSecs, 10)
     if (!isNaN(baseNum) && baseNum >= 60) {
-      return `${Math.round(baseNum / 60)}+${inc}`
+      return `${fmtBase(baseNum)}+${inc}`
     }
     return tc
   }
   const secs = parseInt(tc, 10)
   if (isNaN(secs)) return tc
+  if (secs >= 3600) return `${Math.round(secs / 3600)}h`
   return `${Math.round(secs / 60)} min`
 }
 /** Parse any time control string to total seconds, for categorization. */
@@ -41,6 +47,9 @@ export function tcToSeconds(tc: string): number {
   // "10 min" → 600
   const minMatch = tc.match(/^(\d+)\s*min$/)
   if (minMatch) return parseInt(minMatch[1], 10) * 60
+  // "2h" or "2h+60" → hours
+  const hourMatch = tc.match(/^(\d+)h(?:\+(\d+))?$/)
+  if (hourMatch) return parseInt(hourMatch[1], 10) * 3600 + (hourMatch[2] ? parseInt(hourMatch[2], 10) : 0)
   // "10+0" or "3+2" → base minutes * 60 + increment seconds
   const plusMatch = tc.match(/^(\d+)\+(\d+)$/)
   if (plusMatch) return parseInt(plusMatch[1], 10) * 60 + parseInt(plusMatch[2], 10)
@@ -92,7 +101,7 @@ export function normalizeLichess(game: LichessGame, username: string): Normalize
   else if ((game as unknown as Record<string, unknown>).winner === (isWhite ? 'black' : 'white')) result = 'L'
   else if (game.status === 'draw' || game.status === 'stalemate') result = 'D'
   const clock = game.clock
-  const timeControl = clock ? `${Math.round(clock.initial / 60)}+${clock.increment}` : game.speed
+  const timeControl = clock ? formatTimeControl(`${clock.initial}+${clock.increment}`) : game.speed
   const userPlayer = isWhite ? game.players.white : game.players.black
   return {
     pgn: game.pgn,

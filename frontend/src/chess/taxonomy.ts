@@ -13,6 +13,58 @@ export interface Principle {
   takeawayTemplate: string
 }
 
+export interface CategoryDefinition {
+  id: string
+  name: string
+  color: string
+  shortLabel: string
+}
+
+export const CATEGORIES: Record<string, CategoryDefinition> = {
+  hung_piece: {
+    id: 'hung_piece',
+    name: 'Hung Piece',
+    shortLabel: 'Hung Piece',
+    color: '#ef4444',
+  },
+  ignored_threat: {
+    id: 'ignored_threat',
+    name: 'Ignored Threat',
+    shortLabel: 'Ignored Threat',
+    color: '#f97316',
+  },
+  missed_tactic: {
+    id: 'missed_tactic',
+    name: 'Missed Tactic',
+    shortLabel: 'Missed Tactic',
+    color: '#eab308',
+  },
+  aimless_move: {
+    id: 'aimless_move',
+    name: 'Aimless Move',
+    shortLabel: 'Aimless Move',
+    color: '#94a3b8',
+  },
+  didnt_develop: {
+    id: 'didnt_develop',
+    name: "Didn't Develop",
+    shortLabel: 'No Development',
+    color: '#38bdf8',
+  },
+  didnt_castle: {
+    id: 'didnt_castle',
+    name: "Didn't Castle",
+    shortLabel: 'No Castle',
+    color: '#8b5cf6',
+  },
+  unknown: {
+    id: 'unknown',
+    name: 'General Mistake',
+    shortLabel: 'General',
+    color: '#64748b',
+  },
+}
+
 export const PRINCIPLES: Record<string, Principle> = {
   // Opening
   OPENING_01: {

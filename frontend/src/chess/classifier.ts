@@ -22,8 +22,8 @@
 //
 // Tests: frontend/src/chess/__tests__/classifier.test.ts
 
-import type { PositionFeatures, ClassificationResult, CriticalMoment } from './types'
-import { PRINCIPLES } from './taxonomy'
+import type { AnalysisFacts, ClassificationResult, CriticalMoment, MistakeCategory, PositionFeatures } from './types'
+import { CATEGORIES, PRINCIPLES } from './taxonomy'
 
 /** Check if a principle is appropriate for the user's Elo */
 export function isInEloGate(principleId: string, userElo: number): boolean {
@@ -104,193 +104,159 @@ export function classifyPrinciple(
   return null
 }
 
-/**
- * Parse a FEN string and return the piece on a given square, or null.
- * Returns { type: 'p'|'n'|'b'|'r'|'q'|'k', color: 'w'|'b' } or null.
- */
-function getPieceOnSquare(fen: string, square: string): { type: string; color: 'w' | 'b' } | null {
-  const boardPart = fen.split(' ')[0]
-  const ranks = boardPart.split('/')
-  const file = square.charCodeAt(0) - 'a'.charCodeAt(0)   // 0-7
-  const rank = 8 - parseInt(square[1], 10)                  // 0-7 (rank 8 = index 0)
-  if (rank < 0 || rank > 7 || file < 0 || file > 7) return null
-  const rankStr = ranks[rank]
-  let col = 0
-  for (const ch of rankStr) {
-    if (ch >= '1' && ch <= '8') {
-      col += parseInt(ch, 10)
-    } else {
-      if (col === file) {
-        return { type: ch.toLowerCase(), color: ch === ch.toUpperCase() ? 'w' : 'b' }
-      }
-      col++
-    }
-  }
-  return null
+function describeMistakeType(features: PositionFeatures): AnalysisFacts['mistakeType'] {
+  return features.engineMoveImpact.isForcing ? 'tactical' : 'strategic'
 }
 
-/**
- * Build the verified_facts list sent to the LLM.
- * Translates features + classification into plain-English sentences the coach uses.
- */
+function determineCategory(
+  features: PositionFeatures,
+  moment: Pick<CriticalMoment, 'moveNumber' | 'color' | 'evalSwing'>,
+): MistakeCategory {
+  const userDev = moment.color === 'white' ? features.development.white : features.development.black
+  const userKing = moment.color === 'white' ? features.kingSafety.white : features.kingSafety.black
+
+  if (features.threats.hangingPieces.length > 0) return 'hung_piece'
+  if (features.threats.threatsIgnored.length > 0) return 'ignored_threat'
+  if (features.engineMoveImpact.isForcing && moment.evalSwing >= 90) return 'missed_tactic'
+  if (
+    (features.gamePhase === 'opening' || features.gamePhase === 'early_middlegame') &&
+    userKing.castled === 'none' &&
+    moment.moveNumber >= 8 &&
+    userKing.score >= 30
+  ) {
+    return 'didnt_castle'
+  }
+  if (
+    (features.gamePhase === 'opening' || features.gamePhase === 'early_middlegame') &&
+    userDev.undevelopedMinorPieces >= 2
+  ) {
+    return 'didnt_develop'
+  }
+  if (!features.moveImpact.hadClearPurpose) return 'aimless_move'
+  return 'unknown'
+}
+
+function buildMoveEffectFact(
+  features: PositionFeatures,
+  moment: Pick<CriticalMoment, 'movePlayed' | 'moveNumber'>,
+): string {
+  return `What your move did: move ${moment.moveNumber}, ${moment.movePlayed}. ${features.moveImpact.description}.`
+}
+
+function buildFailureFact(
+  features: PositionFeatures,
+  moment: Pick<CriticalMoment, 'moveNumber' | 'color'>,
+  category: MistakeCategory,
+): string {
+  const userDev = moment.color === 'white' ? features.development.white : features.development.black
+  const userKing = moment.color === 'white' ? features.kingSafety.white : features.kingSafety.black
+
+  switch (category) {
+    case 'hung_piece': {
+      const hanging = features.threats.hangingPieces[0]
+      if (!hanging) return 'What your move failed to do: it left material loose.'
+      const pieceName = PIECE_NAME_MAP[hanging.piece] ?? hanging.piece
+      const attackers = hanging.attackedBy.length > 0 ? ` attacked from ${hanging.attackedBy.join(', ')}` : ''
+      return `What your move failed to do: it left your ${pieceName} on ${hanging.square} undefended and under attack${attackers}.`
+    }
+    case 'ignored_threat': {
+      const threat = features.threats.threatsIgnored[0]
+      return threat
+        ? `What your move failed to do: it ignored ${threat.description}.`
+        : "What your move failed to do: it did not answer your opponent's threat."
+    }
+    case 'missed_tactic':
+      return 'What your move failed to do: it missed a forcing move when the position demanded one.'
+    case 'didnt_castle':
+      return `What your move failed to do: your king stayed in the center with a king-safety score of ${userKing.score}/100.`
+    case 'didnt_develop':
+      return `What your move failed to do: you still had ${userDev.undevelopedMinorPieces} minor pieces undeveloped on move ${moment.moveNumber}.`
+    case 'aimless_move':
+      return 'What your move failed to do: it did not capture, give check, develop, castle, or create a clear threat.'
+    default:
+      return 'What your move failed to do: it did not solve the biggest problem in the position.'
+  }
+}
+
+function buildBetterIdeaFact(features: PositionFeatures): string {
+  if (features.engineMoveImpact.mainIdea) {
+    return `What the better move would have done: ${features.engineMoveImpact.mainIdea}.`
+  }
+  if (features.engineMoveImpact.description) {
+    return `What the better move would have done: ${features.engineMoveImpact.description}.`
+  }
+  return 'What the better move would have done: improved the position with a more purposeful idea.'
+}
+
+function formatCp(cp: number): string {
+  return `${cp >= 0 ? '+' : ''}${cp}cp`
+}
+
+function buildConsequenceFact(
+  moment: Pick<CriticalMoment, 'evalAfter'>,
+  futureUserScores: number[],
+): string {
+  if (futureUserScores.length === 0) {
+    return `What happened next: the move already left you at ${formatCp(moment.evalAfter)} from your side of the board.`
+  }
+
+  const current = moment.evalAfter
+  const bestFuture = Math.max(...futureUserScores)
+  const worstFuture = Math.min(...futureUserScores)
+
+  if (worstFuture <= current - 80) {
+    return `What happened next: over the next ${futureUserScores.length} half-moves, your eval dropped from ${formatCp(current)} to ${formatCp(worstFuture)}.`
+  }
+  if (bestFuture >= current + 80) {
+    return `What happened next: over the next ${futureUserScores.length} half-moves, the eval recovered from ${formatCp(current)} to ${formatCp(bestFuture)}, but this move still started the slide.`
+  }
+  return `What happened next: over the next ${futureUserScores.length} half-moves, the eval stayed worse at roughly ${formatCp(current)} to ${formatCp(worstFuture)}.`
+}
+
+export function buildAnalysisFacts(
+  features: PositionFeatures,
+  moment: Pick<CriticalMoment, 'evalSwing' | 'moveNumber' | 'color' | 'movePlayed' | 'evalAfter'>,
+  futureUserScores: number[] = [],
+): AnalysisFacts {
+  const category = determineCategory(features, moment)
+  const categoryName = CATEGORIES[category]?.name ?? CATEGORIES.unknown.name
+  const mistakeType = describeMistakeType(features)
+  const primaryIssue = `Mistake type: ${mistakeType}. The better move was ${features.engineMoveImpact.isForcing ? 'forcing' : 'a quiet improvement'}.`
+  const moveEffect = buildMoveEffectFact(features, moment)
+  const missedResponsibility = buildFailureFact(features, moment, category)
+  const betterIdea = buildBetterIdeaFact(features)
+  const consequence = buildConsequenceFact(moment, futureUserScores)
+
+  return {
+    category,
+    categoryName,
+    mistakeType,
+    primaryIssue,
+    moveEffect,
+    missedResponsibility,
+    betterIdea,
+    consequence,
+    factList: [primaryIssue, moveEffect, missedResponsibility, betterIdea, consequence],
+  }
+}
+
+// Backward-compat export for hot-reload and any stale callers still importing the old helper.
 export function buildVerifiedFacts(
   features: PositionFeatures,
-  moment: Pick<CriticalMoment, 'evalSwing' | 'moveNumber' | 'color' | 'movePlayed' | 'fen' | 'fenAfter'>,
-  principleId: string | null | undefined,
+  moment: Pick<CriticalMoment, 'evalSwing' | 'moveNumber' | 'color' | 'movePlayed'> & { evalAfter?: number },
+  _principleId?: string | null,
 ): string[] {
-  const facts: string[] = []
-  const { threats, development, moveImpact, gamePhase, material } = features
-
-  // Derive factual outcome of the move: was the destination square piece captured?
-  // Parse fenAfter to check if the moved piece is still on its destination square.
-  // moveImpact.toSquare tells us where it landed; if opponent's fenAfter shows a
-  // different piece there (or nothing), the piece was captured in response.
-  // We use the fenAfter's side-to-move: if it's now the opponent's turn and the
-  // piece is on toSquare, it was NOT captured yet.
-  const destSquare = moveImpact.toSquare
-  const pieceOnDest = destSquare ? getPieceOnSquare(moment.fenAfter, destSquare) : null
-  const movedPieceType = moveImpact.pieceMoved   // 'p','n','b','r','q','k'
-  const movedPieceColor = moment.color === 'white' ? 'w' : 'b'
-  // In fenAfter it's opponent's turn, but the piece we moved should still be there
-  // (it won't be captured until the NEXT move). So "still on dest" is almost always true
-  // right after the move — but we can detect if it was en-passant capture gone or similar.
-  const movedPieceStillOnDest = pieceOnDest !== null &&
-    pieceOnDest.type === movedPieceType &&
-    pieceOnDest.color === movedPieceColor
-
-  // Was check given? The fenAfter string after the board has a check marker in SAN,
-  // but we can also detect from fenAfter whether the opponent's king is in check.
-  const gaveCheck = moment.movePlayed.includes('+') || moment.movePlayed.includes('#')
-  const userDev = moment.color === 'white' ? development.white : development.black
-
-  facts.push(`Move ${moment.moveNumber}: ${moment.movePlayed} (eval swing: ${moment.evalSwing}cp)`)
-  if (gaveCheck) {
-    facts.push(`This move gave CHECK — the opponent's king was under attack and had to respond to the check (NOT capture the moved piece)`)
-  }
-  // Critical fact: prevent LLM from assuming the piece was captured after the move
-  if (destSquare) {
-    if (movedPieceStillOnDest) {
-      if (!gaveCheck) {
-        facts.push(`After this move, the ${PIECE_NAME_MAP[movedPieceType] ?? movedPieceType} is still on ${destSquare} — it was NOT immediately captured by the opponent`)
-      }
-    }
-  }
-  facts.push(`Game phase: ${gamePhase}`)
-
-  const balanceStr = material.balance === 0
-    ? 'material is equal'
-    : material.balance > 0
-      ? `white is ahead by ${material.balance} material points`
-      : `black is ahead by ${Math.abs(material.balance)} material points`
-  facts.push(`Material: ${balanceStr}`)
-
-  if (threats.hangingPieces.length > 0) {
-    for (const hp of threats.hangingPieces) {
-      const name = PIECE_NAME_MAP[hp.piece] ?? hp.piece
-      const attackers = hp.attackedBy.length > 0 ? ` (attacked from ${hp.attackedBy.join(', ')})` : ''
-      facts.push(`${name} on ${hp.square} is hanging — undefended and under attack${attackers}`)
-    }
-  }
-
-  if (principleId === 'TACTICAL_01' && threats.hangingPieces.length > 0) {
-    const hp = threats.hangingPieces[0]
-    const name = PIECE_NAME_MAP[hp.piece] ?? hp.piece
-    facts.push(`The ${name} on ${hp.square} has no defender — opponent can take it for free next move`)
-    if (threats.piecesLeftUndefended.length > 0) {
-      const pu = threats.piecesLeftUndefended[0]
-      const defName = PIECE_NAME_MAP[pu.piece] ?? pu.piece
-      facts.push(`The moved piece was the only defender of the ${defName} on ${pu.square}`)
-    }
-  }
-
-  if (threats.threatsIgnored.length > 0) {
-    for (const ti of threats.threatsIgnored) {
-      facts.push(`Threat ignored: ${ti.description}`)
-    }
-  }
-
-  if (principleId === 'TACTICAL_02' && threats.threatsIgnored.length > 0) {
-    const ti = threats.threatsIgnored[0]
-    facts.push(`Opponent's move (${ti.opponentMove}) created a direct threat: ${ti.description}`)
-    facts.push(`User's move (${moment.movePlayed}) did not address this — attack succeeded`)
-  }
-
-  if (threats.piecesLeftUndefended.length > 0) {
-    for (const pu of threats.piecesLeftUndefended) {
-      const name = PIECE_NAME_MAP[pu.piece] ?? pu.piece
-      facts.push(`${name} on ${pu.square} became undefended after this move`)
-    }
-  }
-
-  if (principleId === 'OPENING_01' || principleId === 'OPENING_02' || principleId === 'OPENING_05') {
-    const opponentDev = moment.color === 'white' ? development.black : development.white
-    facts.push(`Minor pieces still undeveloped: ${userDev.undevelopedMinorPieces} of 4`)
-    facts.push(`Castled: ${userDev.castled ? 'yes' : 'no'}`)
-    // Compare to opponent development — helps the coach paint a contrast
-    if (opponentDev.undevelopedMinorPieces < userDev.undevelopedMinorPieces) {
-      facts.push(`Opponent has ${opponentDev.undevelopedMinorPieces} undeveloped minor pieces — better developed than you`)
-    }
-    if (opponentDev.castled && !userDev.castled) {
-      facts.push(`Opponent has already castled — their king is safe while yours is exposed`)
-    }
-    if (userDev.earlyQueenMove) facts.push('Early queen move detected in this game')
-    if (userDev.sameMovedTwice) facts.push('Same piece moved twice in the opening — costs a tempo, opponent gets free development')
-    if (userDev.undevelopedMinorPieces >= 2)
-      facts.push(`With ${userDev.undevelopedMinorPieces} pieces not yet off the back rank, coordination is impossible`)
-    if (!userDev.castled && moment.moveNumber > 10)
-      facts.push(`King still uncastled on move ${moment.moveNumber} — exposed in the center`)
-  }
-
-  const pieceName = PIECE_NAME_MAP[moveImpact.pieceMoved] ?? moveImpact.pieceMoved
-  facts.push(`User's move: ${moveImpact.description}`)
-  facts.push(`Piece moved: ${pieceName} from ${moveImpact.fromSquare} to ${moveImpact.toSquare}`)
-  if (!moveImpact.hadClearPurpose) facts.push(`This move achieved nothing concrete — no capture, check, development, or castling. It was a "nothing move."`)
-  if (moveImpact.developedPiece) facts.push(`This move developed a piece off the back rank`)
-  if (moveImpact.wasCapture) facts.push(`This move was a capture`)
-  if (moveImpact.wasCheck) facts.push(`This move gave check`)
-  if (moveImpact.createdWeakness) facts.push(`This move created a weakness in the pawn structure or king safety`)
-  if (moveImpact.changedPawnStructure) facts.push(`This move changed the pawn structure`)
-
-  // King safety context — useful for middlegame lessons
-  const userKS = moment.color === 'white' ? features.kingSafety.white : features.kingSafety.black
-  const opponentKS = moment.color === 'white' ? features.kingSafety.black : features.kingSafety.white
-  if (userKS.castled === 'none' && features.gamePhase !== 'endgame') {
-    facts.push(`User's king has not castled (still in the center)`)
-  }
-  if (userKS.score >= 60) {
-    facts.push(`User's king safety is poor (score ${userKS.score}/100) — ${userKS.openFilesNearKing.length > 0 ? 'open files near king' : 'weak pawn shield'}`)
-  }
-  if (opponentKS.score >= 60) {
-    facts.push(`Opponent's king is also vulnerable (score ${opponentKS.score}/100)`)
-  }
-
-  // Piece activity context — passive pieces are coaching gold
-  const userActivity = moment.color === 'white' ? features.pieceActivity.white : features.pieceActivity.black
-  if (userActivity.passivePieces.length > 0) {
-    facts.push(`User has passive pieces on: ${userActivity.passivePieces.join(', ')}`)
-  }
-  if (userActivity.badBishop) {
-    facts.push(`User has a bad bishop on ${userActivity.badBishop} (blocked by own pawns)`)
-  }
-
-  // Pawn structure context
-  const userPawns = moment.color === 'white' ? features.pawnStructure.white : features.pawnStructure.black
-  if (userPawns.isolatedPawns.length > 0) {
-    facts.push(`User has isolated pawns on: ${userPawns.isolatedPawns.join(', ')}`)
-  }
-  if (userPawns.passedPawns.length > 0) {
-    facts.push(`User has passed pawns on: ${userPawns.passedPawns.join(', ')}`)
-  }
-
-  // Engine move idea — what the better move would have achieved
-  if (features.engineMoveImpact.description) {
-    facts.push(features.engineMoveImpact.description)
-  }
-  if (features.engineMoveImpact.mainIdea) {
-    facts.push(features.engineMoveImpact.mainIdea)
-  }
-
-  return facts
+  return buildAnalysisFacts(
+    features,
+    {
+      evalSwing: moment.evalSwing,
+      moveNumber: moment.moveNumber,
+      color: moment.color,
+      movePlayed: moment.movePlayed,
+      evalAfter: moment.evalAfter ?? 0,
+    },
+    [],
+  ).factList
 }
 
 const PIECE_NAME_MAP: Record<string, string> = {

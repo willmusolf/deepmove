@@ -6,6 +6,19 @@
 
 ---
 
+## 🧭 RECOMMENDED BUILD ORDER FROM HERE
+
+Follow this order unless something urgent breaks:
+- [ ] 1. Coaching pipeline overhaul
+- [ ] 2. Stripe + rate limiting
+- [ ] 3. Deploy production stack to `deepmove.io`
+- [ ] 4. Responsive layout + resizing pass
+- [ ] 5. Final polish, audits, and launch cleanup
+
+**Why this order:** coaching quality is the core product, payments + deployment unlock launch, and the responsive/layout pass should happen after the main feature set is stable so it only has to be solved once.
+
+---
+
 ## 🚀 LAUNCH CHECKLIST (remaining blockers)
 
 These things need to happen before launch. Everything else can follow.
@@ -17,13 +30,95 @@ The current coaching pipeline is functional but lessons are generic, often wrong
 - [ ] For each lesson: "Would a chess player actually learn something from this?"
 - [ ] Iterate until consistently yes
 
-### 2. Mobile Responsiveness
-- [ ] Board fills screen on mobile, touch-friendly moves
+### 2. Responsive Layout + Resizing (final pre-launch polish pass after core features are stable)
+- [ ] Define breakpoints before more UI polish: mobile `<640`, tablet `640-1023`, small desktop `1024-1279`, desktop `1280-1535`, wide `1536+`
+- [ ] Fix desktop resizing first: board, move list, coach panel, eval graph, and controls should stay usable at common laptop widths (especially 1024-1440)
+- [ ] Keep the board as the primary visual anchor on desktop: preserve a strong side-by-side layout on roomy screens, but never let side panels crush the board below a good-looking playable size
+- [ ] At constrained desktop/tablet widths, prefer dropping secondary panels below the board over forcing a cramped always-side-by-side layout
+- [ ] Rework desktop panel behavior so move list / coach / side modules scroll internally instead of forcing awkward page overflow
+- [ ] Keep tab behavior manual at all sizes: never auto-switch users between Analysis / Coach / Load just because the layout changed
+- [ ] Keep Analysis as the default-priority panel state in the responsive layout, but require user taps/clicks to switch tabs
+- [ ] Audit every row that breaks under width pressure: top action bar, import/filter controls, move-arrow controls, player boxes, tabs, eval widgets
+- [ ] Build one shared responsive layout system for Review + Play so both pages use the same breakpoint logic, spacing rules, and board-sizing behavior
+- [ ] Collapse the left nav/sidebar earlier on smaller laptops so board + panel space wins over persistent navigation chrome
+- [ ] Board fills screen on mobile with touch-friendly moves and no horizontal scroll
+- [ ] Allow near edge-to-edge board sizing on mobile with tighter page padding/margins so the board stays as large as possible
 - [ ] Player boxes stack vertically on small screens
-- [ ] Coach panel full-width below board on mobile
-- [ ] Eval graph readable on small screens
-- [ ] Test on actual iOS + Android phones
-- [ ] Play mode clock display works on mobile
+- [ ] Coach panel becomes full-width below board on mobile
+- [ ] Eval graph, move list, and action buttons stay readable/tappable on small screens
+- [ ] Play mode can simplify secondary UI on mobile, but should still inherit the same core responsive system as Review
+- [ ] Play mode clocks, controls, and status area work on phones and narrow laptops
+- [ ] Test matrix: browser responsive presets plus actual iPhone and Android devices
+
+#### Responsive Implementation Spec (build to this, not vibes)
+
+**Layout architecture**
+- [ ] Replace the current ad hoc sizing with one shared `review/play` shell: `nav` + `content`, then inside content use `board region` + `panel region`
+- [ ] Stop sizing the board primarily from viewport height; board size should be driven by available content width first, with height only acting as a cap
+- [ ] Give the board region a clear minimum playable size target and let secondary regions yield first
+- [ ] Make every non-board region able to shrink and scroll internally without causing page-level horizontal overflow
+
+**Wide desktop (`1536+`)**
+- [ ] Keep three clear zones visible: nav, board region, panel region
+- [ ] Board should feel premium-sized and visually dominant
+- [ ] Review side panel can show tabs + full analysis stack comfortably
+- [ ] Play mode keeps move list beside the board, not below it
+
+**Desktop (`1280-1535`)**
+- [ ] Keep the two-column board + panel layout
+- [ ] Collapse nonessential whitespace before shrinking the board aggressively
+- [ ] Nav may stay visible only if board and panel still both look intentional; otherwise collapse nav here too
+- [ ] Buttons in the board control row should wrap cleanly instead of overflowing or compressing into ugly tiny pills
+
+**Small desktop (`1024-1279`)**
+- [ ] Collapse the left nav/sidebar by default in this range
+- [ ] Keep the board first and the panel second
+- [ ] If side-by-side still looks good, use a narrower panel with internal scrolling; if not, stack panel under board
+- [ ] Review should keep tabs visible, but tab content sits below the board once the side-by-side layout stops looking clean
+- [ ] Play should prioritize board + clocks + core controls, with move list allowed below
+- [ ] Use a compact top header with a menu trigger when nav is collapsed, rather than spending horizontal space on a persistent sidebar
+
+**Tablet (`640-1023`)**
+- [ ] Use a stacked layout by default: board block first, panel block second
+- [ ] Keep Analysis as the default visible tab, but never auto-switch tabs
+- [ ] Player boxes stay attached to the board block and remain easy to scan
+- [ ] Eval graph and move list can remain full-width below the board if side-by-side feels cramped
+- [ ] Control rows should wrap into two lines cleanly when needed
+
+**Mobile (`<640`)**
+- [ ] Board goes near edge-to-edge with tight page padding
+- [ ] Player boxes, clocks, and board controls become compact mobile variants; prioritize board size over preserving the full desktop card layout
+- [ ] Tabs remain manual; active tab content lives below the board
+- [ ] Avoid horizontal scroll everywhere, including move list, import forms, filters, and time-control controls
+- [ ] Touch targets should be comfortable: tabs, arrows, move nav, and action buttons must all feel thumb-usable
+
+**Review page behavior**
+- [ ] Keep the board/eval bar/player boxes as one visual unit across all breakpoints
+- [ ] `Load / Analysis / Coach` tabs should be structurally stable so resizing does not remount or reorder them in surprising ways
+- [ ] Analysis content priority order when space is tight: eval status, best lines, eval graph, move list
+- [ ] Coach content should scroll within its own region rather than pushing the whole page into awkward heights
+- [ ] When stacked below the board, keep analysis information in overview-first order: tabs, eval status, best lines, eval graph, then move list
+
+**Play page behavior**
+- [ ] Setup screen and in-game screen should follow the same breakpoint system, not two unrelated responsive patterns
+- [ ] In game, preserve the hierarchy: board first, clocks/player boxes second, controls third, move list fourth
+- [ ] Arrow/eval toggles are secondary on small screens and may wrap or sit on a second control row
+- [ ] Game result banner should never cause the board column to jump unpredictably
+- [ ] On tablet/small desktop, move list can stay visible below the board; on phone-sized screens, collapse it behind a clear `Moves` section to protect board space
+
+**Sizing guardrails**
+- [ ] Define explicit min/max widths for nav, board region, and panel region instead of relying on flex luck
+- [ ] Define a board max size for wide screens and a board minimum target for small desktop/tablet before stacking occurs
+- [ ] Keep move list and coach panel on internal scroll containers with predictable max heights in side-by-side mode
+- [ ] Prevent duplicate "depth" or status rows from competing for the same visual slot while resizing
+
+**Implementation order**
+- [ ] 1. Introduce shared responsive shell and breakpoint tokens
+- [ ] 2. Fix board sizing rules
+- [ ] 3. Fix nav collapse behavior
+- [ ] 4. Fix Review layout and overflow traps
+- [ ] 5. Port the same system into Play
+- [ ] 6. Run the responsive QA checklist and only then do visual polish
 
 ### 3. Stripe + Rate Limiting
 - [ ] Create Stripe account + products (Premium Monthly $5, Premium Annual $40)
@@ -303,6 +398,16 @@ Every missed tactic from game reviews gets saved to the user's account. Train on
 - [ ] Move grade badges on board — reconsider or remove
 - [ ] Eval graph — chess.com style small colored dots instead of large circles
 - [ ] Auto-jump to coach tab when analysis finishes on a new game
+- [ ] Add a repeatable responsive QA checklist before shipping UI changes (320, 390, 768, 1024, 1280, 1440, ultrawide)
+
+### iOS App (Post-Launch)
+- [ ] Responsive web comes first: do not start iOS app work until the website feels excellent on iPhone-sized screens
+- [ ] Start with the simplest good app path after launch: wrap the stabilized web app / shared web experience before considering a true native rebuild
+- [ ] Identify native-only wins worth building later: push notifications, share sheet import, saved sessions, haptics, offline game review cache
+- [ ] Map backend/auth requirements for mobile clients: token refresh, secure storage, deep links, universal links
+- [ ] Plan App Store basics early: Apple Sign In, privacy labels, subscription handling, review guidelines
+- [ ] V1 mobile app scope should stay narrow: review games, read coaching, play vs bot, account sync
+- [ ] Defer advanced mobile features until web launch is stable: board editor, bulk import, deep settings, admin/debug tooling
 
 ---
 
@@ -358,12 +463,14 @@ See above in "Next After Launch"
 ---
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
+-reload should only pull newest games??
+
+
+
 -resizing is a nightmare on desktop as well befoer mobile responsiveness maybe work that into the official todo as well
 
 
-
-
-
+-get rid of the the depth / 16 BELOW the move lines. keep the one above it (theyre both there fro some reason)
 
 
 -premoves not working in play mode (might be resolved)
@@ -372,7 +479,18 @@ See above in "Next After Launch"
 -badges on board are the same on every branch? each move sould be re evaluated or no? thats what chessigma does and chess.com
 
 
--sometimes in play mode when arrow move suggestions are on it flashes for a brief second on the opponents suggested moves. we should just turn off the lines for the opponent probably right?
+
+-have arrows button and other buttons be better? and more concistent across that row of buttons visually
+-report below graph is mid and just pointless and not the same as chess.com / chessigma? i believe the graph can still be improved too?
+-for dropdowns when it says 300+2 instead of the min (so would be 5+2?) or 120+60 weird stuff like that
+-have similar dropdown next to move arrows as chessigma
+
+
+
+-(check)sometimes in play mode when arrow move suggestions are on it flashes for a brief second on the opponents suggested moves. we should just turn off the lines for the opponent probably right?
+
+
+
 -and for play mode we want to add something in the todo with the coaches stuff to practice specific openings and gambits and defenses as well like chessreps?
 -what is chessreps.com and how do we make a free vesrion of it
 
@@ -381,14 +499,13 @@ See above in "Next After Launch"
 
 
 
--have arrows button and other buttons be better? and more concistent across that row of buttons visually
 
 
--report below graph is mid and just pointless and not the same as chess.com / chessigma? i believe the graph can still be improved too?
+-if you click on a miss symbol it shows you the line for the tactice? how are misses calculated and all of them for that matter? also add something for show line or something like that that chess.com has?
 
--for dropdowns when it says 300+2 instead of the min (so would be 5+2?) or 120+60 weird stuff like that
 
--have similar dropdown next to move arrows as chessigma
+
+
 -test FEN string
 
 
@@ -397,4 +514,3 @@ See above in "Next After Launch"
 -thorough systematic audits to make sure everything is as simple and efficient and fast as it can possibly be and for security as well and scaling, all possible standard security measures for injections and anything crucial to making this a big app
 
 -make this into an ios app
-

@@ -564,7 +564,12 @@ export default function App() {
     const lines = currentPositionLines
     if (lines.length === 0) return []
     const best = lines[0]
+    const seenFirstMove = new Set<string>()
     return lines.filter((line, i) => {
+      // Deduplicate by first move — Stockfish can return the same move in multiple PV lines
+      const firstMove = line.pv[0] ?? ''
+      if (seenFirstMove.has(firstMove)) return false
+      seenFirstMove.add(firstMove)
       if (i === 0) return true
       // If the best move involves mate and this one doesn't (or vice versa),
       // the difference is decisive — never show as a "suggestion".
@@ -850,28 +855,25 @@ export default function App() {
                           <span className="eval-display-value">
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
                           </span>
-                          {mainEval && !inBranch && (
-                            <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
-                          )}
-                          {inBranch && currentAnalysisDepth > 0 ? (
+                          {currentAnalysisDepth > 0 ? (
                             <span className="eval-display-depth">depth: {currentAnalysisDepth} / 16{isAnalyzingPosition ? ' …' : ''}</span>
                           ) : isAnalyzingPosition ? (
                             <span className="eval-display-depth">analyzing…</span>
+                          ) : mainEval && !inBranch ? (
+                            <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
                           ) : null}
                         </div>
                       )}
 
 
-                      {/* Best lines — shown in branches where we rely on live engine */}
-                      {inBranch && (
-                        <BestLines
-                          lines={visibleLines}
-                          isAnalyzingPosition={isAnalyzingPosition}
-                          onLineClick={handleAnalysisBestLineClick}
-                          depth={currentAnalysisDepth}
-                          targetDepth={16}
-                        />
-                      )}
+                      {/* Best lines */}
+                      <BestLines
+                        lines={visibleLines}
+                        isAnalyzingPosition={isAnalyzingPosition}
+                        onLineClick={handleAnalysisBestLineClick}
+                        depth={currentAnalysisDepth}
+                        targetDepth={16}
+                      />
                       {/* Eval graph — hidden during analysis, shown after completion */}
                       {!isAnalyzing && moveEvals.length > 0 && (
                         <EvalGraph
@@ -908,6 +910,7 @@ export default function App() {
                       currentIndex={coachIndex}
                       onNavigate={handleCoachNavigate}
                       onReveal={revealCoachLesson}
+                      isAnalyzing={isAnalyzing}
                     />
                   )}
 

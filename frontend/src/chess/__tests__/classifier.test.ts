@@ -24,7 +24,16 @@ function makeFeatures(overrides: Partial<PositionFeatures> = {}): PositionFeatur
     gamePhase: 'opening',
     threats: { hangingPieces: [], piecesLeftUndefended: [], threatsIgnored: [], threatsCreated: [] },
     moveImpact: { description: '', pieceMoved: '', fromSquare: '', toSquare: '', wasCapture: false, wasCheck: false, changedKingSafety: false, changedPawnStructure: false, developedPiece: false, improvedPieceActivity: false, createdWeakness: false, hadClearPurpose: false },
-    engineMoveImpact: { description: '', mainIdea: '' },
+    engineMoveImpact: {
+      description: '',
+      mainIdea: '',
+      bestMoveSan: null,
+      isCapture: false,
+      givesCheck: false,
+      isCastle: false,
+      developsPiece: false,
+      isForcing: false,
+    },
     ...overrides,
   }
 }

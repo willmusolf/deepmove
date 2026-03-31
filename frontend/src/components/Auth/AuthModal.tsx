@@ -8,6 +8,7 @@ interface AuthModalProps {
 }
 
 type Tab = 'login' | 'signup'
+type PasswordCredentialCtor = new (init: { id: string; password: string }) => Credential
 
 export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   const [tab, setTab] = useState<Tab>('login')
@@ -38,9 +39,10 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         await register(email, password)
       }
       // Tell the browser to save/update the credential so autofill works next time
-      if ('credentials' in navigator && window.PasswordCredential) {
+      const passwordCredentialCtor = (window as Window & { PasswordCredential?: PasswordCredentialCtor }).PasswordCredential
+      if ('credentials' in navigator && passwordCredentialCtor) {
         try {
-          const cred = new window.PasswordCredential({ id: email, password })
+          const cred = new passwordCredentialCtor({ id: email, password })
           await navigator.credentials.store(cred)
         } catch { /* not supported in this browser — ignore */ }
       }

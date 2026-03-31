@@ -4,6 +4,15 @@
 export type Color = 'white' | 'black'
 export type GamePhase = 'opening' | 'early_middlegame' | 'middlegame' | 'late_middlegame' | 'endgame'
 export type PieceName = 'pawn' | 'knight' | 'bishop' | 'rook' | 'queen' | 'king'
+export type MistakeCategory =
+  | 'hung_piece'
+  | 'ignored_threat'
+  | 'missed_tactic'
+  | 'aimless_move'
+  | 'didnt_develop'
+  | 'didnt_castle'
+  | 'unknown'
+export type MistakeType = 'tactical' | 'strategic'
 
 export interface MaterialCount {
   pawns: number
@@ -101,6 +110,12 @@ export interface PositionFeatures {
   engineMoveImpact: {
     description: string
     mainIdea: string
+    bestMoveSan: string | null
+    isCapture: boolean
+    givesCheck: boolean
+    isCastle: boolean
+    developsPiece: boolean
+    isForcing: boolean
   }
 }
 
@@ -125,6 +140,18 @@ export interface ClassificationResult {
   eloGateMax: number
 }
 
+export interface AnalysisFacts {
+  category: MistakeCategory
+  categoryName: string
+  mistakeType: MistakeType
+  primaryIssue: string
+  moveEffect: string
+  missedResponsibility: string
+  betterIdea: string
+  consequence: string
+  factList: string[]
+}
+
 export interface CriticalMoment {
   moveNumber: number
   color: Color
@@ -136,6 +163,7 @@ export interface CriticalMoment {
   evalAfter: number
   evalSwing: number        // absolute centipawn swing
   features: PositionFeatures
+  analysisFacts: AnalysisFacts | null
   classification: ClassificationResult | null
 }
 

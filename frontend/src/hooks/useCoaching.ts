@@ -1,23 +1,17 @@
 // useCoaching.ts — Coaching pipeline hook
-// Orchestrates: feature extraction → classification → LLM lesson fetch → Think First state
-//
-// Think First (MVP):
-//   - TACTICAL_01 or TACTICAL_02 at confidence >= 70 → show blunder-check checklist first
-//   - After user taps "Show lesson" → reveal the 5-step lesson
-//   - All other principles → reveal lesson immediately
+// Orchestrates: feature extraction → analysis facts → LLM lesson fetch → checklist reminder
 
 import { useState, useEffect, useRef } from 'react'
-import type { CriticalMoment } from '../chess/types'
+import type { AnalysisFacts, CriticalMoment, MistakeType } from '../chess/types'
 import type { MoveEval } from '../engine/analysis'
 import { enrichCriticalMoments } from '../chess/features'
-import { buildVerifiedFacts } from '../chess/classifier'
 import { getCacheBand, classifyTimeControl } from '../chess/eloConfig'
-import { PRINCIPLES } from '../chess/taxonomy'
-import { api } from '../api/client'
+import { CATEGORIES } from '../chess/taxonomy'
+import { ApiError, api } from '../api/client'
 
 export interface LessonResponse {
   lesson: string
-  principle_id: string | null
+  category: string | null
   confidence: number
   cached: boolean
 }
@@ -25,18 +19,43 @@ export interface LessonResponse {
 export interface CoachingLesson {
   moment: CriticalMoment
   lessonText: string | null
-  principleId: string | null
-  principleName: string | null
+  category: string | null
+  categoryName: string | null
   confidence: number
   isLoading: boolean
   error: string | null
-  /** Think First: TACTICAL_01/02 at confidence >= 70, checklist shown before lesson */
   requiresChecklistFirst: boolean
   checklistRevealed: boolean
 }
 
-const THINK_FIRST_PRINCIPLES = new Set(['TACTICAL_01', 'TACTICAL_02'])
-const THINK_FIRST_CONFIDENCE_THRESHOLD = 70
+const CHECKLIST_CATEGORIES = new Set(['hung_piece', 'ignored_threat'])
+
+function buildFallbackAnalysisFacts(moment: CriticalMoment): AnalysisFacts {
+  const category = 'unknown'
+  const categoryName = CATEGORIES[category].name
+  const mistakeType: MistakeType = (moment.engineBest[0]?.includes('x') || moment.engineBest[0]?.includes('+'))
+    ? 'tactical'
+    : 'strategic'
+  const primaryIssue = `Mistake type: ${mistakeType}. This moment needs fallback coaching facts because cached analysis is from an older format.`
+  const moveEffect = `What your move did: move ${moment.moveNumber}, ${moment.movePlayed}. The position swung by ${moment.evalSwing} centipawns.`
+  const missedResponsibility = `What your move failed to do: it missed a better continuation in the position.`
+  const betterIdea = moment.engineBest[0]
+    ? `What the better move would have done: ${moment.engineBest[0]} was the stronger practical idea in this position.`
+    : 'What the better move would have done: improved the position with a more purposeful idea.'
+  const consequence = `What happened next: after this move, your evaluation was ${moment.evalAfter >= 0 ? '+' : ''}${moment.evalAfter}cp.`
+
+  return {
+    category,
+    categoryName,
+    mistakeType,
+    primaryIssue,
+    moveEffect,
+    missedResponsibility,
+    betterIdea,
+    consequence,
+    factList: [primaryIssue, moveEffect, missedResponsibility, betterIdea, consequence],
+  }
+}
 
 interface UseCoachingOptions {
   criticalMoments: CriticalMoment[]
@@ -87,7 +106,7 @@ export function useCoaching({
     lastPgnRef.current = pgn
     lastEloRef.current = userElo
 
-    // Step 1: Enrich moments with real features + classification
+    // Step 1: Enrich moments with real features + analysis facts
     let enriched: CriticalMoment[]
     try {
       enriched = enrichCriticalMoments(criticalMoments, moveEvals, pgn, userElo)
@@ -95,30 +114,20 @@ export function useCoaching({
       console.error('[useCoaching] enrichCriticalMoments failed:', err)
       enriched = criticalMoments
     }
-    // Only keep moments where the classifier found a principle with meaningful confidence.
-    // Filter out moments with null classification, zero confidence, or empty principle IDs.
-    const classified = enriched.filter(m =>
-      m.classification !== null &&
-      m.classification.confidence >= 60 &&
-      m.classification.principleId
-    )
-    setEnrichedMoments(classified)
+    setEnrichedMoments(enriched)
 
     // Step 2: Initialize lesson placeholders
-    const initial: CoachingLesson[] = classified.map(moment => {
-      const { classification } = moment
-      const isThinkFirst = !!(
-        classification &&
-        THINK_FIRST_PRINCIPLES.has(classification.principleId) &&
-        classification.confidence >= THINK_FIRST_CONFIDENCE_THRESHOLD
-      )
+    const initial: CoachingLesson[] = enriched.map(moment => {
+      const analysisFacts = moment.analysisFacts ?? buildFallbackAnalysisFacts(moment)
+      const category = analysisFacts.category
+      const isThinkFirst = CHECKLIST_CATEGORIES.has(category)
       return {
         moment,
         lessonText: null,
-        principleId: classification?.principleId ?? null,
-        principleName: classification ? (PRINCIPLES[classification.principleId]?.name ?? null) : null,
-        confidence: classification?.confidence ?? 0,
-        isLoading: !!classification, // only load if we have a classification
+        category,
+        categoryName: analysisFacts.categoryName ?? CATEGORIES[category]?.name ?? null,
+        confidence: 100,
+        isLoading: true,
         error: null,
         requiresChecklistFirst: isThinkFirst,
         checklistRevealed: !isThinkFirst, // immediately revealed for non-think-first
@@ -127,31 +136,14 @@ export function useCoaching({
     setLessons(initial)
     setCurrentIndex(0)
 
-    // Step 3: Fetch lessons from backend for each classified moment
-    classified.forEach((moment, idx) => {
-      if (!moment.classification) return
-
+    // Step 3: Fetch lessons from backend for each enriched moment
+    enriched.forEach((moment, idx) => {
       try {
-        const { classification } = moment
-        const principle = PRINCIPLES[classification.principleId]
-        const verifiedFacts = buildVerifiedFacts(
-          moment.features,
-          {
-            evalSwing: moment.evalSwing,
-            moveNumber: moment.moveNumber,
-            color: moment.color,
-            movePlayed: moment.movePlayed,
-            fen: moment.fen,
-            fenAfter: moment.fenAfter,
-          },
-          classification.principleId,
-        )
-
+        const analysisFacts = moment.analysisFacts ?? buildFallbackAnalysisFacts(moment)
         const eloBand = getCacheBand(userElo)
         const tcSeconds = parseInt(timeControl, 10) || 600
         const tcLabel = classifyTimeControl(tcSeconds)
-        // Simple position hash: fen + principle + elo band (good enough for cache key)
-        const positionHash = btoa(`${moment.fenAfter}:${classification.principleId}:${eloBand}`).slice(0, 32)
+        const positionHash = btoa(`${moment.fenAfter}:${eloBand}`).slice(0, 32)
 
         const requestBody = {
           user_elo: userElo,
@@ -164,12 +156,10 @@ export function useCoaching({
           eval_before: moment.evalBefore,
           eval_after: moment.evalAfter,
           eval_swing_cp: moment.evalSwing,
-          principle_id: classification.principleId,
-          principle_name: principle?.name ?? null,
-          principle_description: principle?.description ?? null,
-          principle_takeaway: principle?.takeawayTemplate ?? null,
-          confidence: classification.confidence,
-          verified_facts: verifiedFacts,
+          category: analysisFacts.category,
+          mistake_type: analysisFacts.mistakeType,
+          confidence: 100,
+          verified_facts: analysisFacts.factList,
           engine_move_idea: [
             moment.features.engineMoveImpact?.description,
             moment.features.engineMoveImpact?.mainIdea,
@@ -183,18 +173,27 @@ export function useCoaching({
           platform: platform ?? null,
         }
 
-        api.post<LessonResponse>('/coaching/lesson', requestBody)
+        api.post<LessonResponse>('/coaching/lesson', requestBody, { timeoutMs: 35000 })
           .then(res => {
             setLessons(prev => prev.map((l, i) =>
               i === idx
-                ? { ...l, lessonText: res.lesson, isLoading: false }
+                ? {
+                    ...l,
+                    lessonText: res.lesson,
+                    category: res.category ?? l.category,
+                    categoryName: (res.category && CATEGORIES[res.category]?.name) ?? l.categoryName,
+                    isLoading: false,
+                  }
                 : l,
             ))
           })
           .catch(err => {
+            const message = err instanceof ApiError
+              ? (err.status === 0 ? err.message : `Failed to load lesson (${err.status})`)
+              : 'Failed to load lesson'
             setLessons(prev => prev.map((l, i) =>
               i === idx
-                ? { ...l, isLoading: false, error: 'Failed to load lesson' }
+                ? { ...l, isLoading: false, error: message }
                 : l,
             ))
             console.error('[useCoaching] lesson fetch failed:', err)

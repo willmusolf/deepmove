@@ -11,7 +11,7 @@ import {
   getCachedGamesForUser,
   type AnalyzedGameRecord,
 } from '../../services/gameDB'
-import { normalizeChessCom, normalizeLichess, tcToSeconds, type NormalizedGame } from './normalizeGame'
+import { normalizeChessCom, normalizeLichess, tcToSeconds, formatTimeControl, type NormalizedGame } from './normalizeGame'
 import { formatTimestamp } from '../../utils/format'
 
 interface GameSelectorProps {
@@ -50,7 +50,7 @@ function normalizeFromCache(record: AnalyzedGameRecord): NormalizedGame {
     opponentRating: record.opponentRating,
     userRating: record.userElo,
     result: record.result,
-    timeControl: record.timeControl,
+    timeControl: formatTimeControl(record.timeControl),
     date: formatTimestamp(record.endTime),
     isWhite: record.userColor === 'white',
     gameId: record.id,

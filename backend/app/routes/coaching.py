@@ -1,5 +1,5 @@
 """coaching.py — Coaching endpoint
-Receives pre-computed features + classification from the frontend,
+Receives pre-computed analysis facts from the frontend,
 generates the LLM lesson, returns structured coaching response.
 
 The LLM NEVER analyzes chess positions directly.
@@ -26,8 +26,8 @@ async def generate_lesson(
 ):
     """Generate a coaching lesson for a critical moment.
 
-    Frontend sends pre-verified facts + classification result.
-    Returns the LLM-generated 5-step lesson (or observation if confidence < 70).
+    Frontend sends pre-verified facts + mistake category.
+    Returns the LLM-generated coaching lesson.
 
     For logged-in users whose game is in the DB:
     - Checks DB for an existing lesson before calling Claude (survives server restarts)
@@ -55,19 +55,21 @@ async def generate_lesson(
 
     # ── 2. DB cache check (persistent — survives server restart) ─────────────
     if game and user:
+        lesson_key = request.category or request.principle_id or None
         existing = (
             db.query(Lesson)
             .filter(
                 Lesson.game_id == game.id,
                 Lesson.user_id == user.id,
                 Lesson.move_number == request.move_number,
-                Lesson.principle_id == request.principle_id,
+                Lesson.principle_id == lesson_key,
             )
             .first()
         )
         if existing:
             return CoachingResponse(
                 lesson=existing.lesson_text,
+                category=existing.principle_id,
                 principle_id=existing.principle_id,
                 confidence=existing.confidence,
                 cached=True,
@@ -86,7 +88,7 @@ async def generate_lesson(
             user_id=user.id,
             move_number=request.move_number,
             color=request.color,
-            principle_id=request.principle_id,
+            principle_id=request.category or request.principle_id,
             confidence=result["confidence"],
             lesson_text=result["lesson"],
             elo_band=request.elo_band,
