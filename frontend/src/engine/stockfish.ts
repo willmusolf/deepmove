@@ -59,7 +59,6 @@ export class StockfishEngine {
   private currentIsMultiPV = false
   private currentMultiPvResolve: ((lines: TopLine[]) => void) | null = null
   private currentMultiPvOnUpdate: ((lines: TopLine[], depth: number) => void) | null = null
-  private currentNumLines = 1
   private lastEmittedMultiPvDepth = 0
   private latestMultiPvLines: Map<number, TopLine> = new Map()
   private currentSideToMove: 'w' | 'b' = 'w'
@@ -218,7 +217,6 @@ export class StockfishEngine {
         this.currentMultiPvResolve = null
         this.currentMultiPvOnUpdate = null
         this.currentIsMultiPV = false
-        this.currentNumLines = 1
         this.latestMultiPvLines = new Map()
         this.busy = false
 
@@ -277,7 +275,6 @@ export class StockfishEngine {
       this.currentIsMultiPV = true
       this.currentMultiPvResolve = item.multiPvResolve
       this.currentMultiPvOnUpdate = item.multiPvOnUpdate ?? null
-      this.currentNumLines = item.multiPV
       this.lastEmittedMultiPvDepth = 0
       this.latestMultiPvLines = new Map()
       this.worker!.postMessage(`setoption name MultiPV value ${item.multiPV}`)
@@ -388,7 +385,6 @@ export class StockfishEngine {
     this.queue = []
     this.pendingResolve = null
     this.currentMultiPvResolve = null
-    this.currentNumLines = 1
     this.currentBotMoveResolve = null
     this.busy = false
     if (this.worker) {

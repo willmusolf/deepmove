@@ -1,9 +1,10 @@
 // features.ts — Master feature extraction orchestrator
 // Wires all extractors and provides enrichCriticalMoments() for the coaching pipeline.
 //
-// MVP scope (3B-2):
+// Current scope:
 //   ✅ material, gamePhase, threats, development, moveImpact, openFiles
-//   🔲 kingSafety, pieceActivity, pawnStructure — stubs returning defaults (V2)
+//   ✅ kingSafety, pieceActivity
+//   🔲 pawnStructure — lightweight placeholder until V2
 
 import { Chess } from 'chess.js'
 import type { CriticalMoment, ExtractionInput, PositionFeatures } from './types'
@@ -17,7 +18,7 @@ import { getOpenFiles, getHalfOpenFiles } from './openFiles'
 import { analyzePawnStructure, detectStructureType } from './pawnStructure'
 import { scoreKingSafety } from './kingSafety'
 import { evaluatePieceActivity } from './pieceActivity'
-import { classifyPrinciple } from './classifier'
+import { buildAnalysisFacts, classifyPrinciple } from './classifier'
 
 // ─── Core extractor ──────────────────────────────────────────────────────────
 
@@ -89,6 +90,22 @@ const PIECE_NAMES: Record<string, string> = {
   p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king',
 }
 
+function uciToSan(beforeChess: Chess, uciMove: string): string | null {
+  if (!uciMove || uciMove.length < 4) return null
+
+  try {
+    const chess = new Chess(beforeChess.fen())
+    const move = chess.move({
+      from: uciMove.slice(0, 2),
+      to: uciMove.slice(2, 4),
+      promotion: (uciMove[4] as 'q' | 'r' | 'b' | 'n' | undefined) ?? undefined,
+    })
+    return move?.san ?? null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Generate a plain-English description of what the engine's preferred move would achieve.
  * This replaces the generic "Engine preferred Bf1" with something the LLM can use for coaching.
@@ -97,32 +114,58 @@ function describeEngineMoveIdea(
   beforeChess: Chess,
   engineBest: string[],
   _userColor: string,
-): { description: string; mainIdea: string } {
+): PositionFeatures['engineMoveImpact'] {
   const bestMove = engineBest[0]
-  if (!bestMove) return { description: '', mainIdea: '' }
+  if (!bestMove) {
+    return {
+      description: '',
+      mainIdea: '',
+      bestMoveSan: null,
+      isCapture: false,
+      givesCheck: false,
+      isCastle: false,
+      developsPiece: false,
+      isForcing: false,
+    }
+  }
 
   // Try to play the engine move on a copy of the position
   const testChess = new Chess(beforeChess.fen())
   const result = testChess.move(bestMove)
-  if (!result) return { description: `Better move was ${bestMove}`, mainIdea: '' }
+  if (!result) {
+    return {
+      description: `The better move was ${bestMove}.`,
+      mainIdea: '',
+      bestMoveSan: bestMove,
+      isCapture: false,
+      givesCheck: false,
+      isCastle: false,
+      developsPiece: false,
+      isForcing: false,
+    }
+  }
 
   const pieceName = PIECE_NAMES[result.piece] ?? result.piece
   const ideas: string[] = []
+  const isCapture = !!result.captured
+  const givesCheck = testChess.inCheck()
+  const isCastle = result.san === 'O-O' || result.san === 'O-O-O'
 
   // Check if it's a capture
-  if (result.captured) {
-    const capturedName = PIECE_NAMES[result.captured] ?? result.captured
-    ideas.push(`captures the ${capturedName} on ${result.to}`)
+  if (isCapture) {
+    const capturedKey = result.captured ?? ''
+    const capturedName = PIECE_NAMES[capturedKey] ?? capturedKey
+    ideas.push(`wins material by capturing the ${capturedName} on ${result.to}`)
   }
 
   // Check if it gives check
-  if (testChess.inCheck()) {
+  if (givesCheck) {
     ideas.push('gives check')
   }
 
   // Check if it's castling
-  if (result.san === 'O-O' || result.san === 'O-O-O') {
-    ideas.push('gets the king to safety and connects the rooks')
+  if (isCastle) {
+    ideas.push('gets the king safe and connects the rooks')
   }
 
   // Check if it develops a minor piece from the back rank
@@ -131,39 +174,29 @@ function describeEngineMoveIdea(
       ? ['b1', 'g1', 'c1', 'f1']
       : ['b8', 'g8', 'c8', 'f8'],
   )
-  if ((result.piece === 'n' || result.piece === 'b') && minorStarts.has(result.from)) {
+  const developsPiece = (result.piece === 'n' || result.piece === 'b') && minorStarts.has(result.from)
+  if (developsPiece) {
     ideas.push(`develops the ${pieceName} into the game`)
   }
-
-  // Check if the move defends a hanging piece (piece was attacked before)
-  if (result.to && !result.captured) {
-    // Simple heuristic: if the piece moved TO a square that's adjacent to a friendly piece
-    // that was under attack, it might be a defensive move
-    const beforeBoard = beforeChess.board()
-    const colorCode = result.color
-    for (const row of beforeBoard) {
-      for (const cell of row) {
-        if (cell && cell.color === colorCode && cell.type !== 'k') {
-          if (beforeChess.isAttacked(cell.square, colorCode === 'w' ? 'b' : 'w')) {
-            // A friendly piece was under attack — the engine move might address this
-            // Only add if we haven't found a more specific idea
-            if (ideas.length === 0) {
-              ideas.push(`addresses a threat against a piece`)
-            }
-            break
-          }
-        }
-      }
-      if (ideas.length > 0 && ideas[ideas.length - 1].includes('addresses')) break
-    }
+  if (ideas.length === 0) {
+    ideas.push(`improves the ${pieceName} on ${result.to}`)
   }
 
-  const description = `The better approach was ${result.san} (moving the ${pieceName} to ${result.to})`
+  const description = `The better move was ${result.san}.`
   const mainIdea = ideas.length > 0
-    ? `This ${ideas.join(' and ')}`
-    : `This repositions the ${pieceName} to a more active square`
+    ? `It ${ideas.join(' and ')}`
+    : `It repositions the ${pieceName} to a more active square`
 
-  return { description, mainIdea }
+  return {
+    description,
+    mainIdea,
+    bestMoveSan: result.san,
+    isCapture,
+    givesCheck,
+    isCastle,
+    developsPiece,
+    isForcing: isCapture || givesCheck,
+  }
 }
 
 // ─── Game replay helper ───────────────────────────────────────────────────────
@@ -188,8 +221,8 @@ function buildChessAtHalfMove(pgn: string, upToMoves: number): Chess {
 // ─── Critical moment enrichment ──────────────────────────────────────────────
 
 /**
- * Enrich critical moments with real feature extraction + principle classification.
- * Called after detectCriticalMoments() to fill in .features and .classification.
+ * Enrich critical moments with real feature extraction + analysis facts.
+ * Called after detectCriticalMoments() to fill in .features, .engineBest, and .analysisFacts.
  *
  * @param moments  Output of detectCriticalMoments()
  * @param moveEvals Full MoveEval[] from analyzeGame() (used to look up move indices)
@@ -208,57 +241,83 @@ export function enrichCriticalMoments(
   const sanHistory = fullGame.history() // string[]
 
   return moments.map(moment => {
-    // Find this moment's index in the full moveEvals list
-    const evalIdx = moveEvals.findIndex(
-      mv => mv.moveNumber === moment.moveNumber && mv.color === moment.color,
-    )
-    if (evalIdx < 0) return moment // shouldn't happen
+    try {
+      // Find this moment's index in the full moveEvals list
+      const evalIdx = moveEvals.findIndex(
+        mv => mv.moveNumber === moment.moveNumber && mv.color === moment.color,
+      )
+      if (evalIdx < 0) return moment
 
-    // Half-move index (0-based): white move N = (N-1)*2, black move N = (N-1)*2+1
-    const halfMoveIdx = (moment.moveNumber - 1) * 2 + (moment.color === 'black' ? 1 : 0)
+      // Half-move index (0-based): white move N = (N-1)*2, black move N = (N-1)*2+1
+      const halfMoveIdx = (moment.moveNumber - 1) * 2 + (moment.color === 'black' ? 1 : 0)
 
-    // Replay game to get Chess instances with full history for dev/history-aware extractors
-    const beforeChess = buildChessAtHalfMove(pgn, halfMoveIdx)
-    const afterChess = buildChessAtHalfMove(pgn, halfMoveIdx + 1)
+      // Replay game to get Chess instances with full history for dev/history-aware extractors
+      const beforeChess = buildChessAtHalfMove(pgn, halfMoveIdx)
+      const afterChess = buildChessAtHalfMove(pgn, halfMoveIdx + 1)
 
-    // The move immediately before the user's move was the opponent's last move
-    const opponentLastMove = halfMoveIdx > 0 ? sanHistory[halfMoveIdx - 1] : null
+      // The move immediately before the user's move was the opponent's last move
+      const opponentLastMove = halfMoveIdx > 0 ? sanHistory[halfMoveIdx - 1] : null
 
-    // Build evalBefore from the previous eval (or 0 if first move)
-    const evalBefore = evalIdx > 0 ? moveEvals[evalIdx - 1].eval.score : 0
-    const evalAfter = moveEvals[evalIdx].eval.score
+      // Build evalBefore from the previous eval (or 0 if first move)
+      const evalBefore = evalIdx > 0 ? moveEvals[evalIdx - 1].eval.score : 0
+      const evalAfter = moveEvals[evalIdx].eval.score
+      const engineBestUci = evalIdx > 0 ? moveEvals[evalIdx - 1].eval.bestMove : ''
+      const engineBest = engineBestUci
+        ? [uciToSan(beforeChess, engineBestUci)].filter((move): move is string => Boolean(move))
+        : moment.engineBest
+      const futureUserScores = moveEvals
+        .slice(evalIdx + 1, evalIdx + 5)
+        .map(nextEval => (moment.color === 'white' ? nextEval.eval.score : -nextEval.eval.score))
+      const userEvalAfter = moment.color === 'white' ? evalAfter : -evalAfter
 
-    const input: ExtractionInput = {
-      fen: evalIdx > 0 ? moveEvals[evalIdx - 1].fen : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-      fenAfter: moveEvals[evalIdx].fen,
-      movePlayed: moment.movePlayed,
-      engineBest: moment.engineBest,
-      evalBefore,
-      evalAfter,
-      moveNumber: moment.moveNumber,
-      color: moment.color,
-      timeControl: '600',
-      userElo,
-      opponentElo: userElo, // approximation when opponent Elo unknown
-    }
+      const input: ExtractionInput = {
+        fen: evalIdx > 0 ? moveEvals[evalIdx - 1].fen : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+        fenAfter: moveEvals[evalIdx].fen,
+        movePlayed: moment.movePlayed,
+        engineBest,
+        evalBefore,
+        evalAfter,
+        moveNumber: moment.moveNumber,
+        color: moment.color,
+        timeControl: '600',
+        userElo,
+        opponentElo: userElo,
+      }
 
-    const features = extractFeatures(input, beforeChess, afterChess, opponentLastMove)
-    const cpLoss = moment.evalSwing
+      const features = extractFeatures(input, beforeChess, afterChess, opponentLastMove)
+      const cpLoss = moment.evalSwing
+      const analysisFacts = buildAnalysisFacts(
+        features,
+        {
+          evalSwing: cpLoss,
+          moveNumber: moment.moveNumber,
+          color: moment.color,
+          movePlayed: moment.movePlayed,
+          evalAfter: userEvalAfter,
+        },
+        futureUserScores,
+      )
 
-    const classification = classifyPrinciple(
-      features,
-      { evalSwing: cpLoss, moveNumber: moment.moveNumber, color: moment.color },
-      userElo,
-    )
+      const classification = classifyPrinciple(
+        features,
+        { evalSwing: cpLoss, moveNumber: moment.moveNumber, color: moment.color },
+        userElo,
+      )
 
-    return {
-      ...moment,
-      fen: input.fen,
-      fenAfter: input.fenAfter,
-      evalBefore,
-      evalAfter,
-      features,
-      classification,
+      return {
+        ...moment,
+        fen: input.fen,
+        fenAfter: input.fenAfter,
+        engineBest,
+        evalBefore,
+        evalAfter,
+        features,
+        analysisFacts,
+        classification,
+      }
+    } catch (err) {
+      console.error('[enrichCriticalMoments] failed for moment', moment.moveNumber, moment.color, err)
+      return moment
     }
   })
 }

@@ -22,13 +22,10 @@ function formatScore(line: TopLine): string {
 }
 
 export default function BestLines({ lines, isAnalyzingPosition, onLineClick, depth, targetDepth }: BestLinesProps) {
-  if (!isAnalyzingPosition && lines.length === 0) return null
-
   return (
     <div className="best-lines">
       {isAnalyzingPosition && lines.length === 0 ? (
         <>
-          <div className="best-line-row best-line-skeleton" />
           <div className="best-line-row best-line-skeleton" />
           <div className="best-line-row best-line-skeleton" />
         </>
@@ -46,11 +43,9 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, dep
               <span className="best-line-eval">{formatScore(line)}</span>
             </button>
           ))}
-          {depth != null && depth > 0 && (
-            <div className="best-lines-depth">
-              depth: {depth}{targetDepth ? ` / ${targetDepth}` : ''}{isAnalyzingPosition ? ' ...' : ''}
-            </div>
-          )}
+          <div className="best-lines-depth" style={{ visibility: (depth != null && depth > 0) ? 'visible' : 'hidden' }}>
+            depth: {depth ?? 0}{targetDepth ? ` / ${targetDepth}` : ''}{isAnalyzingPosition ? ' ...' : ''}
+          </div>
         </>
       )}
     </div>

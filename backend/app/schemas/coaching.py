@@ -17,12 +17,14 @@ class CoachingRequest(BaseModel):
     eval_after: float
     eval_swing_cp: float
 
-    # Classification result
-    principle_id: str | None
-    principle_name: str | None
-    principle_description: str | None = None  # Full principle definition
-    principle_takeaway: str | None = None     # Memorable rule for the student
-    confidence: float          # 0-100
+    # Analysis-first classification
+    category: str | None = None
+    mistake_type: str | None = None
+    principle_id: str | None = None
+    principle_name: str | None = None
+    principle_description: str | None = None
+    principle_takeaway: str | None = None
+    confidence: float = 100    # kept for DB/backward compat
 
     # Pre-verified facts from feature extraction
     verified_facts: list[str]  # Human-readable fact strings
@@ -41,6 +43,7 @@ class CoachingRequest(BaseModel):
 
 class CoachingResponse(BaseModel):
     lesson: str
-    principle_id: str | None
+    category: str | None
+    principle_id: str | None = None
     confidence: float
     cached: bool

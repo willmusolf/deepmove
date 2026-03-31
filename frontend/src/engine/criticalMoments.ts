@@ -73,6 +73,12 @@ function stubFeatures(): PositionFeatures {
     engineMoveImpact: {
       description: '',
       mainIdea: '',
+      bestMoveSan: null,
+      isCapture: false,
+      givesCheck: false,
+      isCastle: false,
+      developsPiece: false,
+      isForcing: false,
     },
   }
 }
@@ -111,6 +117,7 @@ export function detectCriticalMoments(
       evalAfter,
       evalSwing: cpLoss,
       features: stubFeatures(),
+      analysisFacts: null,
       classification: null,
     })
   }

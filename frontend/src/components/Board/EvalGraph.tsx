@@ -1,5 +1,5 @@
-// EvalGraph.tsx — Smooth bezier eval curve, Lichess-style annotation circles on curve
-// Fixed 120px height, ResizeObserver for width, annotation circles rendered inline in SVG.
+// EvalGraph.tsx — Smooth bezier eval curve with small color-coded annotation dots.
+// Fixed 120px height, ResizeObserver for width. SVG clipPath ensures fill matches curve.
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import type { MoveEval } from '../../engine/analysis'
@@ -17,7 +17,7 @@ interface EvalGraphProps {
 const HEIGHT = 120
 const CLAMP = 700    // centipawns at which curve hits ~100%
 const TENSION = 0.4  // Catmull-Rom tension
-const DOT_R = 7      // radius of annotation circles
+const DOT_R = 4      // radius of annotation circles
 
 type Point = { x: number; y: number }
 
@@ -46,17 +46,9 @@ function buildBezierPath(pts: Point[]): string {
   return d
 }
 
-/** Build closed bezier area path */
-function buildBezierArea(pts: Point[], midY: number, above: boolean): string {
-  if (pts.length < 2) return ''
-  const clipped = pts.map(p => ({
-    x: p.x,
-    y: above ? Math.min(p.y, midY) : Math.max(p.y, midY),
-  }))
-  let d = buildBezierPath(clipped)
-  d += ` L${clipped[clipped.length - 1].x.toFixed(2)},${midY.toFixed(2)}`
-  d += ` L${clipped[0].x.toFixed(2)},${midY.toFixed(2)} Z`
-  return d
+/** Close a bezier path to midY, forming a filled area between curve and center */
+function buildFillPath(bezierD: string, pts: Point[], midY: number): string {
+  return `${bezierD} L${pts[pts.length - 1].x.toFixed(2)},${midY.toFixed(2)} L${pts[0].x.toFixed(2)},${midY.toFixed(2)} Z`
 }
 
 interface AnnotationCircle {
@@ -64,7 +56,6 @@ interface AnnotationCircle {
   x: number
   y: number
   fill: string
-  grade: string
 }
 
 // Grade → circle fill color. Only notable grades get circles.
@@ -75,16 +66,6 @@ const GRADE_CIRCLE_COLOR: Partial<Record<string, string>> = {
   brilliant:  '#22d3ee',
   great:      '#22c55e',
   miss:       '#a78bfa',
-}
-
-// Grade → text label shown inside circle on graph
-const GRADE_LABEL: Partial<Record<string, string>> = {
-  blunder:    '??',
-  mistake:    '?',
-  inaccuracy: '?!',
-  brilliant:  '!!',
-  great:      '!',
-  miss:       '✗',
 }
 
 export default function EvalGraph({
@@ -121,7 +102,7 @@ export default function EvalGraph({
 
   if (total === 0) return null
 
-  const { colWidth, midY, points, annotations, criticalBands } = useMemo(() => {
+  const { colWidth, midY, points, annotations, criticalBands, curvePath } = useMemo(() => {
     const cw = svgWidth / (total + 1)
     const mx = (i: number) => i * cw
     const my = cpToY(0, HEIGHT)
@@ -144,7 +125,7 @@ export default function EvalGraph({
 
       const x = mx(i + 1)
       const y = cpToY(me.eval.score, HEIGHT)
-      anns.push({ moveIndex: i + 1, x, y, fill, grade })
+      anns.push({ moveIndex: i + 1, x, y, fill })
     }
 
     const bands: number[] = []
@@ -155,7 +136,9 @@ export default function EvalGraph({
       if (idx !== -1) bands.push(idx + 1)
     }
 
-    return { colWidth: cw, midY: my, points: pts, annotations: anns, criticalBands: bands }
+    const cp = buildBezierPath(pts)
+
+    return { colWidth: cw, midY: my, points: pts, annotations: anns, criticalBands: bands, curvePath: cp }
   }, [moveEvals, svgWidth, total, analyzed, criticalMoments, viewMode])
 
   const moveX = (i: number) => i * colWidth
@@ -224,6 +207,12 @@ export default function EvalGraph({
               <stop offset="0%" stopColor="rgba(238,232,212,0.92)" />
               <stop offset="100%" stopColor="rgba(218,210,185,0.68)" />
             </linearGradient>
+            <clipPath id="clipAboveMid">
+              <rect x="0" y="0" width={svgWidth} height={midY} />
+            </clipPath>
+            <clipPath id="clipBelowMid">
+              <rect x="0" y={midY} width={svgWidth} height={HEIGHT - midY} />
+            </clipPath>
           </defs>
 
           {/* Background */}
@@ -253,14 +242,22 @@ export default function EvalGraph({
             />
           )}
 
-          {/* White area */}
-          {points.length >= 2 && (
-            <path d={buildBezierArea(points, midY, true)} fill="url(#whiteGrad)" />
+          {/* White area (above midY) — fill between curve and center, clipped to top half */}
+          {curvePath && (
+            <path
+              d={buildFillPath(curvePath, points, midY)}
+              fill="url(#whiteGrad)"
+              clipPath="url(#clipAboveMid)"
+            />
           )}
 
-          {/* Black area */}
-          {points.length >= 2 && (
-            <path d={buildBezierArea(points, midY, false)} fill="rgba(22,22,22,0.92)" />
+          {/* Black area (below midY) — fill between curve and center, clipped to bottom half */}
+          {curvePath && (
+            <path
+              d={buildFillPath(curvePath, points, midY)}
+              fill="rgba(22,22,22,0.92)"
+              clipPath="url(#clipBelowMid)"
+            />
           )}
 
           {/* Center line */}
@@ -271,9 +268,9 @@ export default function EvalGraph({
           />
 
           {/* Eval curve */}
-          {points.length >= 2 && (
+          {curvePath && (
             <path
-              d={buildBezierPath(points)}
+              d={curvePath}
               fill="none"
               stroke="rgba(255,255,255,0.35)"
               strokeWidth="1.2"
@@ -290,42 +287,24 @@ export default function EvalGraph({
             />
           )}
 
-          {/* Annotation circles + labels — rendered on the curve */}
-          {annotations.map(a => {
-            const label = GRADE_LABEL[a.grade]
-            const textColor = a.grade === 'inaccuracy' ? '#1a1a1a' : '#fff'
-            return (
-              <g
-                key={`ann-${a.moveIndex}`}
-                style={{ cursor: 'pointer' }}
-                onClick={(e) => { e.stopPropagation(); onNavigate(a.moveIndex) }}
-                onMouseEnter={() => setHoveredIndex(a.moveIndex)}
-              >
-                <circle
-                  cx={a.x}
-                  cy={a.y}
-                  r={DOT_R}
-                  fill={a.fill}
-                  stroke="rgba(15,17,23,0.7)"
-                  strokeWidth="1.5"
-                />
-                {label && (
-                  <text
-                    x={a.x}
-                    y={a.y}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fontSize="6.5"
-                    fontWeight="800"
-                    fill={textColor}
-                    style={{ pointerEvents: 'none', userSelect: 'none' }}
-                  >
-                    {label}
-                  </text>
-                )}
-              </g>
-            )
-          })}
+          {/* Annotation dots — small color-coded circles on the curve */}
+          {annotations.map(a => (
+            <g
+              key={`ann-${a.moveIndex}`}
+              style={{ cursor: 'pointer' }}
+              onClick={(e) => { e.stopPropagation(); onNavigate(a.moveIndex) }}
+              onMouseEnter={() => setHoveredIndex(a.moveIndex)}
+            >
+              <circle
+                cx={a.x}
+                cy={a.y}
+                r={DOT_R}
+                fill={a.fill}
+                stroke="rgba(15,17,23,0.7)"
+                strokeWidth="1"
+              />
+            </g>
+          ))}
 
           {/* Cursor line + dot */}
           {cursorX !== null && (

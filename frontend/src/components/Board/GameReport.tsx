@@ -56,8 +56,8 @@ const GRADE_DISPLAY: Record<string, { symbol: string; cls: string }> = {
   brilliant:  { symbol: '!!', cls: 'gr-brilliant' },
   great:      { symbol: '!',  cls: 'gr-great' },
   best:       { symbol: '!',  cls: 'gr-best' },
-  excellent:  { symbol: '',   cls: 'gr-excellent' },
-  good:       { symbol: '',   cls: 'gr-good' },
+  excellent:  { symbol: 'Exc', cls: 'gr-excellent' },
+  good:       { symbol: 'OK',  cls: 'gr-good' },
   inaccuracy: { symbol: '?!', cls: 'gr-inaccuracy' },
   mistake:    { symbol: '?',  cls: 'gr-mistake' },
   blunder:    { symbol: '??', cls: 'gr-blunder' },
@@ -98,7 +98,8 @@ function SidePanel({ label, stats, isUser }: SidePanelProps) {
           const d = GRADE_DISPLAY[g]
           return (
             <span key={g} className={`game-report-pill ${d.cls}`} title={g}>
-              {d.symbol || g.slice(0, 1).toUpperCase()}{count}
+              <span className="game-report-pill-sym">{d.symbol}</span>
+              <span className="game-report-pill-count">{count}</span>
             </span>
           )
         })}

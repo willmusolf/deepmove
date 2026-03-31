@@ -1034,6 +1034,7 @@ cg-board {
   flex-direction: column;
   gap: 2px;
   margin-bottom: 0.5rem;
+  min-height: 84px;   /* reserve space for 2 lines + depth row — prevents layout jump */
 }
 
 .best-line-row {
@@ -1171,17 +1172,17 @@ cg-board {
   gap: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: rgba(15, 17, 23, 0.7);
+  background: rgba(15, 17, 23, 0.85);
   overflow: hidden;
   flex-shrink: 0;
 }
 
 .game-report-side {
   flex: 1;
-  padding: 7px 10px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .game-report-side--user {
@@ -1198,19 +1199,19 @@ cg-board {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 4px;
+  gap: 6px;
 }
 
 .game-report-label {
-  font-size: 0.68rem;
-  font-weight: 600;
+  font-size: 0.7rem;
+  font-weight: 500;
   color: var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .game-report-accuracy {
-  font-size: 1rem;
+  font-size: 1.15rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -1219,6 +1220,7 @@ cg-board {
 .game-report-acpl {
   font-size: 0.65rem;
   color: var(--color-text-muted);
+  margin-top: 1px;
 }
 
 .game-report-acpl strong {
@@ -1229,29 +1231,39 @@ cg-board {
 .game-report-grades {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
-  margin-top: 1px;
+  gap: 4px;
+  margin-top: 3px;
 }
 
 .game-report-pill {
-  font-size: 0.65rem;
-  font-weight: 700;
+  font-size: 0.62rem;
+  font-weight: 600;
   font-family: system-ui, sans-serif;
-  padding: 1px 5px;
-  border-radius: 3px;
-  line-height: 1.4;
-  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.3;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
-.gr-brilliant  { background: #22d3ee; }
-.gr-great      { background: #22c55e; }
-.gr-best       { background: #22c55e; }
-.gr-excellent  { background: #4ade80; color: #1a1a1a; }
-.gr-good       { background: #86efac; color: #1a1a1a; }
-.gr-inaccuracy { background: #eab308; color: #1a1a1a; }
-.gr-mistake    { background: #f97316; }
-.gr-blunder    { background: #ef4444; }
-.gr-miss       { background: #a78bfa; }
+.game-report-pill-sym {
+  opacity: 0.85;
+}
+
+.game-report-pill-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.gr-brilliant  { background: rgba(34, 211, 238, 0.22); color: #22d3ee; }
+.gr-great      { background: rgba(34, 197, 94, 0.22);  color: #22c55e; }
+.gr-best       { background: rgba(34, 197, 94, 0.18);  color: #4ade80; }
+.gr-excellent  { background: rgba(74, 222, 128, 0.15); color: #86efac; }
+.gr-good       { background: rgba(134, 239, 172, 0.12); color: #86efac; }
+.gr-inaccuracy { background: rgba(234, 179, 8, 0.22);  color: #eab308; }
+.gr-mistake    { background: rgba(249, 115, 22, 0.22); color: #fb923c; }
+.gr-blunder    { background: rgba(239, 68, 68, 0.22);  color: #ef4444; }
+.gr-miss       { background: rgba(167, 139, 250, 0.22); color: #a78bfa; }
 
 
 /* ── Load panel + import sub-tabs ────────────────────────────────────── */
@@ -2522,10 +2534,13 @@ cg-board {
 }
 
 .lesson-card__principle {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--color-accent);
-  flex: 1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.16rem 0.5rem;
 }
 
 .lesson-card__confidence {
@@ -3157,4 +3172,3 @@ cg-board {
   background: var(--color-error, #f87171);
   color: #fff;
 }
-

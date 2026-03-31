@@ -7,6 +7,7 @@ import { useState } from 'react'
 import type { CoachingLesson } from '../../hooks/useCoaching'
 import { useAuthStore } from '../../stores/authStore'
 import { api } from '../../api/client'
+import { CATEGORIES } from '../../chess/taxonomy'
 import LessonCard from './LessonCard'
 
 const BLUNDER_CHECK_QUESTIONS = [
@@ -19,10 +20,11 @@ interface CoachPanelProps {
   lessons: CoachingLesson[]
   currentIndex: number
   onNavigate: (idx: number) => void
+  onReveal?: (idx: number) => void
   isAnalyzing?: boolean
 }
 
-export default function CoachPanel({ lessons, currentIndex, onNavigate, isAnalyzing }: CoachPanelProps) {
+export default function CoachPanel({ lessons, currentIndex, onNavigate, onReveal: _onReveal, isAnalyzing }: CoachPanelProps) {
   const lesson = lessons[currentIndex]
   const total = lessons.length
   const user = useAuthStore(s => s.user)
@@ -116,14 +118,7 @@ export default function CoachPanel({ lessons, currentIndex, onNavigate, isAnalyz
           )
           : lesson.error ? (
             <div className="coach-panel__error">
-              <p>Couldn't load lesson — is the backend running?</p>
-            </div>
-          )
-          : !lesson.principleId ? (
-            <div className="coach-panel__no-lesson">
-              <p className="coach-panel__no-lesson-msg">
-                No major coaching moment here.
-              </p>
+              <p>{lesson.error}</p>
             </div>
           )
           : (
@@ -142,8 +137,8 @@ export default function CoachPanel({ lessons, currentIndex, onNavigate, isAnalyz
               {lesson.lessonText ? (
                 <LessonCard
                   moveNumber={lesson.moment.moveNumber}
-                  principleName={lesson.principleName}
-                  confidence={lesson.confidence}
+                  categoryName={lesson.categoryName}
+                  categoryColor={lesson.category ? CATEGORIES[lesson.category]?.color : undefined}
                   lessonText={lesson.lessonText}
                 />
               ) : (

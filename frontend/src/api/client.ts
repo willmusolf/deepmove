@@ -13,7 +13,37 @@ class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+type RequestOptions = RequestInit & { timeoutMs?: number }
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestOptions,
+  headers: Record<string, string>,
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutMs = options.timeoutMs ?? 25000
+  const { signal: callerSignal, timeoutMs: _timeoutMs, ...restOptions } = options
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  if (callerSignal) callerSignal.addEventListener('abort', () => controller.abort())
+
+  try {
+    return await fetch(url, {
+      credentials: 'include',
+      ...restOptions,
+      headers,
+      signal: controller.signal,
+    })
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ApiError(0, 'Request timed out')
+    }
+    throw new ApiError(0, 'Could not reach the server')
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function request<T>(path: string, options?: RequestOptions): Promise<T> {
   const token = useAuthStore.getState().accessToken
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -23,11 +53,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include', // Send HttpOnly cookies for refresh
-    ...options,
-    headers,
-  })
+  const res = await fetchWithTimeout(`${API_BASE}${path}`, options ?? {}, headers)
 
   // On 401, try to refresh and retry once
   if (res.status === 401 && token) {
@@ -36,11 +62,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       const newToken = useAuthStore.getState().accessToken
       if (newToken) {
         headers['Authorization'] = `Bearer ${newToken}`
-        const retry = await fetch(`${API_BASE}${path}`, {
-          credentials: 'include',
-          ...options,
-          headers,
-        })
+        const retry = await fetchWithTimeout(`${API_BASE}${path}`, options ?? {}, headers)
         if (!retry.ok) {
           const body = await retry.json().catch(() => ({ detail: `Error ${retry.status}` }))
           throw new ApiError(retry.status, body.detail ?? `Error ${retry.status}`)
@@ -65,9 +87,10 @@ export { ApiError }
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) =>
+  post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>(path, {
       method: 'POST',
+      ...options,
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     }),
   patch: <T>(path: string, body: unknown) =>
