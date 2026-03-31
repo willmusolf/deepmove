@@ -158,7 +158,7 @@ export function useCoaching({
           eval_swing_cp: moment.evalSwing,
           category: analysisFacts.category,
           mistake_type: analysisFacts.mistakeType,
-          confidence: 100,
+          confidence: moment.classification?.confidence ?? 80,
           verified_facts: analysisFacts.factList,
           engine_move_idea: [
             moment.features.engineMoveImpact?.description,

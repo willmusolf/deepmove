@@ -10,6 +10,7 @@ CRITICAL RULES (from CLAUDE.md):
 5. Category labels are for tracking only. The lesson is driven by verified facts.
 """
 import asyncio
+import logging
 
 import anthropic
 from cachetools import LRUCache
@@ -17,6 +18,8 @@ from cachetools import LRUCache
 from app.config import settings
 from app.prompts.lesson import build_lesson_prompt
 from app.prompts.system import SYSTEM_PROMPT
+
+logger = logging.getLogger(__name__)
 
 # In-memory LRU cache — will cut LLM costs 40-60%
 # Cache key: {category}:{game_phase}:{elo_band}:{position_hash}
@@ -87,6 +90,7 @@ async def generate_lesson(coaching_request: dict) -> dict:
             )
             lesson_text = message.content[0].text  # type: ignore[index]
         except Exception:
+            logger.exception("LLM lesson generation failed")
             lesson_text = _build_fallback_lesson(coaching_request)
     else:
         lesson_text = _build_fallback_lesson(coaching_request)
@@ -94,7 +98,7 @@ async def generate_lesson(coaching_request: dict) -> dict:
     result = {
         "lesson": lesson_text,
         "category": coaching_request.get("category"),
-        "principle_id": coaching_request.get("category"),
+        "principle_id": coaching_request.get("principle_id") or coaching_request.get("category"),
         "confidence": confidence,
         "cached": False,
     }

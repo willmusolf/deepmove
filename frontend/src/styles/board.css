@@ -2506,6 +2506,36 @@ cg-board {
   padding: 0.5rem 0;
 }
 
+/* ── Blunder-Check Checklist ───────────────────────────────────────────── */
+.coach-panel__checklist {
+  background: rgba(255, 180, 50, 0.08);
+  border: 1px solid rgba(255, 180, 50, 0.25);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.coach-panel__checklist-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin: 0 0 0.35rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.coach-panel__checklist-questions {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.coach-panel__checklist-questions li {
+  margin-bottom: 0.15rem;
+}
+
 /* ── Lesson Card ──────────────────────────────────────────────────────── */
 .lesson-card {
   display: flex;

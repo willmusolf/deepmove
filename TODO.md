@@ -463,17 +463,21 @@ See above in "Next After Launch"
 ---
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
--reload should only pull newest games??
+
+-reload should only pull newest games?? not reload all games every time
+
+-going back a move sometimes doesnt affect move suggestsion/eval bar showing for the wrong position. do an audit to fix this and make sure its alwways right and as fast/efficient/great as possible ask questions for big changes or anything else
+also -get rid of the the depth / 16 BELOW the move lines. keep the one above it (theyre both there saying the same exact thing fro some reason, only need 1 of them)
 
 
 
 -resizing is a nightmare on desktop as well befoer mobile responsiveness maybe work that into the official todo as well
 
 
--get rid of the the depth / 16 BELOW the move lines. keep the one above it (theyre both there fro some reason)
 
 
 -premoves not working in play mode (might be resolved)
+-enable multiple premoves like on chess.com? or not necessary
 
 
 -badges on board are the same on every branch? each move sould be re evaluated or no? thats what chessigma does and chess.com

@@ -55,7 +55,7 @@ async def generate_lesson(
 
     # ── 2. DB cache check (persistent — survives server restart) ─────────────
     if game and user:
-        lesson_key = request.category or request.principle_id or None
+        lesson_key = request.principle_id or request.category or None
         existing = (
             db.query(Lesson)
             .filter(
@@ -88,7 +88,7 @@ async def generate_lesson(
             user_id=user.id,
             move_number=request.move_number,
             color=request.color,
-            principle_id=request.category or request.principle_id,
+            principle_id=request.principle_id or request.category,
             confidence=result["confidence"],
             lesson_text=result["lesson"],
             elo_band=request.elo_band,

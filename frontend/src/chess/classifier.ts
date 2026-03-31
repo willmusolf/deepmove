@@ -72,10 +72,11 @@ export function classifyPrinciple(
   // ── 3. OPENING_02 — Castle Early ────────────────────────────────────────────
   // In opening, king still uncastled after move 10.
   const userDev = moment.color === 'white' ? development.white : development.black
+  const userKingSafety = moment.color === 'white' ? features.kingSafety.white : features.kingSafety.black
   if (
     isInEloGate('OPENING_02', userElo) &&
     (gamePhase === 'opening' || gamePhase === 'early_middlegame') &&
-    !userDev.castled &&
+    userKingSafety.castled === 'none' &&
     moveNumber > 10
   ) {
     return makeResult('OPENING_02', 75)
@@ -253,7 +254,7 @@ export function buildVerifiedFacts(
       moveNumber: moment.moveNumber,
       color: moment.color,
       movePlayed: moment.movePlayed,
-      evalAfter: moment.evalAfter ?? 0,
+      evalAfter: moment.evalAfter ?? -(moment.evalSwing ?? 0),  // rough proxy: assume started near 0
     },
     [],
   ).factList

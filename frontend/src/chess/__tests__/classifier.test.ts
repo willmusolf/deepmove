@@ -166,6 +166,10 @@ describe('classifyPrinciple — OPENING_02', () => {
   it('does NOT trigger when already castled', () => {
     const features = makeFeatures({
       gamePhase: 'early_middlegame',
+      kingSafety: {
+        white: { castled: 'kingside', pawnShieldIntegrity: 3, openFilesNearKing: [], score: 0 },
+        black: { castled: 'kingside', pawnShieldIntegrity: 3, openFilesNearKing: [], score: 0 },
+      },
       development: {
         white: { developedMinorPieces: 4, undevelopedMinorPieces: 0, rooksConnected: false, castled: true, earlyQueenMove: false, sameMovedTwice: false },
         black: { developedMinorPieces: 4, undevelopedMinorPieces: 0, rooksConnected: false, castled: true, earlyQueenMove: false, sameMovedTwice: false },
