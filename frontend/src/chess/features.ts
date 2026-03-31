@@ -262,9 +262,13 @@ export function enrichCriticalMoments(
       const evalBefore = evalIdx > 0 ? moveEvals[evalIdx - 1].eval.score : 0
       const evalAfter = moveEvals[evalIdx].eval.score
       const engineBestUci = evalIdx > 0 ? moveEvals[evalIdx - 1].eval.bestMove : ''
-      const engineBest = engineBestUci
-        ? [uciToSan(beforeChess, engineBestUci)].filter((move): move is string => Boolean(move))
-        : moment.engineBest
+      const engineBestSan = engineBestUci ? uciToSan(beforeChess, engineBestUci) : null
+      if (engineBestUci && !engineBestSan) {
+        console.warn('[enrichCriticalMoments] UCI→SAN conversion failed:', engineBestUci)
+      }
+      const engineBest = engineBestSan
+        ? [engineBestSan]
+        : (engineBestUci ? [engineBestUci] : moment.engineBest)
       const futureUserScores = moveEvals
         .slice(evalIdx + 1, evalIdx + 5)
         .map(nextEval => (moment.color === 'white' ? nextEval.eval.score : -nextEval.eval.score))
