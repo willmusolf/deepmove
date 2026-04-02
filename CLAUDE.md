@@ -89,11 +89,12 @@ deepmove/
 │       │   │   ├── MoveList.tsx
 │       │   │   ├── BestLines.tsx
 │       │   │   └── PlayerInfoBox.tsx
-│       │   ├── Coach/             # (Track C — not yet built)
-│       │   │   ├── CoachPanel.tsx
+│       │   ├── Coach/             # Track C — coaching UI (live)
+│       │   │   ├── MoveCoachComment.tsx  # per-move coach box above MoveList
+│       │   │   ├── LessonNav.tsx         # compact lesson dot indicators
 │       │   │   ├── LessonCard.tsx
-│       │   │   ├── SocraticPrompt.tsx
-│       │   │   └── GameSummary.tsx
+│       │   │   ├── SocraticPrompt.tsx    # stub
+│       │   │   └── GameSummary.tsx       # stub
 │       │   ├── Import/
 │       │   │   ├── GameSelector.tsx
 │       │   │   └── AccountLink.tsx
