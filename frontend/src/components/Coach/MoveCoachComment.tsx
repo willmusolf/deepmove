@@ -1,64 +1,119 @@
 // MoveCoachComment.tsx — Coach comment box shown in the Coach tab above the move list.
-// Updates as the user steps through moves. Shows a short blurb for every move,
-// and the full lesson card for critical moments.
 
 import type { CoachingLesson, MoveComment } from '../../hooks/useCoaching'
 import { gradeToComment } from '../../hooks/useCoaching'
 import type { MoveGrade } from '../../engine/analysis'
 import { CATEGORIES } from '../../chess/taxonomy'
+import LessonNav from './LessonNav'
 
 interface MoveCoachCommentProps {
   moveComments: MoveComment[]
   lessons: CoachingLesson[]
-  /** 1-based move index from the game review (0 = start position) */
   currentMoveIndex: number
-  /** When set, the user is on a branch move — show a simple grade blurb instead of main-line coaching */
   branchComment?: { grade: MoveGrade; san: string } | null
+  inBranch?: boolean
+  onGoToMove?: (index: number) => void
+  isAnalyzing?: boolean
+  analyzedCount?: number
+  totalMovesCount?: number
 }
 
-export default function MoveCoachComment({ moveComments, lessons, currentMoveIndex, branchComment }: MoveCoachCommentProps) {
-  if (branchComment) {
-    return (
-      <div className="move-coach-comment">
-        <p className="move-coach-comment__text">{gradeToComment(branchComment.grade, branchComment.san)}</p>
-      </div>
-    )
+export default function MoveCoachComment({
+  moveComments,
+  lessons,
+  currentMoveIndex,
+  branchComment,
+  inBranch,
+  onGoToMove,
+  isAnalyzing,
+  analyzedCount,
+  totalMovesCount,
+}: MoveCoachCommentProps) {
+  const showNav = lessons.length > 0 && !!onGoToMove
+
+  function nav() {
+    if (!showNav) return null
+    return <LessonNav lessons={lessons} currentMoveIndex={currentMoveIndex} onGoToLesson={onGoToMove!} />
   }
 
-  if (currentMoveIndex === 0 || moveComments.length === 0) {
+  if (inBranch) {
+    if (branchComment) {
+      return (
+        <div className="move-coach-comment">
+          <div className="move-coach-comment__header">
+            <span className="move-coach-comment__header-text">
+              {gradeToComment(branchComment.grade, branchComment.san)}
+            </span>
+            {nav()}
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="move-coach-comment move-coach-comment--idle">
-        <p className="move-coach-comment__idle-text">Step through the game to see coaching feedback.</p>
+        <div className="move-coach-comment__header">
+          <span className="move-coach-comment__header-text">Evaluating move…</span>
+          {nav()}
+        </div>
       </div>
     )
   }
 
-  // moveComments is 0-based, currentMoveIndex is 1-based
-  const mc = moveComments[currentMoveIndex - 1]
-  if (!mc) return null
+  const analyzingProgress = totalMovesCount && totalMovesCount > 0
+    ? ` ${analyzedCount ?? 0} / ${totalMovesCount} moves`
+    : ''
 
-  const lesson = mc.lessonIdx !== null ? lessons[mc.lessonIdx] : null
+  if (currentMoveIndex === 0 || moveComments.length === 0) {
+    const idleText = isAnalyzing
+      ? `Analyzing your game…${analyzingProgress}`
+      : 'Step through the game to see coaching feedback.'
+    return (
+      <div className="move-coach-comment move-coach-comment--idle">
+        <div className="move-coach-comment__header">
+          <span className="move-coach-comment__header-text">
+            {isAnalyzing && <span className="move-coach-comment__analyzing-dot" />}
+            {idleText}
+          </span>
+          {nav()}
+        </div>
+      </div>
+    )
+  }
+
+  const mc = moveComments[currentMoveIndex - 1]
+  if (!mc) {
+    // Index out of bounds — show idle rather than blank
+    return (
+      <div className="move-coach-comment move-coach-comment--idle">
+        <div className="move-coach-comment__header">
+          <span className="move-coach-comment__header-text">Step through the game to see coaching feedback.</span>
+          {nav()}
+        </div>
+      </div>
+    )
+  }
+
+  const lesson = mc.lessonIdx != null ? lessons[mc.lessonIdx] : null
   const categoryColor = lesson?.category ? CATEGORIES[lesson.category]?.color : undefined
   const hasLesson = lesson && (lesson.isLoading || lesson.lessonText || lesson.error)
 
   return (
     <div className={`move-coach-comment${hasLesson ? ' move-coach-comment--critical' : ''}`}>
-      {/* Category badge for critical moves */}
-      {lesson?.categoryName && (
-        <span
-          className="move-coach-comment__badge"
-          style={categoryColor ? { color: categoryColor, borderColor: categoryColor } : undefined}
-        >
-          {lesson.categoryName}
+      <div className="move-coach-comment__header">
+        <span className="move-coach-comment__header-text">
+          {lesson?.categoryName && (
+            <span
+              className="move-coach-comment__badge"
+              style={categoryColor ? { color: categoryColor, borderColor: categoryColor } : undefined}
+            >
+              {lesson.categoryName}
+            </span>
+          )}
+          {mc.comment}
         </span>
-      )}
+        {nav()}
+      </div>
 
-      {/* Short comment / description */}
-      {mc.comment && (
-        <p className="move-coach-comment__text">{mc.comment}</p>
-      )}
-
-      {/* Full lesson for critical moments */}
       {hasLesson && (
         <div className="move-coach-comment__lesson">
           {lesson.isLoading ? (

@@ -229,6 +229,7 @@ export function useGameReview() {
       ? tree[parentId]?.childIds.find(cid => tree[cid] && tree[cid]?.from === from && tree[cid]?.to === to && tree[cid]?.san === san)
       : Object.values(tree).find(n => n.parentId === null && n.from === from && n.to === to && n.san === san)?.id
     if (existing) {
+      lastAddedNodeIdRef.current = existing
       setBranchState(prev => ({ ...prev, currentPath: [...prev.currentPath, existing] }))
       return
     }

@@ -524,6 +524,8 @@ also -get rid of the the depth / 16 BELOW the move lines. keep the one above it 
 and also in the coaching tab too 
 
 
+- analyzing doesnt have progress bar
+
 -resizing is a nightmare on desktop as well befoer mobile responsiveness maybe work that into the official todo as well
 
 

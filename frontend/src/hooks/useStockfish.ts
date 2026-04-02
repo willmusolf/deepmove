@@ -184,5 +184,11 @@ export function useStockfish() {
     interactiveRef.current?.stopPositionAnalysis()
   }
 
-  return { isReady, engineStatus, runAnalysis, analyzePositionLines, stopPositionAnalysis }
+  async function analyzePositionSingle(fen: string, depth = 14): Promise<import('../engine/stockfish').EvalResult | null> {
+    const engine = interactiveRef.current
+    if (!engine || !isReady) return null
+    return engine.analyzePosition(fen, depth)
+  }
+
+  return { isReady, engineStatus, runAnalysis, analyzePositionLines, analyzePositionSingle, stopPositionAnalysis }
 }

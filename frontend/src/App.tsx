@@ -76,6 +76,7 @@ export default function App() {
     goForward: analysisBoardGoForward,
     navigateTo: analysisBoardNavigateTo,
     resetBoard: analysisBoardReset,
+    lastAddedNodeIdRef: analysisLastAddedNodeIdRef,
   } = useAnalysisBoard()
 
   const reset = useGameStore(s => s.reset)
@@ -97,7 +98,7 @@ export default function App() {
   const currentGameId = useGameStore(s => s.currentGameId)
   const backendGameId = useGameStore(s => s.backendGameId)
 
-  const { isReady, engineStatus, runAnalysis, analyzePositionLines, stopPositionAnalysis } = useStockfish()
+  const { isReady, engineStatus, runAnalysis, analyzePositionLines, analyzePositionSingle, stopPositionAnalysis } = useStockfish()
   const { enabled: soundEnabled, toggle: toggleSound, playMoveSound } = useSound()
 
   const {
@@ -131,6 +132,7 @@ export default function App() {
 
   const [currentAnalysisDepth, setCurrentAnalysisDepth] = useState(0)
   const [branchGrades, setBranchGrades] = useState<Map<string, MoveGrade>>(new Map())
+  const [pendingBranchNodes, setPendingBranchNodes] = useState<Set<string>>(new Set())
   // FEN → TopLine[] cache so revisiting a position never re-analyzes
   const positionCache = useRef<Map<string, TopLine[]>>(new Map())
   const pathKeyRef = useRef(0)
@@ -146,6 +148,7 @@ export default function App() {
       // results from the previous game never bleed into the new one.
       positionCache.current.clear()
       setBranchGrades(new Map())
+      setPendingBranchNodes(new Set())
       lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
       if (useGameStore.getState().skipNextAnalysis) {
         setSkipNextAnalysis(false)
@@ -324,6 +327,7 @@ export default function App() {
   const [showEvalBar, setShowEvalBar] = useState(true)
   const viewMode = panelTab === 'coach' ? 'coach' : 'classic'
   const [showArrows, setShowArrows] = useState(true)
+  const [showGrades, setShowGrades] = useState(true)
 
 
   // Last-move highlight: always reflects the actual last move in currentPath
@@ -341,6 +345,8 @@ export default function App() {
       setAnalyzingPosition(false)
       setPanelTab('analysis')
       analysisBoardReset()
+      setBranchGrades(new Map())
+      setPendingBranchNodes(new Set())
     }
   }, [isLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -434,6 +440,7 @@ export default function App() {
     lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
     positionCache.current.clear()
     setBranchGrades(new Map())
+    setPendingBranchNodes(new Set())
     analysisBoardReset()
     setOpeningName(null)
     setPanelTab('load')
@@ -458,31 +465,35 @@ export default function App() {
     } else {
       const parentFen = currentFen
       addVariationMove(from, to, san, newFen)
-      // lastAddedNodeIdRef is set synchronously inside addVariationMove
+      // lastAddedNodeIdRef is set synchronously inside addVariationMove (new or re-used node)
       const nodeId = lastAddedNodeIdRef.current
-      if (nodeId && isReady) {
+      // Only evaluate if not already graded (avoids re-eval when navigating to existing branch node)
+      if (nodeId && isReady && !branchGrades.has(nodeId)) {
         void evaluateBranchMove(nodeId, parentFen, newFen)
       }
     }
   }
 
   async function evaluateBranchMove(nodeId: string, parentFen: string, newFen: string) {
+    setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nodeId); return s })
     try {
       const chess = new Chess(parentFen)
       const legalCount = chess.moves().length
       const color: 'white' | 'black' = parentFen.split(' ')[1] === 'w' ? 'white' : 'black'
 
-      const [beforeLines, afterLines] = await Promise.all([
-        analyzePositionLines(parentFen, 14, 1),
-        analyzePositionLines(newFen, 14, 1),
-      ])
+      // Use single-PV (not multi-PV) so stopPositionAnalysis() won't cancel these evals.
+      // Run sequentially to avoid saturating the engine queue.
+      const beforeResult = await analyzePositionSingle(parentFen, 10)
+      const afterResult = await analyzePositionSingle(newFen, 10)
 
-      const evalBefore = beforeLines[0]?.score ?? 0
-      const evalAfter = afterLines[0]?.score ?? 0
+      const evalBefore = beforeResult?.score ?? 0
+      const evalAfter = afterResult?.score ?? 0
       const grade = classifyMove(evalBefore, evalAfter, color, legalCount)
       setBranchGrades(prev => new Map(prev).set(nodeId, grade))
     } catch {
       // Silently ignore evaluation failures — branch just shows no badge
+    } finally {
+      setPendingBranchNodes(prev => { const s = new Set(prev); s.delete(nodeId); return s })
     }
   }
 
@@ -513,7 +524,13 @@ export default function App() {
     playMoveSound(result.san)
     pathKeyRef.current++
     isPieceMoveRef.current = true
-    analysisBoardAddMove(from, to, result.san, chess.fen())
+    const parentFen = analysisFen
+    const newFen = chess.fen()
+    analysisBoardAddMove(from, to, result.san, newFen)
+    const nodeId = analysisLastAddedNodeIdRef.current
+    if (nodeId && isReady && showGrades && !branchGrades.has(nodeId)) {
+      void evaluateBranchMove(nodeId, parentFen, newFen)
+    }
     setPanelTab('analysis')
   }
 
@@ -670,7 +687,12 @@ export default function App() {
                 playMoveSound(san)
                 pathKeyRef.current++
                 isPieceMoveRef.current = true
+                const parentFen = analysisFen
                 analysisBoardAddMove(from, to, san, newFen)
+                const nodeId = analysisLastAddedNodeIdRef.current
+                if (nodeId && isReady && showGrades && !branchGrades.has(nodeId)) {
+                  void evaluateBranchMove(nodeId, parentFen, newFen)
+                }
                 setPanelTab('analysis')
               }
                       }
@@ -683,16 +705,30 @@ export default function App() {
                       pathKey={pathKeyRef.current}
                     />
                     {(() => {
-                      const BOARD_GRADE: Record<string, { symbol: string; color: string }> = {
+                      const BOARD_GRADE: Record<string, { symbol: string; color: string; opacity?: number }> = {
                         brilliant:  { symbol: '!!', color: '#22d3ee' },
-                        great:      { symbol: '!',  color: '#22c55e' },
+                        great:      { symbol: '!',  color: '#16a34a' },
+                        best:       { symbol: '★',  color: '#22c55e', opacity: 0.7 },
+                        excellent:  { symbol: '✓',  color: '#4ade80', opacity: 0.65 },
+                        good:       { symbol: '·',  color: '#9ca3af', opacity: 0.5 },
                         inaccuracy: { symbol: '?!', color: '#facc15' },
                         mistake:    { symbol: '?',  color: '#fb923c' },
                         blunder:    { symbol: '??', color: '#ef4444' },
                         miss:       { symbol: '✗',  color: '#a78bfa' },
+                        forced:     { symbol: '→',  color: '#4b5563', opacity: 0.35 },
                       }
-                      const g = isLoaded && mainEval?.grade ? BOARD_GRADE[mainEval.grade] : null
-                      const destSquare = boardLastMove?.[1]
+                      const grade = isLoaded ? mainEval?.grade : (
+                        // In analysis/free-play mode use branch grade for current node
+                        analysisPath.length > 0
+                          ? branchGrades.get(analysisPath[analysisPath.length - 1])
+                          : undefined
+                      )
+                      const g = showGrades && grade ? BOARD_GRADE[grade] : null
+                      const destSquare = isLoaded ? boardLastMove?.[1] : (
+                        analysisPath.length > 0
+                          ? analysisTree[analysisPath[analysisPath.length - 1]]?.to
+                          : undefined
+                      )
                       if (!g || !destSquare) return null
                       const file = destSquare.charCodeAt(0) - 97
                       const rank = parseInt(destSquare[1], 10) - 1
@@ -706,6 +742,7 @@ export default function App() {
                             left: `${(leftCell + 1) * 12.5}%`,
                             top: `${topCell * 12.5}%`,
                             background: g.color,
+                            opacity: g.opacity ?? 1,
                           }}
                         >
                           {g.symbol}
@@ -780,6 +817,8 @@ export default function App() {
                   ) : (
                     <button className="btn btn-secondary" onClick={() => {
                       analysisBoardReset()
+                      setBranchGrades(new Map())
+                      setPendingBranchNodes(new Set())
                       setOpeningName(null)
                     }}>Reset</button>
                   )}
@@ -804,6 +843,13 @@ export default function App() {
                     title={showArrows ? 'Hide suggestion arrows' : 'Show suggestion arrows'}
                   >
                     {showArrows ? 'Arrows' : 'Arrows'}
+                  </button>
+                  <button
+                    className={"btn btn-secondary"}
+                    onClick={() => setShowGrades(v => !v)}
+                    title={showGrades ? 'Hide move grades' : 'Show move grades'}
+                  >
+                    Grades
                   </button>
                 </div>
                 {openingName && (
@@ -902,9 +948,10 @@ export default function App() {
                         rootId={rootId}
                         currentPath={currentPath}
                         moveGrades={moveGrades}
-                        branchGrades={branchGrades}
+                        branchGrades={showGrades ? branchGrades : undefined}
+                        pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
-                        isAnalyzing={isAnalyzing}
+                        isAnalyzing={isAnalyzing || !showGrades}
                         rootBranchIds={rootBranchIds}
                       />
                     </>
@@ -956,6 +1003,11 @@ export default function App() {
                         lessons={coachLessons}
                         currentMoveIndex={currentMoveIndex}
                         branchComment={branchComment}
+                        inBranch={inBranch}
+                        onGoToMove={goToMove}
+                        isAnalyzing={isAnalyzing}
+                        analyzedCount={analyzedCount}
+                        totalMovesCount={totalMovesCount}
                       />
 
                       {/* Move list — same as Analysis tab */}
@@ -964,9 +1016,10 @@ export default function App() {
                         rootId={rootId}
                         currentPath={currentPath}
                         moveGrades={moveGrades}
-                        branchGrades={branchGrades}
+                        branchGrades={showGrades ? branchGrades : undefined}
+                        pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
-                        isAnalyzing={isAnalyzing}
+                        isAnalyzing={isAnalyzing || !showGrades}
                         rootBranchIds={rootBranchIds}
                       />
                     </>
@@ -1113,8 +1166,10 @@ export default function App() {
                           rootId={analysisRootId}
                           currentPath={analysisPath}
                           moveGrades={[]}
+                          branchGrades={showGrades ? branchGrades : undefined}
+                          pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                           onNodeClick={(path) => { pathKeyRef.current++; analysisBoardNavigateTo(path) }}
-                          isAnalyzing={false}
+                          isAnalyzing={!showGrades}
                           rootBranchIds={analysisRootBranchIds}
                         />
                       ) : (
