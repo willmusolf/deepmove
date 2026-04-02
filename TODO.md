@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-03-31 — Coaching pipeline overhaul shipped: analysis-first classification, 6 mistake categories, MoveCoachComment box in Coach tab (replaces graph/report), MoveList shared between Analysis + Coach. Grade badge text-color bug fixed. Next session: coaching UX polish pass (see section below).
+**Last Session**: 2026-04-02 — Grade badge system complete: all grades show symbols (!! ! ★ ✓ · → ?! ? ?? ✗), pending circles for in-flight branch evals, Grades toggle button, free-play grading, branch eval depth 10 (2-3× faster). Coach UX pass 1: LessonNav compact dot indicators in coach box top-right, analyzing state text while Stockfish runs, fixed coach box disappear bug (inline component definition → React remount loop). Next: coaching quality QA.
 
 ---
 
@@ -366,11 +366,10 @@ The LLM becomes a **copywriter**, not a chess analyst. All chess intelligence st
 
 ### Ideas to discuss and spec out
 
-#### 1. Jump to Lessons flow
-- "Lessons" sub-tab or button row at the top of Coach tab showing lesson count badges
-- Clicking jumps the board + transcript to that moment
-- Keyboard shortcut (J?) to cycle through critical moments only
-- Open question: numbered pills (1 · 2 · 3) or a "Next Mistake →" button?
+#### 1. Jump to Lessons flow ✅
+- Implemented as compact numbered dots (LessonNav.tsx) in coach box top-right
+- Color-coded by mistake category, spinner while loading, click to jump to lesson move
+- Active dot highlights based on closest half-move index to current position
 
 #### 2. Coach persona / presentation style
 - Chess.com has a animated figure (character) that speaks the coaching text
@@ -442,10 +441,10 @@ Every missed tactic from game reviews gets saved to the user's account. Train on
 - [ ] Prereq: coaching pipeline quality pass done, play mode fully stable
 
 - [ ] Save bot games to backend after review (currently only saves on review flow load)
-- [ ] Board badges (move grade overlays) — reconsider design (currently clutters board)
+- [x] Board badges (move grade overlays) — all grades show symbols, pending circle for branch moves
 
 ### UI Polish
-- [ ] Move grade badges on board — reconsider or remove
+- [x] Move grade badges on board — all grades shown (★ ✓ · → ?! ? ?? ✗ !! !)
 - [ ] Eval graph — chess.com style small colored dots instead of large circles
 - [ ] Auto-jump to coach tab when analysis finishes on a new game
 - [ ] Add a repeatable responsive QA checklist before shipping UI changes (320, 390, 768, 1024, 1280, 1440, ultrawide)
