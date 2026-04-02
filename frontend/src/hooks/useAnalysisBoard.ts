@@ -1,5 +1,5 @@
 // useAnalysisBoard.ts — Branching move-tree for the free-play analysis board
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { STARTING_FEN } from '../chess/constants'
 import type { MoveNode, MoveTree } from '../chess/types'
 
@@ -27,6 +27,7 @@ const colorFromFen = (fen: string): 'white' | 'black' =>
 
 export function useAnalysisBoard() {
   const [state, setState] = useState<AnalysisBoardState>(EMPTY_STATE)
+  const lastAddedNodeIdRef = useRef<string | null>(null)
 
   // ── Derived values ────────────────────────────────────────────────────────
 
@@ -60,6 +61,7 @@ export function useAnalysisBoard() {
           return n && n.from === from && n.to === to && n.san === san
         })
         if (existingId) {
+          lastAddedNodeIdRef.current = existingId
           return { ...prev, currentPath: [...prev.currentPath, existingId] }
         }
       } else {
@@ -67,6 +69,7 @@ export function useAnalysisBoard() {
         if (prev.rootId) {
           const root = prev.tree[prev.rootId]
           if (root && root.from === from && root.to === to && root.san === san) {
+            lastAddedNodeIdRef.current = prev.rootId
             return { ...prev, currentPath: [prev.rootId] }
           }
         }
@@ -76,6 +79,7 @@ export function useAnalysisBoard() {
           return n && n.from === from && n.to === to && n.san === san
         })
         if (existingRootBranch) {
+          lastAddedNodeIdRef.current = existingRootBranch
           return { ...prev, currentPath: [existingRootBranch] }
         }
       }
@@ -100,6 +104,7 @@ export function useAnalysisBoard() {
       const parentIsMainLine = parentId === null ? true : (prev.tree[parentId]?.isMainLine ?? false)
       const isMainLine = parentIsMainLine && !parentHasChildren
 
+      lastAddedNodeIdRef.current = `n${prev.branchCounter}`
       const newId = `n${prev.branchCounter}`
 
       const newNode: MoveNode = {
@@ -179,5 +184,6 @@ export function useAnalysisBoard() {
     goForward,
     navigateTo,
     resetBoard,
+    lastAddedNodeIdRef,
   }
 }

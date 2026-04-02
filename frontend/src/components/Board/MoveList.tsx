@@ -9,23 +9,23 @@ import { getPathToNode } from '../../hooks/useGameReview'
 
 // ─── Grade badge ─────────────────────────────────────────────────────────────
 
-const GRADE_CONFIG: Record<NonNullable<MoveGrade>, { label: string | null; cls: string }> = {
+const GRADE_CONFIG: Record<NonNullable<MoveGrade>, { label: string; cls: string }> = {
   brilliant:  { label: '!!', cls: 'grade-brilliant' },
   great:      { label: '!',  cls: 'grade-great' },
-  best:       { label: null, cls: '' },
-  excellent:  { label: null, cls: '' },
-  good:       { label: null, cls: '' },
+  best:       { label: '★',  cls: 'grade-best' },
+  excellent:  { label: '✓',  cls: 'grade-excellent' },
+  good:       { label: '·',  cls: 'grade-good' },
   inaccuracy: { label: '?!', cls: 'grade-inaccuracy' },
   mistake:    { label: '?',  cls: 'grade-mistake' },
   blunder:    { label: '??', cls: 'grade-blunder' },
   miss:       { label: '✗',  cls: 'grade-miss' },
-  forced:     { label: null, cls: '' },
+  forced:     { label: '→',  cls: 'grade-forced' },
 }
 
-function GradeBadge({ grade }: { grade: MoveGrade | undefined }) {
+function GradeBadge({ grade, pending }: { grade: MoveGrade | undefined; pending?: boolean }) {
+  if (pending) return <span className="grade-pending" />
   if (!grade) return <span className="grade-placeholder" />
   const cfg = GRADE_CONFIG[grade]
-  if (!cfg.label) return <span className="grade-placeholder" />
   return <span className={`move-grade ${cfg.cls}`}>{cfg.label}</span>
 }
 
@@ -36,6 +36,7 @@ interface RenderCtx {
   currentPath: string[]
   moveGrades: (MoveGrade | undefined)[]
   branchGrades?: Map<string, MoveGrade>
+  pendingBranchNodes?: Set<string>
   onNodeClick: (path: string[]) => void
   isAnalyzing: boolean
 }
@@ -51,9 +52,11 @@ function MoveToken({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
     ? moveGrades[mainIdx]
     : (!isAnalyzing ? ctx.branchGrades?.get(node.id) : undefined)
 
+  const isPending = !node.isMainLine && ctx.pendingBranchNodes?.has(node.id)
+
   return (
     <span className="move-cell">
-      <GradeBadge grade={isAnalyzing ? undefined : grade} />
+      <GradeBadge grade={isAnalyzing ? undefined : grade} pending={isPending} />
       <span
         className={['move-san', active ? 'move-active' : '', inPath && !active ? 'move-in-path' : ''].filter(Boolean).join(' ')}
         data-node-id={node.id}
@@ -153,6 +156,7 @@ interface MoveListProps {
   currentPath: string[]
   moveGrades: (MoveGrade | undefined)[]
   branchGrades?: Map<string, MoveGrade>
+  pendingBranchNodes?: Set<string>
   onNodeClick: (path: string[]) => void
   isAnalyzing?: boolean
   rootBranchIds?: string[]
@@ -164,6 +168,7 @@ export default function MoveList({
   currentPath,
   moveGrades,
   branchGrades,
+  pendingBranchNodes,
   onNodeClick,
   isAnalyzing = false,
   rootBranchIds = [],
@@ -180,7 +185,7 @@ export default function MoveList({
 
   if (!rootId) return <div className="move-list" />
 
-  const ctx: RenderCtx = { tree, currentPath, moveGrades, branchGrades, onNodeClick, isAnalyzing }
+  const ctx: RenderCtx = { tree, currentPath, moveGrades, branchGrades, pendingBranchNodes, onNodeClick, isAnalyzing }
 
   return (
     <div className="move-list" ref={containerRef}>
