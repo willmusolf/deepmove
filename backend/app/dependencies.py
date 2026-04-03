@@ -52,9 +52,11 @@ def get_current_user(
 
 def get_optional_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
 ) -> User | None:
-    """Like get_current_user but returns None instead of 401 for anonymous access."""
+    """Like get_current_user but returns None for anonymous/invalid tokens.
+    Does NOT open a DB connection — callers that need DB must open it themselves.
+    This avoids waking Neon for unauthenticated requests (e.g. guest coaching).
+    """
     if credentials is None:
         return None
 
@@ -62,9 +64,16 @@ def get_optional_user(
     if payload is None or payload.get("type") != "access":
         return None
 
-    user_id = int(payload["sub"])
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None or payload.get("tv") != user.token_version:
+    # We have a valid-looking token — open DB just to verify the user exists
+    from app.database import SessionLocal  # local import to avoid circular
+    if SessionLocal is None:
         return None
-
-    return user
+    db = SessionLocal()
+    try:
+        user_id = int(payload["sub"])
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None or payload.get("tv") != user.token_version:
+            return None
+        return user
+    finally:
+        db.close()

@@ -300,6 +300,16 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady])
 
+  // When game analysis finishes, auto-trigger position analysis so BestLines appear immediately.
+  const wasAnalyzingRef = useRef(false)
+  useEffect(() => {
+    if (wasAnalyzingRef.current && !isAnalyzing && isLoaded && isReady) {
+      triggerPositionAnalysis(displayFen)
+    }
+    wasAnalyzingRef.current = isAnalyzing
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAnalyzing])
+
   const [orientation, setOrientation] = useState<'white' | 'black'>('white')
 
   // Auto-orient board when a new game loads
@@ -502,6 +512,31 @@ export default function App() {
     pathKeyRef.current++
     if (index > 0 && index <= moves.length) playMoveSound(moves[index - 1])
     goToMove(index)
+  }
+
+
+  function handleShowBestMove() {
+    const lesson = coachLessons.find(l =>
+      (l.moment.moveNumber - 1) * 2 + (l.moment.color === 'white' ? 1 : 2) === currentMoveIndex
+    )
+    if (!lesson) return
+    const bestMoveSan = lesson.moment.features?.engineMoveImpact?.bestMoveSan
+    if (!bestMoveSan || !lesson.moment.fen) return
+    // Navigate to position BEFORE the mistake
+    const halfMoveIdx = (lesson.moment.moveNumber - 1) * 2 + (lesson.moment.color === 'white' ? 0 : 1)
+    goToMove(halfMoveIdx)
+    // Defer branch creation until after navigation state settles
+    requestAnimationFrame(() => {
+      try {
+        const chess = new Chess(lesson.moment.fen)
+        const move = chess.move(bestMoveSan)
+        if (move) {
+          addVariationMove(move.from, move.to, move.san, chess.fen())
+        }
+      } catch (e) {
+        console.warn('[handleShowBestMove] failed:', e)
+      }
+    })
   }
 
   function handleNavigateTo(path: string[]) {
@@ -897,6 +932,12 @@ export default function App() {
                       )}
                       {showAnalyzingBar && (
                         <div className="analyzing-bar">
+                          {totalMovesCount > 0 && (
+                            <div
+                              className="analyzing-bar__fill"
+                              style={{ width: `${Math.round((analyzedCount / totalMovesCount) * 100)}%` }}
+                            />
+                          )}
                           <span className="analyzing-dot" />
                           <span className="analyzing-text">
                             Analyzing…
@@ -905,8 +946,8 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Eval display */}
-                      {(posLine || mainEval) && (
+                      {/* Eval display — hidden during game analysis */}
+                      {!showAnalyzingBar && (posLine || mainEval) && (
                         <div className="eval-display">
                           <span className="eval-display-value">
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
@@ -922,16 +963,18 @@ export default function App() {
                       )}
 
 
-                      {/* Best lines */}
-                      <BestLines
-                        lines={visibleLines}
-                        isAnalyzingPosition={isAnalyzingPosition}
-                        onLineClick={handleAnalysisBestLineClick}
-                        depth={currentAnalysisDepth}
-                        targetDepth={16}
-                      />
+                      {/* Best lines + eval graph — hidden while game analysis is running */}
+                      {!showAnalyzingBar && (
+                        <BestLines
+                          lines={visibleLines}
+                          isAnalyzingPosition={isAnalyzingPosition}
+                          onLineClick={handleAnalysisBestLineClick}
+                          depth={currentAnalysisDepth}
+                          targetDepth={16}
+                        />
+                      )}
                       {/* Eval graph — hidden during analysis, shown after completion */}
-                      {!isAnalyzing && moveEvals.length > 0 && (
+                      {!showAnalyzingBar && moveEvals.length > 0 && (
                         <EvalGraph
                           moveEvals={moveEvals}
                           totalMoves={totalMoves}
@@ -973,6 +1016,12 @@ export default function App() {
                       )}
                       {showAnalyzingBar && (
                         <div className="analyzing-bar">
+                          {totalMovesCount > 0 && (
+                            <div
+                              className="analyzing-bar__fill"
+                              style={{ width: `${Math.round((analyzedCount / totalMovesCount) * 100)}%` }}
+                            />
+                          )}
                           <span className="analyzing-dot" />
                           <span className="analyzing-text">
                             Analyzing…
@@ -1006,8 +1055,7 @@ export default function App() {
                         inBranch={inBranch}
                         onGoToMove={goToMove}
                         isAnalyzing={isAnalyzing}
-                        analyzedCount={analyzedCount}
-                        totalMovesCount={totalMovesCount}
+                        onShowBestMove={handleShowBestMove}
                       />
 
                       {/* Move list — same as Analysis tab */}

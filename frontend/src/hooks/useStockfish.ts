@@ -122,6 +122,13 @@ export function useStockfish() {
       accumulatedEvals.push(moveEval)
       setMoveEvals([...accumulatedEvals])
       setAnalyzedCount(accumulatedEvals.length)
+      // Detect critical moments progressively so coaching lessons start fetching early.
+      // Only run once we have enough evals for the detection to be meaningful (10+ moves).
+      // This fires on every move but detectCriticalMoments is cheap (sort + slice).
+      if (accumulatedEvals.length >= 10) {
+        const earlyMoments = detectCriticalMoments([...accumulatedEvals], color, userElo)
+        setCriticalMoments(earlyMoments)
+      }
       const record = buildRecord([...accumulatedEvals], true)
       if (record) saveAnalyzedGame(record).catch(() => {})
     }

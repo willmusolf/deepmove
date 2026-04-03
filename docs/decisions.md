@@ -127,3 +127,27 @@ Raw centipawn-loss thresholds (ADR-011). Transparent and debuggable. 90% of the 
 **Rationale:** Avoids building a parallel transcript component. The MoveList already handles variations, grades, and navigation correctly. The only addition to the Coach tab is the `MoveCoachComment` box which updates reactively as `currentMoveIndex` changes — zero new navigation logic required.
 
 **Removed:** `CoachPanel.tsx` (replaced by `MoveCoachComment` + `MoveList` directly). `GameTranscript.tsx` was built then deleted in the same session — the MoveList approach was simpler and already existed.
+
+### ADR-017: Classifier Threshold Calibration + Dead-Lost Suppression
+**Status:** Implemented (2026-04-02)
+
+**Decisions:**
+- `hung_piece` threshold: 100cp swing for pieces, 200cp for pawns (previously uniform ~100cp)
+- Pawn/minor piece hang yields to `missed_tactic` when `engineMoveImpact.isForcing && evalSwing ≥ 250` — avoids labeling "your pawn is hanging" when the real issue is a knight fork or tactical blow
+- `missed_tactic` threshold raised from 90cp → 150cp — 90cp was too low, flagging normal engine-preferred captures as "missed tactics"
+- `aimless_move` on ≥200cp swing → reclassified as `missed_tactic` (a move that bad isn't aimless, it walked into something)
+- `didnt_develop` skipped for minor piece moves with evalSwing <120cp — covers forced retreats that aren't development failures
+- Dead-lost endgame suppression: if `evalAfter ≤ -500 && gamePhase === 'endgame'`, lesson is skipped entirely — teaching in a resignable position is noise, not signal
+- `criticalMoments.ts`: skip moments where `userEvalBefore ≤ -600` (position was already resignable before the move)
+- Eval capped at ±1000cp before cpLoss calculation to prevent ±10000cp swings from skewing category selection
+
+**Rationale:** Original thresholds were calibrated from theory, not real games. After QA with moosetheman123 games, almost every lesson was either wrong category or triggered on non-lesson positions. These thresholds significantly reduce false positives at the cost of fewer (but more accurate) lessons.
+
+### ADR-018: Progressive Critical Moment Detection During Analysis
+**Status:** Implemented (2026-04-02)
+
+**Decision:** Call `detectCriticalMoments()` inside `onMoveComplete` after ≥10 moves have been evaluated, not only after full analysis completes. This updates `criticalMoments` state mid-analysis and allows `useCoaching` to begin fetching lessons before Stockfish finishes.
+
+**Guard:** `fetchedKeysRef` (a `Set<string>` keyed by `moveNumber:color`) in `useCoaching.ts` prevents re-fetching the same moment when `criticalMoments` updates again later with more moments.
+
+**Rationale:** Previously lessons only appeared after the user navigated to a move post-analysis. Progressive detection means lessons start loading during the analyzing bar phase, so they're ready immediately when analysis ends.

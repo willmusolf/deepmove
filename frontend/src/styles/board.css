@@ -859,6 +859,16 @@ cg-board {
   border: 1px solid rgba(74, 158, 255, 0.2);
   border-radius: var(--radius);
   flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.analyzing-bar__fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: rgba(74, 158, 255, 0.13);
+  transition: width 0.4s ease;
+  pointer-events: none;
 }
 
 .analyzing-dot {
@@ -3636,6 +3646,58 @@ cg-board {
 .move-coach-comment__view-lesson-btn:hover {
   color: var(--color-accent, #f59e0b);
   border-color: var(--color-accent, #f59e0b);
+}
+
+
+/* ── Show best move button ──────────────────────────────────────────── */
+.move-coach-comment__best-move-btn {
+  margin-top: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #a0c4ff;
+  background: transparent;
+  border: 1px solid rgba(160, 196, 255, 0.35);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.move-coach-comment__best-move-btn:hover {
+  color: #fff;
+  border-color: rgba(160, 196, 255, 0.7);
+  background: rgba(160, 196, 255, 0.08);
+}
+
+/* ── LessonNav — row with label + dots + next button ────────────────── */
+.lesson-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.lesson-nav__label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted, #64748b);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.lesson-nav__next-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted, #64748b);
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0 0.2rem;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+
+.lesson-nav__next-btn:hover {
+  color: var(--color-accent, #f59e0b);
+}
 
 /* ── LessonNav — compact numbered dots ──────────────────────────────── */
 .lesson-dots {
