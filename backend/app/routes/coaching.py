@@ -8,7 +8,8 @@ It receives verified facts and writes the lesson text.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db, get_optional_user
+from app.dependencies import get_current_user, get_optional_user
+from app.database import SessionLocal
 from app.models.game import Game
 from app.models.lesson import Lesson
 from app.models.user import User
@@ -22,7 +23,20 @@ router = APIRouter()
 async def generate_lesson(
     request: CoachingRequest,
     user: User | None = Depends(get_optional_user),
-    db: Session = Depends(get_db),
+):
+    # Open DB only if the user is authenticated — avoids waking Neon for guest requests
+    db = SessionLocal() if (user is not None and SessionLocal is not None) else None
+    try:
+        return await _generate_lesson_impl(request, user, db)
+    finally:
+        if db is not None:
+            db.close()
+
+
+async def _generate_lesson_impl(
+    request: CoachingRequest,
+    user,
+    db,
 ):
     """Generate a coaching lesson for a critical moment.
 

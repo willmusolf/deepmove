@@ -122,11 +122,22 @@ function determineCategory(
     // intentional — don't label it as a blunder when it isn't.
     // futureUserScores are player-perspective: positive = good for user
     const evalRecovers = futureUserScores.slice(0, 3).some(s => s > 50)
-    if (!evalRecovers) return 'hung_piece'
-    // eval recovers → fall through to other checks
+    if (!evalRecovers) {
+      const hangingPiece = features.threats.hangingPieces[0]
+      const isPawnOrMinor = hangingPiece?.piece === 'p' || hangingPiece?.piece === 'n' || hangingPiece?.piece === 'b'
+      const swingThreshold = hangingPiece?.piece === 'p' ? 200 : 100
+      // If only a pawn/minor is hanging but there's a bigger forcing tactical blow,
+      // yield to missed_tactic — the hanging piece is a symptom, not the lesson.
+      const bigTactical = features.engineMoveImpact.isForcing && moment.evalSwing >= 250
+      if (moment.evalSwing >= swingThreshold && !(isPawnOrMinor && bigTactical)) {
+        return 'hung_piece'
+      }
+    }
+    // eval recovers or threshold not met → fall through to other checks
   }
   if (features.threats.threatsIgnored.length > 0) return 'ignored_threat'
-  if (features.engineMoveImpact.isForcing && moment.evalSwing >= 90) return 'missed_tactic'
+  // Raise missed_tactic threshold to 150cp — 90cp caught too many minor engine-had-a-capture situations
+  if (features.engineMoveImpact.isForcing && moment.evalSwing >= 150) return 'missed_tactic'
   if (
     (features.gamePhase === 'opening' || features.gamePhase === 'early_middlegame') &&
     userKing.castled === 'none' &&
@@ -137,11 +148,24 @@ function determineCategory(
   }
   if (
     (features.gamePhase === 'opening' || features.gamePhase === 'early_middlegame') &&
-    userDev.undevelopedMinorPieces >= 2
+    userDev.undevelopedMinorPieces >= 2 &&
+    // Don't flag didnt_develop if the move itself developed a piece
+    !features.moveImpact.developedPiece &&
+    // Don't flag didnt_develop if the move was a forced retreat of an already-developed piece.
+    // Heuristic: minor piece moved, eval swing is small (<120cp), and piece didn't come from start square.
+    // A genuinely bad non-development move has a larger eval swing.
+    !(features.moveImpact.pieceMoved === 'n' || features.moveImpact.pieceMoved === 'b'
+      ? moment.evalSwing < 120
+      : false)
   ) {
     return 'didnt_develop'
   }
-  if (!features.moveImpact.hadClearPurpose) return 'aimless_move'
+  // A large eval swing on an "aimless" move almost always means something tactical happened
+  // (e.g. queen trap, fork setup). Never label >200cp swings as aimless — use missed_tactic.
+  if (!features.moveImpact.hadClearPurpose) {
+    if (moment.evalSwing >= 200) return 'missed_tactic'
+    return 'aimless_move'
+  }
   return 'unknown'
 }
 
@@ -154,7 +178,7 @@ function buildMoveEffectFact(
 
 function buildFailureFact(
   features: PositionFeatures,
-  moment: Pick<CriticalMoment, 'moveNumber' | 'color'>,
+  moment: Pick<CriticalMoment, 'moveNumber' | 'color' | 'evalSwing'>,
   category: MistakeCategory,
 ): string {
   const userDev = moment.color === 'white' ? features.development.white : features.development.black
@@ -182,8 +206,14 @@ function buildFailureFact(
       return `What your move failed to do: you still had ${userDev.undevelopedMinorPieces} minor pieces undeveloped on move ${moment.moveNumber}.`
     case 'aimless_move':
       return 'What your move failed to do: it did not capture, give check, develop, castle, or create a clear threat.'
-    default:
-      return 'What your move failed to do: it did not solve the biggest problem in the position.'
+    default: {
+      // Use the move impact description for a more specific fallback
+      const impact = features.moveImpact.description
+      if (impact && impact !== '') {
+        return `What your move failed to do: the move (${impact.toLowerCase()}) did not address the critical issue in the position, which cost ${moment.evalSwing}cp.`
+      }
+      return `What your move failed to do: it did not address the critical issue in the position, costing ${moment.evalSwing}cp.`
+    }
   }
 }
 
@@ -236,10 +266,16 @@ export function buildAnalysisFacts(
   moment: Pick<CriticalMoment, 'evalSwing' | 'moveNumber' | 'color' | 'movePlayed' | 'evalAfter'>,
   futureUserScores: number[] = [],
 ): AnalysisFacts {
-  const category = determineCategory(features, moment, futureUserScores)
+  // Suppress lessons for dead-lost endgame positions — they are not teachable.
+  // evalAfter is from the user's perspective: negative = bad for user.
+  const isDeadLost = moment.evalAfter <= -500 && features.gamePhase === 'endgame'
+
+  const category = isDeadLost ? 'unknown' : determineCategory(features, moment, futureUserScores)
   const categoryName = CATEGORIES[category]?.name ?? CATEGORIES.unknown.name
   const mistakeType = describeMistakeType(features)
-  const primaryIssue = `Mistake type: ${mistakeType}. The better move was ${features.engineMoveImpact.isForcing ? 'forcing' : 'a quiet improvement'}.`
+  const primaryIssue = isDeadLost
+    ? `Position context: ${features.gamePhase}, move ${moment.moveNumber}. This position was already heavily losing (${moment.evalAfter}cp) — the critical mistake happened earlier in the game.`
+    : `Mistake type: ${mistakeType}. Game phase: ${features.gamePhase}, move ${moment.moveNumber}. Eval swing: ${moment.evalSwing}cp. The better move was ${features.engineMoveImpact.isForcing ? 'forcing' : 'a quiet improvement'}.`
   const moveEffect = buildMoveEffectFact(features, moment)
   const missedResponsibility = buildFailureFact(features, moment, category)
   const betterIdea = buildBetterIdeaFact(features)

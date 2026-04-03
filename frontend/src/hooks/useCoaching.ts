@@ -76,7 +76,7 @@ export function gradeToComment(grade: MoveGrade, moveSan: string): string {
     case 'inaccuracy': return `Slight inaccuracy — a better option was available.`
     case 'mistake': return `Mistake — this gave away some of your advantage.`
     case 'blunder': return `Blunder — this significantly hurt your position.`
-    case 'miss': return `Missed opportunity — your opponent just blundered and you didn't capitalize.`
+    case 'miss': return `Missed opportunity — there was a stronger move available here.`
     case 'forced': return `Forced move.`
     default: return ''
   }
@@ -111,8 +111,9 @@ export function useCoaching({
   const [moveComments, setMoveComments] = useState<MoveComment[]>([])
   const [enrichedMoments, setEnrichedMoments] = useState<CriticalMoment[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
-  const lastPgnRef = useRef('')
-  const lastEloRef = useRef(0)
+  // Tracks which moments (by "moveNumber:color") have already had a lesson fetched.
+  // Prevents re-fetching when criticalMoments updates mid-analysis.
+  const fetchedKeysRef = useRef<Set<string>>(new Set())
 
   // Clear stale data when a new game loads
   useEffect(() => {
@@ -120,16 +121,11 @@ export function useCoaching({
     setMoveComments([])
     setEnrichedMoments([])
     setCurrentIndex(0)
-    lastPgnRef.current = ''
-    lastEloRef.current = 0
+    fetchedKeysRef.current = new Set()
   }, [pgn])
 
   useEffect(() => {
     if (!pgn || criticalMoments.length === 0 || moveEvals.length === 0) return
-    if (pgn === lastPgnRef.current && userElo === lastEloRef.current) return
-
-    lastPgnRef.current = pgn
-    lastEloRef.current = userElo
 
     // Step 1: Enrich moments with real features + analysis facts
     let enriched: CriticalMoment[]
@@ -181,26 +177,34 @@ export function useCoaching({
     })
     setMoveComments(comments)
 
-    // Step 4: Initialize lesson placeholders
-    const initial: CoachingLesson[] = enriched.map(moment => {
-      const analysisFacts = moment.analysisFacts ?? buildFallbackAnalysisFacts(moment)
-      const category = analysisFacts.category
-      return {
-        moment,
-        lessonText: null,
-        category,
-        categoryName: analysisFacts.categoryName ?? CATEGORIES[category]?.name ?? null,
-        confidence: moment.classification?.confidence ?? 80,
-        isLoading: true,
-        error: null,
-      }
+    // Step 4: Rebuild the full lessons array every run to keep lessonIdx consistent.
+    // Preserve already-fetched lesson text from previous runs.
+    const newMoments = enriched.filter(m => !fetchedKeysRef.current.has(`${m.moveNumber}:${m.color}`))
+    setLessons(prev => {
+      const prevByKey = new Map(prev.map(l => [`${l.moment.moveNumber}:${l.moment.color}`, l]))
+      return enriched.map(moment => {
+        const key = `${moment.moveNumber}:${moment.color}`
+        const existing = prevByKey.get(key)
+        if (existing) return existing  // preserve fetched lesson text + loading state
+        const analysisFacts = moment.analysisFacts ?? buildFallbackAnalysisFacts(moment)
+        const category = analysisFacts.category
+        return {
+          moment,
+          lessonText: null,
+          category,
+          categoryName: analysisFacts.categoryName ?? CATEGORIES[category]?.name ?? null,
+          confidence: moment.classification?.confidence ?? 80,
+          isLoading: true,
+          error: null,
+        }
+      })
     })
-    setLessons(initial)
-    setCurrentIndex(0)
 
-    // Step 5: Fetch LLM lessons from backend for each enriched moment
-    enriched.forEach((moment, idx) => {
-      try {
+    // Step 5: Fetch LLM lessons for each NEW moment only.
+    // Stagger requests by 1.5s each so a cold Neon DB isn't slammed all at once.
+    newMoments.forEach((moment, idx) => {
+      fetchedKeysRef.current.add(`${moment.moveNumber}:${moment.color}`)
+      setTimeout(() => { try {
         const analysisFacts = moment.analysisFacts ?? buildFallbackAnalysisFacts(moment)
         const eloBand = getCacheBand(userElo)
         const tcSeconds = parseInt(timeControl, 10) || 600
@@ -235,39 +239,48 @@ export function useCoaching({
           platform: platform ?? null,
         }
 
-        api.post<LessonResponse>('/coaching/lesson', requestBody, { timeoutMs: 35000 })
-          .then(res => {
-            setLessons(prev => prev.map((l, i) =>
-              i === idx
-                ? {
-                    ...l,
-                    lessonText: res.lesson,
-                    category: res.category ?? l.category,
-                    categoryName: (res.category && CATEGORIES[res.category]?.name) ?? l.categoryName,
-                    isLoading: false,
-                  }
-                : l,
-            ))
-          })
-          .catch(err => {
-            const message = err instanceof ApiError
-              ? (err.status === 0 ? err.message : `Failed to load lesson (${err.status})`)
-              : 'Failed to load lesson'
-            setLessons(prev => prev.map((l, i) =>
-              i === idx
-                ? { ...l, isLoading: false, error: message }
-                : l,
-            ))
-            console.error('[useCoaching] lesson fetch failed:', err)
-          })
+        const momentKey = `${moment.moveNumber}:${moment.color}`
+        const fetchLesson = (attempt: number) =>
+          api.post<LessonResponse>('/coaching/lesson', requestBody, { timeoutMs: 45000 })
+            .then(res => {
+              setLessons(prev => prev.map(l =>
+                `${l.moment.moveNumber}:${l.moment.color}` === momentKey
+                  ? {
+                      ...l,
+                      lessonText: res.lesson,
+                      category: res.category ?? l.category,
+                      categoryName: (res.category && CATEGORIES[res.category]?.name) ?? l.categoryName,
+                      isLoading: false,
+                    }
+                  : l,
+              ))
+            })
+            .catch(err => {
+              // Retry once on timeout or server error (Neon DB cold start can take 10-15s)
+              if (attempt === 0) {
+                setTimeout(() => fetchLesson(1), 3000)
+                return
+              }
+              const message = err instanceof ApiError
+                ? (err.status === 0 ? err.message : `Failed to load lesson (${err.status})`)
+                : 'Failed to load lesson'
+              setLessons(prev => prev.map(l =>
+                `${l.moment.moveNumber}:${l.moment.color}` === momentKey
+                  ? { ...l, isLoading: false, error: message }
+                  : l,
+              ))
+              console.error('[useCoaching] lesson fetch failed after retry:', err)
+            })
+        fetchLesson(0)
       } catch (err) {
         console.error('[useCoaching] lesson setup failed synchronously:', err)
-        setLessons(prev => prev.map((l, i) =>
-          i === idx
+        const momentKey2 = `${moment.moveNumber}:${moment.color}`
+        setLessons(prev => prev.map(l =>
+          `${l.moment.moveNumber}:${l.moment.color}` === momentKey2
             ? { ...l, isLoading: false, error: 'Failed to prepare lesson' }
             : l,
         ))
-      }
+      } }, idx * 1500)
     })
   }, [pgn, criticalMoments, moveEvals, userElo, timeControl, backendGameId, platformGameId, platform])
 

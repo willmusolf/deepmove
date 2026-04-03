@@ -92,18 +92,26 @@ export function detectCriticalMoments(
 
   const candidates: Array<CriticalMoment & { _cpLoss: number }> = []
 
+  // Cap scores so mate values (±30000) don't produce garbage cpLoss
+  const capCp = (s: number) => Math.max(-1000, Math.min(1000, s))
+
   for (let i = 0; i < moveEvals.length; i++) {
     const mv = moveEvals[i]
     if (mv.color !== userColor) continue
 
-    const evalBefore = i === 0 ? 0 : moveEvals[i - 1].eval.score
-    const evalAfter = mv.eval.score
+    const evalBefore = capCp(i === 0 ? 0 : moveEvals[i - 1].eval.score)
+    const evalAfter = capCp(mv.eval.score)
 
     const cpLoss = userColor === 'white'
       ? (evalBefore - evalAfter)
       : (evalAfter - evalBefore)
 
     if (cpLoss < threshold) continue
+
+    // Skip moments where the position was already resignable before the move —
+    // a lesson about a move in a -900cp position is not teachable.
+    const userEvalBefore = userColor === 'white' ? evalBefore : -evalBefore
+    if (userEvalBefore <= -600) continue
 
     candidates.push({
       _cpLoss: cpLoss,

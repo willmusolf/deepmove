@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-04-02 — Grade badge system complete: all grades show symbols (!! ! ★ ✓ · → ?! ? ?? ✗), pending circles for in-flight branch evals, Grades toggle button, free-play grading, branch eval depth 10 (2-3× faster). Coach UX pass 1: LessonNav compact dot indicators in coach box top-right, analyzing state text while Stockfish runs, fixed coach box disappear bug (inline component definition → React remount loop). Next: coaching quality QA.
+**Last Session**: 2026-04-02 — Coaching pipeline overhaul 2: classifier thresholds tightened (hung_piece 100cp, missed_tactic 150cp, aimless→missed_tactic at ≥200cp swing), dead-lost endgame suppression, forced-retreat didnt_develop skip; progressive criticalMoments detection mid-analysis; useCoaching dedup (fetchedKeysRef), 45s timeout, 1.5s stagger; backend guest requests skip DB (no Neon cold-start timeout); LessonNav rewritten (correct active-dot logic); MoveCoachComment hidden during analysis + Show best move button; analyzing bar progress fill; BestLines auto-trigger after analysis. Known issues: lessons still sometimes timeout or fail to load; LessonNav dot numbering/jumping bugs — diagnose in next session.
 
 ---
 
@@ -369,7 +369,7 @@ The LLM becomes a **copywriter**, not a chess analyst. All chess intelligence st
 #### 1. Jump to Lessons flow ✅
 - Implemented as compact numbered dots (LessonNav.tsx) in coach box top-right
 - Color-coded by mistake category, spinner while loading, click to jump to lesson move
-- Active dot highlights based on closest half-move index to current position
+- Active dot = last lesson whose half-move index is ≤ currentMoveIndex (not nearest, last-passed)
 
 #### 2. Coach persona / presentation style
 - Chess.com has a animated figure (character) that speaks the coaching text
@@ -512,9 +512,17 @@ See above in "Next After Launch"
 ---
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
-
+-make badges all consistent transparency on both transcript and board, also what is the gray . badge? need something better for that idk what it even is and it doesnt look good
+-badges should be in analysis games? toggleable?
+also 
+-branching badges load properly on transcript but dont on board? stays the same badge as the one that was on the move it braches off of
+also a lot of branchign badges are showign blunders for some reason even when they are best move
+ 
 
 -reload should only pull newest games?? not reload all games every time
+
+
+-in report graph make each colored dot a little bigger and make it more clear youre hovering over the circle? like more detail about the move
 
 -going back a move sometimes doesnt affect move suggestsion/eval bar showing for the wrong position. do an audit to fix this and make sure its alwways right and as fast/efficient/great as possible ask questions for big changes or anything else
 also -get rid of the the depth / 16 BELOW the move lines. keep the one above it (theyre both there saying the same exact thing fro some reason, only need 1 of them)
@@ -525,10 +533,10 @@ and also in the coaching tab too
 
 - analyzing doesnt have progress bar
 
--resizing is a nightmare on desktop as well befoer mobile responsiveness maybe work that into the official todo as well
+-resizing is a nightmare on desktop as well befoer mobile responsiveness maybe work that into the official todo as well. sometimes if i change the screen size temporarily then change it back the board is too big for the screen  
 
 
-
+-depth analysis sometimes stops analyzing again when you interrupt it going deeper then coming back to it
 
 -premoves not working in play mode (might be resolved)
 -enable multiple premoves like on chess.com? or not necessary

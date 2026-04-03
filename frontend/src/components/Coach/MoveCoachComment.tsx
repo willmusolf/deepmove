@@ -14,8 +14,7 @@ interface MoveCoachCommentProps {
   inBranch?: boolean
   onGoToMove?: (index: number) => void
   isAnalyzing?: boolean
-  analyzedCount?: number
-  totalMovesCount?: number
+  onShowBestMove?: () => void
 }
 
 export default function MoveCoachComment({
@@ -26,8 +25,7 @@ export default function MoveCoachComment({
   inBranch,
   onGoToMove,
   isAnalyzing,
-  analyzedCount,
-  totalMovesCount,
+  onShowBestMove,
 }: MoveCoachCommentProps) {
   const showNav = lessons.length > 0 && !!onGoToMove
 
@@ -59,21 +57,14 @@ export default function MoveCoachComment({
     )
   }
 
-  const analyzingProgress = totalMovesCount && totalMovesCount > 0
-    ? ` ${analyzedCount ?? 0} / ${totalMovesCount} moves`
-    : ''
+  // Hide coach box entirely while analysis is running — the board header already shows progress
+  if (isAnalyzing) return null
 
   if (currentMoveIndex === 0 || moveComments.length === 0) {
-    const idleText = isAnalyzing
-      ? `Analyzing your game…${analyzingProgress}`
-      : 'Step through the game to see coaching feedback.'
     return (
       <div className="move-coach-comment move-coach-comment--idle">
         <div className="move-coach-comment__header">
-          <span className="move-coach-comment__header-text">
-            {isAnalyzing && <span className="move-coach-comment__analyzing-dot" />}
-            {idleText}
-          </span>
+          <span className="move-coach-comment__header-text">Step through the game to see coaching feedback.</span>
           {nav()}
         </div>
       </div>
@@ -123,6 +114,11 @@ export default function MoveCoachComment({
           ) : lesson.lessonText ? (
             <p className="move-coach-comment__lesson-text">{lesson.lessonText}</p>
           ) : null}
+          {lesson && !lesson.isLoading && lesson.lessonText && onShowBestMove && (
+            <button className="move-coach-comment__best-move-btn" onClick={onShowBestMove}>
+              Show best move
+            </button>
+          )}
         </div>
       )}
     </div>
