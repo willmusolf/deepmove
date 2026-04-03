@@ -115,7 +115,7 @@ deepmove/
 │       │   ├── openFiles.ts
 │       │   ├── moveImpact.ts       # What did the user's move actually do/change?
 │       │   ├── tactics.ts          # Basic fork/pin/skewer/discovered attack detection
-│       │   ├── classifier.ts       # Rules-based: features → principle + confidence score
+│       │   ├── classifier.ts       # Rules-based: features → 6 mistake categories (hung_piece etc)
 │       │   ├── taxonomy.ts         # Principle definitions + Elo mappings
 │       │   ├── eloConfig.ts        # Elo-specific thresholds, priorities, language
 │       │   ├── pgn.ts
