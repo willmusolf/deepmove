@@ -3736,6 +3736,15 @@ cg-board {
   background: color-mix(in srgb, var(--dot-color) 16%, transparent);
 }
 
+.lesson-dot--loading {
+  opacity: 0.45;
+  animation: lesson-dot-pulse 1.2s ease-in-out infinite;
+}
+@keyframes lesson-dot-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.8; }
+}
+
 .lesson-dot__num {
   line-height: 1;
 }

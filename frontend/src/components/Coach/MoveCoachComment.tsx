@@ -1,5 +1,6 @@
 // MoveCoachComment.tsx — Coach comment box shown in the Coach tab above the move list.
 
+import { useState, useEffect } from 'react'
 import type { CoachingLesson, MoveComment } from '../../hooks/useCoaching'
 import { gradeToComment } from '../../hooks/useCoaching'
 import type { MoveGrade } from '../../engine/analysis'
@@ -28,6 +29,20 @@ export default function MoveCoachComment({
   onShowBestMove,
 }: MoveCoachCommentProps) {
   const showNav = lessons.length > 0 && !!onGoToMove
+
+  // Progressive loading message — escalates if lesson takes a while
+  const [loadingPhase, setLoadingPhase] = useState(0)
+  const mc2 = currentMoveIndex > 0 ? moveComments[currentMoveIndex - 1] : null
+  const activeLesson = mc2?.lessonIdx != null ? lessons[mc2.lessonIdx] : null
+  const isLessonLoading = activeLesson?.isLoading ?? false
+  useEffect(() => {
+    if (!isLessonLoading) { setLoadingPhase(0); return }
+    setLoadingPhase(0)
+    const t1 = setTimeout(() => setLoadingPhase(1), 5000)
+    const t2 = setTimeout(() => setLoadingPhase(2), 10000)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [isLessonLoading])
+  const loadingMsg = loadingPhase === 2 ? 'Almost there…' : loadingPhase === 1 ? 'Still thinking…' : 'Loading lesson…'
 
   function nav() {
     if (!showNav) return null
@@ -108,7 +123,7 @@ export default function MoveCoachComment({
       {hasLesson && (
         <div className="move-coach-comment__lesson">
           {lesson.isLoading ? (
-            <p className="move-coach-comment__loading">Loading lesson…</p>
+            <p className="move-coach-comment__loading">{loadingMsg}</p>
           ) : lesson.error ? (
             <p className="move-coach-comment__error">{lesson.error}</p>
           ) : lesson.lessonText ? (

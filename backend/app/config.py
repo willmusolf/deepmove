@@ -47,7 +47,7 @@ class Settings(BaseSettings):
         return ["https://deepmove.io", "https://www.deepmove.io"]
 
     # LLM model selection
-    lesson_model: str = "claude-sonnet-4-6"      # Full lessons
+    lesson_model: str = "claude-haiku-4-5-20251001"      # Full lessons
     classify_model: str = "claude-haiku-4-5-20251001"  # Quick classification checks
 
 

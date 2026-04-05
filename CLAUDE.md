@@ -51,7 +51,7 @@ PGN Input
 | Backend | Python + FastAPI | Auth, DB, LLM calls only |
 | Database | PostgreSQL | Users, games, lessons, principles |
 | Cache | In-memory LRU (cachetools) | LLM response cache (no Redis for MVP — see ADR-004) |
-| LLM | Claude API (Haiku + Sonnet) | Haiku: classification. Sonnet: lessons |
+| LLM | Claude API (Haiku) | Haiku for both classification and lessons (Sonnet was too slow) |
 | Auth | Email/password + OAuth | |
 | Payments | Stripe | Premium ($4/mo, may increase) |
 | Ads | Carbon Ads / EthicalAds | Single banner, free tier only |

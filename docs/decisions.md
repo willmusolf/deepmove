@@ -151,3 +151,19 @@ Raw centipawn-loss thresholds (ADR-011). Transparent and debuggable. 90% of the 
 **Guard:** `fetchedKeysRef` (a `Set<string>` keyed by `moveNumber:color`) in `useCoaching.ts` prevents re-fetching the same moment when `criticalMoments` updates again later with more moments.
 
 **Rationale:** Previously lessons only appeared after the user navigated to a move post-analysis. Progressive detection means lessons start loading during the analyzing bar phase, so they're ready immediately when analysis ends.
+
+### ADR-019: Switch Lesson LLM from Sonnet to Haiku
+**Status:** Implemented (2026-04-05)
+
+**Decision:** Changed `lesson_model` in `config.py` from `claude-sonnet-4-6` to `claude-haiku-4-5-20251001`. Both classification and lesson generation now use Haiku.
+
+**Context:** Lesson requests were consistently timing out (20s frontend timeout). Sonnet response times ranged 3-15s per call; with 3 lessons staggered 800ms apart, all three would frequently exceed the timeout. Additionally, a broken `pydantic_core` install in the backend venv was causing silent LLM call failures.
+
+**Rationale:** The lesson prompt is highly constrained (2-4 sentences from pre-verified facts + few-shot examples in `system.py`). Haiku responds in 0.7-3s vs Sonnet's 3-15s. QA testing shows comparable lesson quality for this narrow task. Paired with a singleton Anthropic client (connection reuse) and backend timeout reduction (20→15s), this drops total lesson load time from "usually times out" to ~2s per lesson.
+
+**Revert path:** Single line change in `config.py`. If lesson quality regresses for 1400+ Elo users, can switch back to Sonnet or use Haiku for sub-1400 and Sonnet for 1400+.
+
+### ADR-020: Singleton Anthropic Client
+**Status:** Implemented (2026-04-05)
+
+**Decision:** Replaced per-request `anthropic.AsyncAnthropic()` instantiation in `coaching.py` with a lazy module-level singleton via `_get_client()`. Saves ~200-500ms per request from TLS handshake elimination and enables HTTP/2 connection multiplexing.

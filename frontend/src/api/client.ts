@@ -35,9 +35,12 @@ async function fetchWithTimeout(
     })
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new ApiError(0, 'Request timed out')
+      if (callerSignal?.aborted) {
+        throw new ApiError(0, 'Request was cancelled')
+      }
+      throw new ApiError(0, 'Request timed out — the server took too long to respond')
     }
-    throw new ApiError(0, 'Could not reach the server')
+    throw new ApiError(0, 'Could not connect to the server — check your internet connection')
   } finally {
     clearTimeout(timer)
   }
