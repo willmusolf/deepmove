@@ -1053,7 +1053,7 @@ export default function App() {
                         currentMoveIndex={currentMoveIndex}
                         branchComment={branchComment}
                         inBranch={inBranch}
-                        onGoToMove={goToMove}
+                        onGoToMove={handleGoToMove}
                         isAnalyzing={isAnalyzing}
                         onShowBestMove={handleShowBestMove}
                       />

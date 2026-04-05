@@ -513,14 +513,19 @@ See above in "Next After Launch"
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
 -make badges all consistent transparency on both transcript and board, also what is the gray . badge? need something better for that idk what it even is and it doesnt look good
+and make syhmbols in badge bigger and consistent?
 -badges should be in analysis games? toggleable?
 also 
 -branching badges load properly on transcript but dont on board? stays the same badge as the one that was on the move it braches off of
-also a lot of branchign badges are showign blunders for some reason even when they are best move
+also a lot of branchign badges are showign blunders for some reason even when they are best move. like all blunders for some reason? for both sides lol on the transcirpt but sstill showing the original badge every move on the board so
+
  
 
 -reload should only pull newest games?? not reload all games every time
+-and the loading isnt pulling all games anymore? not pulling ALL games anymore
 
+
+-what to have on coach tab for analysis game (playing around with the board, not a loaded game)
 
 -in report graph make each colored dot a little bigger and make it more clear youre hovering over the circle? like more detail about the move
 
@@ -529,6 +534,8 @@ also -get rid of the the depth / 16 BELOW the move lines. keep the one above it 
 -and also now tis doing the thing where some positions or on move 0 it doesnt show receommended moves idk it was working before we did something to break it for both analysis and loaded games
 -it starts working better after you make a move but move 0 and the analysis tab doesnt look right until a move is made. make it consistent. even while its analyzing. 
 and also in the coaching tab too 
+-proabbly has somehting to do with the depth analysis interfering or firing at teh same time changing the moves or something
+-also it still will restart loading from depth 9 every time? is that fine or can we save compute some way or something idk
 
 
 - analyzing doesnt have progress bar

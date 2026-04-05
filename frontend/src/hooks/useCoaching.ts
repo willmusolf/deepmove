@@ -135,6 +135,12 @@ export function useCoaching({
       console.error('[useCoaching] enrichCriticalMoments failed:', err)
       enriched = criticalMoments
     }
+    // Sort chronologically so dot 1 = earliest lesson, dot 2 = next, etc.
+    enriched.sort((a, b) => {
+      const aIdx = (a.moveNumber - 1) * 2 + (a.color === 'black' ? 1 : 0)
+      const bIdx = (b.moveNumber - 1) * 2 + (b.color === 'black' ? 1 : 0)
+      return aIdx - bIdx
+    })
     setEnrichedMoments(enriched)
 
     // Step 2: Build a lookup of critical moment positions
@@ -241,7 +247,7 @@ export function useCoaching({
 
         const momentKey = `${moment.moveNumber}:${moment.color}`
         const fetchLesson = (attempt: number) =>
-          api.post<LessonResponse>('/coaching/lesson', requestBody, { timeoutMs: 45000 })
+          api.post<LessonResponse>('/coaching/lesson', requestBody, { timeoutMs: 30000 })
             .then(res => {
               setLessons(prev => prev.map(l =>
                 `${l.moment.moveNumber}:${l.moment.color}` === momentKey
@@ -256,9 +262,21 @@ export function useCoaching({
               ))
             })
             .catch(err => {
-              // Retry once on timeout or server error (Neon DB cold start can take 10-15s)
               if (attempt === 0) {
-                setTimeout(() => fetchLesson(1), 3000)
+                // Show retrying state immediately so dots display numbers (not loading dots)
+                setLessons(prev => prev.map(l =>
+                  `${l.moment.moveNumber}:${l.moment.color}` === momentKey
+                    ? { ...l, isLoading: false, error: 'Retrying…' }
+                    : l,
+                ))
+                setTimeout(() => {
+                  setLessons(prev => prev.map(l =>
+                    `${l.moment.moveNumber}:${l.moment.color}` === momentKey && l.error === 'Retrying…'
+                      ? { ...l, isLoading: true, error: null }
+                      : l,
+                  ))
+                  fetchLesson(1)
+                }, 3000)
                 return
               }
               const message = err instanceof ApiError
@@ -280,7 +298,7 @@ export function useCoaching({
             ? { ...l, isLoading: false, error: 'Failed to prepare lesson' }
             : l,
         ))
-      } }, idx * 1500)
+      } }, idx * 2000)
     })
   }, [pgn, criticalMoments, moveEvals, userElo, timeControl, backendGameId, platformGameId, platform])
 

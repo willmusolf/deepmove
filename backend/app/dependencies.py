@@ -68,12 +68,19 @@ def get_optional_user(
     from app.database import SessionLocal  # local import to avoid circular
     if SessionLocal is None:
         return None
-    db = SessionLocal()
+    try:
+        db = SessionLocal()
+    except Exception:
+        # DB unavailable (Neon suspended, network issue) — treat as guest
+        return None
     try:
         user_id = int(payload["sub"])
         user = db.query(User).filter(User.id == user_id).first()
         if user is None or payload.get("tv") != user.token_version:
             return None
         return user
+    except Exception:
+        # Query failed — treat as guest rather than 500
+        return None
     finally:
         db.close()

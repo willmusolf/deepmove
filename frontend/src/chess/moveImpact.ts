@@ -62,21 +62,42 @@ export function analyzeMoveImpact(
   const kingAfter = getKingSquare(after, userColor)
   const changedKingSafety = kingBefore !== kingAfter
 
-  // Is this a pawn or rook move? Always intentional — never "aimless".
+  // Pawn moves only count as purposeful if they push toward the center or advance
+  // past the 4th/5th rank (not side-pawn shuffles like a3, h3).
   const isPawnMove = pieceType === 'p'
-  const isRookMove = pieceType === 'r'
+  const pawnHasPurpose = isPawnMove && toSq !== '' && (() => {
+    const f = toSq.charCodeAt(0) - 96  // a=1, h=8
+    const r = parseInt(toSq[1], 10)
+    const isCenterPush = (f >= 3 && f <= 6) && (r >= 4 && r <= 5)  // c4-f5 region
+    const isAdvanced = userColor === 'white' ? r >= 5 : r <= 4      // past the midpoint
+    return isCenterPush || isAdvanced
+  })()
 
-  // Did the piece move toward the center? Central squares = d4/d5/e4/e5 and neighbors.
-  // file: a=1 … h=8, rank: 1-8. Central distance ≤ 2.5 covers c3–f6 region.
+  // Rook moves only count as purposeful if they move to the back rank (connecting),
+  // 7th rank (active), or stay on the same file (likely an open-file play).
+  const isRookMove = pieceType === 'r'
+  const rookHasPurpose = isRookMove && toSq !== '' && (() => {
+    const r = parseInt(toSq[1], 10)
+    const seventhRank = userColor === 'white' ? 7 : 2
+    const backRank = userColor === 'white' ? 1 : 8
+    const sameFile = fromSq && toSq && fromSq[0] === toSq[0]
+    return r === seventhRank || r === backRank || sameFile
+  })()
+
+  // Did the piece move toward the center? Tight definition: d4/d5/e4/e5 and
+  // immediately adjacent (c3-f6). Manhattan distance ≤ 2 from center.
   const toFile = toSq ? toSq.charCodeAt(0) - 96 : 0  // a=1, h=8
   const toRank = toSq ? parseInt(toSq[1], 10) : 0
   const centralDist = Math.abs(toFile - 4.5) + Math.abs(toRank - 4.5)
-  const movesToCenter = toSq !== '' && centralDist <= 2.5
+  const movesToCenter = toSq !== '' && centralDist <= 2
 
   // A move has "clear purpose" if it: captures, checks, develops, castles,
-  // pushes a pawn, moves a rook, or improves piece centralization.
+  // pushes a meaningful pawn, makes a purposeful rook move, centralizes a piece,
+  // or is a minor piece / queen move (these almost always have a tactical or
+  // positional reason — only rook shuffles and pawn shuffles are truly aimless).
+  const isMinorOrQueen = pieceType === 'n' || pieceType === 'b' || pieceType === 'q'
   const hadClearPurpose = wasCapture || wasCheck || developedPiece || castled
-    || isPawnMove || isRookMove || movesToCenter
+    || pawnHasPurpose || rookHasPurpose || movesToCenter || isMinorOrQueen
 
   // Build a plain-English description
   const parts: string[] = []

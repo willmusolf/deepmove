@@ -136,8 +136,21 @@ function determineCategory(
     // eval recovers or threshold not met → fall through to other checks
   }
   if (features.threats.threatsIgnored.length > 0) return 'ignored_threat'
-  // Raise missed_tactic threshold to 150cp — 90cp caught too many minor engine-had-a-capture situations
-  if (features.engineMoveImpact.isForcing && moment.evalSwing >= 150) return 'missed_tactic'
+  // missed_tactic: the engine's best move must involve a genuine tactical blow, not just
+  // any capture. A capture-only "best move" at 250cp is usually just picking up a hanging
+  // piece — that's a hung_piece or ignored_threat lesson, not a "missed tactic."
+  // True missed tactics: check + capture combo, check alone with big swing, or massive swing
+  // (≥400cp) suggesting a real combination the user missed.
+  if (features.engineMoveImpact.isForcing) {
+    const emi = features.engineMoveImpact
+    const isTrueTactic = (
+      (emi.givesCheck && moment.evalSwing >= 150) ||           // check = always tactical
+      (emi.givesCheck && emi.isCapture) ||                      // check + capture = double threat
+      (moment.evalSwing >= 250 && emi.isCapture) ||             // winning material = real tactic
+      (moment.evalSwing >= 300 && emi.isForcing)                // big swing + forcing = missed tactic
+    )
+    if (isTrueTactic) return 'missed_tactic'
+  }
   if (
     (features.gamePhase === 'opening' || features.gamePhase === 'early_middlegame') &&
     userKing.castled === 'none' &&
@@ -163,7 +176,9 @@ function determineCategory(
   // A large eval swing on an "aimless" move almost always means something tactical happened
   // (e.g. queen trap, fork setup). Never label >200cp swings as aimless — use missed_tactic.
   if (!features.moveImpact.hadClearPurpose) {
-    if (moment.evalSwing >= 200) return 'missed_tactic'
+    // Only escalate to missed_tactic if it's a genuine tactical blow (check or huge swing)
+    const emi2 = features.engineMoveImpact
+    if (emi2.isForcing && (emi2.givesCheck || moment.evalSwing >= 300)) return 'missed_tactic'
     return 'aimless_move'
   }
   return 'unknown'
@@ -186,11 +201,16 @@ function buildFailureFact(
 
   switch (category) {
     case 'hung_piece': {
-      const hanging = features.threats.hangingPieces[0]
-      if (!hanging) return 'What your move failed to do: it left material loose.'
-      const pieceName = PIECE_NAME_MAP[hanging.piece] ?? hanging.piece
-      const attackers = hanging.attackedBy.length > 0 ? ` attacked from ${hanging.attackedBy.join(', ')}` : ''
-      return `What your move failed to do: it left your ${pieceName} on ${hanging.square} undefended and under attack${attackers}.`
+      const allHanging = features.threats.hangingPieces
+      if (allHanging.length === 0) return 'What your move failed to do: it left material loose.'
+      const descriptions = allHanging.map(h => {
+        const name = PIECE_NAME_MAP[h.piece] ?? h.piece
+        return `your ${name} on ${h.square}`
+      })
+      const hangingText = descriptions.length === 1
+        ? descriptions[0]
+        : descriptions.slice(0, -1).join(', ') + ' and ' + descriptions[descriptions.length - 1]
+      return `What your move failed to do: it left ${hangingText} undefended and under attack.`
     }
     case 'ignored_threat': {
       const threat = features.threats.threatsIgnored[0]
@@ -198,8 +218,15 @@ function buildFailureFact(
         ? `What your move failed to do: it ignored ${threat.description}.`
         : "What your move failed to do: it did not answer your opponent's threat."
     }
-    case 'missed_tactic':
-      return 'What your move failed to do: it missed a forcing move when the position demanded one.'
+    case 'missed_tactic': {
+      const emi = features.engineMoveImpact
+      const parts: string[] = []
+      if (emi.givesCheck) parts.push('gives check')
+      if (emi.isCapture) parts.push('wins material')
+      const detail = parts.length > 0 ? parts.join(' and ') : 'creates a concrete threat'
+      const moveRef = emi.bestMoveSan ? ` (${emi.bestMoveSan})` : ''
+      return `What your move failed to do: the position had a forcing move${moveRef} that ${detail}, but you played a quieter move instead.`
+    }
     case 'didnt_castle':
       return `What your move failed to do: your king stayed in the center with a king-safety score of ${userKing.score}/100.`
     case 'didnt_develop':
@@ -207,12 +234,23 @@ function buildFailureFact(
     case 'aimless_move':
       return 'What your move failed to do: it did not capture, give check, develop, castle, or create a clear threat.'
     default: {
-      // Use the move impact description for a more specific fallback
-      const impact = features.moveImpact.description
-      if (impact && impact !== '') {
-        return `What your move failed to do: the move (${impact.toLowerCase()}) did not address the critical issue in the position, which cost ${moment.evalSwing}cp.`
+      // Build the most specific fallback we can from available features
+      const emi = features.engineMoveImpact
+      // Name the actual problem using engine move data
+      if (emi.mainIdea) {
+        return `What your move failed to do: ${emi.mainIdea.charAt(0).toLowerCase() + emi.mainIdea.slice(1)}${emi.mainIdea.endsWith('.') ? '' : '.'} Instead your move cost ${moment.evalSwing}cp.`
       }
-      return `What your move failed to do: it did not address the critical issue in the position, costing ${moment.evalSwing}cp.`
+      // Fall back to threat info if available
+      if (features.threats.hangingPieces.length > 0) {
+        const hp = features.threats.hangingPieces[0]
+        const name = PIECE_NAME_MAP[hp.piece] ?? hp.piece
+        return `What your move failed to do: it left your ${name} on ${hp.square} vulnerable, costing ${moment.evalSwing}cp.`
+      }
+      if (features.threats.threatsIgnored.length > 0) {
+        const ti = features.threats.threatsIgnored[0]
+        return `What your move failed to do: ${ti.description}, costing ${moment.evalSwing}cp.`
+      }
+      return `What your move failed to do: the position needed a more active approach — your move cost ${moment.evalSwing}cp without creating threats or improving your pieces.`
     }
   }
 }

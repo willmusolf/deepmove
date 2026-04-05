@@ -26,6 +26,16 @@ logger = logging.getLogger(__name__)
 # TODO: Replace with Upstash Redis when traffic warrants it
 _lesson_cache: LRUCache = LRUCache(maxsize=1000)
 
+# Singleton Anthropic client — reuses HTTP/2 connections across requests
+_anthropic_client: anthropic.AsyncAnthropic | None = None
+
+
+def _get_client() -> anthropic.AsyncAnthropic:
+    global _anthropic_client
+    if _anthropic_client is None:
+        _anthropic_client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    return _anthropic_client
+
 CATEGORY_RULES = {
     "hung_piece": "Before every move, ask what you are leaving undefended.",
     "ignored_threat": "Before you play your idea, ask what your opponent is threatening right now.",
@@ -74,7 +84,7 @@ async def generate_lesson(coaching_request: dict) -> dict:
     lesson_text = ""
 
     if settings.anthropic_api_key:
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        client = _get_client()
         prompt = build_lesson_prompt(coaching_request)
         model = settings.lesson_model
 
@@ -86,7 +96,7 @@ async def generate_lesson(coaching_request: dict) -> dict:
                     system=SYSTEM_PROMPT,
                     messages=[{"role": "user", "content": prompt}],
                 ),
-                timeout=20,
+                timeout=15,
             )
             lesson_text = message.content[0].text  # type: ignore[index]
         except Exception:

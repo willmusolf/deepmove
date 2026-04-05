@@ -20,9 +20,11 @@ export default function LessonNav({ lessons, currentMoveIndex, onGoToLesson }: L
     [lessons]
   )
 
-  // Active dot = the last lesson whose half-move index is <= currentMoveIndex.
-  // Before any lesson move, no dot is active (-1).
+  // Active dot = the lesson whose half-move index exactly matches currentMoveIndex.
+  // If no exact match, fall back to the last lesson before the current position.
   const activeDotIdx = useMemo(() => {
+    const exact = lessonIndices.indexOf(currentMoveIndex)
+    if (exact !== -1) return exact
     let active = -1
     for (let i = 0; i < lessonIndices.length; i++) {
       if (lessonIndices[i] <= currentMoveIndex) active = i
@@ -39,13 +41,13 @@ export default function LessonNav({ lessons, currentMoveIndex, onGoToLesson }: L
           const isActive = i === activeDotIdx
           return (
             <button
-              key={i}
-              className={`lesson-dot${isActive ? ' lesson-dot--active' : ''}`}
+              key={`${lesson.moment.moveNumber}:${lesson.moment.color}`}
+              className={`lesson-dot${isActive ? ' lesson-dot--active' : ''}${lesson.isLoading ? ' lesson-dot--loading' : ''}`}
               style={isActive ? { borderColor: cat.color, color: cat.color } as React.CSSProperties : undefined}
               onClick={() => onGoToLesson(lessonIndices[i])}
               title={`${cat.name} — Move ${lesson.moment.moveNumber}`}
             >
-              {lesson.isLoading ? '·' : i + 1}
+              {i + 1}
             </button>
           )
         })}
