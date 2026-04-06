@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-04-05 — Sandbox grade badges: Coach tab hidden in sandbox, "Analyse with Coach" button added (loads sandbox main-line as PGN game → Coach tab), MoveList transcript badges fixed for sandbox nodes (branchGrades lookup now checked before moveGrades fallback), setPendingBranchNodes(add) moved to call sites for correct React 18 batching, branch eval depth 8→4 for faster badge display. Board badge overlay still intermittently shows grade:undefined after rapid moves — partial fix only, needs continued work next session.
+**Last Session**: 2026-04-06 — Eval/best-lines polish: fixed move-0 not showing eval or best lines (added atStartOnMainLine guard), fixed stale arrows on goBack (token incremented before stopPositionAnalysis; onUpdate callback nulled in stopPositionAnalysis), removed duplicate depth display below BestLines, bumped cached-only game row opacity 0.7→0.88.
 
 ---
 
@@ -40,7 +40,7 @@ The current coaching pipeline is functional but lessons are generic, often wrong
 - [ ] Keep Analysis as the default-priority panel state in the responsive layout, but require user taps/clicks to switch tabs
 - [ ] Audit every row that breaks under width pressure: top action bar, import/filter controls, move-arrow controls, player boxes, tabs, eval widgets
 - [ ] Build one shared responsive layout system for Review + Play so both pages use the same breakpoint logic, spacing rules, and board-sizing behavior
-- [ ] Collapse the left nav/sidebar earlier on smaller laptops so board + panel space wins over persistent navigation chrome
+- [x] Collapse the left nav/sidebar earlier on smaller laptops so board + panel space wins over persistent navigation chrome
 - [ ] Board fills screen on mobile with touch-friendly moves and no horizontal scroll
 - [ ] Allow near edge-to-edge board sizing on mobile with tighter page padding/margins so the board stays as large as possible
 - [ ] Player boxes stack vertically on small screens
@@ -76,7 +76,7 @@ The current coaching pipeline is functional but lessons are generic, often wrong
 - [ ] If side-by-side still looks good, use a narrower panel with internal scrolling; if not, stack panel under board
 - [ ] Review should keep tabs visible, but tab content sits below the board once the side-by-side layout stops looking clean
 - [ ] Play should prioritize board + clocks + core controls, with move list allowed below
-- [ ] Use a compact top header with a menu trigger when nav is collapsed, rather than spending horizontal space on a persistent sidebar
+- [x] Use a compact top header with a menu trigger when nav is collapsed, rather than spending horizontal space on a persistent sidebar
 
 **Tablet (`640-1023`)**
 - [ ] Use a stacked layout by default: board block first, panel block second
@@ -513,7 +513,7 @@ See above in "Next After Launch"
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
 
--add the +/- for moves like lichess? in transcript
+-add the +/- for moves like lichess? in transcript so like shows eval change? maybe we need slightly more space for badges and that to fit perfectly?
 
 -in report graph make each colored dot a little bigger and make it more clear youre hovering over the circle? like more detail about the move
 
@@ -524,6 +524,8 @@ also -get rid of the the depth / 16 BELOW the move lines. keep the one above it 
 and also in the coaching tab too 
 -proabbly has somehting to do with the depth analysis interfering or firing at teh same time changing the moves or something
 -also it still will restart loading from depth 9 every time? is that fine or can we save compute some way or something idk
+-and also sometimes it doesnt load the recommended lines section or best move suggestions for move 0 properly?
+-eval bar is and move suggestions and badges are just straight up incorrect sometimes
 
 
 - analyzing doesnt have progress bar

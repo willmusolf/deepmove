@@ -97,9 +97,22 @@ deepmove/
 │       │   │   └── GameSummary.tsx       # stub
 │       │   ├── Import/
 │       │   │   ├── GameSelector.tsx
-│       │   │   └── AccountLink.tsx
-│       │   └── Layout/
-│       │       └── NavSidebar.tsx
+│       │   │   ├── AccountLink.tsx
+│       │   │   ├── ImportPanel.tsx
+│       │   │   └── normalizeGame.ts  # game normalization + rating cache
+│       │   ├── Layout/
+│       │   │   ├── NavSidebar.tsx
+│       │   │   ├── ResponsiveLayout.tsx  # responsive wrapper (mobile + desktop)
+│       │   │   ├── Header.tsx
+│       │   │   └── Footer.tsx
+│       │   ├── Play/              # Bot play mode
+│       │   │   ├── BotPlayPage.tsx
+│       │   │   ├── PlaySetupPanel.tsx
+│       │   │   └── GameResultBanner.tsx
+│       │   └── Profile/           # Settings / profile page
+│       │       ├── ProfilePage.tsx
+│       │       ├── PrincipleTracker.tsx
+│       │       └── WeaknessProfile.tsx
 │       ├── engine/
 │       │   ├── stockfish.worker.ts  # Stockfish runs in Web Worker — NEVER main thread
 │       │   ├── stockfish.ts         # Web Worker manager / message interface
@@ -127,6 +140,8 @@ deepmove/
 │       ├── hooks/
 │       │   ├── useStockfish.ts
 │       │   ├── useGameReview.ts
+│       │   ├── useAnalysisBoard.ts  # free-play/sandbox board state
+│       │   ├── useBotPlay.ts
 │       │   ├── useCoaching.ts
 │       │   └── useSound.ts
 │       ├── services/
@@ -137,7 +152,8 @@ deepmove/
 │       │   ├── gameStore.ts        # Zustand — game state
 │       │   └── authStore.ts        # Zustand — auth state
 │       └── styles/
-│           └── board.css
+│           ├── board.css
+│           └── global.css
 │
 ├── backend/
 │   ├── requirements.txt

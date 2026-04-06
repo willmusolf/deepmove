@@ -18,6 +18,8 @@
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
   --radius: 6px;
+  --layout-nav-width: 180px;
+  --layout-header-height: 58px;
 }
 
 html, body {
@@ -48,6 +50,70 @@ body {
   overflow: hidden;
 }
 
+.app-shell__backdrop,
+.app-header {
+  display: none;
+}
+
+.app-header {
+  align-items: center;
+  gap: 0.75rem;
+  min-height: var(--layout-header-height);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 15;
+}
+
+.app-header__menu {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  border-radius: var(--radius);
+  padding: 0.42rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.app-header__menu:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.app-header__brand-mark {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.app-header__brand-name {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.app-header__page {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 /* ── Light theme override ──────────────────────────────────────────────── */
 html.theme-light {
   --color-bg: #f0f2f5;
@@ -65,9 +131,61 @@ html.theme-light body {
   color: var(--color-text);
 }
 
+@media (max-width: 1023px) {
+  .app-shell--compact-nav .app-shell__backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgba(8, 12, 24, 0.66);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+    z-index: 20;
+  }
+
+  .app-shell--compact-nav.app-shell--nav-open .app-shell__backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .app-shell--compact-nav .nav-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(84vw, 220px);
+    max-width: 220px;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform 0.18s ease;
+    box-shadow: 24px 0 48px rgba(0, 0, 0, 0.34);
+    z-index: 30;
+  }
+
+  .app-shell--compact-nav.app-shell--nav-open .nav-sidebar {
+    transform: translateX(0);
+  }
+
+  .app-shell--compact-nav .app-header {
+    display: flex;
+  }
+}
+
 /* ── Responsive: allow scrolling on small screens ─────────────────────── */
 @media (max-width: 860px) {
-  html, body { overflow: auto; }
+  html, body { overflow-x: hidden; overflow-y: auto; }
   .app { height: auto; min-height: 100vh; overflow: visible; flex-direction: column; }
-  .app-content { min-width: unset; }
+  .app-content { min-width: 0; max-width: 100%; }
+}
+
+@media (max-width: 639px) {
+  .app-header {
+    padding: 0.65rem 0.85rem;
+  }
+
+  .app-header__page {
+    display: none;
+  }
 }

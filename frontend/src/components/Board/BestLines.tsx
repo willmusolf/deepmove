@@ -7,8 +7,6 @@ interface BestLinesProps {
   lines: TopLine[]
   isAnalyzingPosition: boolean
   onLineClick: (line: TopLine) => void
-  depth?: number
-  targetDepth?: number
 }
 
 const LINE_COLORS = ['#4ade80', '#60a5fa', '#facc15']  // green, blue, yellow
@@ -21,7 +19,7 @@ function formatScore(line: TopLine): string {
   return line.score >= 0 ? `+${pawns}` : pawns
 }
 
-export default function BestLines({ lines, isAnalyzingPosition, onLineClick, depth, targetDepth }: BestLinesProps) {
+export default function BestLines({ lines, isAnalyzingPosition, onLineClick }: BestLinesProps) {
   return (
     <div className="best-lines">
       {isAnalyzingPosition && lines.length === 0 ? (
@@ -30,23 +28,18 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, dep
           <div className="best-line-row best-line-skeleton" />
         </>
       ) : (
-        <>
-          {lines.map((line, i) => (
-            <button
-              key={line.rank}
-              className="best-line-row"
-              onClick={() => onLineClick(line)}
-              title="Click to explore this line"
-            >
-              <span className="best-line-dot" style={{ background: LINE_COLORS[i] ?? LINE_COLORS[0] }} />
-              <span className="best-line-move">{line.san}</span>
-              <span className="best-line-eval">{formatScore(line)}</span>
-            </button>
-          ))}
-          <div className="best-lines-depth" style={{ visibility: (depth != null && depth > 0) ? 'visible' : 'hidden' }}>
-            depth: {depth ?? 0}{targetDepth ? ` / ${targetDepth}` : ''}{isAnalyzingPosition ? ' ...' : ''}
-          </div>
-        </>
+        lines.map((line, i) => (
+          <button
+            key={line.rank}
+            className="best-line-row"
+            onClick={() => onLineClick(line)}
+            title="Click to explore this line"
+          >
+            <span className="best-line-dot" style={{ background: LINE_COLORS[i] ?? LINE_COLORS[0] }} />
+            <span className="best-line-move">{line.san}</span>
+            <span className="best-line-eval">{formatScore(line)}</span>
+          </button>
+        ))
       )}
     </div>
   )
