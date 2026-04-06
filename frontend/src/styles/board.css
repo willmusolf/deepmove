@@ -957,7 +957,7 @@ cg-board {
 
 /* ── Move grade badges ─────────────────────────────────────────────────── */
 .move-grade {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 900;
   font-family: system-ui, -apple-system, sans-serif;
   border-radius: 50%;
@@ -974,6 +974,11 @@ cg-board {
   letter-spacing: -0.03em;
 }
 
+/* Multi-character badges need smaller font to fit in circle */
+.grade-brilliant,
+.grade-blunder,
+.grade-inaccuracy { font-size: 0.55rem; }
+
 .grade-placeholder {
   display: inline-block;
   width: 18px;
@@ -983,31 +988,39 @@ cg-board {
 
 .grade-brilliant  { background: #22d3ee; }           /* cyan */
 .grade-great      { background: #16a34a; }           /* rich green */
-.grade-best       { background: #22c55e; opacity: 0.7; }  /* medium green */
-.grade-excellent  { background: #4ade80; opacity: 0.65; } /* light green */
-.grade-good       { background: #9ca3af; opacity: 0.5; }  /* neutral gray */
-.grade-forced     { background: #6b7280; opacity: 0.35; } /* dark gray */
+.grade-best       { background: #22c55e; }           /* medium green */
+.grade-excellent  { background: #4ade80; }           /* light green */
+.grade-good       { background: #60a5fa; }           /* soft blue — visible, distinct from greens */
+.grade-forced     { background: #6b7280; }           /* dark gray */
 .grade-inaccuracy { background: #facc15; color: #1a1a1a; }
 .grade-mistake    { background: #fb923c; }
 .grade-blunder    { background: #ef4444; }
 .grade-miss       { background: #a78bfa; }
 
-/* Pending spinner — shown while branch eval is in flight */
+/* Pending spinner — dark badge with inner spinning arc */
 .grade-pending {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 18px;
   height: 18px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: transparent;
-  border: 2px solid var(--color-text-muted, #6b7280);
-  opacity: 0.4;
-  animation: grade-pending-pulse 1s ease-in-out infinite;
+  background: #374151;
+  position: relative;
+}
+.grade-pending::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: #9ca3af;
+  animation: grade-spin 0.7s linear infinite;
 }
 
-@keyframes grade-pending-pulse {
-  0%, 100% { opacity: 0.2; }
-  50%       { opacity: 0.6; }
+@keyframes grade-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ── Board grade badge (chess.com style — on the destination square) ───────── */
@@ -1024,12 +1037,42 @@ cg-board {
   justify-content: center;
   color: #fff;
   font-weight: 900;
-  font-family: var(--font-mono);
-  font-size: clamp(0.6rem, 2.4vw, 0.9rem);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: clamp(0.65rem, 2.6vw, 1rem);
   line-height: 1;
   pointer-events: none;
-  letter-spacing: 0.02em;
+  letter-spacing: -0.03em;
   box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35), 0 2px 8px rgba(0,0,0,0.55);
+}
+
+/* Multi-char board badges need smaller font to fit */
+.board-grade-badge[data-grade="brilliant"],
+.board-grade-badge[data-grade="blunder"],
+.board-grade-badge[data-grade="inaccuracy"] {
+  font-size: clamp(0.5rem, 2.0vw, 0.75rem);
+}
+
+/* Pending spinner for board badge while branch eval is in flight */
+.board-grade-badge-pending {
+  position: absolute;
+  z-index: 10;
+  width: 16%;
+  max-width: 36px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  transform: translate(-75%, -25%);
+  background: rgba(30, 30, 30, 0.75);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.15), 0 2px 8px rgba(0,0,0,0.55);
+  pointer-events: none;
+}
+.board-grade-badge-pending::after {
+  content: '';
+  position: absolute;
+  inset: 20%;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: rgba(255,255,255,0.7);
+  animation: grade-spin 0.7s linear infinite;
 }
 
 /* Move list adjustments for badges */

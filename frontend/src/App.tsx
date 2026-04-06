@@ -80,6 +80,8 @@ export default function App() {
   } = useAnalysisBoard()
 
   const reset = useGameStore(s => s.reset)
+  const setPgn = useGameStore(s => s.setPgn)
+  const setStoredUserColor = useGameStore(s => s.setUserColor)
   const moveEvals = useGameStore(s => s.moveEvals)
   const analyzedCount = useGameStore(s => s.analyzedCount)
   const isAnalyzing = useGameStore(s => s.isAnalyzing)
@@ -98,7 +100,7 @@ export default function App() {
   const currentGameId = useGameStore(s => s.currentGameId)
   const backendGameId = useGameStore(s => s.backendGameId)
 
-  const { isReady, engineStatus, runAnalysis, analyzePositionLines, analyzePositionSingle, stopPositionAnalysis } = useStockfish()
+  const { isReady, engineStatus, runAnalysis, analyzePositionLines, analyzePositionSingleBg, stopPositionAnalysis } = useStockfish()
   const { enabled: soundEnabled, toggle: toggleSound, playMoveSound } = useSound()
 
   const {
@@ -136,6 +138,10 @@ export default function App() {
   // FEN → TopLine[] cache so revisiting a position never re-analyzes
   const positionCache = useRef<Map<string, TopLine[]>>(new Map())
   const pathKeyRef = useRef(0)
+  // Keyed on (from+to+newFen) so the guard is immune to timing — if chessground
+  // double-fires `after` for the same move (a known chessground quirk), the second
+  // call carries the identical triple and gets blocked regardless of when it arrives.
+  const lastSandboxMoveRef = useRef<string | null>(null)
   // Hold last valid eval so the bar never receives undefined (prevents 50/50 flash)
   const lastEvalRef = useRef({ cp: 0, isMate: false, mateIn: null as number | null })
 
@@ -300,6 +306,23 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady])
 
+  // When engine becomes ready, retroactively grade any sandbox nodes that were
+  // played before Stockfish finished loading (common for eager users).
+  useEffect(() => {
+    if (!isReady || isLoaded) return
+    const unevaluated = Object.values(analysisTree).filter(
+      node => !branchGrades.has(node.id) && !pendingBranchNodes.has(node.id)
+    )
+    for (const node of unevaluated) {
+      const parentFen = node.parentId
+        ? (analysisTree[node.parentId]?.fen ?? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+        : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+      setPendingBranchNodes(prev => { const s = new Set(prev); s.add(node.id); return s })
+      void evaluateBranchMove(node.id, parentFen, node.fen)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady])
+
   // When game analysis finishes, auto-trigger position analysis so BestLines appear immediately.
   const wasAnalyzingRef = useRef(false)
   useEffect(() => {
@@ -357,6 +380,8 @@ export default function App() {
       analysisBoardReset()
       setBranchGrades(new Map())
       setPendingBranchNodes(new Set())
+    } else {
+      if (panelTab === 'coach') setPanelTab('analysis')
     }
   }, [isLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -456,6 +481,16 @@ export default function App() {
     setPanelTab('load')
   }
 
+  function handleLoadSandboxAsGame() {
+    if (analysisMainLineSans.length === 0) return
+    const chess = new Chess()
+    for (const san of analysisMainLineSans) chess.move(san)
+    reset()
+    setStoredUserColor(null)
+    setPgn(chess.pgn())
+    setPanelTab('coach')
+  }
+
   // Called by GameSelector before loading a new game — stops any in-flight
   // position analysis so stale arrows can't flash on the new game's position.
   function handleBeforeGameLoad() {
@@ -479,29 +514,34 @@ export default function App() {
       const nodeId = lastAddedNodeIdRef.current
       // Only evaluate if not already graded (avoids re-eval when navigating to existing branch node)
       if (nodeId && isReady && !branchGrades.has(nodeId)) {
+        setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nodeId); return s })
         void evaluateBranchMove(nodeId, parentFen, newFen)
       }
     }
   }
 
   async function evaluateBranchMove(nodeId: string, parentFen: string, newFen: string) {
-    setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nodeId); return s })
+    if (!isReady) return
+    // Caller is responsible for adding nodeId to pendingBranchNodes BEFORE calling this.
     try {
       const chess = new Chess(parentFen)
       const legalCount = chess.moves().length
       const color: 'white' | 'black' = parentFen.split(' ')[1] === 'w' ? 'white' : 'black'
 
-      // Use single-PV (not multi-PV) so stopPositionAnalysis() won't cancel these evals.
-      // Run sequentially to avoid saturating the engine queue.
-      const beforeResult = await analyzePositionSingle(parentFen, 10)
-      const afterResult = await analyzePositionSingle(newFen, 10)
+      const beforeResult = await analyzePositionSingleBg(parentFen, 4)
+      const afterResult = await analyzePositionSingleBg(newFen, 4)
 
-      const evalBefore = beforeResult?.score ?? 0
-      const evalAfter = afterResult?.score ?? 0
+      if (!beforeResult || !afterResult) return
+
+      const rawBefore = beforeResult.score
+      const rawAfter = afterResult.score
+      const evalBefore = color === 'white' ? rawBefore : -rawBefore
+      const evalAfter  = color === 'white' ? -rawAfter : rawAfter
+
       const grade = classifyMove(evalBefore, evalAfter, color, legalCount)
       setBranchGrades(prev => new Map(prev).set(nodeId, grade))
-    } catch {
-      // Silently ignore evaluation failures — branch just shows no badge
+    } catch (err) {
+      console.warn('[branch eval] failed:', err)
     } finally {
       setPendingBranchNodes(prev => { const s = new Set(prev); s.delete(nodeId); return s })
     }
@@ -558,15 +598,15 @@ export default function App() {
     if (!result) return
     playMoveSound(result.san)
     pathKeyRef.current++
-    isPieceMoveRef.current = true
     const parentFen = analysisFen
     const newFen = chess.fen()
     analysisBoardAddMove(from, to, result.san, newFen)
     const nodeId = analysisLastAddedNodeIdRef.current
-    if (nodeId && isReady && showGrades && !branchGrades.has(nodeId)) {
+    if (nodeId && isReady && !branchGrades.has(nodeId)) {
+      setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nodeId); return s })
       void evaluateBranchMove(nodeId, parentFen, newFen)
     }
-    setPanelTab('analysis')
+    if (panelTab !== 'coach') setPanelTab('analysis')
   }
 
 
@@ -581,6 +621,15 @@ export default function App() {
   const currentNode = currentNodeId ? moveTree[currentNodeId] : null
   const branchComment = (inBranch && currentNode && currentNodeId && branchGrades.has(currentNodeId))
     ? { grade: branchGrades.get(currentNodeId)!, san: currentNode.san }
+    : null
+
+  // Sandbox mode: coaching blurb for the current analysis node
+  const sandboxCurrentNodeId = !isLoaded && analysisPath.length > 0
+    ? analysisPath[analysisPath.length - 1]
+    : null
+  const sandboxCurrentNode = sandboxCurrentNodeId ? analysisTree[sandboxCurrentNodeId] : null
+  const sandboxBranchComment = (sandboxCurrentNodeId && sandboxCurrentNode && branchGrades.has(sandboxCurrentNodeId))
+    ? { grade: branchGrades.get(sandboxCurrentNodeId)!, san: sandboxCurrentNode.san }
     : null
 
   // ── Eval ───────────────────────────────────────────────────────────────────
@@ -719,16 +768,23 @@ export default function App() {
                       onMove={isLoaded
                         ? handleBoardMove
                         : (from, to, san, newFen) => {
+                // Guard against chessground double-firing the same move. Keyed on
+                // (from+to+newFen) so it's immune to timing — even if the second
+                // fire arrives 200ms later it carries the identical key → blocked.
+                const moveKey = `${from}${to}${newFen}`
+                if (lastSandboxMoveRef.current === moveKey) return
+                lastSandboxMoveRef.current = moveKey
+                setTimeout(() => { if (lastSandboxMoveRef.current === moveKey) lastSandboxMoveRef.current = null }, 1000)
                 playMoveSound(san)
                 pathKeyRef.current++
-                isPieceMoveRef.current = true
                 const parentFen = analysisFen
                 analysisBoardAddMove(from, to, san, newFen)
                 const nodeId = analysisLastAddedNodeIdRef.current
-                if (nodeId && isReady && showGrades && !branchGrades.has(nodeId)) {
+                if (nodeId && isReady && !branchGrades.has(nodeId)) {
+                  setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nodeId); return s })
                   void evaluateBranchMove(nodeId, parentFen, newFen)
                 }
-                setPanelTab('analysis')
+                if (panelTab !== 'coach') setPanelTab('analysis')
               }
                       }
                       shapes={showArrows ? boardShapes : []}
@@ -740,30 +796,50 @@ export default function App() {
                       pathKey={pathKeyRef.current}
                     />
                     {(() => {
-                      const BOARD_GRADE: Record<string, { symbol: string; color: string; opacity?: number }> = {
+                      const BOARD_GRADE: Record<string, { symbol: string; color: string }> = {
                         brilliant:  { symbol: '!!', color: '#22d3ee' },
                         great:      { symbol: '!',  color: '#16a34a' },
-                        best:       { symbol: '★',  color: '#22c55e', opacity: 0.7 },
-                        excellent:  { symbol: '✓',  color: '#4ade80', opacity: 0.65 },
-                        good:       { symbol: '·',  color: '#9ca3af', opacity: 0.5 },
+                        best:       { symbol: '★',  color: '#22c55e' },
+                        excellent:  { symbol: '✓',  color: '#4ade80' },
+                        good:       { symbol: '·',  color: '#60a5fa' },
                         inaccuracy: { symbol: '?!', color: '#facc15' },
                         mistake:    { symbol: '?',  color: '#fb923c' },
                         blunder:    { symbol: '??', color: '#ef4444' },
                         miss:       { symbol: '✗',  color: '#a78bfa' },
-                        forced:     { symbol: '→',  color: '#4b5563', opacity: 0.35 },
+                        forced:     { symbol: '→',  color: '#6b7280' },
                       }
-                      const grade = isLoaded ? mainEval?.grade : (
-                        // In analysis/free-play mode use branch grade for current node
-                        analysisPath.length > 0
+                      // Determine current branch node for pending/grade lookup
+                      const boardNodeId = isLoaded
+                        ? (inBranch ? currentNodeId : null)
+                        : (analysisPath.length > 0 ? analysisPath[analysisPath.length - 1] : null)
+                      const grade = isLoaded
+                        ? (inBranch && currentNodeId ? branchGrades.get(currentNodeId) : mainEval?.grade)
+                        : (analysisPath.length > 0
                           ? branchGrades.get(analysisPath[analysisPath.length - 1])
-                          : undefined
-                      )
+                          : undefined)
                       const g = showGrades && grade ? BOARD_GRADE[grade] : null
-                      const destSquare = isLoaded ? boardLastMove?.[1] : (
-                        analysisPath.length > 0
+                      const destSquare = isLoaded
+                        ? (inBranch && currentNodeId ? moveTree[currentNodeId]?.to : boardLastMove?.[1])
+                        : (analysisPath.length > 0
                           ? analysisTree[analysisPath[analysisPath.length - 1]]?.to
-                          : undefined
-                      )
+                          : undefined)
+                      // Show pending spinner while branch eval is in flight, or while the
+                      // engine is still loading (grade not yet available but will be retried).
+                      const isPendingOnBoard = showGrades && boardNodeId !== null &&
+                        pendingBranchNodes.has(boardNodeId)
+                      if (isPendingOnBoard && destSquare) {
+                        const file = destSquare.charCodeAt(0) - 97
+                        const rank = parseInt(destSquare[1], 10) - 1
+                        const leftCell = orientation === 'white' ? file : (7 - file)
+                        const topCell  = orientation === 'white' ? (7 - rank) : rank
+                        return (
+                          <div
+                            key={`${destSquare}-pending`}
+                            className="board-grade-badge-pending"
+                            style={{ left: `${(leftCell + 1) * 12.5}%`, top: `${topCell * 12.5}%` }}
+                          />
+                        )
+                      }
                       if (!g || !destSquare) return null
                       const file = destSquare.charCodeAt(0) - 97
                       const rank = parseInt(destSquare[1], 10) - 1
@@ -773,11 +849,11 @@ export default function App() {
                         <div
                           key={destSquare}
                           className="board-grade-badge"
+                          data-grade={grade ?? ''}
                           style={{
                             left: `${(leftCell + 1) * 12.5}%`,
                             top: `${topCell * 12.5}%`,
                             background: g.color,
-                            opacity: g.opacity ?? 1,
                           }}
                         >
                           {g.symbol}
@@ -880,11 +956,11 @@ export default function App() {
                     {showArrows ? 'Arrows' : 'Arrows'}
                   </button>
                   <button
-                    className={"btn btn-secondary"}
+                    className={`btn btn-secondary${showGrades ? ' active' : ''}`}
                     onClick={() => setShowGrades(v => !v)}
-                    title={showGrades ? 'Hide move grades' : 'Show move grades'}
+                    title={showGrades ? 'Hide move badges' : 'Show move badges'}
                   >
-                    Grades
+                    Badges
                   </button>
                 </div>
                 {openingName && (
@@ -907,12 +983,12 @@ export default function App() {
                   >
                     Analysis
                   </button>
-                  <button
+                  {isLoaded && <button
                     className={`panel-tab${panelTab === 'coach' ? ' active' : ''}`}
                     onClick={() => setPanelTab('coach')}
                   >
                     Coach
-                  </button>
+                  </button>}
                 </div>
 
                 <div className="side-panel-content">
@@ -994,7 +1070,7 @@ export default function App() {
                         branchGrades={showGrades ? branchGrades : undefined}
                         pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
-                        isAnalyzing={isAnalyzing || !showGrades}
+                        isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
                       />
                     </>
@@ -1067,10 +1143,20 @@ export default function App() {
                         branchGrades={showGrades ? branchGrades : undefined}
                         pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
-                        isAnalyzing={isAnalyzing || !showGrades}
+                        isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
                       />
                     </>
+                  )}
+
+                  {panelTab === 'coach' && !isLoaded && (
+                    <MoveCoachComment
+                      moveComments={[]}
+                      lessons={[]}
+                      currentMoveIndex={0}
+                      branchComment={sandboxBranchComment}
+                      inBranch={sandboxCurrentNodeId !== null && (sandboxBranchComment !== null || pendingBranchNodes.has(sandboxCurrentNodeId))}
+                    />
                   )}
 
                   <div className="load-panel" style={{ display: panelTab === 'load' ? undefined : 'none' }}>
@@ -1099,6 +1185,21 @@ export default function App() {
                               setChesscomPagination(pagination)
                               cacheRatingsFromGameList(games as ChessComGame[], uname, 'chesscom')
                             }}
+                            onGamesAppended={(newGames, newPagination) => {
+                              setChesscomGames(prev => {
+                                const existing = new Set(prev.map(g => (g as ChessComGame).url))
+                                const fresh = (newGames as ChessComGame[]).filter(g => !existing.has(g.url))
+                                const merged = [...fresh, ...prev]
+                                try {
+                                  localStorage.setItem(
+                                    `deepmove_gamelist_chesscom_${chesscomUsername.toLowerCase()}`,
+                                    JSON.stringify({ games: merged.slice(0, 2000), pagination: newPagination, fetchedAt: Date.now() })
+                                  )
+                                } catch {}
+                                return merged
+                              })
+                            }}
+                            newestEndTime={chesscomGames.length > 0 ? Math.max(...chesscomGames.map(g => (g as ChessComGame).end_time)) : undefined}
                           />
                           {chesscomGames.length > 0 && (
                             <GameSelector
@@ -1209,17 +1310,28 @@ export default function App() {
 
                       {/* Analysis board move tree */}
                       {analysisRootId ? (
-                        <MoveList
-                          tree={analysisTree}
-                          rootId={analysisRootId}
-                          currentPath={analysisPath}
-                          moveGrades={[]}
-                          branchGrades={showGrades ? branchGrades : undefined}
-                          pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
-                          onNodeClick={(path) => { pathKeyRef.current++; analysisBoardNavigateTo(path) }}
-                          isAnalyzing={!showGrades}
-                          rootBranchIds={analysisRootBranchIds}
-                        />
+                        <>
+                          <MoveList
+                            tree={analysisTree}
+                            rootId={analysisRootId}
+                            currentPath={analysisPath}
+                            moveGrades={[]}
+                            branchGrades={showGrades ? branchGrades : undefined}
+                            pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
+                            onNodeClick={(path) => { pathKeyRef.current++; analysisBoardNavigateTo(path) }}
+                            isAnalyzing={!showGrades}
+                            rootBranchIds={analysisRootBranchIds}
+                          />
+                          {analysisMainLineSans.length > 0 && (
+                            <button
+                              className="btn btn-primary"
+                              style={{ marginTop: '0.75rem' }}
+                              onClick={handleLoadSandboxAsGame}
+                            >
+                              Analyse with Coach
+                            </button>
+                          )}
+                        </>
                       ) : (
                         <div className="panel-empty">Move pieces on the board to start an analysis.</div>
                       )}

@@ -197,5 +197,13 @@ export function useStockfish() {
     return engine.analyzePosition(fen, depth)
   }
 
-  return { isReady, engineStatus, runAnalysis, analyzePositionLines, analyzePositionSingle, stopPositionAnalysis }
+  /** Like analyzePositionSingle but uses the background engine so branch evals
+   *  don't queue behind in-flight multi-PV analysis on the interactive engine. */
+  async function analyzePositionSingleBg(fen: string, depth = 14): Promise<import('../engine/stockfish').EvalResult | null> {
+    const engine = backgroundRef.current
+    if (!engine || !isReady) return null
+    return engine.analyzePosition(fen, depth)
+  }
+
+  return { isReady, engineStatus, runAnalysis, analyzePositionLines, analyzePositionSingle, analyzePositionSingleBg, stopPositionAnalysis }
 }

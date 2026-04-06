@@ -89,7 +89,8 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
   const oldestTimestampRef = useRef<number>(Date.now())
 
   // Auto-load tracking — fires once per username load when hasMore is true
-  const hasAutoStarted = useRef(games.length > 0)
+  // Always initialize false so cache-restored loads also trigger auto-load
+  const hasAutoStarted = useRef(false)
 
   const [sortKey, setSortKey] = useState<SortKey>('date-desc')
   const [resultFilter, setResultFilter] = useState<ResultFilter>('all')
@@ -308,13 +309,14 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
   }, [handleLoadMore])
 
   // Auto-load all when a username is freshly loaded with hasMore=true
+  // Depends on games.length too so it fires when cache restores games before pagination arrives
   useEffect(() => {
-    if (!hasAutoStarted.current && pagination?.hasMore) {
+    if (!hasAutoStarted.current && pagination?.hasMore && games.length > 0) {
       hasAutoStarted.current = true
       void handleLoadAll()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination?.hasMore])
+  }, [pagination?.hasMore, games.length])
 
   const handleLichessOppSearch = useCallback(async () => {
     const q = opponentInput.trim()

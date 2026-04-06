@@ -48,11 +48,17 @@ function MoveToken({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
   const active = currentPath[currentPath.length - 1] === node.id
   const inPath = currentPath.includes(node.id)
   const mainIdx = node.isMainLine ? parseInt(node.id.slice(1), 10) : -1
-  const grade = (!isAnalyzing && mainIdx >= 0)
-    ? moveGrades[mainIdx]
-    : (!isAnalyzing ? ctx.branchGrades?.get(node.id) : undefined)
+  // If branchGrades has an entry for this node (sandbox moves, variation moves), use it.
+  // Otherwise fall back to moveGrades by index (main-line game review moves).
+  const grade = !isAnalyzing
+    ? (ctx.branchGrades?.has(node.id)
+        ? ctx.branchGrades.get(node.id)
+        : (mainIdx >= 0 ? moveGrades[mainIdx] : undefined))
+    : undefined
 
-  const isPending = !node.isMainLine && ctx.pendingBranchNodes?.has(node.id)
+  // Show pending spinner for any node being evaluated (not just non-main-line).
+  // In sandbox mode all nodes are graded via branchGrades, including main-line ones.
+  const isPending = ctx.pendingBranchNodes?.has(node.id) ?? false
 
   return (
     <span className="move-cell">
