@@ -106,7 +106,7 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
       if (isReload && platform === 'chesscom') {
         const newGames = await getNewGames(trimmed, newestEndTime)
         if (newGames.length > 0) {
-          const pag: PaginationState = { platform }  // pagination unchanged — just append
+          const pag: PaginationState = { platform, hasMore: true }  // pagination unchanged — just append
           onGamesAppended(newGames, pag)
         }
         return

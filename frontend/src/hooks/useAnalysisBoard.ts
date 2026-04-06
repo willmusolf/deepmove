@@ -49,6 +49,16 @@ export function useAnalysisBoard() {
   // ── Mutations ─────────────────────────────────────────────────────────────
 
   const addMove = useCallback((from: string, to: string, san: string, newFen: string) => {
+    // Compute the new node ID synchronously from the current branchCounter so that
+    // callers can read lastAddedNodeIdRef.current immediately after this call returns
+    // (before React processes the setState batch). This matches the same pattern used
+    // in useGameReview.addVariationMove. Safe because addMove only runs in event handlers
+    // (never in effects or async callbacks), so the closure value is always current.
+    const expectedNewId = `n${state.branchCounter}`
+    // Set synchronously so callers can read the ref immediately after this returns.
+    // The setState updater will override this for re-entry cases (existing node IDs).
+    lastAddedNodeIdRef.current = expectedNewId
+
     setState(prev => {
       const parentId = prev.currentPath.length > 0
         ? prev.currentPath[prev.currentPath.length - 1]
@@ -104,8 +114,8 @@ export function useAnalysisBoard() {
       const parentIsMainLine = parentId === null ? true : (prev.tree[parentId]?.isMainLine ?? false)
       const isMainLine = parentIsMainLine && !parentHasChildren
 
-      lastAddedNodeIdRef.current = `n${prev.branchCounter}`
       const newId = `n${prev.branchCounter}`
+      lastAddedNodeIdRef.current = newId
 
       const newNode: MoveNode = {
         id: newId,
@@ -142,7 +152,7 @@ export function useAnalysisBoard() {
         startFen: prev.startFen,
       }
     })
-  }, [])
+  }, [state.branchCounter])
 
   const goBack = useCallback(() => {
     setState(prev => {

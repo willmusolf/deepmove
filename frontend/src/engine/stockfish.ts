@@ -338,6 +338,8 @@ export class StockfishEngine {
   stopPositionAnalysis(): void {
     // Remove only multi-PV items from the queue (leave full-game single-PV items)
     this.queue = this.queue.filter(item => !item.multiPV)
+    // Clear the onUpdate callback so no stale results can fire after stop
+    this.currentMultiPvOnUpdate = null
     // If currently running a multi-PV analysis, stop it immediately
     if (this.worker && this.busy && this.currentIsMultiPV) {
       this.worker.postMessage('stop')

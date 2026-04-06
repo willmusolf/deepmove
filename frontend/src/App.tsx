@@ -11,8 +11,8 @@ import type { PaginationState } from './components/Import/AccountLink'
 import GameSelector from './components/Import/GameSelector'
 import type { ChessComGame } from './api/chesscom'
 import type { LichessGame } from './api/lichess'
-import NavSidebar from './components/Layout/NavSidebar'
 import type { Page } from './components/Layout/NavSidebar'
+import ResponsiveLayout from './components/Layout/ResponsiveLayout'
 import ProfilePage from './components/Profile/ProfilePage'
 import MoveCoachComment from './components/Coach/MoveCoachComment'
 import BotPlayPage from './components/Play/BotPlayPage'
@@ -240,6 +240,7 @@ export default function App() {
     // fire after the user has navigated to a cached position B, calling
     // triggerPositionAnalysis(fenA) which then hits the cache and sets stale arrows
     // without any token check.
+    positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
     stopPositionAnalysis()
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
 
@@ -322,6 +323,24 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady])
+
+  // Safety net: whenever analysisPath changes in sandbox mode, ensure the current
+  // node has an eval in flight. Catches any cases where the event-handler eval
+  // trigger (which reads lastAddedNodeIdRef) was missed due to timing.
+  useEffect(() => {
+    if (!isReady || isLoaded || analysisPath.length === 0) return
+    const nodeId = analysisPath[analysisPath.length - 1]
+    if (!nodeId || branchGrades.has(nodeId) || pendingBranchNodes.has(nodeId)) return
+    const node = analysisTree[nodeId]
+    if (!node) return
+    const STARTING = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+    const parentFen = node.parentId
+      ? (analysisTree[node.parentId]?.fen ?? STARTING)
+      : STARTING
+    setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nodeId); return s })
+    void evaluateBranchMove(nodeId, parentFen, node.fen)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisPath, isReady])
 
   // When game analysis finishes, auto-trigger position analysis so BestLines appear immediately.
   const wasAnalyzingRef = useRef(false)
@@ -468,6 +487,7 @@ export default function App() {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   function handleNewGame() {
+    positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
     stopPositionAnalysis()
     positionTokenRef.current++
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
@@ -494,6 +514,7 @@ export default function App() {
   // Called by GameSelector before loading a new game — stops any in-flight
   // position analysis so stale arrows can't flash on the new game's position.
   function handleBeforeGameLoad() {
+    positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
     stopPositionAnalysis()
     positionTokenRef.current++
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
@@ -719,11 +740,8 @@ export default function App() {
 
 
   return (
-    <div className="app">
-      <NavSidebar currentPage={currentPage} onNavigate={setCurrentPage} />
-
-      <div className="app-content">
-        <div className="app-main">
+    <ResponsiveLayout currentPage={currentPage} onNavigate={setCurrentPage}>
+      <div className="app-main">
           {currentPage === 'review' && (
             <>
               <div className="board-col">
@@ -1023,7 +1041,7 @@ export default function App() {
                       )}
 
                       {/* Eval display — hidden during game analysis */}
-                      {!showAnalyzingBar && (posLine || mainEval) && (
+                      {!showAnalyzingBar && (posLine || mainEval || atStartOnMainLine) && (
                         <div className="eval-display">
                           <span className="eval-display-value">
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
@@ -1045,8 +1063,6 @@ export default function App() {
                           lines={visibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
                           onLineClick={handleAnalysisBestLineClick}
-                          depth={currentAnalysisDepth}
-                          targetDepth={16}
                         />
                       )}
                       {/* Eval graph — hidden during analysis, shown after completion */}
@@ -1107,7 +1123,7 @@ export default function App() {
                       )}
 
                       {/* Eval display */}
-                      {(posLine || mainEval) && (
+                      {(posLine || mainEval || atStartOnMainLine) && (
                         <div className="eval-display">
                           <span className="eval-display-value">
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
@@ -1287,7 +1303,7 @@ export default function App() {
                       )}
 
                       {/* Eval display + best lines — works in free-play/analysis mode */}
-                      {(posLine || isAnalyzingPosition) && (
+                      {(posLine || isAnalyzingPosition || isReady) && (
                         <div className="eval-display">
                           <span className="eval-display-value">
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
@@ -1304,8 +1320,6 @@ export default function App() {
                         lines={visibleLines}
                         isAnalyzingPosition={isAnalyzingPosition}
                         onLineClick={handleAnalysisBestLineClick}
-                        depth={currentAnalysisDepth}
-                        targetDepth={16}
                       />
 
                       {/* Analysis board move tree */}
@@ -1366,8 +1380,7 @@ export default function App() {
               onNavigateToReview={() => setCurrentPage('review')}
             />
           )}
-        </div>
       </div>
-    </div>
+    </ResponsiveLayout>
   )
 }

@@ -95,17 +95,15 @@ export default function ChessBoard({
   const interactiveRef = useRef(interactive)
   const prevPathKeyRef = useRef(pathKey)
 
-
-  // Snap board container to nearest multiple of 8 to prevent chessground square misalignment
+  // Track when the board has a real layout size so shapes only sync after mount.
+  // Avoid writing inline width/height here: that can leave the board "stuck" at a
+  // stale pixel size after the window is resized down and then back up.
   useEffect(() => {
     const el = wrapperRef.current
     if (!el) return
     const ro = new ResizeObserver(entries => {
       const { width, height } = entries[0].contentRect
-      const size = Math.floor(Math.min(width, height) / 8) * 8
-      el.style.width = `${size}px`
-      el.style.height = `${size}px`
-      if (size > 0) setBoardReady(true)
+      if (width > 0 && height > 0) setBoardReady(true)
     })
     ro.observe(el)
     return () => ro.disconnect()
