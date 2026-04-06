@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-04-02 — Coaching pipeline overhaul 2: classifier thresholds tightened (hung_piece 100cp, missed_tactic 150cp, aimless→missed_tactic at ≥200cp swing), dead-lost endgame suppression, forced-retreat didnt_develop skip; progressive criticalMoments detection mid-analysis; useCoaching dedup (fetchedKeysRef), 45s timeout, 1.5s stagger; backend guest requests skip DB (no Neon cold-start timeout); LessonNav rewritten (correct active-dot logic); MoveCoachComment hidden during analysis + Show best move button; analyzing bar progress fill; BestLines auto-trigger after analysis. Known issues: lessons still sometimes timeout or fail to load; LessonNav dot numbering/jumping bugs — diagnose in next session.
+**Last Session**: 2026-04-05 — Sandbox grade badges: Coach tab hidden in sandbox, "Analyse with Coach" button added (loads sandbox main-line as PGN game → Coach tab), MoveList transcript badges fixed for sandbox nodes (branchGrades lookup now checked before moveGrades fallback), setPendingBranchNodes(add) moved to call sites for correct React 18 batching, branch eval depth 8→4 for faster badge display. Board badge overlay still intermittently shows grade:undefined after rapid moves — partial fix only, needs continued work next session.
 
 ---
 
@@ -512,20 +512,8 @@ See above in "Next After Launch"
 ---
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
--make badges all consistent transparency on both transcript and board, also what is the gray . badge? need something better for that idk what it even is and it doesnt look good
-and make syhmbols in badge bigger and consistent?
--badges should be in analysis games? toggleable?
-also 
--branching badges load properly on transcript but dont on board? stays the same badge as the one that was on the move it braches off of
-also a lot of branchign badges are showign blunders for some reason even when they are best move. like all blunders for some reason? for both sides lol on the transcirpt but sstill showing the original badge every move on the board so
 
- 
-
--reload should only pull newest games?? not reload all games every time
--and the loading isnt pulling all games anymore? not pulling ALL games anymore
-
-
--what to have on coach tab for analysis game (playing around with the board, not a loaded game)
+-add the +/- for moves like lichess? in transcript
 
 -in report graph make each colored dot a little bigger and make it more clear youre hovering over the circle? like more detail about the move
 

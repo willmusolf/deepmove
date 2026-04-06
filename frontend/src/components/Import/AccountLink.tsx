@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getRecentGames, type ChessComGame, type ChessComLoadResult } from '../../api/chesscom'
+import { getRecentGames, getNewGames, type ChessComGame, type ChessComLoadResult } from '../../api/chesscom'
 import { getUserGames, type LichessGame, type LichessLoadResult } from '../../api/lichess'
 import { getMyUsername, setIdentity, isMe, isDismissed, dismiss } from '../../services/identity'
 
@@ -17,6 +17,10 @@ export interface PaginationState {
 interface AccountLinkProps {
   platform: Platform
   onGamesLoaded: (games: ChessComGame[] | LichessGame[], username: string, pagination: PaginationState) => void
+  /** Called on Reload with only the new games fetched — caller merges them in */
+  onGamesAppended?: (games: ChessComGame[] | LichessGame[], pagination: PaginationState) => void
+  /** Newest end_time (unix seconds) already loaded — used to delta-fetch on Reload */
+  newestEndTime?: number
 }
 
 const STORAGE_KEY: Record<Platform, string> = {
@@ -76,7 +80,7 @@ function addToHistory(platform: Platform, username: string) {
   localStorage.setItem(HISTORY_KEY[platform], JSON.stringify([lower, ...prev].slice(0, 10)))
 }
 
-export default function AccountLink({ platform, onGamesLoaded }: AccountLinkProps) {
+export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, newestEndTime }: AccountLinkProps) {
   const [username, setUsername] = useState(() => {
     return localStorage.getItem(STORAGE_KEY[platform]) ?? getMyUsername(platform) ?? ''
   })
@@ -97,6 +101,17 @@ export default function AccountLink({ platform, onGamesLoaded }: AccountLinkProp
     setLoading(true)
     setError(null)
     try {
+      // Delta reload: if we already have this user's games loaded, only fetch new ones
+      const isReload = loadedUser === trimmed && onGamesAppended && newestEndTime != null
+      if (isReload && platform === 'chesscom') {
+        const newGames = await getNewGames(trimmed, newestEndTime)
+        if (newGames.length > 0) {
+          const pag: PaginationState = { platform }  // pagination unchanged — just append
+          onGamesAppended(newGames, pag)
+        }
+        return
+      }
+
       let games: ChessComGame[] | LichessGame[]
       let pagination: PaginationState
       if (platform === 'chesscom') {
@@ -122,7 +137,7 @@ export default function AccountLink({ platform, onGamesLoaded }: AccountLinkProp
     } finally {
       setLoading(false)
     }
-  }, [platform, onGamesLoaded])
+  }, [platform, onGamesLoaded, onGamesAppended, newestEndTime, loadedUser])
 
   // On mount: restore game list from cache if fresh, skipping the API call
   useEffect(() => {

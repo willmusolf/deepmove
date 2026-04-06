@@ -60,6 +60,25 @@ export async function getRecentGames(username: string): Promise<ChessComLoadResu
   }
 }
 
+/**
+ * Delta reload: fetches only games newer than knownNewestEndTime.
+ * Checks current month + previous month (buffer for early-month reloads).
+ * Returns the same ChessComLoadResult shape with hasMore/fetchedArchives unchanged
+ * (caller should keep existing pagination state).
+ */
+export async function getNewGames(username: string, knownNewestEndTime: number): Promise<ChessComGame[]> {
+  const now = new Date()
+  const archives: string[] = []
+  // Always check current month
+  archives.push(`${CHESSCOM_BASE}/player/${username}/games/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`)
+  // Also check previous month as buffer (catches games played right before month rollover)
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  archives.push(`${CHESSCOM_BASE}/player/${username}/games/${prev.getFullYear()}/${String(prev.getMonth() + 1).padStart(2, '0')}`)
+
+  const games = await fetchArchives(archives)
+  return games.filter(g => g.end_time > knownNewestEndTime)
+}
+
 export async function loadMoreGames(
   allArchives: string[],
   fetchedArchives: string[],
