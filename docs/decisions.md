@@ -167,3 +167,16 @@ Raw centipawn-loss thresholds (ADR-011). Transparent and debuggable. 90% of the 
 **Status:** Implemented (2026-04-05)
 
 **Decision:** Replaced per-request `anthropic.AsyncAnthropic()` instantiation in `coaching.py` with a lazy module-level singleton via `_get_client()`. Saves ~200-500ms per request from TLS handshake elimination and enables HTTP/2 connection multiplexing.
+
+### ADR-021: Multiple Premove Queue Architecture (chessground unset event bypass)
+**Status:** Implemented (2026-04-07)
+
+**Decision:** Replace the single `pendingPremoveRef` with `premoveQueueRef` (array, max 5 entries). Each chessground `premovable.events.set` call APPENDS to the queue. The `unset` event is deliberately NOT wired to the queue. Queue is drained one entry per bot move via `drainPremoveQueue()`. Entire queue clears if any premove is illegal (Chess.com behaviour).
+
+**Root cause of original breakage:** The FEN sync effect in `ChessBoard.tsx` called `apiRef.current.cancelPremove()` after every bot move. `cancelPremove()` internally calls `board.unsetPremove()` which fires `premovable.events.unset`. The `unset` handler was wired to `clearPremoveQueue()`, so the queue was cleared on every FEN update — before `drainPremoveQueue` could consume it.
+
+**Fix:** Remove `cancelPremove()` from the FEN sync effect entirely (not needed — `api.set({fen})` already updates the board). Remove the `unset` handler from `premovable.events` init — chessground fires `unset` in too many internal code paths (drag-end before setPremove, cancelPremove, stop) to use it reliably for queue management.
+
+**Queue clear triggers (explicit, not via chessground):** illegal premove fires, user makes a real move, right-click on board (onContextMenu), entering browse mode (setBrowsePosition wrapper), game start, game resign.
+
+**Rationale:** Chess.com supports up to 5 queued premoves. The queue-not-arrow pattern (piece visually moves to dest immediately) is still a TODO — current impl shows red DrawShape arrows instead.
