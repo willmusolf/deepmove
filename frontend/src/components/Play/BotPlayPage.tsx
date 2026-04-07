@@ -31,7 +31,7 @@ interface Props {
 }
 
 export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis, onNavigateToReview }: Props) {
-  const { handleUserMove, handlePremoveSet, premoveQueue, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
+  const { handleUserMove, handlePremoveSet, cancelPremoveQueue, premoveQueue, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
   const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound } = useSound()
 
   // Play store state
@@ -56,7 +56,12 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   const [orientation, setOrientation] = useState<'white' | 'black'>('white')
 
   // Browse mode: browsePosition is the FEN shown on board; browsePathRef tracks the node-ID path
-  const [browsePosition, setBrowsePosition] = useState<string | null>(null)
+  const [browsePosition, setBrowsePositionRaw] = useState<string | null>(null)
+  // Wrap setBrowsePosition: cancel premove queue whenever entering browse mode
+  const setBrowsePosition = useCallback((fen: string | null) => {
+    if (fen !== null) cancelPremoveQueue()
+    setBrowsePositionRaw(fen)
+  }, [cancelPremoveQueue])
   const browsePathRef = useRef<string[]>([])
   // true when user has browsed all the way back to move 0 (prevents loop back to live tip)
   const atBrowseStartRef = useRef(false)
@@ -397,6 +402,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
               />
             )}
 
+            <div onContextMenu={cancelPremoveQueue}>
             <ChessBoard
               fen={displayFen}
               orientation={orientation}
@@ -411,6 +417,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
               shapes={boardShapes}
               forceCheck={endReason === 'resigned' && config && browsePosition === null ? config.userColor : undefined}
             />
+            </div>
 
             {/* Bottom player box */}
             {orientation === 'white' ? (

@@ -181,9 +181,11 @@ export default function ChessBoard({
           set: (orig: Key, dest: Key) => {
             onPremoveSetRef.current?.(orig, dest)
           },
-          unset: () => {
-            onPremoveSetRef.current?.(null, null)
-          },
+          // NOTE: We intentionally do NOT wire `unset` to onPremoveSet here.
+          // chessground fires `unset` in many internal code paths (drag end,
+          // cancelPremove, api.set FEN change) that would spuriously clear our
+          // premove queue in useBotPlay. Queue clearing is handled explicitly
+          // by the hook itself (user move, game start/end, illegal premove).
         },
       },
       drawable: {
@@ -242,17 +244,15 @@ export default function ChessBoard({
 
     // Premove handling after FEN update:
     // - externalPremoveHandling=true (bot play): The parent hook (useBotPlay) processes
-    //   premoves synchronously via chess.js. We just cancel the chessground premove visual
-    //   here so it doesn't fire its own setTimeout(1) `after` callback, which would race
-    //   with React re-renders and cause tree corruption.
+    //   premoves synchronously via chess.js and manages the queue entirely. We do NOT
+    //   call cancelPremove() here because that fires the `unset` event which would
+    //   spuriously clear the premove queue. The api.set({fen}) call above is sufficient
+    //   to update the board; chessground won't auto-fire the premove because we've
+    //   already updated the FEN to the post-move position.
     // - externalPremoveHandling=false (default): Let chessground play the premove itself.
     //   This is the standard lichess behavior for non-bot contexts.
-    if (premoveColor) {
-      if (externalPremoveHandling) {
-        apiRef.current.cancelPremove()
-      } else {
-        apiRef.current.playPremove()
-      }
+    if (premoveColor && !externalPremoveHandling) {
+      apiRef.current.playPremove()
     }
   }, [fen, lastMove, orientation, interactive, pathKey, checkColor, premoveColor, forceCheck, externalPremoveHandling])
 

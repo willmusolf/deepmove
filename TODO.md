@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-04-05 — Sandbox grade badges: Coach tab hidden in sandbox, "Analyse with Coach" button added (loads sandbox main-line as PGN game → Coach tab), MoveList transcript badges fixed for sandbox nodes (branchGrades lookup now checked before moveGrades fallback), setPendingBranchNodes(add) moved to call sites for correct React 18 batching, branch eval depth 8→4 for faster badge display. Board badge overlay still intermittently shows grade:undefined after rapid moves — partial fix only, needs continued work next session.
+**Last Session**: 2026-04-07 — Premove system overhauled: single pendingPremoveRef → premoveQueueRef (up to 5 premoves, Chess.com-style queue); tryApplyPremove → drainPremoveQueue (FIFO, clears queue on illegal); root bug fixed: cancelPremove() was firing chessground unset event every bot move → clearing queue; removed cancelPremove() call and unset event handler from ChessBoard. Right-click now cancels queue (onContextMenu on board wrapper). Browse navigation (ArrowLeft/click) cancels queue via setBrowsePosition wrapper. Red arrow visualization added. Remaining: premoves should show piece visually moved to dest square (Chess.com style) — next session.
 
 ---
 
@@ -521,8 +521,9 @@ See above in "Next After Launch"
 
 -depth analysis sometimes stops analyzing again when you interrupt it going deeper then coming back to it
 
--premoves not working in play mode (might be resolved)
--enable multiple premoves like on chess.com? or not necessary
+- [x] premoves not working in play mode — FIXED (root cause: cancelPremove() fired unset → cleared queue every bot move)
+- [x] enable multiple premoves like on chess.com — DONE (queue up to 5, red arrow visualization)
+-premoves: piece should visually move to premoved square (Chess.com style), not just show red arrow — next session
 
 -have depth analysis load from where it was and go deeprer ( to 25????)
 

@@ -518,18 +518,20 @@ export function useBotPlay(onNavigateToReview: () => void) {
     await scheduleBotMove(newFen)
   }, [scheduleBotMove])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Premove set/unset callbacks for ChessBoard ─────────────────────────
+  // ── Premove set callback for ChessBoard ──────────────────────────────
   // Each chessground `set` event APPENDS to the queue (up to 5 premoves).
-  // `unset` clears the entire queue — the user explicitly cancelled.
+  // We do NOT listen to `unset` here — chessground fires `unset` internally
+  // in many code paths (drag-end before setPremove, cancelPremove, etc.) that
+  // would spuriously clear our queue. The queue is cleared only by our own
+  // explicit code (user move, game start/end, illegal premove firing).
   const handlePremoveSet = useCallback((orig: string | null, dest: string | null) => {
     if (orig && dest) {
       if (premoveQueueRef.current.length < 5) {
         premoveQueueRef.current = [...premoveQueueRef.current, { orig, dest }]
         syncPremoveState()
       }
-    } else {
-      clearPremoveQueue()
     }
+    // null/null (unset) is intentionally ignored — see comment above
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Start game ───────────────────────────────────────────────────────────
@@ -586,6 +588,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
   return {
     handleUserMove,
     handlePremoveSet,
+    cancelPremoveQueue: clearPremoveQueue,
     premoveQueue,
     startGame,
     resignGame,
