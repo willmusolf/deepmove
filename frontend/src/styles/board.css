@@ -460,14 +460,15 @@ cg-board {
 .move-cell {
   display: inline-flex;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .move-san {
   cursor: pointer;
-  padding: 2px 5px;
+  padding: 2px 6px;
   border-radius: 3px;
-  min-width: 52px;
+  min-width: 66px;
   transition: background 0.1s, color 0.1s;
   display: inline-block;
   white-space: nowrap;
@@ -476,6 +477,22 @@ cg-board {
 .move-san:hover {
   background: var(--color-surface-2);
   color: var(--color-text);
+}
+
+/* Eval delta column — fixed-width sibling of move-cell in the pair row.
+   Always rendered (empty string when no delta) so both move columns stay the same width. */
+.move-eval-delta {
+  font-size: 0.62rem;
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  opacity: 0.55;
+  flex-shrink: 0;
+  width: 6ch;
+  padding: 0 5px;
+  text-align: right;
+  user-select: none;
+  white-space: nowrap;
 }
 
 .move-active {
@@ -654,7 +671,6 @@ cg-board {
   gap: 0.3rem;
   padding: 0.4rem 0.6rem;
   border-bottom: 1px solid var(--color-border);
-  margin-bottom: 0.5rem;
 }
 
 .nav-logo__img {
@@ -1009,7 +1025,7 @@ cg-board {
 .analyzing-bar__fill {
   position: absolute;
   left: 0; top: 0; bottom: 0;
-  background: rgba(74, 158, 255, 0.13);
+  background: rgba(74, 158, 255, 0.28);
   transition: width 0.4s ease;
   pointer-events: none;
 }
@@ -1252,11 +1268,14 @@ cg-board {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-bottom: 0.5rem;
-  min-height: 84px;   /* reserve space for 2 lines + depth row — prevents layout jump */
+  height: 66px;  /* 2 rows × 32px + 2px gap = 66px — never shifts layout */
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .best-line-row {
+  height: 32px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -1310,6 +1329,11 @@ cg-board {
 @keyframes skeleton-shimmer {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+.best-line-spacer {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* ── Best lines toggle ────────────────────────────────────────────────── */
@@ -1375,6 +1399,13 @@ cg-board {
   font-size: 0.68rem;
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.eval-graph-tooltip-grade {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 /* ── Game Report ──────────────────────────────────────────────────────── */

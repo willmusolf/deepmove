@@ -29,12 +29,22 @@ function GradeBadge({ grade, pending }: { grade: MoveGrade | undefined; pending?
   return <span className={`move-grade ${cfg.cls}`}>{cfg.label}</span>
 }
 
+// ─── Eval delta formatter ─────────────────────────────────────────────────────
+
+function formatDelta(cp: number): string {
+  const pawns = Math.abs(cp) / 100
+  if (pawns >= 10) return cp > 0 ? '+M' : '-M'
+  const str = pawns.toFixed(1)
+  return cp >= 0 ? `+${str}` : `-${str}`
+}
+
 // ─── Shared context passed through all renderers ──────────────────────────────
 
 interface RenderCtx {
   tree: MoveTree
   currentPath: string[]
   moveGrades: (MoveGrade | undefined)[]
+  moveDeltas?: (number | undefined)[]
   branchGrades?: Map<string, MoveGrade>
   pendingBranchNodes?: Set<string>
   onNodeClick: (path: string[]) => void
@@ -70,6 +80,21 @@ function MoveToken({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
       >
         {node.san}
       </span>
+    </span>
+  )
+}
+
+// ─── Eval delta slot ──────────────────────────────────────────────────────────
+// Always renders a fixed-width span so columns stay aligned whether or not there's a value.
+
+function EvalDelta({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
+  const { moveDeltas, isAnalyzing } = ctx
+  const mainIdx = node.isMainLine ? parseInt(node.id.slice(1), 10) : -1
+  const delta = (!isAnalyzing && mainIdx >= 0 && moveDeltas) ? moveDeltas[mainIdx] : undefined
+  const show = delta !== undefined && Math.abs(delta) >= 5
+  return (
+    <span className="move-eval-delta">
+      {show ? formatDelta(delta!) : ''}
     </span>
   )
 }
@@ -131,7 +156,9 @@ function PairLine({ startId, ctx, depth }: { startId: string; ctx: RenderCtx; de
             <div className="move-pair-row">
               <span className="move-number">{numLabel}</span>
               <MoveToken node={primary} ctx={ctx} />
+              {ctx.moveDeltas && <EvalDelta node={primary} ctx={ctx} />}
               {secondary && <MoveToken node={secondary} ctx={ctx} />}
+              {secondary && ctx.moveDeltas && <EvalDelta node={secondary} ctx={ctx} />}
             </div>
 
             {branches.length > 0 && (
@@ -161,6 +188,7 @@ interface MoveListProps {
   rootId: string | null
   currentPath: string[]
   moveGrades: (MoveGrade | undefined)[]
+  moveDeltas?: (number | undefined)[]
   branchGrades?: Map<string, MoveGrade>
   pendingBranchNodes?: Set<string>
   onNodeClick: (path: string[]) => void
@@ -173,6 +201,7 @@ export default function MoveList({
   rootId,
   currentPath,
   moveGrades,
+  moveDeltas,
   branchGrades,
   pendingBranchNodes,
   onNodeClick,
@@ -191,7 +220,7 @@ export default function MoveList({
 
   if (!rootId) return <div className="move-list" />
 
-  const ctx: RenderCtx = { tree, currentPath, moveGrades, branchGrades, pendingBranchNodes, onNodeClick, isAnalyzing }
+  const ctx: RenderCtx = { tree, currentPath, moveGrades, moveDeltas, branchGrades, pendingBranchNodes, onNodeClick, isAnalyzing }
 
   return (
     <div className="move-list" ref={containerRef}>
