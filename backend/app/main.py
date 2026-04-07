@@ -41,8 +41,9 @@ async def wake_database() -> None:
     after suspension takes ~5s. We retry here in the background so users never
     hit a cold-start timeout.
     """
-    from app.database import engine
     import sqlalchemy as sa
+
+    from app.database import engine
 
     if engine is None:
         return

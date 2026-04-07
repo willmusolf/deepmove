@@ -6,10 +6,9 @@ The LLM NEVER analyzes chess positions directly.
 It receives verified facts and writes the lesson text.
 """
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_optional_user
 from app.database import SessionLocal
+from app.dependencies import get_current_user, get_optional_user
 from app.models.game import Game
 from app.models.lesson import Lesson
 from app.models.user import User

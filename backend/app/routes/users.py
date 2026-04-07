@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
+from app.routes.auth import _set_refresh_cookie
 from app.schemas.user import AuthResponse, PasswordChange, UserResponse, UserUpdate
 from app.utils.security import (
     create_access_token,
@@ -11,7 +12,7 @@ from app.utils.security import (
     hash_password,
     verify_password,
 )
-from app.routes.auth import _set_refresh_cookie
+
 router = APIRouter()
 
 
