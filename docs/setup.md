@@ -4,7 +4,7 @@ Everything you need to get from zero to a running dev environment.
 
 ## Prerequisites
 
-- Node.js 18+ (`node --version`)
+- Node.js 20+ (`node --version`)
 - Python 3.11+ (`python3 --version`)
 - A text editor (VS Code recommended)
 
