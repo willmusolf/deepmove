@@ -31,7 +31,7 @@ interface Props {
 }
 
 export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis, onNavigateToReview }: Props) {
-  const { handleUserMove, handlePremoveSet, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
+  const { handleUserMove, handlePremoveSet, premoveQueue, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
   const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound } = useSound()
 
   // Play store state
@@ -255,7 +255,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
 
   // Arrow shapes for best-move suggestions (only shown on user's turn)
   const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
-  const boardShapes: DrawShape[] = (showArrows && visibleLines.length > 0 && isUserTurn && !browsePosition)
+  const analysisBoardShapes: DrawShape[] = (showArrows && visibleLines.length > 0 && isUserTurn && !browsePosition)
     ? visibleLines
         .filter(l => l.pv.length >= 1)
         .map((line, i) => ({
@@ -264,6 +264,17 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
           brush: LINE_BRUSHES[i] ?? 'okMove',
         }))
     : []
+
+  // Red arrows for queued premoves — shown only during active play (not browse/review)
+  const premoveShapes: DrawShape[] = (!browsePosition && status === 'playing')
+    ? premoveQueue.map(pm => ({
+        orig: pm.orig as Key,
+        dest: pm.dest as Key,
+        brush: 'red',
+      }))
+    : []
+
+  const boardShapes = [...analysisBoardShapes, ...premoveShapes]
 
   const handleFlip = useCallback(() => {
     setOrientation(o => o === 'white' ? 'black' : 'white')

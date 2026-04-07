@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-04-06 — Eval/best-lines polish: fixed move-0 not showing eval or best lines (added atStartOnMainLine guard), fixed stale arrows on goBack (token incremented before stopPositionAnalysis; onUpdate callback nulled in stopPositionAnalysis), removed duplicate depth display below BestLines, bumped cached-only game row opacity 0.7→0.88.
+**Last Session**: 2026-04-05 — Sandbox grade badges: Coach tab hidden in sandbox, "Analyse with Coach" button added (loads sandbox main-line as PGN game → Coach tab), MoveList transcript badges fixed for sandbox nodes (branchGrades lookup now checked before moveGrades fallback), setPendingBranchNodes(add) moved to call sites for correct React 18 batching, branch eval depth 8→4 for faster badge display. Board badge overlay still intermittently shows grade:undefined after rapid moves — partial fix only, needs continued work next session.
 
 ---
 
@@ -513,34 +513,20 @@ See above in "Next After Launch"
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
 
--add the +/- for moves like lichess? in transcript so like shows eval change? maybe we need slightly more space for badges and that to fit perfectly?
 
--in report graph make each colored dot a little bigger and make it more clear youre hovering over the circle? like more detail about the move
 
--going back a move sometimes doesnt affect move suggestsion/eval bar showing for the wrong position. do an audit to fix this and make sure its alwways right and as fast/efficient/great as possible ask questions for big changes or anything else
-also -get rid of the the depth / 16 BELOW the move lines. keep the one above it (theyre both there saying the same exact thing fro some reason, only need 1 of them)
--and also now tis doing the thing where some positions or on move 0 it doesnt show receommended moves idk it was working before we did something to break it for both analysis and loaded games
--it starts working better after you make a move but move 0 and the analysis tab doesnt look right until a move is made. make it consistent. even while its analyzing. 
-and also in the coaching tab too 
--proabbly has somehting to do with the depth analysis interfering or firing at teh same time changing the moves or something
--also it still will restart loading from depth 9 every time? is that fine or can we save compute some way or something idk
--and also sometimes it doesnt load the recommended lines section or best move suggestions for move 0 properly?
--eval bar is and move suggestions and badges are just straight up incorrect sometimes
 
 
 - analyzing doesnt have progress bar
-
--resizing is a nightmare on desktop as well befoer mobile responsiveness maybe work that into the official todo as well. sometimes if i change the screen size temporarily then change it back the board is too big for the screen  
-
 
 -depth analysis sometimes stops analyzing again when you interrupt it going deeper then coming back to it
 
 -premoves not working in play mode (might be resolved)
 -enable multiple premoves like on chess.com? or not necessary
 
+-have depth analysis load from where it was and go deeprer ( to 25????)
 
-
-
+-sometimes spinner is loading forever on a move in transcript for some reason
 
 -have arrows button and other buttons be better? and more concistent across that row of buttons visually
 -report below graph is mid and just pointless and not the same as chess.com / chessigma? i believe the graph can still be improved too?
@@ -552,14 +538,11 @@ and also in the coaching tab too
 -(check)sometimes in play mode when arrow move suggestions are on it flashes for a brief second on the opponents suggested moves. we should just turn off the lines for the opponent probably right?
 
 
-
 -and for play mode we want to add something in the todo with the coaches stuff to practice specific openings and gambits and defenses as well like chessreps?
 -what is chessreps.com and how do we make a free vesrion of it
 
 
 -chessigma / chess.com reviews have it so it shows what the best move is AFTER the move is already done in a green arrow. do we want that or keep our version of analysis? but sometimes its consistent and wswithces to suggesting the best moves for the current user in green arrows like ours?
-
-
 
 
 

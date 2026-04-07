@@ -135,6 +135,9 @@ export default function App() {
   const [currentAnalysisDepth, setCurrentAnalysisDepth] = useState(0)
   const [branchGrades, setBranchGrades] = useState<Map<string, MoveGrade>>(new Map())
   const [pendingBranchNodes, setPendingBranchNodes] = useState<Set<string>>(new Set())
+  // Tracks nodes with an eval already dispatched — prevents duplicate Stockfish calls
+  // when nav handlers eagerly add to pendingBranchNodes before the safety-net effect fires.
+  const evalInFlightRef = useRef<Set<string>>(new Set())
   // FEN → TopLine[] cache so revisiting a position never re-analyzes
   const positionCache = useRef<Map<string, TopLine[]>>(new Map())
   const pathKeyRef = useRef(0)
@@ -330,14 +333,18 @@ export default function App() {
   useEffect(() => {
     if (!isReady || isLoaded || analysisPath.length === 0) return
     const nodeId = analysisPath[analysisPath.length - 1]
-    if (!nodeId || branchGrades.has(nodeId) || pendingBranchNodes.has(nodeId)) return
+    if (!nodeId || branchGrades.has(nodeId)) return
     const node = analysisTree[nodeId]
     if (!node) return
     const STARTING = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
     const parentFen = node.parentId
       ? (analysisTree[node.parentId]?.fen ?? STARTING)
       : STARTING
-    setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nodeId); return s })
+    // Add to pending if not already (handles eagerly-pending nodes from nav handlers)
+    if (!pendingBranchNodes.has(nodeId)) {
+      setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nodeId); return s })
+    }
+    // evaluateBranchMove is idempotent via evalInFlightRef — safe to call even if pending
     void evaluateBranchMove(nodeId, parentFen, node.fen)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisPath, isReady])
@@ -399,6 +406,10 @@ export default function App() {
       analysisBoardReset()
       setBranchGrades(new Map())
       setPendingBranchNodes(new Set())
+      // Seed best-lines analysis for move 0. The displayFen effect won't re-fire if
+      // the new game starts at the same FEN (e.g. standard starting position), so we
+      // trigger explicitly here whenever the engine is already ready.
+      if (isReady) triggerPositionAnalysis(displayFen)
     } else {
       if (panelTab === 'coach') setPanelTab('analysis')
     }
@@ -408,8 +419,16 @@ export default function App() {
 
   const goBackFn = useCallback(() => {
     pathKeyRef.current++
+    // Eagerly mark destination pending so badge shows spinner on first render after nav
+    const curInBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
+    if (curInBranch && currentPath.length > 1) {
+      const destId = currentPath[currentPath.length - 2]
+      if (destId && !branchGrades.has(destId)) {
+        setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
+      }
+    }
     goBack()
-  }, [goBack])
+  }, [goBack, currentPath, moveTree, branchGrades])
 
   const goForwardFn = useCallback(() => {
     pathKeyRef.current++
@@ -417,8 +436,34 @@ export default function App() {
       ? rootId
       : moveTree[currentPath[currentPath.length - 1]]?.childIds[0]
     if (nextId) playMoveSound(moveTree[nextId]?.san ?? '')
+    // Eagerly mark destination pending so badge shows spinner on first render after nav
+    const curInBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
+    if (nextId && curInBranch && !branchGrades.has(nextId)) {
+      setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nextId); return s })
+    }
     goForward()
-  }, [currentPath, rootId, moveTree, goForward, playMoveSound])
+  }, [currentPath, rootId, moveTree, goForward, playMoveSound, branchGrades])
+
+  // Sandbox nav wrappers: eagerly mark destination as pending so the board badge
+  // shows a spinner immediately (before the safety-net effect fires on next render).
+  const handleAnalysisGoBack = useCallback(() => {
+    if (analysisPath.length > 1) {
+      const destId = analysisPath[analysisPath.length - 2]
+      if (destId && !branchGrades.has(destId)) {
+        setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
+      }
+    }
+    analysisBoardGoBack()
+  }, [analysisPath, branchGrades, analysisBoardGoBack])
+
+  const handleAnalysisGoForward = useCallback(() => {
+    const lastId = analysisPath.length > 0 ? analysisPath[analysisPath.length - 1] : null
+    const destId = lastId ? analysisTree[lastId]?.childIds?.[0] : analysisRootId
+    if (destId && !branchGrades.has(destId)) {
+      setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
+    }
+    analysisBoardGoForward()
+  }, [analysisPath, analysisTree, analysisRootId, branchGrades, analysisBoardGoForward])
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -428,8 +473,8 @@ export default function App() {
         if (e.key === 'ArrowLeft') { e.preventDefault(); goBackFn() }
         if (e.key === 'ArrowRight') { e.preventDefault(); goForwardFn() }
       } else if (analysisRootId !== null) {
-        if (e.key === 'ArrowLeft') { e.preventDefault(); analysisBoardGoBack() }
-        if (e.key === 'ArrowRight') { e.preventDefault(); analysisBoardGoForward() }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); handleAnalysisGoBack() }
+        if (e.key === 'ArrowRight') { e.preventDefault(); handleAnalysisGoForward() }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -542,8 +587,8 @@ export default function App() {
   }
 
   async function evaluateBranchMove(nodeId: string, parentFen: string, newFen: string) {
-    if (!isReady) return
-    // Caller is responsible for adding nodeId to pendingBranchNodes BEFORE calling this.
+    if (!isReady || evalInFlightRef.current.has(nodeId) || branchGrades.has(nodeId)) return
+    evalInFlightRef.current.add(nodeId)
     try {
       const chess = new Chess(parentFen)
       const legalCount = chess.moves().length
@@ -564,6 +609,7 @@ export default function App() {
     } catch (err) {
       console.warn('[branch eval] failed:', err)
     } finally {
+      evalInFlightRef.current.delete(nodeId)
       setPendingBranchNodes(prev => { const s = new Set(prev); s.delete(nodeId); return s })
     }
   }
@@ -633,6 +679,19 @@ export default function App() {
 
 
   const moveGrades = useMemo(() => moveEvals.map(me => me.grade), [moveEvals])
+
+  // Eval delta per move (player's perspective, in centipawns).
+  // White's delta = score[i] - score[i-1]; black's delta = -(score[i] - score[i-1]).
+  // Move 0 (first move): delta from the starting position (score = 0).
+  const moveDeltas = useMemo((): (number | undefined)[] =>
+    moveEvals.map((me, i) => {
+      const before = i === 0 ? 0 : moveEvals[i - 1].eval.score
+      const after = me.eval.score
+      const raw = after - before
+      return me.color === 'white' ? raw : -raw
+    }),
+    [moveEvals]
+  )
 
   // Are we currently in a branch (off the main line)?
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
@@ -920,12 +979,12 @@ export default function App() {
                     </>
                   ) : (
                     <>
-                      <button className="nav-btn" onClick={analysisBoardGoBack}
+                      <button className="nav-btn" onClick={handleAnalysisGoBack}
                         disabled={analysisPath.length === 0}>←</button>
                       <span className="move-counter">
-                        {analysisPath.length}{analysisMainLineSans.length > 0 ? ` / ${analysisMainLineSans.length}` : ""}
+                        {analysisPath.length} / {analysisMainLineSans.length}
                       </span>
-                      <button className="nav-btn" onClick={analysisBoardGoForward}
+                      <button className="nav-btn" onClick={handleAnalysisGoForward}
                         disabled={
                           analysisRootId === null
                             ? true
@@ -1041,7 +1100,7 @@ export default function App() {
                       )}
 
                       {/* Eval display — hidden during game analysis */}
-                      {!showAnalyzingBar && (posLine || mainEval || atStartOnMainLine) && (
+                      {(!showAnalyzingBar || atStartOnMainLine) && (
                         <div className="eval-display">
                           <span className="eval-display-value">
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
@@ -1058,7 +1117,7 @@ export default function App() {
 
 
                       {/* Best lines + eval graph — hidden while game analysis is running */}
-                      {!showAnalyzingBar && (
+                      {(!showAnalyzingBar || atStartOnMainLine) && (
                         <BestLines
                           lines={visibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
@@ -1083,6 +1142,7 @@ export default function App() {
                         rootId={rootId}
                         currentPath={currentPath}
                         moveGrades={moveGrades}
+                        moveDeltas={moveDeltas}
                         branchGrades={showGrades ? branchGrades : undefined}
                         pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
@@ -1123,8 +1183,7 @@ export default function App() {
                       )}
 
                       {/* Eval display */}
-                      {(posLine || mainEval || atStartOnMainLine) && (
-                        <div className="eval-display">
+                      <div className="eval-display">
                           <span className="eval-display-value">
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
                           </span>
@@ -1135,8 +1194,7 @@ export default function App() {
                           ) : mainEval && !inBranch ? (
                             <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
                           ) : null}
-                        </div>
-                      )}
+                      </div>
 
                       {/* Coach comment box — where the graph/report was */}
                       <MoveCoachComment
@@ -1156,6 +1214,7 @@ export default function App() {
                         rootId={rootId}
                         currentPath={currentPath}
                         moveGrades={moveGrades}
+                        moveDeltas={moveDeltas}
                         branchGrades={showGrades ? branchGrades : undefined}
                         pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
@@ -1332,7 +1391,14 @@ export default function App() {
                             moveGrades={[]}
                             branchGrades={showGrades ? branchGrades : undefined}
                             pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
-                            onNodeClick={(path) => { pathKeyRef.current++; analysisBoardNavigateTo(path) }}
+                            onNodeClick={(path) => {
+                              pathKeyRef.current++
+                              const destId = path[path.length - 1]
+                              if (destId && !branchGrades.has(destId)) {
+                                setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
+                              }
+                              analysisBoardNavigateTo(path)
+                            }}
                             isAnalyzing={!showGrades}
                             rootBranchIds={analysisRootBranchIds}
                           />

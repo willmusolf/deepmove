@@ -15,9 +15,11 @@ interface EvalGraphProps {
 }
 
 const HEIGHT = 120
-const CLAMP = 700    // centipawns at which curve hits ~100%
-const TENSION = 0.4  // Catmull-Rom tension
-const DOT_R = 4      // radius of annotation circles
+const CLAMP = 700      // centipawns at which curve hits ~100%
+const TENSION = 0.4   // Catmull-Rom tension
+const DOT_R = 6       // radius of annotation circles
+const DOT_R_HOVER = 9 // radius when hovered
+const DOT_HIT_R = 13  // invisible hit target for easier mouse capture
 
 type Point = { x: number; y: number }
 
@@ -56,6 +58,7 @@ interface AnnotationCircle {
   x: number
   y: number
   fill: string
+  grade: string
 }
 
 // Grade → circle fill color. Only notable grades get circles.
@@ -66,6 +69,15 @@ const GRADE_CIRCLE_COLOR: Partial<Record<string, string>> = {
   brilliant:  '#22d3ee',
   great:      '#22c55e',
   miss:       '#a78bfa',
+}
+
+const GRADE_LABEL: Partial<Record<string, string>> = {
+  blunder:    'Blunder',
+  mistake:    'Mistake',
+  inaccuracy: 'Inaccuracy',
+  brilliant:  'Brilliant',
+  great:      'Great',
+  miss:       'Miss',
 }
 
 export default function EvalGraph({
@@ -125,7 +137,7 @@ export default function EvalGraph({
 
       const x = mx(i + 1)
       const y = cpToY(me.eval.score, HEIGHT)
-      anns.push({ moveIndex: i + 1, x, y, fill })
+      anns.push({ moveIndex: i + 1, x, y, fill, grade })
     }
 
     const bands: number[] = []
@@ -183,6 +195,18 @@ export default function EvalGraph({
       {/* Tooltip */}
       {hoveredEval && tooltipLeftPct !== null && (
         <div className="eval-graph-tooltip" style={{ left: `${tooltipLeftPct}%` }}>
+          {(() => {
+            const hoveredAnnotation = annotations.find(a => a.moveIndex === hoveredIndex)
+            const gradeLabel = hoveredAnnotation ? GRADE_LABEL[hoveredAnnotation.grade] : undefined
+            return gradeLabel ? (
+              <span
+                className="eval-graph-tooltip-grade"
+                style={{ color: hoveredAnnotation!.fill }}
+              >
+                {gradeLabel}
+              </span>
+            ) : null
+          })()}
           <span className="eval-graph-tooltip-move">
             {Math.ceil(hoveredIndex! / 2)}{hoveredEval.color === 'white' ? '.' : '...'}
             {hoveredEval.san}
@@ -213,6 +237,9 @@ export default function EvalGraph({
             <clipPath id="clipBelowMid">
               <rect x="0" y={midY} width={svgWidth} height={HEIGHT - midY} />
             </clipPath>
+            <filter id="dotGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="0" stdDeviation="3" floodOpacity="0.7" />
+            </filter>
           </defs>
 
           {/* Background */}
@@ -287,24 +314,32 @@ export default function EvalGraph({
             />
           )}
 
-          {/* Annotation dots — small color-coded circles on the curve */}
-          {annotations.map(a => (
-            <g
-              key={`ann-${a.moveIndex}`}
-              style={{ cursor: 'pointer' }}
-              onClick={(e) => { e.stopPropagation(); onNavigate(a.moveIndex) }}
-              onMouseEnter={() => setHoveredIndex(a.moveIndex)}
-            >
-              <circle
-                cx={a.x}
-                cy={a.y}
-                r={DOT_R}
-                fill={a.fill}
-                stroke="rgba(15,17,23,0.7)"
-                strokeWidth="1"
-              />
-            </g>
-          ))}
+          {/* Annotation dots — color-coded circles on the curve */}
+          {annotations.map(a => {
+            const isHovered = hoveredIndex === a.moveIndex
+            return (
+              <g
+                key={`ann-${a.moveIndex}`}
+                style={{ cursor: 'pointer' }}
+                onClick={(e) => { e.stopPropagation(); onNavigate(a.moveIndex) }}
+                onMouseEnter={() => setHoveredIndex(a.moveIndex)}
+              >
+                {/* Invisible larger hit area for easier hovering */}
+                <circle cx={a.x} cy={a.y} r={DOT_HIT_R} fill="transparent" />
+                {/* Visible dot — grows and glows on hover */}
+                <circle
+                  cx={a.x}
+                  cy={a.y}
+                  r={isHovered ? DOT_R_HOVER : DOT_R}
+                  fill={a.fill}
+                  stroke={isHovered ? 'rgba(255,255,255,0.85)' : 'rgba(15,17,23,0.7)'}
+                  strokeWidth={isHovered ? 2 : 1}
+                  filter={isHovered ? 'url(#dotGlow)' : undefined}
+                  style={{ transition: 'r 0.1s, stroke-width 0.1s' }}
+                />
+              </g>
+            )
+          })}
 
           {/* Cursor line + dot */}
           {cursorX !== null && (
