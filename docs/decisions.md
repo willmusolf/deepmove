@@ -180,3 +180,22 @@ Raw centipawn-loss thresholds (ADR-011). Transparent and debuggable. 90% of the 
 **Queue clear triggers (explicit, not via chessground):** illegal premove fires, user makes a real move, right-click on board (onContextMenu), entering browse mode (setBrowsePosition wrapper), game start, game resign.
 
 **Rationale:** Chess.com supports up to 5 queued premoves. The queue-not-arrow pattern (piece visually moves to dest immediately) is still a TODO — current impl shows red DrawShape arrows instead.
+
+### ADR-022: Virtual FEN Premove Visualization
+**Status:** Implemented (2026-04-07)
+
+**Decision:** Replace manual `api.setPieces(diff)` overlay + red DrawShape arrows with a "virtual FEN" approach. `useBotPlay` computes `virtualBoardFen` via `useMemo([currentFen, premoveQueue])` — replays the entire premove queue on `currentFen` via chess.js and returns the resulting FEN. This is passed as the `fen` prop to ChessBoard, so chessground's `anim.js` `closer()` algorithm naturally animates premoved pieces as smooth moves.
+
+**Context:** The original manual overlay approach (setPieces on the FEN sync effect) had three bugs: (1) pieces didn't snap to dest squares correctly, (2) highlights lingered when queue changed, (3) cancelled premoves didn't visually reset. The virtual FEN approach eliminates all three by making the board's FEN always reflect the post-queue position.
+
+**Key behavior changes:**
+- `premovable.enabled = false` — chessground's built-in premove system disabled; we handle premoves entirely in React state
+- `handleUserMove` + `handlePremoveSet` merged into single `handleBoardMove` callback
+- `userPerspective` prop on ChessBoard: when set and `!interactive`, flips FEN turn in `useMemo` so user can always drag their own pieces while bot thinks
+- Premove promotion: always auto-queen (no picker shown for premoves)
+- Queue size cap removed — unlimited premoves allowed
+- **CRITICAL BUG DISCOVERED**: The turn-flip condition must be `if (userPerspective && !interactive)` — if `interactive=true` (user's real turn) is not excluded, the effectiveTurn assignment breaks subsequent real moves (users can only move once)
+
+**Remaining issue:** `.premove-sq-highlight` overlay squares not rendering + board gets stuck after first premove drag. To diagnose in next session.
+
+**Rationale:** chessground's `closer()` in `anim.js` matches disappearing pieces to appearing pieces of the same type/color by proximity distance. This means `api.set({fen: virtualFen})` correctly animates premoved pieces as moves, not appear/disappear pairs — giving Chess.com-style visualization for free without any manual piece manipulation.

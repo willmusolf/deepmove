@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-04-07 — Premove system overhauled: single pendingPremoveRef → premoveQueueRef (up to 5 premoves, Chess.com-style queue); tryApplyPremove → drainPremoveQueue (FIFO, clears queue on illegal); root bug fixed: cancelPremove() was firing chessground unset event every bot move → clearing queue; removed cancelPremove() call and unset event handler from ChessBoard. Right-click now cancels queue (onContextMenu on board wrapper). Browse navigation (ArrowLeft/click) cancels queue via setBrowsePosition wrapper. Red arrow visualization added. Remaining: premoves should show piece visually moved to dest square (Chess.com style) — next session.
+**Last Session**: 2026-04-07 — Premove overhaul: replaced manual setPieces overlay with virtual FEN architecture. useBotPlay now exports virtualBoardFen (useMemo of currentFen+premoveQueue). handleUserMove+handlePremoveSet merged into handleBoardMove. Queue cap removed (unlimited). ChessBoard gained userPerspective prop, premovable.enabled=false. Fixed "can only move once" regression (turn-flip must be scoped to !interactive). TWO REMAINING BUGS: premove highlight squares not rendering + board stuck after first premove drag.
 
 ---
 
@@ -493,7 +493,9 @@ See above in "Next After Launch"
 - [x] BotPlayPage with Elo slider (500-3000) + time controls + Bot Speed selector (Instant/Fast/Normal/Slow)
 - [x] RAF-based clocks, increment
 - [x] Dedicated Stockfish worker for bot (UCI_LimitStrength + UCI_Elo)
-- [x] Premove support — race condition fixed (chessground setTimeout(1) root cause)
+- [x] Premove support — virtual FEN architecture (Chess.com-style, unlimited queue, auto-queen)
+- [ ] FIX: premove highlight squares not rendering (premove-sq-highlight CSS/overlay div bug)
+- [ ] FIX: board stuck after first premove drag (no further premoves accepted after queuing one)
 - [x] Opening detection (ECO ~500 entries, longest-match)
 - [x] Game result banner (Review as primary CTA on loss)
 - [x] Review flow: bot game loads into game review board
@@ -515,19 +517,17 @@ See above in "Next After Launch"
 
 
 
+-sometimes spinner is loading forever on a move in transcript for some reason
 
 
-- analyzing doesnt have progress bar
+
 
 -depth analysis sometimes stops analyzing again when you interrupt it going deeper then coming back to it
+-have depth analysis load from where it was and go deeprer ( to 25????) thats what lichess is or will that be expenisve or something
 
-- [x] premoves not working in play mode — FIXED (root cause: cancelPremove() fired unset → cleared queue every bot move)
-- [x] enable multiple premoves like on chess.com — DONE (queue up to 5, red arrow visualization)
--premoves: piece should visually move to premoved square (Chess.com style), not just show red arrow — next session
 
--have depth analysis load from where it was and go deeprer ( to 25????)
 
--sometimes spinner is loading forever on a move in transcript for some reason
+
 
 -have arrows button and other buttons be better? and more concistent across that row of buttons visually
 -report below graph is mid and just pointless and not the same as chess.com / chessigma? i believe the graph can still be improved too?

@@ -4007,3 +4007,21 @@ cg-board {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.3; }
 }
+
+/* ── Premove piece overlay (Chess.com style) ──────────────────────────── */
+/* Pieces are moved via api.setPieces() — this overlay only handles square highlights */
+.premove-piece-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2; /* just above board squares, below chessground pieces */
+}
+
+/* Highlight on orig + dest squares for ALL queued premoves */
+/* (chessground only highlights 1 premove natively; we draw all of them) */
+.premove-sq-highlight {
+  position: absolute;
+  width: 12.5%;
+  height: 12.5%;
+  background-color: rgba(20, 30, 85, 0.5); /* matches chessground current-premove color */
+}
