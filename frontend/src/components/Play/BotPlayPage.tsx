@@ -31,7 +31,7 @@ interface Props {
 }
 
 export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis, onNavigateToReview }: Props) {
-  const { handleUserMove, handlePremoveSet, cancelPremoveQueue, premoveQueue, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
+  const { handleBoardMove, cancelPremoveQueue, premoveQueue, virtualBoardFen, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
   const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound } = useSound()
 
   // Play store state
@@ -270,16 +270,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
         }))
     : []
 
-  // Red arrows for queued premoves — shown only during active play (not browse/review)
-  const premoveShapes: DrawShape[] = (!browsePosition && status === 'playing')
-    ? premoveQueue.map(pm => ({
-        orig: pm.orig as Key,
-        dest: pm.dest as Key,
-        brush: 'red',
-      }))
-    : []
-
-  const boardShapes = [...analysisBoardShapes, ...premoveShapes]
+  const boardShapes = [...analysisBoardShapes]
 
   const handleFlip = useCallback(() => {
     setOrientation(o => o === 'white' ? 'black' : 'white')
@@ -305,8 +296,8 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   const userClockStr  = userIsWhite ? whiteClockStr : blackClockStr
   const botClockStr   = userIsWhite ? blackClockStr : whiteClockStr
 
-  // Board FEN: use browse position if set, otherwise live position
-  const displayFen = browsePosition ?? currentFen
+  // Board FEN: use browse position if set, otherwise virtual FEN (real + queued premoves applied)
+  const displayFen = browsePosition ?? virtualBoardFen
 
   // Interactive: only when it's the user's turn, bot isn't thinking, and not browsing history
   const boardInteractive = status === 'playing' && isUserTurn && !isBotThinking && !browsePosition
@@ -407,14 +398,13 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
               fen={displayFen}
               orientation={orientation}
               interactive={boardInteractive}
-              onMove={handleUserMove}
+              onMove={handleBoardMove}
               onIllegalMove={playIllegalSound}
               lastMove={lastMove}
               pathKey={browseStep}
-              premoveColor={status === 'playing' && config && !browsePosition ? config.userColor : undefined}
-              externalPremoveHandling={true}
-              onPremoveSet={handlePremoveSet}
+              userPerspective={status === 'playing' && config && !browsePosition ? config.userColor : undefined}
               shapes={boardShapes}
+              premoveQueue={!browsePosition && status === 'playing' ? premoveQueue : undefined}
               forceCheck={endReason === 'resigned' && config && browsePosition === null ? config.userColor : undefined}
             />
             </div>

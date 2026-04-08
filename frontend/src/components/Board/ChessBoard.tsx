@@ -24,12 +24,12 @@ export interface ChessBoardProps {
   shapes?: DrawShape[]
   lastMove?: [Key, Key]
   pathKey?: number  // Changes whenever position navigates; ensures FEN sync always fires
-  onPremoveSet?: (orig: string | null, dest: string | null) => void
-  premoveColor?: "white" | "black"  // Keep movable.color set for premoves even when not interactive
   forceCheck?: 'white' | 'black'   // Force king highlight (e.g. on resign, even without check)
-  externalPremoveHandling?: boolean // When true, cancel premoves on FEN change instead of playing them.
-                                    // The parent hook (useBotPlay) handles premove processing directly
-                                    // to avoid chessground's setTimeout(1) race condition.
+  userPerspective?: 'white' | 'black'  // When set, keeps movable.color + turnColor on this color
+                                        // regardless of whose turn the FEN says it is. Used for
+                                        // premove queueing: the virtual FEN may have the opponent to
+                                        // move, but the user must still be able to drag their pieces.
+  premoveQueue?: Array<{ orig: string; dest: string }> // Highlight orig+dest squares for queued premoves
 }
 
 
@@ -50,6 +50,16 @@ export function getTurnColor(fen: string): 'white' | 'black' {
   return fen.split(' ')[1] === 'w' ? 'white' : 'black'
 }
 
+/** Convert a square (e.g. 'e4') to percentage offsets for CSS absolute positioning */
+function squareToPercent(square: string, orientation: 'white' | 'black'): { left: number; top: number } {
+  const file = square.charCodeAt(0) - 97   // 'a'=0 … 'h'=7
+  const rank = parseInt(square[1]) - 1      // '1'=0 … '8'=7
+  const col = orientation === 'white' ? file : 7 - file
+  const row = orientation === 'white' ? 7 - rank : rank
+  return { left: col * 12.5, top: row * 12.5 }
+}
+
+
 export default function ChessBoard({
   fen = STARTING_FEN,
   orientation = 'white',
@@ -58,29 +68,57 @@ export default function ChessBoard({
   shapes = [],
   lastMove,
   pathKey = 0,
-  onPremoveSet,
-  premoveColor,
   forceCheck,
-  externalPremoveHandling = false,
+  userPerspective,
   onIllegalMove,
+  premoveQueue,
 }: ChessBoardProps) {
-  // Compute check highlight + legal move destinations + turn color from a single Chess instance
+  // Compute check highlight + legal move destinations + turn color.
+  // When userPerspective is set (premove queueing mode), compute legal dests
+  // from a turn-flipped FEN so the user can always drag their own pieces,
+  // even when the virtual FEN technically says it's the opponent's turn.
   const { checkColor, legalDests, turnColor: fenTurnColor } = useMemo(() => {
-    const chess = new Chess(fen)
-    const inCheck = chess.inCheck()
-    const turn = chess.turn()
-    const dests = new Map<Key, Key[]>()
-    chess.moves({ verbose: true }).forEach(m => {
-      const from = m.from as Key
-      if (!dests.has(from)) dests.set(from, [])
-      dests.get(from)!.push(m.to as Key)
-    })
-    return {
-      checkColor: inCheck ? (turn === 'w' ? 'white' : 'black') as 'white' | 'black' | false : false as 'white' | 'black' | false,
-      legalDests: dests,
-      turnColor: turn === 'w' ? 'white' : 'black' as 'white' | 'black',
+    // Only flip the turn when NOT interactive (i.e., bot is thinking and user is
+    // queuing premoves). When interactive=true (user's real turn), use the FEN as-is
+    // so chessground gets the correct turn color and the move validates normally.
+    let fenForDests = fen
+    if (userPerspective && !interactive) {
+      const parts = fen.split(' ')
+      const userFenColor = userPerspective === 'white' ? 'w' : 'b'
+      if (parts[1] !== userFenColor) {
+        parts[1] = userFenColor
+        parts[3] = '-'  // clear en passant — stale under the flipped side
+        fenForDests = parts.join(' ')
+      }
     }
-  }, [fen])
+    try {
+      const chess = new Chess(fenForDests)
+      const inCheck = chess.inCheck()
+      const dests = new Map<Key, Key[]>()
+      chess.moves({ verbose: true }).forEach(m => {
+        const from = m.from as Key
+        if (!dests.has(from)) dests.set(from, [])
+        dests.get(from)!.push(m.to as Key)
+      })
+      const effectiveTurn = (userPerspective && !interactive
+        ? userPerspective
+        : (chess.turn() === 'w' ? 'white' : 'black')) as 'white' | 'black'
+      return {
+        checkColor: inCheck ? effectiveTurn as 'white' | 'black' | false : false as 'white' | 'black' | false,
+        legalDests: dests,
+        turnColor: effectiveTurn,
+      }
+    } catch {
+      // Fallback if turn-flipped FEN is invalid (shouldn't happen in practice)
+      const chess = new Chess(fen)
+      const turn = chess.turn()
+      return {
+        checkColor: false as 'white' | 'black' | false,
+        legalDests: new Map<Key, Key[]>(),
+        turnColor: (turn === 'w' ? 'white' : 'black') as 'white' | 'black',
+      }
+    }
+  }, [fen, userPerspective, interactive])
 
   const [pendingPromotion, setPendingPromotion] = useState<{ from: Key; to: Key; color: 'white' | 'black'; orientation: 'white' | 'black' } | null>(null)
   const [boardReady, setBoardReady] = useState(false)
@@ -91,8 +129,8 @@ export default function ChessBoard({
   const apiRef = useRef<Api | null>(null)
   const fenRef = useRef(fen)
   const onMoveRef = useRef(onMove)
-  const onPremoveSetRef = useRef(onPremoveSet)
   const interactiveRef = useRef(interactive)
+  const userPerspectiveRef = useRef(userPerspective)
   const prevPathKeyRef = useRef(pathKey)
 
   // Track when the board has a real layout size so shapes only sync after mount.
@@ -112,8 +150,8 @@ export default function ChessBoard({
   // Keep refs current without triggering re-init
   fenRef.current = fen
   onMoveRef.current = onMove
-  onPremoveSetRef.current = onPremoveSet
   interactiveRef.current = interactive
+  userPerspectiveRef.current = userPerspective
   orientationRef.current = orientation
 
   // Initialize chessground once on mount
@@ -132,11 +170,36 @@ export default function ChessBoard({
         events: {
           after: (from: Key, to: Key) => {
             const currentFen = fenRef.current
+            const isInteractive = interactiveRef.current
+            const perspective = userPerspectiveRef.current
+
+            // Non-interactive but userPerspective set: user is queuing a premove.
+            // Pass the move directly to the parent — no chess.js validation needed here
+            // (the parent's handleBoardMove appends to the queue without validating).
+            // Promotion: auto-queen for premoves.
+            if (!isInteractive && perspective) {
+              const chess = new Chess(currentFen)
+              const piece = chess.get(from as any)
+              const toRank = to[1]
+              const isPromotion = piece?.type === 'p' && (toRank === '8' || toRank === '1')
+              const move = chess.move({ from, to, promotion: isPromotion ? 'q' : undefined })
+              if (move && onMoveRef.current) {
+                onMoveRef.current(from, to, move.san, chess.fen())
+              } else {
+                // Move doesn't validate on the current virtual FEN — still forward it
+                // because it may be valid on the real FEN after bot responds.
+                // Pass empty san and fen — handleBoardMove only uses from/dest for queue.
+                onMoveRef.current?.(from, to, '', '')
+              }
+              return
+            }
+
+            // Interactive (real move): validate with chess.js
             const chess = new Chess(currentFen)
             const piece = chess.get(from as any)
             const toRank = to[1]
 
-            // Detect promotion: pawn reaching last rank
+            // Detect promotion: show picker for real moves
             if (piece?.type === 'p' && (toRank === '8' || toRank === '1')) {
               const color = piece.color === 'w' ? 'white' : 'black'
               setPendingPromotion({ from, to, color, orientation: orientationRef.current })
@@ -170,23 +233,14 @@ export default function ChessBoard({
         duration: 150,
       },
       draggable: {
-        enabled: interactive || !!premoveColor,
+        enabled: interactive || !!userPerspective,
         showGhost: true,
         distance: 3,
       },
       premovable: {
-        enabled: true,
-        showDests: true,
-        events: {
-          set: (orig: Key, dest: Key) => {
-            onPremoveSetRef.current?.(orig, dest)
-          },
-          // NOTE: We intentionally do NOT wire `unset` to onPremoveSet here.
-          // chessground fires `unset` in many internal code paths (drag end,
-          // cancelPremove, api.set FEN change) that would spuriously clear our
-          // premove queue in useBotPlay. Queue clearing is handled explicitly
-          // by the hook itself (user move, game start/end, illegal premove).
-        },
+        // Disabled — we handle premoves via virtual FEN in useBotPlay.
+        // Chessground's built-in premove would conflict with our queue approach.
+        enabled: false,
       },
       drawable: {
         enabled: true,
@@ -218,6 +272,8 @@ export default function ChessBoard({
   // Sync FEN, orientation, and last-move highlight after init.
   // Explicitly passing lastMove on every navigation ensures the highlight
   // always matches the current position (prevents stale highlight after goBack).
+  // When userPerspective is set, keep movable.color on the user's color so they
+  // can always drag their own pieces (even when virtual FEN says opponent's turn).
   useEffect(() => {
     fenRef.current = fen
     if (!apiRef.current) return
@@ -229,6 +285,7 @@ export default function ChessBoard({
       apiRef.current.cancelMove() // Cancel any ongoing move interaction when navigation changes
     }
 
+    const canInteract = interactive || !!userPerspective
     apiRef.current.set({
       fen,
       lastMove: lastMove ?? [],
@@ -236,25 +293,12 @@ export default function ChessBoard({
       check: forceCheck ?? checkColor,
       turnColor: fenTurnColor,
       movable: {
-        color: interactive ? fenTurnColor : (premoveColor ?? undefined),
-        dests: interactive ? legalDests : undefined,
+        color: canInteract ? fenTurnColor : undefined,
+        dests: canInteract ? legalDests : undefined,
       },
-      draggable: { enabled: interactive || !!premoveColor },
+      draggable: { enabled: canInteract },
     })
-
-    // Premove handling after FEN update:
-    // - externalPremoveHandling=true (bot play): The parent hook (useBotPlay) processes
-    //   premoves synchronously via chess.js and manages the queue entirely. We do NOT
-    //   call cancelPremove() here because that fires the `unset` event which would
-    //   spuriously clear the premove queue. The api.set({fen}) call above is sufficient
-    //   to update the board; chessground won't auto-fire the premove because we've
-    //   already updated the FEN to the post-move position.
-    // - externalPremoveHandling=false (default): Let chessground play the premove itself.
-    //   This is the standard lichess behavior for non-bot contexts.
-    if (premoveColor && !externalPremoveHandling) {
-      apiRef.current.playPremove()
-    }
-  }, [fen, lastMove, orientation, interactive, pathKey, checkColor, premoveColor, forceCheck, externalPremoveHandling])
+  }, [fen, lastMove, orientation, interactive, pathKey, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective])
 
   // Sync engine arrow shapes — always re-pass movable so chessground's partial
   // set() can never accidentally clear movable.dests during an arrows update.
@@ -293,6 +337,20 @@ export default function ChessBoard({
   return (
     <div ref={wrapperRef} className="chess-board-container" role="region" aria-label="Chess board">
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {premoveQueue && premoveQueue.length > 0 && (
+        <div className="premove-piece-overlay" aria-hidden="true">
+          {premoveQueue.map((pm) => {
+            const orig = squareToPercent(pm.orig, orientation)
+            const dest = squareToPercent(pm.dest, orientation)
+            return (
+              <React.Fragment key={`${pm.orig}-${pm.dest}`}>
+                <div className="premove-sq-highlight" style={{ left: `${orig.left}%`, top: `${orig.top}%` }} />
+                <div className="premove-sq-highlight" style={{ left: `${dest.left}%`, top: `${dest.top}%` }} />
+              </React.Fragment>
+            )
+          })}
+        </div>
+      )}
       {pendingPromotion && (() => {
         const { to, color, orientation: ori } = pendingPromotion
         const fileIndex = to.charCodeAt(0) - 97

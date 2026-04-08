@@ -2,27 +2,26 @@
 // Manages a dedicated StockfishEngine instance (3rd worker), move tree, and clocks.
 // All persistent state lives in playStore; this hook owns the async lifecycle.
 //
-// PREMOVE ARCHITECTURE:
-// Premoves are handled entirely inside this hook — NOT in ChessBoard's React render
-// cycle. ChessBoard reports premove intent via onPremoveSet (orig/dest). After the
-// bot move lands, scheduleBotMove drains the premove queue and applies the next
-// premove synchronously before yielding to React. This eliminates the race condition
-// caused by chessground's callUserFunction using setTimeout(..., 1) combined with
-// extra React re-renders (browse snap-back, StrictMode double-fire) that could call
-// api.set({fen}) and conflict with chessground's post-premove internal state.
+// PREMOVE ARCHITECTURE (Virtual FEN approach):
+// Premoves are managed as a queue. Instead of overlaying fake piece positions,
+// we compute a "virtual FEN" (chess.js replay of all queued premoves on top of
+// the current real FEN) and pass it as the board's fen prop. Chessground sees it
+// as the real position and animates pieces there naturally.
 //
-// Multiple premoves (up to 5, Chess.com-style): each chessground `set` event
-// APPENDS to premoveQueueRef rather than replacing. The queue is drained one move
-// at a time (one user premove → one bot move → next premove → …). If any premove
-// in the queue is illegal after the bot's actual move, the entire queue is cleared.
+// A single handleBoardMove callback handles both real moves and queue appends:
+// - Bot thinking OR queue non-empty → append to queue
+// - Bot idle, queue empty → apply as real move
 //
-// KEY INVARIANT: ChessBoard is told NOT to call playPremove() (via
-// externalPremoveHandling=true). Instead, this hook applies premoves via chess.js
-// and writes the result directly to the store. Chessground's premove visual is
-// cleared by the subsequent api.set({fen}) that React triggers on re-render.
-// Queued premoves are visualised as red DrawShape arrows (rendered by BotPlayPage).
+// After the bot moves, drainPremoveQueue consumes one entry from the queue,
+// validates it, and applies it synchronously. This chain continues until the
+// queue is empty or a premove becomes illegal (clearing the whole queue).
+//
+// KEY INVARIANT: ChessBoard's premovable is disabled. The board's fen prop is
+// always virtualBoardFen (real FEN + queued premoves applied). The user can
+// always drag their own pieces because userPerspective prop keeps movable.color
+// set to their color regardless of whose turn the FEN technically says it is.
 
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { Chess } from 'chess.js'
 import { StockfishEngine } from '../engine/stockfish'
 import { usePlayStore, STARTING_FEN, type PlayConfig, type TimeControl } from '../stores/playStore'
@@ -149,15 +148,33 @@ export function useBotPlay(onNavigateToReview: () => void) {
   const [botEngineReady, setBotEngineReady] = useState(false)
 
   // ── Premove queue ─────────────────────────────────────────────────────────
-  // Stores up to 5 queued premoves (orig/dest). Each chessground `set` event
-  // appends to this queue; `unset` clears it entirely. After the bot moves,
-  // drainPremoveQueue consumes one entry, applies it, and schedules the next
-  // bot move — creating the premove chain until the queue is empty or a
-  // premove becomes illegal (which clears the whole queue).
+  // Stores queued premoves (orig/dest). No size limit — user can queue as many
+  // as they like. After the bot moves, drainPremoveQueue consumes one entry,
+  // validates it against the post-bot FEN, and applies it. This chain continues
+  // until the queue is empty or a premove becomes illegal (clearing the whole queue).
   const premoveQueueRef = useRef<Array<{ orig: string; dest: string }>>([])
 
-  // React state mirror of the queue — triggers re-renders for arrow visualization.
+  // React state mirror of the queue — triggers re-renders for visualization.
   const [premoveQueue, setPremoveQueue] = useState<Array<{ orig: string; dest: string }>>([])
+
+  // ── Virtual board FEN ──────────────────────────────────────────────────────
+  // The FEN passed to ChessBoard — real position with all queued premoves applied.
+  // Chessground sees this as the real board state and animates pieces into position.
+  const currentFen = usePlayStore(s => s.currentFen)
+
+  const virtualBoardFen = useMemo(() => {
+    if (premoveQueue.length === 0) return currentFen
+    try {
+      const chess = new Chess(currentFen)
+      for (const pm of premoveQueue) {
+        const result = chess.move({ from: pm.orig as any, to: pm.dest as any, promotion: 'q' })
+        if (!result) break  // illegal move in queue — show position up to here
+      }
+      return chess.fen()
+    } catch {
+      return currentFen
+    }
+  }, [currentFen, premoveQueue])
 
   // ── Mutual exclusion guard ────────────────────────────────────────────────
   // Prevents concurrent execution of move processing. Guards against stale
@@ -479,15 +496,28 @@ export function useBotPlay(onNavigateToReview: () => void) {
 
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── User move handler ────────────────────────────────────────────────────
-  const handleUserMove = useCallback(async (from: string, to: string, san: string, newFen: string) => {
+  // ── Unified board move handler ────────────────────────────────────────────
+  // Single callback for all moves fired by ChessBoard's movable.events.after.
+  // Decides whether to apply as a real move or append to the premove queue:
+  //   - Bot thinking OR queue non-empty → append to premove queue
+  //   - Bot idle, queue empty → apply as a real move
+  // This replaces the old handleUserMove + handlePremoveSet split.
+  const handleBoardMove = useCallback(async (from: string, to: string, san: string, newFen: string) => {
     // Guard against stale chessground `after` callbacks arriving via setTimeout(1)
     // after we already processed the same move as a premove in scheduleBotMove.
     if (isProcessingMoveRef.current) return
 
     const state = store.getState()
-    if (state.status !== 'playing' || state.isBotThinking) return
+    if (state.status !== 'playing') return
 
+    // Bot is thinking OR there are already queued premoves → append to queue
+    if (state.isBotThinking || premoveQueueRef.current.length > 0) {
+      premoveQueueRef.current = [...premoveQueueRef.current, { orig: from, dest: to }]
+      syncPremoveState()
+      return
+    }
+
+    // Bot idle, queue empty → apply as a real move
     const moveColor = state.currentFen.split(' ')[1] === 'w' ? 'white' : 'black'
     if (moveColor !== state.config!.userColor) return  // not user's turn
 
@@ -507,7 +537,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
 
     isProcessingMoveRef.current = false
 
-    // Clear the premove queue — user made a regular move instead
+    // Clear the premove queue — user made a regular (non-premove) move
     clearPremoveQueue()
 
     // Check terminal
@@ -517,22 +547,6 @@ export function useBotPlay(onNavigateToReview: () => void) {
     // Schedule bot move
     await scheduleBotMove(newFen)
   }, [scheduleBotMove])  // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Premove set callback for ChessBoard ──────────────────────────────
-  // Each chessground `set` event APPENDS to the queue (up to 5 premoves).
-  // We do NOT listen to `unset` here — chessground fires `unset` internally
-  // in many code paths (drag-end before setPremove, cancelPremove, etc.) that
-  // would spuriously clear our queue. The queue is cleared only by our own
-  // explicit code (user move, game start/end, illegal premove firing).
-  const handlePremoveSet = useCallback((orig: string | null, dest: string | null) => {
-    if (orig && dest) {
-      if (premoveQueueRef.current.length < 5) {
-        premoveQueueRef.current = [...premoveQueueRef.current, { orig, dest }]
-        syncPremoveState()
-      }
-    }
-    // null/null (unset) is intentionally ignored — see comment above
-  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Start game ───────────────────────────────────────────────────────────
   const startGame = useCallback((config: PlayConfig) => {
@@ -586,10 +600,10 @@ export function useBotPlay(onNavigateToReview: () => void) {
   }, [])
 
   return {
-    handleUserMove,
-    handlePremoveSet,
+    handleBoardMove,
     cancelPremoveQueue: clearPremoveQueue,
     premoveQueue,
+    virtualBoardFen,
     startGame,
     resignGame,
     reviewGame,
