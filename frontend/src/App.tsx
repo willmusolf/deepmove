@@ -963,82 +963,91 @@ export default function App() {
                 </div>
 
                 <div className="board-controls">
-                  {isLoaded ? (
-                    <>
-                      <button className="nav-btn" onClick={goBackFn}
-                        disabled={currentPath.length === 0}>←</button>
-                      <span className="move-counter">
-                        {currentMoveIndex} / {totalMoves}
-                      </span>
-                      <button className="nav-btn" onClick={goForwardFn}
-                        disabled={
-                          currentPath.length === 0
-                            ? !rootId
-                            : !moveTree[currentPath[currentPath.length - 1]]?.childIds[0]
-                        }>→</button>
-                    </>
-                  ) : (
-                    <>
-                      <button className="nav-btn" onClick={handleAnalysisGoBack}
-                        disabled={analysisPath.length === 0}>←</button>
-                      <span className="move-counter">
-                        {analysisPath.length} / {analysisMainLineSans.length}
-                      </span>
-                      <button className="nav-btn" onClick={handleAnalysisGoForward}
-                        disabled={
-                          analysisRootId === null
-                            ? true
-                            : analysisPath.length === 0
-                              ? false
-                              : !analysisTree[analysisPath[analysisPath.length - 1]]?.childIds[0]
-                        }>→</button>
-                    </>
-                  )}
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => setOrientation(o => o === 'white' ? 'black' : 'white')}
-                  >
-                    Flip
-                  </button>
-                  {isLoaded ? (
-                    <button className="btn btn-secondary" onClick={handleNewGame}>New Game</button>
-                  ) : (
-                    <button className="btn btn-secondary" onClick={() => {
-                      analysisBoardReset()
-                      setBranchGrades(new Map())
-                      setPendingBranchNodes(new Set())
-                      setOpeningName(null)
-                    }}>Reset</button>
-                  )}
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => setShowEvalBar(v => !v)}
-                    title={showEvalBar ? 'Hide eval bar' : 'Show eval bar'}
-                  >
-                    Eval
-                  </button>
-                  <button
-                    className={"btn btn-secondary"}
-                    onClick={toggleSound}
-                    title={soundEnabled ? 'Mute sounds' : 'Unmute sounds'}
-                  >
-                    {soundEnabled ? 'SFX' : 'Mute'}
-                  </button>
+                  <div className="board-controls__nav">
+                    {isLoaded ? (
+                      <>
+                        <button className="nav-btn" onClick={goBackFn}
+                          disabled={currentPath.length === 0}>←</button>
+                        <span className="move-counter">
+                          {currentMoveIndex} / {totalMoves}
+                        </span>
+                        <button className="nav-btn" onClick={goForwardFn}
+                          disabled={
+                            currentPath.length === 0
+                              ? !rootId
+                              : !moveTree[currentPath[currentPath.length - 1]]?.childIds[0]
+                          }>→</button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="nav-btn" onClick={handleAnalysisGoBack}
+                          disabled={analysisPath.length === 0}>←</button>
+                        <span className="move-counter">
+                          {analysisPath.length} / {analysisMainLineSans.length}
+                        </span>
+                        <button className="nav-btn" onClick={handleAnalysisGoForward}
+                          disabled={
+                            analysisRootId === null
+                              ? true
+                              : analysisPath.length === 0
+                                ? false
+                                : !analysisTree[analysisPath[analysisPath.length - 1]]?.childIds[0]
+                          }>→</button>
+                      </>
+                    )}
+                  </div>
 
-                  <button
-                    className={"btn btn-secondary"}
-                    onClick={() => setShowArrows(v => !v)}
-                    title={showArrows ? 'Hide suggestion arrows' : 'Show suggestion arrows'}
-                  >
-                    {showArrows ? 'Arrows' : 'Arrows'}
-                  </button>
-                  <button
-                    className={`btn btn-secondary${showGrades ? ' active' : ''}`}
-                    onClick={() => setShowGrades(v => !v)}
-                    title={showGrades ? 'Hide move badges' : 'Show move badges'}
-                  >
-                    Badges
-                  </button>
+                  <div className="board-controls__actions">
+                    <button
+                      className="btn btn-secondary board-control-btn"
+                      onClick={() => setOrientation(o => o === 'white' ? 'black' : 'white')}
+                    >
+                      Flip
+                    </button>
+                    {isLoaded ? (
+                      <button className="btn btn-secondary board-control-btn" onClick={handleNewGame}>New Game</button>
+                    ) : (
+                      <button className="btn btn-secondary board-control-btn" onClick={() => {
+                        analysisBoardReset()
+                        setBranchGrades(new Map())
+                        setPendingBranchNodes(new Set())
+                        setOpeningName(null)
+                      }}>Reset</button>
+                    )}
+                    <button
+                      className={`btn btn-secondary board-control-btn${showEvalBar ? ' board-control-btn--active' : ''}`}
+                      onClick={() => setShowEvalBar(v => !v)}
+                      title={showEvalBar ? 'Hide eval bar' : 'Show eval bar'}
+                      aria-pressed={showEvalBar}
+                    >
+                      Eval
+                    </button>
+                    <button
+                      className={`btn btn-secondary board-control-btn${soundEnabled ? ' board-control-btn--active' : ''}`}
+                      onClick={toggleSound}
+                      title={soundEnabled ? 'Mute sounds' : 'Unmute sounds'}
+                      aria-pressed={soundEnabled}
+                    >
+                      Sound
+                    </button>
+
+                    <button
+                      className={`btn btn-secondary board-control-btn${showArrows ? ' board-control-btn--active' : ''}`}
+                      onClick={() => setShowArrows(v => !v)}
+                      title={showArrows ? 'Hide suggestion arrows' : 'Show suggestion arrows'}
+                      aria-pressed={showArrows}
+                    >
+                      Arrows
+                    </button>
+                    <button
+                      className={`btn btn-secondary board-control-btn${showGrades ? ' board-control-btn--active' : ''}`}
+                      onClick={() => setShowGrades(v => !v)}
+                      title={showGrades ? 'Hide move badges' : 'Show move badges'}
+                      aria-pressed={showGrades}
+                    >
+                      Badges
+                    </button>
+                  </div>
                 </div>
                 {openingName && (
                   <div className="opening-label">{openingName}</div>

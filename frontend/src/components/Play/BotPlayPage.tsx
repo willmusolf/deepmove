@@ -338,8 +338,10 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
             </div>
           </div>
           <div className="board-controls">
-            <button className="btn btn-secondary" onClick={handleFlip}>Flip</button>
-            <span className="play-setup-orientation-hint">
+            <div className="board-controls__actions">
+              <button className="btn btn-secondary board-control-btn" onClick={handleFlip}>Flip</button>
+            </div>
+            <span className="board-control-status play-setup-orientation-hint">
               You play as {orientation === 'white' ? '♙ White' : '♟ Black'}
             </span>
           </div>
@@ -436,44 +438,49 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
 
         {/* Board controls — matches Review tab style */}
         <div className="board-controls">
-          <button className="btn btn-secondary" onClick={handleFlip} title="Flip board">
-            Flip
-          </button>
-
-          <button
-            className="btn btn-secondary"
-            onClick={() => setShowAnalysis(v => !v)}
-            title={showAnalysis ? 'Hide eval bar' : 'Show eval bar'}
-          >
-            Eval
-          </button>
-
-          <button
-            className={"btn btn-secondary"}
-            onClick={toggleSound}
-            title={soundEnabled ? 'Mute sounds' : 'Unmute sounds'}
-          >
-            {soundEnabled ? 'SFX' : 'Mute'}
-          </button>
-
-          <button
-            className={"btn btn-secondary"}
-            onClick={() => setShowArrows(v => !v)}
-            title={showArrows ? 'Hide best move arrows' : 'Show best move arrows'}
-          >
-            Arrows
-          </button>
-
-          {status === 'playing' && (
-            <button className="btn btn-secondary btn-danger" onClick={resignGame}>
-              Resign
+          <div className="board-controls__actions">
+            <button className="btn btn-secondary board-control-btn" onClick={handleFlip} title="Flip board">
+              Flip
             </button>
-          )}
-          {status === 'finished' && (
-            <button className="btn btn-secondary" onClick={handleNewGame}>
-              New Game
+
+            <button
+              className={`btn btn-secondary board-control-btn${showAnalysis ? ' board-control-btn--active' : ''}`}
+              onClick={() => setShowAnalysis(v => !v)}
+              title={showAnalysis ? 'Hide eval bar' : 'Show eval bar'}
+              aria-pressed={showAnalysis}
+            >
+              Eval
             </button>
-          )}
+
+            <button
+              className={`btn btn-secondary board-control-btn${soundEnabled ? ' board-control-btn--active' : ''}`}
+              onClick={toggleSound}
+              title={soundEnabled ? 'Mute sounds' : 'Unmute sounds'}
+              aria-pressed={soundEnabled}
+            >
+              Sound
+            </button>
+
+            <button
+              className={`btn btn-secondary board-control-btn${showArrows ? ' board-control-btn--active' : ''}`}
+              onClick={() => setShowArrows(v => !v)}
+              title={showArrows ? 'Hide best move arrows' : 'Show best move arrows'}
+              aria-pressed={showArrows}
+            >
+              Arrows
+            </button>
+
+            {status === 'playing' && (
+              <button className="btn btn-secondary board-control-btn board-control-btn--danger" onClick={resignGame}>
+                Resign
+              </button>
+            )}
+            {status === 'finished' && (
+              <button className="btn btn-secondary board-control-btn" onClick={handleNewGame}>
+                New Game
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
