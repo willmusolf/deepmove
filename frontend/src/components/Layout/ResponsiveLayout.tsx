@@ -12,6 +12,7 @@ const COMPACT_NAV_MEDIA_QUERY = '(max-width: 1023px)'
 
 const PAGE_LABELS: Record<Page, string> = {
   review: 'Review',
+  practice: 'Practice',
   play: 'Play',
   dashboard: 'Dashboard',
   settings: 'Settings',

@@ -55,6 +55,7 @@ interface PlayState {
   clockRunning: boolean
 
   isBotThinking: boolean
+  premoveQueue: Array<{ orig: string; dest: string }>
 
   // Actions
   setConfig: (config: PlayConfig) => void
@@ -83,6 +84,7 @@ const initialState = {
   blackTimeMs: null as number | null,
   clockRunning: false,
   isBotThinking: false,
+  premoveQueue: [] as Array<{ orig: string; dest: string }>,
 }
 
 export const usePlayStore = create<PlayState>((set) => ({
@@ -104,6 +106,7 @@ export const usePlayStore = create<PlayState>((set) => ({
     blackTimeMs: parseInitialClockMs(config.timeControl),
     clockRunning: config.timeControl !== 'none',
     isBotThinking: false,
+    premoveQueue: [],
   }),
 
   addPlayMove: (node) => set((state) => {

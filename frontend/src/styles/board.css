@@ -3320,22 +3320,6 @@ cg-board {
   gap: 0.5rem;
 }
 
-.board-btn--danger {
-  background: rgba(220, 60, 60, 0.15);
-  border-color: rgba(220, 60, 60, 0.5) !important;
-  color: #f87171;
-}
-
-.board-btn--danger:hover {
-  background: rgba(220, 60, 60, 0.28);
-}
-
-.board-btn--active {
-  background: rgba(74, 158, 255, 0.15);
-  border-color: var(--color-accent, #4a9eff) !important;
-  color: var(--color-accent, #4a9eff);
-}
-
 /* Bot thinking indicator */
 .bot-thinking-indicator {
   padding: 0.4rem 0.75rem;
@@ -4068,20 +4052,527 @@ cg-board {
   50%       { opacity: 0.3; }
 }
 
-/* ── Premove piece overlay (Chess.com style) ──────────────────────────── */
-/* Pieces are moved via api.setPieces() — this overlay only handles square highlights */
-.premove-piece-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2; /* just above board squares, below chessground pieces */
+/* ── Practice page ─────────────────────────────────────────────────────── */
+.practice-page {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: 1.25rem;
+  width: 100%;
+  align-items: start;
 }
 
-/* Highlight on orig + dest squares for ALL queued premoves */
-/* (chessground only highlights 1 premove natively; we draw all of them) */
-.premove-sq-highlight {
-  position: absolute;
-  width: 12.5%;
-  height: 12.5%;
-  background-color: rgba(20, 30, 85, 0.5); /* matches chessground current-premove color */
+.practice-sidebar,
+.practice-main {
+  min-width: 0;
+}
+
+.practice-sidebar {
+  display: grid;
+  gap: 1rem;
+}
+
+.practice-sidebar__section,
+.practice-hero,
+.practice-browser,
+.practice-study__board,
+.practice-study__notes {
+  background: linear-gradient(180deg, rgba(23, 29, 43, 0.96) 0%, rgba(16, 20, 31, 0.96) 100%);
+  border: 1px solid rgba(122, 137, 173, 0.18);
+  border-radius: 20px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
+}
+
+.practice-sidebar__section {
+  padding: 1rem;
+}
+
+.practice-eyebrow,
+.practice-section-label,
+.practice-course-card__meta,
+.practice-line-card__meta,
+.practice-stat__label,
+.practice-alt-box__label,
+.practice-progress-pill {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.practice-eyebrow,
+.practice-section-label,
+.practice-course-card__meta,
+.practice-line-card__meta,
+.practice-stat__label,
+.practice-alt-box__label {
+  color: #96a4c6;
+}
+
+.practice-title,
+.practice-hero__title,
+.practice-study__title {
+  margin: 0;
+  color: #f7f8fb;
+}
+
+.practice-title {
+  font-size: 2rem;
+  line-height: 1.05;
+  margin-top: 0.25rem;
+}
+
+.practice-copy,
+.practice-hero__copy,
+.practice-study__summary,
+.practice-target-explanation,
+.practice-line-card__summary,
+.practice-course-card__subtitle {
+  color: #c9d1e4;
+  line-height: 1.55;
+}
+
+.practice-copy,
+.practice-course-card__subtitle,
+.practice-line-card__summary,
+.practice-target-explanation {
+  font-size: 0.95rem;
+}
+
+.practice-course-list,
+.practice-line-list,
+.practice-coming-soon {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.practice-course-card,
+.practice-line-card,
+.practice-chip,
+.practice-mode-tab {
+  border: 1px solid rgba(140, 155, 194, 0.18);
+  background: rgba(255, 255, 255, 0.03);
+  color: #eef2fb;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.practice-course-card,
+.practice-line-card {
+  width: 100%;
+  border-radius: 16px;
+  padding: 0.9rem 1rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.practice-course-card:hover,
+.practice-line-card:hover,
+.practice-chip:hover,
+.practice-mode-tab:hover:not(:disabled) {
+  border-color: rgba(120, 199, 190, 0.55);
+  background: rgba(120, 199, 190, 0.08);
+  transform: translateY(-1px);
+}
+
+.practice-course-card.active,
+.practice-line-card.active,
+.practice-chip.active,
+.practice-mode-tab.active {
+  border-color: rgba(120, 199, 190, 0.9);
+  background: linear-gradient(180deg, rgba(84, 186, 171, 0.18) 0%, rgba(84, 186, 171, 0.08) 100%);
+}
+
+.practice-course-card__top,
+.practice-line-card__top,
+.practice-study__header,
+.practice-hero {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.practice-course-card__badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(89, 112, 255, 0.18);
+  color: #cfd8ff;
+  padding: 0.18rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.practice-course-card__title,
+.practice-line-card__title,
+.practice-target-move,
+.practice-stat__value {
+  font-weight: 700;
+  color: #f6f8fc;
+}
+
+.practice-course-card__title,
+.practice-line-card__title {
+  font-size: 1rem;
+}
+
+.practice-coming-soon__item {
+  padding: 0.7rem 0.8rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  color: #d6dcef;
+}
+
+.practice-main {
+  display: grid;
+  gap: 1rem;
+}
+
+.practice-hero {
+  padding: 1.1rem 1.2rem;
+}
+
+.practice-hero__title {
+  font-size: 1.7rem;
+}
+
+.practice-hero__copy {
+  margin: 0.45rem 0 0;
+  max-width: 52rem;
+}
+
+.practice-hero__stats {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.practice-stat {
+  min-width: 96px;
+  padding: 0.75rem 0.9rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.practice-stat__value {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 1.1rem;
+}
+
+.practice-mode-tabs {
+  display: inline-flex;
+  gap: 0.55rem;
+}
+
+.practice-mode-tab {
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.practice-mode-tab--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.practice-workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.practice-browser,
+.practice-study__board,
+.practice-study__notes {
+  padding: 1rem;
+}
+
+.practice-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+}
+
+.practice-chip {
+  border-radius: 999px;
+  padding: 0.55rem 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.practice-study {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.05fr) minmax(280px, 0.95fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.practice-progress-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.45rem 0.7rem;
+  background: rgba(120, 199, 190, 0.12);
+  color: #bfe7e0;
+}
+
+.practice-board-shell {
+  position: relative;
+  width: min(100%, 540px);
+  aspect-ratio: 1;
+  margin: 1rem 0 0.9rem;
+}
+
+.practice-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.practice-history__move,
+.practice-history__empty {
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #dce3f5;
+  font-size: 0.88rem;
+}
+
+.practice-history__empty {
+  color: #95a2c3;
+}
+
+.practice-target-move {
+  font-size: 2.2rem;
+  line-height: 1;
+  margin-top: 0.35rem;
+}
+
+.practice-target-explanation {
+  margin: 0.75rem 0 0;
+}
+
+.practice-feedback {
+  margin-top: 0.95rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #d5dcf0;
+  line-height: 1.5;
+}
+
+.practice-feedback--success {
+  background: rgba(84, 186, 171, 0.14);
+  color: #ddfaf4;
+}
+
+.practice-alt-box {
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.practice-alt-box__item {
+  display: grid;
+  gap: 0.28rem;
+  color: #d5dcf0;
+}
+
+.practice-alt-box__item + .practice-alt-box__item {
+  margin-top: 0.7rem;
+}
+
+.practice-alt-box__move {
+  font-weight: 700;
+  color: #f6f8fc;
+}
+
+.practice-nav {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.2rem;
+}
+
+.practice-nav__btn {
+  min-width: 140px;
+}
+
+@media (max-width: 1279px) {
+  .practice-page,
+  .practice-workspace,
+  .practice-study {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-board-shell {
+    width: min(100%, 480px);
+  }
+}
+
+@media (max-width: 639px) {
+  .practice-page {
+    gap: 0.9rem;
+  }
+
+  .practice-sidebar__section,
+  .practice-hero,
+  .practice-browser,
+  .practice-study__board,
+  .practice-study__notes {
+    padding: 0.9rem;
+    border-radius: 18px;
+  }
+
+  .practice-title {
+    font-size: 1.6rem;
+  }
+
+  .practice-hero__title {
+    font-size: 1.4rem;
+  }
+
+  .practice-study__header,
+  .practice-hero {
+    flex-direction: column;
+  }
+
+  .practice-nav {
+    flex-direction: column;
+  }
+}
+
+/* Practice overrides after layout unification */
+.practice-side-content {
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.practice-panel-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.practice-panel-card__eyebrow,
+.practice-panel-section-label,
+.practice-panel-stat__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+.practice-panel-card__title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.15rem;
+}
+
+.practice-panel-copy {
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  font-size: 0.92rem;
+}
+
+.practice-panel-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.practice-panel-stat {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.6rem;
+}
+
+.practice-panel-stat__value {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.practice-course-card,
+.practice-line-card {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  box-shadow: none;
+}
+
+.practice-course-card:hover,
+.practice-line-card:hover,
+.practice-chip:hover,
+.practice-mode-tab:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: rgba(74, 158, 255, 0.08);
+}
+
+.practice-course-card.active,
+.practice-line-card.active,
+.practice-chip.active,
+.practice-mode-tab.active {
+  border-color: var(--color-accent);
+  background: rgba(74, 158, 255, 0.12);
+}
+
+.practice-course-card__title,
+.practice-line-card__title,
+.practice-target-move {
+  color: var(--color-text);
+}
+
+.practice-course-card__subtitle,
+.practice-line-card__summary,
+.practice-history__move,
+.practice-history__empty,
+.practice-alt-box__item,
+.practice-coming-soon__item {
+  color: var(--color-text-muted);
+}
+
+.practice-line-panel {
+  min-height: 0;
+}
+
+.practice-line-list {
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.practice-board-controls .board-controls__actions {
+  justify-content: flex-end;
+}
+
+.practice-feedback {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text-muted);
+}
+
+.practice-feedback--success {
+  background: rgba(74, 158, 255, 0.12);
+  color: var(--color-text);
+}
+
+.practice-alt-box {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+}
+
+@media (max-width: 1023px) {
+  .practice-panel-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }

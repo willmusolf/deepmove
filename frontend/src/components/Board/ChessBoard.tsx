@@ -50,13 +50,116 @@ export function getTurnColor(fen: string): 'white' | 'black' {
   return fen.split(' ')[1] === 'w' ? 'white' : 'black'
 }
 
-/** Convert a square (e.g. 'e4') to percentage offsets for CSS absolute positioning */
-function squareToPercent(square: string, orientation: 'white' | 'black'): { left: number; top: number } {
-  const file = square.charCodeAt(0) - 97   // 'a'=0 … 'h'=7
-  const rank = parseInt(square[1]) - 1      // '1'=0 … '8'=7
-  const col = orientation === 'white' ? file : 7 - file
-  const row = orientation === 'white' ? 7 - rank : rank
-  return { left: col * 12.5, top: row * 12.5 }
+/** Convert board array coordinates to chessground Key.
+ *  chess.board() returns board[rank][file] where rank 0 = row 8, file 0 = 'a'. */
+function fileRankToKey(f: number, r: number): Key {
+  return (String.fromCharCode(97 + f) + (8 - r)) as Key
+}
+
+/** Apply a premove without legality checks (pinned pieces, check, etc.).
+ *  Uses chess.js put/remove rather than move(), so legality is not validated.
+ *  The premove may become legal when it fires; if still illegal, drainPremoveQueue
+ *  clears the queue (Chess.com behaviour). */
+export function applyPremoveForcefully(
+  fen: string,
+  userFenColor: 'w' | 'b',
+  from: string,
+  to: string,
+): string {
+  try {
+    const parts = fen.split(' ')
+    parts[1] = userFenColor
+    parts[3] = '-'
+    const chess = new Chess(parts.join(' '))
+    const piece = chess.get(from as any)
+    if (!piece) return fen
+    chess.remove(from as any)
+    chess.remove(to as any)                 // capture any piece at dest
+    const isPromo = piece.type === 'p' && (to[1] === '8' || to[1] === '1')
+    chess.put(isPromo ? { type: 'q' as any, color: piece.color } : piece, to as any)
+    const newParts = chess.fen().split(' ')
+    newParts[1] = userFenColor === 'w' ? 'b' : 'w'   // toggle turn
+    newParts[3] = '-'
+    return newParts.join(' ')
+  } catch {
+    return fen  // ultimate fallback — unchanged position
+  }
+}
+
+/** Compute all geometrically valid premove destinations for the user's pieces.
+ *  Fully permissive: every square a piece could possibly reach is highlighted,
+ *  regardless of what currently occupies it (own pieces, opponent pieces, blocked
+ *  rays). If the premove is still illegal when it fires, drainPremoveQueue clears
+ *  the queue — same as Chess.com / Lichess behaviour. */
+function getPremoveDests(fen: string, perspective: 'white' | 'black'): Map<Key, Key[]> {
+  const chess = new Chess(fen)
+  const board = chess.board()
+  const uc = perspective === 'white' ? 'w' : 'b'
+  const dests = new Map<Key, Key[]>()
+
+  /** True if square (f,r) is on the board */
+  const inBounds = (f: number, r: number) => f >= 0 && f <= 7 && r >= 0 && r <= 7
+
+  /** Push all squares along a ray to the board edge, ignoring any pieces in the way.
+   *  The premove may become legal when it fires (blocking piece may have moved). */
+  function addRay(targets: Key[], f: number, r: number, df: number, dr: number) {
+    let cf = f + df, cr = r + dr
+    while (cf >= 0 && cf <= 7 && cr >= 0 && cr <= 7) {
+      targets.push(fileRankToKey(cf, cr))
+      cf += df; cr += dr
+    }
+  }
+
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < 8; f++) {
+      const p = board[r][f]
+      if (!p || p.color !== uc) continue
+
+      const targets: Key[] = []
+      const fwd = uc === 'w' ? -1 : 1      // white moves up (rank decreases), black moves down
+      const startRank = uc === 'w' ? 6 : 1 // rank index: white starts at r=6 (row '2'), black at r=1 (row '7')
+
+      switch (p.type) {
+        case 'p':
+          if (inBounds(f, r + fwd))                        targets.push(fileRankToKey(f, r + fwd))
+          if (r === startRank && inBounds(f, r + fwd * 2)) targets.push(fileRankToKey(f, r + fwd * 2))
+          if (inBounds(f - 1, r + fwd))                    targets.push(fileRankToKey(f - 1, r + fwd))
+          if (inBounds(f + 1, r + fwd))                    targets.push(fileRankToKey(f + 1, r + fwd))
+          break
+        case 'r':
+          [[-1,0],[1,0],[0,-1],[0,1]].forEach(([df,dr]) => addRay(targets, f, r, df, dr))
+          break
+        case 'b':
+          [[-1,-1],[-1,1],[1,-1],[1,1]].forEach(([df,dr]) => addRay(targets, f, r, df, dr))
+          break
+        case 'q':
+          [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]].forEach(([df,dr]) => addRay(targets, f, r, df, dr))
+          break
+        case 'n':
+          [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]
+            .forEach(([df,dr]) => { if (inBounds(f+df, r+dr)) targets.push(fileRankToKey(f+df, r+dr)) })
+          break
+        case 'k':
+          [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]
+            .forEach(([df,dr]) => { if (inBounds(f+df, r+dr)) targets.push(fileRankToKey(f+df, r+dr)) })
+          // Castling premoves: king on starting square + right present in FEN.
+          // No path-clear check — pieces in the way may move before the premove fires.
+          {
+            const castling = fen.split(' ')[2] ?? '-'
+            if (uc === 'w' && r === 7 && f === 4) {
+              if (castling.includes('K')) targets.push(fileRankToKey(6, 7))  // g1 kingside
+              if (castling.includes('Q')) targets.push(fileRankToKey(2, 7))  // c1 queenside
+            } else if (uc === 'b' && r === 0 && f === 4) {
+              if (castling.includes('k')) targets.push(fileRankToKey(6, 0))  // g8 kingside
+              if (castling.includes('q')) targets.push(fileRankToKey(2, 0))  // c8 queenside
+            }
+          }
+          break
+      }
+      if (targets.length) dests.set(fileRankToKey(f, r), targets)
+    }
+  }
+  return dests
 }
 
 
@@ -78,21 +181,17 @@ export default function ChessBoard({
   // from a turn-flipped FEN so the user can always drag their own pieces,
   // even when the virtual FEN technically says it's the opponent's turn.
   const { checkColor, legalDests, turnColor: fenTurnColor } = useMemo(() => {
-    // Only flip the turn when NOT interactive (i.e., bot is thinking and user is
-    // queuing premoves). When interactive=true (user's real turn), use the FEN as-is
-    // so chessground gets the correct turn color and the move validates normally.
-    let fenForDests = fen
+    // Premove mode: use geometrically valid premove dests (pawn diagonals always, captures allowed).
     if (userPerspective && !interactive) {
-      const parts = fen.split(' ')
-      const userFenColor = userPerspective === 'white' ? 'w' : 'b'
-      if (parts[1] !== userFenColor) {
-        parts[1] = userFenColor
-        parts[3] = '-'  // clear en passant — stale under the flipped side
-        fenForDests = parts.join(' ')
+      return {
+        checkColor: false as const,
+        legalDests: getPremoveDests(fen, userPerspective),
+        turnColor: userPerspective,
       }
     }
+    // Regular mode: strict chess.js legal moves.
     try {
-      const chess = new Chess(fenForDests)
+      const chess = new Chess(fen)
       const inCheck = chess.inCheck()
       const dests = new Map<Key, Key[]>()
       chess.moves({ verbose: true }).forEach(m => {
@@ -100,22 +199,17 @@ export default function ChessBoard({
         if (!dests.has(from)) dests.set(from, [])
         dests.get(from)!.push(m.to as Key)
       })
-      const effectiveTurn = (userPerspective && !interactive
-        ? userPerspective
-        : (chess.turn() === 'w' ? 'white' : 'black')) as 'white' | 'black'
+      const turn = chess.turn() === 'w' ? 'white' : 'black'
       return {
-        checkColor: inCheck ? effectiveTurn as 'white' | 'black' | false : false as 'white' | 'black' | false,
+        checkColor: inCheck ? turn as 'white' | 'black' | false : false as 'white' | 'black' | false,
         legalDests: dests,
-        turnColor: effectiveTurn,
+        turnColor: turn as 'white' | 'black',
       }
     } catch {
-      // Fallback if turn-flipped FEN is invalid (shouldn't happen in practice)
-      const chess = new Chess(fen)
-      const turn = chess.turn()
       return {
         checkColor: false as 'white' | 'black' | false,
         legalDests: new Map<Key, Key[]>(),
-        turnColor: (turn === 'w' ? 'white' : 'black') as 'white' | 'black',
+        turnColor: (fen.split(' ')[1] === 'w' ? 'white' : 'black') as 'white' | 'black',
       }
     }
   }, [fen, userPerspective, interactive])
@@ -178,19 +272,43 @@ export default function ChessBoard({
             // (the parent's handleBoardMove appends to the queue without validating).
             // Promotion: auto-queen for premoves.
             if (!isInteractive && perspective) {
-              const chess = new Chess(currentFen)
-              const piece = chess.get(from as any)
-              const toRank = to[1]
-              const isPromotion = piece?.type === 'p' && (toRank === '8' || toRank === '1')
-              const move = chess.move({ from, to, promotion: isPromotion ? 'q' : undefined })
-              if (move && onMoveRef.current) {
-                onMoveRef.current(from, to, move.san, chess.fen())
-              } else {
-                // Move doesn't validate on the current virtual FEN — still forward it
-                // because it may be valid on the real FEN after bot responds.
-                // Pass empty san and fen — handleBoardMove only uses from/dest for queue.
-                onMoveRef.current?.(from, to, '', '')
+              // User is queueing a premove. Forward to parent (handleBoardMove appends to queue).
+              onMoveRef.current?.(from, to, '', '')
+
+              // Compute the new virtual FEN for this premove.
+              // We force the user's turn in the FEN (currentFen has opponent to move in premove mode).
+              // Also update fenRef immediately so the NEXT rapid premove's `after` callback
+              // gets the correct starting FEN — React batches state updates and may not re-render
+              // until all queued premoves are already done.
+              const userFenColor = perspective === 'white' ? 'w' : 'b'
+              let newVirtualFen = currentFen
+              try {
+                const parts = currentFen.split(' ')
+                parts[1] = userFenColor
+                parts[3] = '-'
+                const tmpChess = new Chess(parts.join(' '))
+                tmpChess.move({ from, to, promotion: 'q' })
+                newVirtualFen = tmpChess.fen()
+              } catch {
+                // Legal move failed (e.g. pinned piece). Force-apply for display — the premove
+                // may become legal when it fires. If still illegal, drainPremoveQueue clears it.
+                newVirtualFen = applyPremoveForcefully(currentFen, userFenColor, from, to)
               }
+
+              fenRef.current = newVirtualFen  // keep next after callback in sync before re-render
+
+              try {
+                const dests = getPremoveDests(newVirtualFen, perspective)
+                apiRef.current?.set({
+                  // No fen — drag already placed the piece correctly in chessground's internal
+                  // state. Setting fen here diffs against the stored pre-drag FEN and causes
+                  // chessground to re-animate the piece (snap-back effect). The FEN sync
+                  // useEffect handles the official update after React re-renders; piece
+                  // positions already match virtualBoardFen so no animation occurs then either.
+                  turnColor: perspective,
+                  movable: { color: perspective, dests },
+                })
+              } catch { /* useEffect catches up on next render */ }
               return
             }
 
@@ -307,10 +425,23 @@ export default function ChessBoard({
   useEffect(() => {
     if (!apiRef.current) return
     if (!containerRef.current || containerRef.current.getBoundingClientRect().width === 0) return
+
+    // Premove highlight shapes — one filled rect per orig+dest square of each queued premove.
+    // Using autoShapes+customSvg so highlights are pixel-perfect with the board squares
+    // (chessground floors cg-container to 8/DPR px multiples; a DOM overlay would be off).
+    const premoveShapes: DrawShape[] = []
+    if (premoveQueue && premoveQueue.length > 0) {
+      const svgRect = '<rect x="2" y="2" width="96" height="96" fill="rgba(20,30,85,0.15)" stroke="rgba(20,30,85,0.7)" stroke-width="4"/>'
+      for (const pm of premoveQueue) {
+        premoveShapes.push({ orig: pm.orig as Key, customSvg: { html: svgRect } })
+        premoveShapes.push({ orig: pm.dest as Key, customSvg: { html: svgRect } })
+      }
+    }
+
     apiRef.current.set({
-      drawable: { autoShapes: shapes },
+      drawable: { autoShapes: [...premoveShapes, ...shapes] },
     })
-  }, [shapes, boardReady])
+  }, [shapes, boardReady, premoveQueue])
 
   const handlePromotion = useCallback((piece: string) => {
     if (!pendingPromotion) return
@@ -337,20 +468,6 @@ export default function ChessBoard({
   return (
     <div ref={wrapperRef} className="chess-board-container" role="region" aria-label="Chess board">
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-      {premoveQueue && premoveQueue.length > 0 && (
-        <div className="premove-piece-overlay" aria-hidden="true">
-          {premoveQueue.map((pm) => {
-            const orig = squareToPercent(pm.orig, orientation)
-            const dest = squareToPercent(pm.dest, orientation)
-            return (
-              <React.Fragment key={`${pm.orig}-${pm.dest}`}>
-                <div className="premove-sq-highlight" style={{ left: `${orig.left}%`, top: `${orig.top}%` }} />
-                <div className="premove-sq-highlight" style={{ left: `${dest.left}%`, top: `${dest.top}%` }} />
-              </React.Fragment>
-            )
-          })}
-        </div>
-      )}
       {pendingPromotion && (() => {
         const { to, color, orientation: ori } = pendingPromotion
         const fileIndex = to.charCodeAt(0) - 97
