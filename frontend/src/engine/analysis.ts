@@ -98,8 +98,15 @@ export function classifyMove(
   if (cpLoss <= 10)  return 'best'
   if (cpLoss <= 25)  return 'excellent'
   if (cpLoss <= 60)  return 'good'
-  if (cpLoss <= 120) return 'inaccuracy'
-  if (cpLoss <= 300) return 'mistake'
+
+  // In clearly losing positions, ease the inaccuracy/mistake/blunder thresholds proportionally.
+  // A player down 600cp choosing the least-bad move shouldn't be labelled a blunder.
+  // Factor rises from 1.0 at -200cp to ~1.67 at -1000cp (the score cap).
+  const lossContext = Math.max(0, -playerBefore - 200)
+  const factor = 1 + lossContext / 1200
+
+  if (cpLoss <= 120 * factor) return 'inaccuracy'
+  if (cpLoss <= 300 * factor) return 'mistake'
   return 'blunder'
 }
 

@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-04-10 — Premove overhaul phase 2: (1) applyPremoveForcefully force-apply via put/remove for pinned/own-piece premove display; (2) virtualBoardFen catch block uses applyPremoveForcefully instead of keeping old FEN; (3) getPremoveDests fully permissive (inBounds only, addRay goes to board edge); (4) premoveQueue moved to Zustand for atomic updates with currentFen. All premove bugs from prior session resolved.
+**Last Session**: 2026-04-10 — Chess.com API compliance: (1) sequential rate limiting (200ms delay) + 429 handling in fetchArchives(); (2) X-App-Name header on all requests; (3) IndexedDB archiveCache store (DB v1→v2) — completed months cached indefinitely, zero API calls on reconnect; (4) backend chesscom.py User-Agent + 429 handling. Investigated Chessiro/Chess.com TOS incident — root cause was copied piece assets (not AI coaching); DeepMove uses cburnett (open-source) so no IP risk.
 
 ---
 

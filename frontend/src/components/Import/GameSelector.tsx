@@ -303,6 +303,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     setIsLoadingAll(true)
     let stillMore = paginationRef.current?.hasMore ?? false
     while (stillMore && !cancelLoadAllRef.current) {
+      await new Promise<void>(r => setTimeout(r, 500)) // 500ms between batches — respects Chess.com rate limits
       stillMore = await handleLoadMore()
     }
     setIsLoadingAll(false)
