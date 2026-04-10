@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-04-07 — Premove overhaul: replaced manual setPieces overlay with virtual FEN architecture. useBotPlay now exports virtualBoardFen (useMemo of currentFen+premoveQueue). handleUserMove+handlePremoveSet merged into handleBoardMove. Queue cap removed (unlimited). ChessBoard gained userPerspective prop, premovable.enabled=false. Fixed "can only move once" regression (turn-flip must be scoped to !interactive). TWO REMAINING BUGS: premove highlight squares not rendering + board stuck after first premove drag.
+**Last Session**: 2026-04-10 — Premove overhaul phase 2: (1) applyPremoveForcefully force-apply via put/remove for pinned/own-piece premove display; (2) virtualBoardFen catch block uses applyPremoveForcefully instead of keeping old FEN; (3) getPremoveDests fully permissive (inBounds only, addRay goes to board edge); (4) premoveQueue moved to Zustand for atomic updates with currentFen. All premove bugs from prior session resolved.
 
 ---
 
@@ -440,6 +440,129 @@ Every missed tactic from game reviews gets saved to the user's account. Train on
 - [ ] After the game, coach explains WHY the bot played that way — bridges play mode and coaching
 - [ ] Prereq: coaching pipeline quality pass done, play mode fully stable
 
+### Practice Area
+**Product structure:** add a dedicated `Practice` tab/area rather than overloading `Play` or `Coach`. This becomes the home for opening study, tactics from your games, and future training modes.
+
+**Naming split to avoid confusion:**
+- `AI Coach` = review/analysis lessons on completed games
+- `Play` = bot games / sparring / future GM personalities
+- `Practice` = structured study
+- `Openings` = Chessreps-style repertoire trainer inside Practice
+- `Tactics` = personal puzzle trainer inside Practice
+
+#### Practice V1
+- [ ] Add a top-level `Practice` area
+- [ ] Start with two sections inside Practice:
+  - `Openings`
+  - `Tactics From Your Games`
+- [ ] Keep V1 focused on basic concepts first: clean structure, line study, recall flow, progress tracking
+- [ ] Leave AI-generated opening explanations out of V1; use curated/human-authored short explanations first
+- [ ] Keep Play Mode simple for now: normal bot play only; no coach personalities tied into Practice yet
+
+#### Practice UI / Product Fit (next pass before expanding content)
+- [ ] Refactor Practice to use the same shared board-first shell as Review / Play instead of feeling like a separate mini-app
+- [ ] Put the board in the same visual slot/space as the other main tabs so switching tabs does not feel jarring
+- [ ] Reuse existing DeepMove surface styles, spacing, button language, and panel rhythm; avoid a one-off Practice aesthetic
+- [ ] Decide whether Practice should use tabs in the side panel (`Openings`, `Tactics`) or a similar board+panel split to Review
+- [ ] Make Practice feel premium and intentional, not like a prototype dashboard bolted onto the app
+- [ ] Add a responsive pass specifically for Practice after the shell is unified
+
+### Openings / Repertoire Trainer (Chessreps-style, but free + better UI)
+**What Chessreps is:** an opening trainer centered on courses/lines + spaced repetition. Core loop is: pick an opening, learn the line, get quizzed from the resulting positions, and repeat until recall is automatic.
+
+**DeepMove angle:** do the same core opening-reps job for free, but with cleaner UI, faster board feel, better progress tracking, and tighter integration with the rest of the app.
+
+**Product stance:** the base opening reps product should stay free. This is a user-acquisition and retention feature. Premium can later add private imports, deeper personalization, and advanced prep.
+
+#### Openings V1: Free, structured, specific-line training
+- [ ] Add `Practice > Openings`
+- [ ] Make the interaction intentionally close to Chessreps: user sees a position and must play the specific repertoire move
+- [ ] If the user plays an acceptable but non-target move, respond with something like "playable, but in this course we want to know X"
+- [ ] Support both `Learn` and `Practice` modes:
+  - `Learn`: reveal the line move-by-move with a short explanation
+  - `Practice`: hide the answer and require recall from the position
+- [ ] Follow the Chessreps progression pattern for V1 structure:
+  - each opening is a course with a clear line count
+  - `Learn` comes first
+  - `Practice` unlocks after at least some line discovery/mastery
+  - leave `Drill` / `Time` / extras for later
+- [ ] Add short explanations on every move in `Learn` mode, with extra emphasis on branch points and common mistakes
+- [ ] Track mastery per line and per position, not just per opening
+- [ ] Allow studying from either side: White repertoires and Black defenses/counters
+- [ ] Start with authored public repertoires only; leave user-created/community uploads/private PGN import for later
+
+#### Initial Opening Library (V1 launch batch)
+- [ ] Launch with 20 starter courses total: 10 White repertoires + 10 Black defenses/counters
+- [ ] For each family, split content into very specific lines/chapters rather than one giant blob course
+- [ ] Cover both main theory and common counters/sidelines for each starter repertoire
+- [ ] Start with beginner/popular basics first before going deeper into niche gambits and traps
+
+#### Exact V1 course slate (commit to this unless real user demand says otherwise)
+- [ ] White 1. `Italian Game` — chapters: Giuoco Piano, Two Knights, early ...Bc5 lines, basic anti-Fried-Liver ideas; target `14-18` lines
+- [ ] White 2. `Scotch Game` — chapters: main Scotch, ...Bc5 setups, ...Nf6 setups; target `10-14` lines
+- [ ] White 3. `Fried Liver Attack` — chapters: main attack, safer fallback if Black declines, common traps; target `8-12` lines
+- [ ] White 4. `Vienna Game` — chapters: quiet Vienna systems, Vienna with `Bc4`, anti-...Nf6 basics; target `10-14` lines
+- [ ] White 5. `Vienna Gambit` — chapters: accepted, declined, common sidesteps; target `8-12` lines
+- [ ] White 6. `Queen's Gambit` — chapters: vs QGD, vs Slav, vs QGA, simple development setups; target `12-16` lines
+- [ ] White 7. `London System` — chapters: classic London setup, ...Bf5 lines, ...c5 pressure, kingside attack basics; target `12-16` lines
+- [ ] White 8. `Jobava London` — chapters: core setup, ...e6 lines, ...g6 lines, early tactical themes; target `10-14` lines
+- [ ] White 9. `English Opening` — chapters: reversed Sicilian structures, ...e5 response, ...c5 symmetry, basic kingside fianchetto plan; target `10-14` lines
+- [ ] White 10. `King's Gambit` — chapters: accepted, declined, simple recovery plans, common tactical motifs; target `8-12` lines
+- [ ] Black 1. `Caro-Kann Defense` — chapters: Advance, Exchange, Classical/Two Knights, Panov basics; target `14-18` lines
+- [ ] Black 2. `Sicilian Defense` — chapters: Open Sicilian basics, Alapin, Closed/Grand Prix, Smith-Morra ideas; target `14-18` lines
+- [ ] Black 3. `Scandinavian Defense` — chapters: `...Qxd5`, `...Qa5`, Icelandic-style sideline awareness; target `10-14` lines
+- [ ] Black 4. `French Defense` — chapters: Advance, Exchange, Tarrasch, simple development plans vs sidelines; target `12-16` lines
+- [ ] Black 5. `Petrov Defense` — chapters: mainline Petrov, early d4 systems, quiet anti-Petrov tries; target `8-12` lines
+- [ ] Black 6. `Pirc / Modern Defense` — chapters: Austrian Attack basics, classical development, `Bg5`/`Be3` setups; target `10-14` lines
+- [ ] Black 7. `Queen's Gambit Declined` — chapters: main setup, Exchange structure, London-transpose awareness, simple minority-attack defense; target `12-16` lines
+- [ ] Black 8. `Slav Defense` — chapters: main Slav setup, Exchange Slav, early `Nc3`/`Nf3` branches, Semi-Slav awareness only where needed; target `12-16` lines
+- [ ] Black 9. `King's Indian Defense` — chapters: classical setup, London/Catalan-style anti-KID adjustments, basic kingside attack ideas; target `12-16` lines
+- [ ] Black 10. `Dutch Defense` — chapters: Stonewall basics, Leningrad basics, anti-Staunton awareness, simple attacking plans; target `10-14` lines
+- [ ] Target total launch library size: roughly `220-300` authored lines, not thousands
+- [ ] Rule for course splitting: if users commonly search the branch by name (`Fried Liver`, `Vienna Gambit`), let it be its own course instead of burying it
+
+#### Openings V1.5: Better than Chessreps
+- [ ] `Drill` mode: fast consecutive position recall with streaks and fail/retry flow
+- [ ] `Timed` mode: same reps but with a clock so lines become practical under pressure
+- [ ] Better visuals than plain course lists: opening cards, progress rings, mastery heatmap, recently missed lines
+- [ ] `Play From Here`: spawn a bot game from a repertoire position after the trained book move
+
+#### Spaced Repetition / Personalization
+- [ ] Add a repertoire review scheduler (`new`, `learning`, `review`, `mastered`) so missed lines resurface at increasing intervals
+- [ ] Store per-position recall stats: attempts, misses, last_seen_at, next_review_at, streak
+- [ ] Later: use recent reviewed games (maybe last 100-200) to recommend which openings/defenses the user should study
+- [ ] Later: build "anti-blunder opening packs" from recurring opening mistakes in real games
+
+#### Data / Content Model
+- [ ] Add repertoire entities: `repertoire`, `chapter`, `line`, `line_position`, `user_line_progress`
+- [ ] Store each node as FEN + expected move + side to move + tags (`opening`, `gambit`, `defense`, `trap`, `mainline`, `sideline`)
+- [ ] Reuse opening detection + SAN/FEN utilities where possible so Review, Play, and Practice share the same chess plumbing
+- [ ] Define an internal authoring format for line trees + short explanations before building any editor UI
+- [ ] Content sourcing rule: write our own course text/structure, use public-domain or permissively usable chess knowledge where helpful, and engine-check lines for sanity; do not copy proprietary course text/UI assets from competitors
+
+#### Recommended build order for this feature
+- [ ] 1. Define the opening-course JSON/content format first (`course`, `chapter`, `line`, `position`, `explanation`, `acceptedMoves`, `targetMove`)
+- [ ] 2. Author one complete pilot course end-to-end (`Italian Game`) before building the whole library
+- [ ] 3. Build `Practice` shell + `Openings` course list page using mocked/pilot content
+- [ ] 4. Build `Learn` mode first; make sure move-by-move explanations feel smooth
+- [ ] 5. Build `Practice` mode second with exact-move checking + acceptable-move feedback
+- [ ] 6. Add basic progress persistence and per-line mastery
+- [ ] 7. Only then expand from 1 pilot course to the full 20-course launch slate
+
+#### Immediate next steps (after the prototype spike)
+- [ ] Rebuild the current Practice prototype inside the shared Review / Play layout system
+- [ ] Add a `practiceStore` for selected course, selected line, current step, and mastery/progress persistence
+- [ ] Finish the Italian pilot to the target 14-18 lines before authoring Scotch / Vienna / Queen's Gambit
+- [ ] Add a tiny authoring checklist so every line has: target move, acceptable alternatives, explanation, and sanity-checked legality
+- [ ] Only after the shell feels native: add course progress UI and then expand the opening library
+
+#### Premium Later (not MVP)
+- [ ] Import PGN/Chessable-style repertoires into a personal library
+- [ ] AI-generated personal opening prep from your recent games
+- [ ] Private repertoire builder + sharing
+- [ ] Advanced prep dashboards and deeper personalization
+- [ ] Deep scan recent 100-200 games to recommend openings, defenses, and recurring tactical themes worth practicing
+
 - [ ] Save bot games to backend after review (currently only saves on review flow load)
 - [x] Board badges (move grade overlays) — all grades show symbols, pending circle for branch moves
 
@@ -494,8 +617,8 @@ See above in "Next After Launch"
 - [x] RAF-based clocks, increment
 - [x] Dedicated Stockfish worker for bot (UCI_LimitStrength + UCI_Elo)
 - [x] Premove support — virtual FEN architecture (Chess.com-style, unlimited queue, auto-queen)
-- [ ] FIX: premove highlight squares not rendering (premove-sq-highlight CSS/overlay div bug)
-- [ ] FIX: board stuck after first premove drag (no further premoves accepted after queuing one)
+- [x] FIX: premove highlight squares not rendering ✅ (handled by virtual FEN approach)
+- [x] FIX: board stuck after first premove drag ✅ (fixed via virtual FEN + unified handleBoardMove)
 - [x] Opening detection (ECO ~500 entries, longest-match)
 - [x] Game result banner (Review as primary CTA on loss)
 - [x] Review flow: bot game loads into game review board
@@ -516,10 +639,7 @@ See above in "Next After Launch"
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
 
 
-
--sometimes spinner is loading forever on a move in transcript for some reason
-
-
+-page being scrolllable for opening name and buttons etc on bigger screen? spacing is good but can vertically scroll sometimes which isnt great
 
 
 -depth analysis sometimes stops analyzing again when you interrupt it going deeper then coming back to it
@@ -528,15 +648,8 @@ See above in "Next After Launch"
 
 
 
+-have a thing to close the menu?
 
--have arrows button and other buttons be better? and more concistent across that row of buttons visually
--report below graph is mid and just pointless and not the same as chess.com / chessigma? i believe the graph can still be improved too?
--for dropdowns when it says 300+2 instead of the min (so would be 5+2?) or 120+60 weird stuff like that
--have similar dropdown next to move arrows as chessigma
-
-
-
--(check)sometimes in play mode when arrow move suggestions are on it flashes for a brief second on the opponents suggested moves. we should just turn off the lines for the opponent probably right?
 
 
 -and for play mode we want to add something in the todo with the coaches stuff to practice specific openings and gambits and defenses as well like chessreps?

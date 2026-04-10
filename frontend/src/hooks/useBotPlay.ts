@@ -29,6 +29,7 @@ import { msToHHMMSS } from '../utils/format'
 import { useGameStore } from '../stores/gameStore'
 import { classifySan } from './useSound'
 import type { MoveNode } from '../chess/types'
+import { applyPremoveForcefully } from '../components/Board/ChessBoard'
 
 /** Movetime per time control — scales with game pace */
 function getBotMovetime(tc: TimeControl): number {
@@ -97,6 +98,7 @@ function applyMoveToStore(
   san: string,
   newFen: string,
   preMoveState: { moveCounter: number; currentPath: string[]; currentFen: string },
+  newPremoveQueue?: Array<{ orig: string; dest: string }>,
 ): MoveNode {
   const moveColor = preMoveState.currentFen.split(' ')[1] === 'w' ? 'white' : 'black'
   const moveNum = parseInt(preMoveState.currentFen.split(' ')[5] ?? '1', 10)
@@ -134,6 +136,7 @@ function applyMoveToStore(
       rootId: newRootId,
       currentPath: newPath,
       currentFen: newFen,
+      ...(newPremoveQueue !== undefined ? { premoveQueue: newPremoveQueue } : {}),
     }
   })
 
@@ -147,34 +150,38 @@ export function useBotPlay(onNavigateToReview: () => void) {
   const audioRefs = useRef<Partial<Record<string, HTMLAudioElement>>>({})
   const [botEngineReady, setBotEngineReady] = useState(false)
 
-  // ── Premove queue ─────────────────────────────────────────────────────────
-  // Stores queued premoves (orig/dest). No size limit — user can queue as many
-  // as they like. After the bot moves, drainPremoveQueue consumes one entry,
-  // validates it against the post-bot FEN, and applies it. This chain continues
-  // until the queue is empty or a premove becomes illegal (clearing the whole queue).
-  const premoveQueueRef = useRef<Array<{ orig: string; dest: string }>>([])
-
-  // React state mirror of the queue — triggers re-renders for visualization.
-  const [premoveQueue, setPremoveQueue] = useState<Array<{ orig: string; dest: string }>>([])
-
   // ── Virtual board FEN ──────────────────────────────────────────────────────
   // The FEN passed to ChessBoard — real position with all queued premoves applied.
   // Chessground sees this as the real board state and animates pieces into position.
+  //
+  // premoveQueue lives in the Zustand play store (alongside currentFen) so that
+  // drainPremoveQueue can update BOTH atomically in a single setState call.
+  // If they lived in separate stores (Zustand + React useState), two separate renders
+  // would fire, causing an intermediate wrong virtualBoardFen → snap-back bug.
   const currentFen = usePlayStore(s => s.currentFen)
+  const userColor = usePlayStore(s => s.config?.userColor)
+  const premoveQueue = usePlayStore(s => s.premoveQueue)
 
   const virtualBoardFen = useMemo(() => {
     if (premoveQueue.length === 0) return currentFen
-    try {
-      const chess = new Chess(currentFen)
-      for (const pm of premoveQueue) {
-        const result = chess.move({ from: pm.orig as any, to: pm.dest as any, promotion: 'q' })
-        if (!result) break  // illegal move in queue — show position up to here
+    const userFenColor = userColor === 'white' ? 'w' : 'b'
+    let fen = currentFen
+    for (const pm of premoveQueue) {
+      try {
+        const parts = fen.split(' ')
+        parts[1] = userFenColor    // force user's turn — currentFen has opponent to move
+        parts[3] = '-'             // clear stale en passant
+        const chess = new Chess(parts.join(' '))
+        chess.move({ from: pm.orig as any, to: pm.dest as any, promotion: 'q' })
+        fen = chess.fen()
+      } catch {
+        // Legal move threw (e.g. pinned piece). Force-apply for display purposes.
+        // drainPremoveQueue will validate against the real FEN when the premove fires.
+        fen = applyPremoveForcefully(fen, userFenColor, pm.orig, pm.dest)
       }
-      return chess.fen()
-    } catch {
-      return currentFen
     }
-  }, [currentFen, premoveQueue])
+    return fen
+  }, [currentFen, premoveQueue, userColor])
 
   // ── Mutual exclusion guard ────────────────────────────────────────────────
   // Prevents concurrent execution of move processing. Guards against stale
@@ -184,15 +191,9 @@ export function useBotPlay(onNavigateToReview: () => void) {
   const store = usePlayStore
   const gameStore = useGameStore
 
-  /** Sync the React state mirror from the ref (triggers board re-render for arrows). */
-  function syncPremoveState() {
-    setPremoveQueue([...premoveQueueRef.current])
-  }
-
-  /** Clear the premove queue and update React state. */
+  /** Clear the premove queue in the Zustand store. */
   function clearPremoveQueue() {
-    premoveQueueRef.current = []
-    setPremoveQueue([])
+    usePlayStore.setState({ premoveQueue: [] })
   }
 
   // ── Engine lifecycle ─────────────────────────────────────────────────────
@@ -314,9 +315,10 @@ export function useBotPlay(onNavigateToReview: () => void) {
   // null if the queue is empty or the first premove is illegal (in which case
   // the entire queue is cleared — Chess.com behaviour).
   function drainPremoveQueue(postBotFen: string): string | null {
-    if (premoveQueueRef.current.length === 0) return null
+    const currentQueue = usePlayStore.getState().premoveQueue
+    if (currentQueue.length === 0) return null
 
-    const premove = premoveQueueRef.current[0]
+    const premove = currentQueue[0]
 
     const state = store.getState()
     if (state.status !== 'playing') {
@@ -339,9 +341,10 @@ export function useBotPlay(onNavigateToReview: () => void) {
       return null
     }
 
-    // Consume from front of queue
-    premoveQueueRef.current = premoveQueueRef.current.slice(1)
-    syncPremoveState()
+    // Consume from front of queue — newQueue is passed to applyMoveToStore so
+    // currentFen and premoveQueue update in ONE atomic Zustand setState (prevents
+    // the intermediate-render snap-back that happens with separate state updates).
+    const newQueue = currentQueue.slice(1)
 
     const premoveFen = chess.fen()
     const premoveSan = moveResult.san
@@ -357,7 +360,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
     }
 
     isProcessingMoveRef.current = true
-    applyMoveToStore(premove.orig, premove.dest, premoveSan, premoveFen, freshState)
+    applyMoveToStore(premove.orig, premove.dest, premoveSan, premoveFen, freshState, newQueue)
 
     // Add increment to user's clock
     usePlayStore.getState().addIncrement(moveColor)
@@ -511,9 +514,10 @@ export function useBotPlay(onNavigateToReview: () => void) {
     if (state.status !== 'playing') return
 
     // Bot is thinking OR there are already queued premoves → append to queue
-    if (state.isBotThinking || premoveQueueRef.current.length > 0) {
-      premoveQueueRef.current = [...premoveQueueRef.current, { orig: from, dest: to }]
-      syncPremoveState()
+    if (state.isBotThinking || state.premoveQueue.length > 0) {
+      usePlayStore.setState(s => ({
+        premoveQueue: [...s.premoveQueue, { orig: from, dest: to }],
+      }))
       return
     }
 

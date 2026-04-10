@@ -199,3 +199,34 @@ Raw centipawn-loss thresholds (ADR-011). Transparent and debuggable. 90% of the 
 **Remaining issue:** `.premove-sq-highlight` overlay squares not rendering + board gets stuck after first premove drag. To diagnose in next session.
 
 **Rationale:** chessground's `closer()` in `anim.js` matches disappearing pieces to appearing pieces of the same type/color by proximity distance. This means `api.set({fen: virtualFen})` correctly animates premoved pieces as moves, not appear/disappear pairs — giving Chess.com-style visualization for free without any manual piece manipulation.
+
+### ADR-023: premoveQueue Moved to Zustand for Atomic Updates
+**Status:** Implemented (2026-04-10)
+
+**Decision:** Moved `premoveQueue` from React `useState` (in `BotPlayPage.tsx`) to Zustand `playStore`, alongside `currentFen`. Added optional `newPremoveQueue` param to `applyMoveToStore` so both are written in a single `setState` call.
+
+**Problem:** With `premoveQueue` in React state and `currentFen` in Zustand, `useSyncExternalStore` (Zustand's subscription mechanism) bypasses React 18 auto-batching. A bot move triggers two separate renders: (1) `currentFen` updates → `virtualBoardFen` recomputes with old queue → board snaps back; (2) queue drains → board re-renders correctly. The snap-back on render 1 caused visible flicker.
+
+**Fix:** Single `setState({ currentFen, premoveQueue })` in `applyMoveToStore` → both values available in the same render → `virtualBoardFen` useMemo computes with the correct (drained) queue → no intermediate snap-back.
+
+### ADR-024: applyPremoveForcefully — Force-Apply Premoves Bypassing chess.js Legality
+**Status:** Implemented (2026-04-10)
+
+**Decision:** Added `applyPremoveForcefully(fen, userFenColor, from, to)` exported from `ChessBoard.tsx`. Uses chess.js `put`/`remove` to force-move a piece without any legality check, then returns the resulting FEN. Used as the catch-block fallback in both the `after` callback and the `virtualBoardFen` useMemo in `useBotPlay`.
+
+**Problem:** chess.js `move()` throws `"Invalid move"` for pinned pieces, moves that expose the king, and own-piece destinations. The `catch` block kept `currentFen` unchanged → `virtualBoardFen` = old FEN → FEN sync effect reset the board → snap-back. This made it impossible to visually premove a pinned piece.
+
+**Rationale:** The force-apply is for DISPLAY only. `drainPremoveQueue` still uses chess.js `move()` for strict legality validation when the premove actually fires. If the premove is still illegal at fire time (pinned piece wasn't unblocked), the queue clears — correct Chess.com behaviour.
+
+**Implementation:** `chess.remove(to)` captures ANY piece at dest (including own pieces), then `chess.put(piece, to)` places the premoved piece. Pawn promotions auto-queen. Turn and en-passant fields in the FEN are manually adjusted post-put.
+
+### ADR-025: Fully Permissive getPremoveDests (inBounds Only)
+**Status:** Implemented (2026-04-10)
+
+**Decision:** Replaced `notOwn` (inBounds + not own piece) with `inBounds` (pure on-board check) throughout `getPremoveDests`. `addRay` for sliding pieces now extends to the board edge through ALL pieces — own and opponent — without breaking.
+
+**Before:** Premove destinations excluded own-piece squares and ray-blocked squares. A rook with an own bishop on a4 couldn't premove to a5–a8. A knight couldn't premove to a square occupied by an own pawn.
+
+**After:** Every geometrically reachable square for a piece type is a valid premove destination, regardless of current occupancy. Matches Chess.com / Lichess premove behaviour.
+
+**Safety:** `applyPremoveForcefully` (ADR-024) already handles own-piece destinations by calling `chess.remove(to)` before placing the premoved piece. `drainPremoveQueue` validates on fire — still invalid premoves (e.g. own piece still blocking) cause queue clear.
