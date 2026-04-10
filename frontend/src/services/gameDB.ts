@@ -35,19 +35,31 @@ export interface AnalyzedGameRecord {
 // ─── DB setup ──────────────────────────────────────────────────────────────
 
 const DB_NAME = 'deepmove'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE = 'analyzedGames'
+const ARCHIVE_CACHE_STORE = 'archiveCache'
+
+interface ArchiveCacheRecord {
+  url: string
+  games: ChessComGame[]
+  cachedAt: number
+}
 
 let dbPromise: Promise<IDBPDatabase> | null = null
 
 function getDB() {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        const store = db.createObjectStore(STORE, { keyPath: 'id' })
-        store.createIndex('username', 'username')
-        store.createIndex('platform', 'platform')
-        store.createIndex('analyzedAt', 'analyzedAt')
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          const store = db.createObjectStore(STORE, { keyPath: 'id' })
+          store.createIndex('username', 'username')
+          store.createIndex('platform', 'platform')
+          store.createIndex('analyzedAt', 'analyzedAt')
+        }
+        if (oldVersion < 2) {
+          db.createObjectStore(ARCHIVE_CACHE_STORE, { keyPath: 'url' })
+        }
       },
     })
   }
@@ -92,6 +104,21 @@ export async function getCachedGamesForUser(
 export async function deleteAnalyzedGame(id: string): Promise<void> {
   const db = await getDB()
   await db.delete(STORE, id)
+}
+
+// ─── Archive Cache ─────────────────────────────────────────────────────────
+
+/** Returns cached games for a completed monthly archive URL, or null if not cached. */
+export async function getArchiveCache(url: string): Promise<ChessComGame[] | null> {
+  const db = await getDB()
+  const record = await db.get(ARCHIVE_CACHE_STORE, url) as ArchiveCacheRecord | undefined
+  return record?.games ?? null
+}
+
+/** Stores games for a completed monthly archive URL in IndexedDB indefinitely. */
+export async function setArchiveCache(url: string, games: ChessComGame[]): Promise<void> {
+  const db = await getDB()
+  await db.put(ARCHIVE_CACHE_STORE, { url, games, cachedAt: Date.now() } satisfies ArchiveCacheRecord)
 }
 
 // ─── ID generation ─────────────────────────────────────────────────────────

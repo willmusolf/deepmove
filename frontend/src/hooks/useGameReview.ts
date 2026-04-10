@@ -255,6 +255,9 @@ export function useGameReview() {
     lastAddedNodeIdRef.current = nextId
     setBranchState(prev => {
       const newId = parentId ? `${parentId}-b${prev.branchCounter}` : `root-b${prev.branchCounter}`
+      // Override ref with the authoritative ID from prev.branchCounter — mirrors useAnalysisBoard.ts.
+      // Guards against stale-closure mismatch where nextId (closure counter) !== newId (prev counter).
+      lastAddedNodeIdRef.current = newId
       const newNode: MoveNode = {
         id: newId, san, from, to, fen: newFen,
         childIds: [], parentId, moveNumber, color, isMainLine: false,

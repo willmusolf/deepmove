@@ -595,10 +595,14 @@ export default function App() {
       const legalCount = chess.moves().length
       const color: 'white' | 'black' = parentFen.split(' ')[1] === 'w' ? 'white' : 'black'
 
-      const beforeResult = await analyzePositionSingleBg(parentFen, 4)
-      const afterResult = await analyzePositionSingleBg(newFen, 4)
+      const beforeResult = await analyzePositionSingleBg(parentFen, 10)
+      const afterResult = await analyzePositionSingleBg(newFen, 10)
 
-      if (!beforeResult || !afterResult) return
+      if (!beforeResult || !afterResult) {
+        console.warn('[branch eval] Stockfish returned null for', nodeId)
+        setBranchGrades(prev => new Map(prev).set(nodeId, 'unknown' as MoveGrade))
+        return  // finally still clears pendingBranchNodes
+      }
 
       const rawBefore = beforeResult.score
       const rawAfter = afterResult.score
@@ -901,10 +905,14 @@ export default function App() {
                         : (analysisPath.length > 0
                           ? analysisTree[analysisPath[analysisPath.length - 1]]?.to
                           : undefined)
-                      // Show pending spinner while branch eval is in flight, or while the
-                      // engine is still loading (grade not yet available but will be retried).
-                      const isPendingOnBoard = showGrades && boardNodeId !== null &&
-                        pendingBranchNodes.has(boardNodeId)
+                      // Show pending spinner while branch eval is in flight.
+                      // Also show for main-line moves while full-game analysis is still running
+                      // (mainEval?.grade not yet populated for this move index).
+                      const isMainLinePending = isLoaded && !inBranch && isAnalyzing && !mainEval?.grade && !!boardLastMove
+                      const isPendingOnBoard = showGrades && (
+                        (boardNodeId !== null && pendingBranchNodes.has(boardNodeId)) ||
+                        isMainLinePending
+                      )
                       if (isPendingOnBoard && destSquare) {
                         const file = destSquare.charCodeAt(0) - 97
                         const rank = parseInt(destSquare[1], 10) - 1

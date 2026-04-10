@@ -230,3 +230,14 @@ Raw centipawn-loss thresholds (ADR-011). Transparent and debuggable. 90% of the 
 **After:** Every geometrically reachable square for a piece type is a valid premove destination, regardless of current occupancy. Matches Chess.com / Lichess premove behaviour.
 
 **Safety:** `applyPremoveForcefully` (ADR-024) already handles own-piece destinations by calling `chess.remove(to)` before placing the premoved piece. `drainPremoveQueue` validates on fire — still invalid premoves (e.g. own piece still blocking) cause queue clear.
+
+### ADR-026: Chess.com API Compliance — Rate Limiting + Archive Caching
+**Status:** Implemented (2026-04-10)
+
+**Decision:** (1) Replaced `Promise.all()` parallel fetching in `fetchArchives()` with a sequential loop + 200ms delay between API calls. Batch size reduced 5→3. (2) Added 500ms delay between batches in `handleLoadAll()`. (3) Added `X-App-Name` header on all Chess.com requests (browsers block `User-Agent` as a forbidden header; `X-App-Name` is accepted). (4) 429 responses now surface a visible error instead of silently returning `[]`. (5) Completed monthly archive responses cached indefinitely in IndexedDB (`archiveCache` store, DB v2) — cache hit skips API call and delay entirely.
+
+**Problem:** The original `Promise.all()` fired 5+ requests simultaneously with no throttle, violated Chess.com's rate limit guidelines, and silently swallowed 429 errors. At scale, this would trigger IP-level blocks.
+
+**Why archive caching:** Monthly archives for completed months are immutable (Chess.com never modifies past months). Re-fetching them on every session is pure waste. Cache hit rate approaches 100% for returning users — only the current month ever needs a fresh fetch.
+
+**Context (Chessiro investigation):** Chess.com temporarily blocked Chessiro (restored within 24h) for copying Chess.com's proprietary piece designs, NOT for providing free AI coaching. Chess.com explicitly stated "the API is open because we want people to build on it." The AI coaching product itself is not at risk. DeepMove uses the cburnett piece set (CC BY-SA 3.0, Lichess default) — no IP exposure.
