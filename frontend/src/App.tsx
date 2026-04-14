@@ -1303,19 +1303,24 @@ export default function App() {
                               onBeforeGameLoad={handleBeforeGameLoad}
                               pagination={chesscomPagination}
                                               onGamesAppended={(newGames, newPagination) => {
+                                const isPaginationComplete = 'fetchedArchives' in newPagination && 'allArchives' in newPagination
                                 setChesscomGames(prev => {
                                   const existing = new Set(prev.map(g => (g as ChessComGame).url))
                                   const fresh = (newGames as ChessComGame[]).filter(g => !existing.has(g.url))
                                   const merged = [...prev, ...fresh]
-                                  try {
-                                    localStorage.setItem(
-                                      `deepmove_gamelist_chesscom_${chesscomUsername.toLowerCase()}`,
-                                      JSON.stringify({ games: merged.slice(0, 2000), pagination: newPagination, fetchedAt: Date.now() })
-                                    )
-                                  } catch {}
+                                  if (isPaginationComplete) {
+                                    try {
+                                      localStorage.setItem(
+                                        `deepmove_gamelist_chesscom_${chesscomUsername.toLowerCase()}`,
+                                        JSON.stringify({ games: merged.slice(0, 2000), pagination: newPagination, fetchedAt: Date.now() })
+                                      )
+                                    } catch {}
+                                  }
                                   return merged
                                 })
-                                setChesscomPagination(newPagination)
+                                if (isPaginationComplete) {
+                                  setChesscomPagination(newPagination)
+                                }
                               }}
                             />
                           )}
@@ -1332,6 +1337,16 @@ export default function App() {
                               setLichessPagination(pagination)
                               cacheRatingsFromGameList(games as LichessGame[], uname, 'lichess')
                             }}
+                            onGamesAppended={(newGames, _newPagination) => {
+                              setLichessGames(prev => {
+                                const existing = new Set(prev.map(g => (g as LichessGame).id))
+                                const fresh = (newGames as LichessGame[]).filter(g => !existing.has((g as LichessGame).id))
+                                return [...fresh, ...prev]
+                              })
+                            }}
+                            newestEndTime={lichessGames.length > 0
+                              ? Math.max(...lichessGames.map(g => (g as LichessGame).lastMoveAt ?? 0))
+                              : undefined}
                           />
                           {lichessGames.length > 0 && (
                             <GameSelector

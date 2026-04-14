@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getRecentGames, getNewGames, type ChessComGame, type ChessComLoadResult } from '../../api/chesscom'
-import { getUserGames, type LichessGame, type LichessLoadResult } from '../../api/lichess'
+import { getUserGames, getNewLichessGames, type LichessGame, type LichessLoadResult } from '../../api/lichess'
 import { getMyUsername, setIdentity, isMe, isDismissed, dismiss } from '../../services/identity'
 
 type Platform = 'chesscom' | 'lichess'
@@ -107,6 +107,14 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
         const newGames = await getNewGames(trimmed, newestEndTime)
         if (newGames.length > 0) {
           const pag: PaginationState = { platform, hasMore: true }  // pagination unchanged — just append
+          onGamesAppended(newGames, pag)
+        }
+        return
+      }
+      if (isReload && platform === 'lichess') {
+        const newGames = await getNewLichessGames(trimmed, newestEndTime)
+        if (newGames.length > 0) {
+          const pag: PaginationState = { platform, hasMore: false }
           onGamesAppended(newGames, pag)
         }
         return

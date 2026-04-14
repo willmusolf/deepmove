@@ -7,12 +7,6 @@ import { getArchiveCache, setArchiveCache } from '../services/gameDB'
 
 const CHESSCOM_BASE = 'https://api.chess.com/pub'
 
-// User-Agent is a "forbidden header" in browser fetch (browsers block it for security).
-// We use X-App-Name as the identifier instead, which Chess.com and most APIs accept.
-const CHESSCOM_HEADERS: HeadersInit = {
-  'X-App-Name': 'DeepMove/1.0 Chess Coaching App',
-}
-
 const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
 export interface ChessComGame {
@@ -31,7 +25,7 @@ export interface ChessComArchive {
 
 export async function getPlayerGames(username: string, year: number, month: number): Promise<ChessComGame[]> {
   const paddedMonth = String(month).padStart(2, '0')
-  const res = await fetch(`${CHESSCOM_BASE}/player/${username}/games/${year}/${paddedMonth}`, { headers: CHESSCOM_HEADERS })
+  const res = await fetch(`${CHESSCOM_BASE}/player/${username}/games/${year}/${paddedMonth}`)
   if (res.status === 429) throw new Error('Chess.com rate limit reached — please wait a moment and try again')
   if (!res.ok) throw new Error(`Chess.com API error: ${res.status}`)
   const data = await res.json() as { games: ChessComGame[] }
@@ -39,7 +33,7 @@ export async function getPlayerGames(username: string, year: number, month: numb
 }
 
 export async function getPlayerArchives(username: string): Promise<string[]> {
-  const res = await fetch(`${CHESSCOM_BASE}/player/${username}/games/archives`, { headers: CHESSCOM_HEADERS })
+  const res = await fetch(`${CHESSCOM_BASE}/player/${username}/games/archives`)
   if (res.status === 429) throw new Error('Chess.com rate limit reached — please wait a moment and try again')
   if (!res.ok) throw new Error(`Chess.com API error: ${res.status}`)
   const data = await res.json() as ChessComArchive
@@ -135,16 +129,24 @@ async function fetchArchives(urls: string[]): Promise<ChessComGame[]> {
       }
     }
     // API call needed — throttle between requests
-    if (apiCallCount > 0) await delay(200)
+    if (apiCallCount > 0) await delay(350)
     apiCallCount++
-    const games = await fetch(url, { headers: CHESSCOM_HEADERS })
+    const games = await fetch(url)
       .then(r => {
         if (r.status === 429) throw new Error('Chess.com rate limit reached — please wait a moment and try again')
         if (!r.ok) throw new Error(`Chess.com API error: ${r.status}`)
         return r.json()
       })
       .then((d: { games: ChessComGame[] }) => d.games)
-      .catch(e => {
+      .catch(async (e: Error) => {
+        if (e.message.includes('rate limit')) {
+          console.warn('Chess.com rate limited — retrying in 5s...')
+          await delay(5000)
+          return fetch(url)
+            .then(r => r.ok ? r.json() as Promise<{ games: ChessComGame[] }> : Promise.resolve({ games: [] as ChessComGame[] }))
+            .then((d: { games: ChessComGame[] }) => d.games)
+            .catch(() => [] as ChessComGame[])
+        }
         console.warn('Chess.com archive fetch failed:', e)
         return [] as ChessComGame[]
       })
@@ -169,7 +171,7 @@ export interface ChessComPlayer {
 
 export async function getPlayerProfile(username: string): Promise<ChessComPlayer | null> {
   try {
-    const res = await fetch(`${CHESSCOM_BASE}/player/${username}`, { headers: CHESSCOM_HEADERS })
+    const res = await fetch(`${CHESSCOM_BASE}/player/${username}`)
     if (!res.ok) return null
     return await res.json() as ChessComPlayer
   } catch {

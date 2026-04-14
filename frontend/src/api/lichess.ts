@@ -28,8 +28,15 @@ export interface LichessLoadResult {
 }
 
 export async function getUserGames(username: string, limit = 50): Promise<LichessLoadResult> {
-  const games = await fetchLichessGames(username, limit)
-  return { games, hasMore: games.length >= limit }
+  try {
+    const games = await fetchLichessGames(username, limit)
+    return { games, hasMore: games.length >= limit }
+  } catch {
+    // One retry after 2s — concurrent auto-load from tab switch can briefly exhaust connections
+    await new Promise(r => setTimeout(r, 2000))
+    const games = await fetchLichessGames(username, limit)
+    return { games, hasMore: games.length >= limit }
+  }
 }
 
 export async function loadMoreLichessGames(
@@ -41,14 +48,23 @@ export async function loadMoreLichessGames(
   return { games, hasMore: games.length >= limit }
 }
 
+export async function getNewLichessGames(
+  username: string,
+  sinceTimestamp: number,
+): Promise<LichessGame[]> {
+  // Fetch games newer than sinceTimestamp (delta reload)
+  return fetchLichessGames(username, 300, undefined, undefined, sinceTimestamp + 1)
+}
+
 export async function searchGamesByOpponent(username: string, opponent: string, limit = 100): Promise<LichessLoadResult> {
   const games = await fetchLichessGames(username, limit, undefined, opponent)
   return { games, hasMore: games.length >= limit }
 }
 
-async function fetchLichessGames(username: string, limit: number, before?: number, vs?: string): Promise<LichessGame[]> {
+async function fetchLichessGames(username: string, limit: number, before?: number, vs?: string, since?: number): Promise<LichessGame[]> {
   let url = `${LICHESS_BASE}/games/user/${username}?max=${limit}&pgnInJson=true&clocks=false&opening=false`
   if (before) url += `&until=${before}`
+  if (since) url += `&since=${since}`
   if (vs) url += `&vs=${encodeURIComponent(vs)}`
   const res = await fetch(url, { headers: { Accept: 'application/x-ndjson' } })
   if (!res.ok) throw new Error(`Lichess API error: ${res.status}`)

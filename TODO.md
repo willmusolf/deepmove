@@ -639,7 +639,7 @@ See above in "Next After Launch"
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
 
 
--page being scrolllable for opening name and buttons etc on bigger screen? spacing is good but can vertically scroll sometimes which isnt great
+-page being scrolllable for opening name and buttons etc on bigger screen? spacing is good but can vertically scroll sometimes which isnt great. static sizing needs to be slightly better bc its scrollable on a default sized screen
 
 
 -depth analysis sometimes stops analyzing again when you interrupt it going deeper then coming back to it
