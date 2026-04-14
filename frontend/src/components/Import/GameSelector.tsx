@@ -183,7 +183,8 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
 
   const allGames = useMemo(() => {
     if (cachedOnlyGames.length === 0) return normalized
-    return [...normalized, ...cachedOnlyGames]
+    const normalizedIds = new Set(normalized.map(g => g.gameId))
+    return [...normalized, ...cachedOnlyGames.filter(g => !normalizedIds.has(g.gameId))]
   }, [normalized, cachedOnlyGames])
 
   const displayedGames = useMemo(() => {
@@ -270,12 +271,14 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     try {
       if (platform === 'chesscom' && pag.fetchedArchives && pag.allArchives) {
         const result = await loadMoreGames(pag.allArchives, pag.fetchedArchives)
-        onGamesAppended(result.games, {
+        const newPag: PaginationState = {
           platform: 'chesscom',
           fetchedArchives: result.fetchedArchives,
           allArchives: result.allArchives,
           hasMore: result.hasMore,
-        })
+        }
+        paginationRef.current = newPag  // sync update — next handleLoadMore sees correct fetchedArchives immediately
+        onGamesAppended(result.games, newPag)
         return result.hasMore
       } else if (platform === 'lichess') {
         const before = oldestTimestampRef.current
@@ -303,7 +306,6 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     setIsLoadingAll(true)
     let stillMore = paginationRef.current?.hasMore ?? false
     while (stillMore && !cancelLoadAllRef.current) {
-      await new Promise<void>(r => setTimeout(r, 500)) // 500ms between batches — respects Chess.com rate limits
       stillMore = await handleLoadMore()
     }
     setIsLoadingAll(false)
@@ -363,7 +365,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
             ? `${displayedGames.length} of ${allGames.length}`
             : `${allGames.length} game${allGames.length !== 1 ? 's' : ''}`
         }
-        {isLoadingAll && remaining != null && remaining > 0 && (
+        {isLoadingAll && (remaining == null || remaining > 0) && (
           <span className="game-list-loading-status"> · loading…</span>
         )}
       </span>
