@@ -36,15 +36,24 @@ coords coord {
   font-weight: 400;
   font-size: clamp(10px, 2.0cqw, 15px);
   text-transform: lowercase;
+  line-height: 1;
 }
 
-/* ranks — let chessground's base translateY(39%) handle vertical centering */
+/* ranks — override chessground's translateY(39%) so labels sit at exact square center */
 coords.ranks coord {
+  font-size: clamp(10px, 1.8cqw, 13px);
+  line-height: 1;
+  overflow: hidden;
+  transform: none;       /* override chessground's translateY(39%) — flex centering handles it */
+  display: flex;
+  align-items: center;   /* vertically center within each rank cell = consistent at any board size */
   pointer-events: none;
 }
 
 /* files — center within the 16px row chessground reserves at bottom: -4px */
 coords.files coord {
+  font-size: clamp(10px, 1.8cqw, 14px);
+  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -148,12 +157,13 @@ cg-board {
   gap: 0.6rem;
   padding: 0.4rem 0.6rem;
   flex-shrink: 0;
+  overflow: hidden;
   color: #ffffff;
 }
 
 .player-avatar {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   border-radius: 4px;
   overflow: hidden;
@@ -234,6 +244,7 @@ cg-board {
 .captured-piece-img {
   width: 18px;
   height: 18px;
+  flex-shrink: 0;
   display: inline-block;
   vertical-align: middle;
 }
@@ -804,6 +815,8 @@ cg-board {
   flex-shrink: 0;
   min-width: 0;
   width: fit-content;
+  /* NOTE: container-type: inline-size cannot be used here — it applies
+     contain: inline-size which overrides width: fit-content → board collapses to 0 */
 }
 
 .player-info-box {
@@ -1049,6 +1062,23 @@ cg-board {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  /* ── Player box scaling on narrow phones ─────────────────────────────── */
+  .player-info-box {
+    height: 36px;
+    padding: 2px 6px;
+    gap: 0.4rem;
+  }
+  .player-avatar {
+    width: 30px;
+    height: 30px;
+  }
+  .player-name { font-size: 0.8rem; }
+  .player-rating { font-size: 0.75rem; }
+  .player-flag { font-size: 0.85rem; }
+  .captured-piece-img { width: 14px; height: 14px; }
+  .clock-box { min-width: 52px; height: 30px; padding: 0 6px; }
+  .clock-value { font-size: 1.1rem; }
 }
 
 /* ── Side panel content (replaces old side-panel-wrapper) ─────────────── */
@@ -4794,3 +4824,4 @@ cg-board {
 @media (max-width: 1329px) {
   .ad-col { display: none; }
 }
+

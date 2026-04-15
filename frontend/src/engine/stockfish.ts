@@ -67,6 +67,9 @@ export class StockfishEngine {
   private currentIsBotMove = false
   private currentBotMoveResolve: ((uci: string) => void) | null = null
 
+  // Pending queue item waiting for readyok before dispatch (race-condition guard)
+  private pendingQueueItem: QueueItem | null = null
+
   async initialize(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.worker = new Worker('/stockfish/stockfish.js')
@@ -119,6 +122,14 @@ export class StockfishEngine {
   }
 
   private onUciLine(line: string) {
+    // readyok: worker has flushed all prior commands — safe to dispatch pending multi-PV analysis
+    if (line === 'readyok' && this.pendingQueueItem) {
+      const item = this.pendingQueueItem
+      this.pendingQueueItem = null
+      this.dispatch(item)
+      return
+    }
+
     if (line.startsWith('info')) {
       if (this.currentIsMultiPV) {
         // Multi-PV parsing — accumulate per-rank
@@ -252,6 +263,15 @@ export class StockfishEngine {
   private drainQueue() {
     if (this.busy || this.queue.length === 0) return
     const next = this.queue.shift()!
+    if (next.multiPV) {
+      // Before dispatching multi-PV analysis, flush any pending stop commands
+      // with an isready/readyok round-trip. Without this, a second 'stop' sent
+      // during rapid navigate-away → navigate-back can race with the new 'go'
+      // and kill the new analysis at depth 2-3, appearing as premature completion.
+      this.pendingQueueItem = next
+      this.worker!.postMessage('isready')
+      return
+    }
     this.dispatch(next)
   }
 
@@ -279,7 +299,7 @@ export class StockfishEngine {
       this.latestMultiPvLines = new Map()
       this.worker!.postMessage(`setoption name MultiPV value ${item.multiPV}`)
       this.worker!.postMessage(`position fen ${item.fen}`)
-      this.worker!.postMessage(`go depth ${item.depth} movetime 45000`)
+      this.worker!.postMessage(`go depth ${item.depth}`)
     } else {
       this.currentIsBotMove = false
       this.currentIsMultiPV = false
@@ -340,6 +360,8 @@ export class StockfishEngine {
     this.queue = this.queue.filter(item => !item.multiPV)
     // Clear the onUpdate callback so no stale results can fire after stop
     this.currentMultiPvOnUpdate = null
+    // Clear any pending multi-PV item waiting for readyok
+    this.pendingQueueItem = null
     // If currently running a multi-PV analysis, stop it immediately
     if (this.worker && this.busy && this.currentIsMultiPV) {
       this.worker.postMessage('stop')
@@ -351,6 +373,7 @@ export class StockfishEngine {
    *  for the current depth-15 analysis to finish (~3-5s per position). */
   stop(): void {
     this.queue = []
+    this.pendingQueueItem = null
     if (this.worker && this.busy) {
       this.worker.postMessage('stop')
     }
