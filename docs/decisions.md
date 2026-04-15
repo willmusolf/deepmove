@@ -241,3 +241,27 @@ Raw centipawn-loss thresholds (ADR-011). Transparent and debuggable. 90% of the 
 **Why archive caching:** Monthly archives for completed months are immutable (Chess.com never modifies past months). Re-fetching them on every session is pure waste. Cache hit rate approaches 100% for returning users — only the current month ever needs a fresh fetch.
 
 **Context (Chessiro investigation):** Chess.com temporarily blocked Chessiro (restored within 24h) for copying Chess.com's proprietary piece designs, NOT for providing free AI coaching. Chess.com explicitly stated "the API is open because we want people to build on it." The AI coaching product itself is not at risk. DeepMove uses the cburnett piece set (CC BY-SA 3.0, Lichess default) — no IP exposure.
+
+### ADR-027: UCI isready/readyok Handshake Before Multi-PV Dispatch
+**Status:** Implemented (2026-04-15)
+
+**Decision:** Added a `pendingQueueItem` field and `isready`/`readyok` round-trip in `drainQueue()` before dispatching any multi-PV (position analysis) item from the queue.
+
+**Problem:** Rapid navigate-away → navigate-back sends two `stop` commands to the Stockfish worker. The first stop halts the current analysis and emits `bestmove`. Main thread processes `bestmove`, calls `drainQueue`, dispatches the new analysis (`go depth N`). But the second `stop` was already enqueued in the worker's message buffer — it arrives after the new `go` has started, kills the new analysis at depth 2-3, and emits a second `bestmove`. The `.then()` handler fires with a valid token, caches a depth-2 result, and sets `isAnalyzingPosition = false`. Analysis appears complete at depth 2-3.
+
+**Fix:** `drainQueue` now sets `pendingQueueItem = item` and sends `isready` instead of calling `dispatch` directly. Stockfish only emits `readyok` after processing all previously enqueued commands (including any pending stops). The `onUciLine` handler then dispatches the real analysis on `readyok`. `pendingQueueItem` is cleared in both `stopPositionAnalysis()` and `stop()`.
+
+**Latency cost:** ~5-20ms per new position analysis (one extra worker round-trip). Imperceptible.
+
+### ADR-028: Always-25 Depth with True Resume (POSITION_MAX_DEPTH)
+**Status:** Implemented (2026-04-15)
+
+**Decision:** (1) Replaced hardcoded `go depth 16 movetime 45000` with `go depth 25` (no movetime cap). (2) Added `POSITION_MAX_DEPTH = 25` module constant in App.tsx. (3) `positionCache` now updates incrementally on every `onUpdate` callback, not just on final `.then()` completion. (4) `triggerPositionAnalysis` snapshots `resumeFromDepth` (the cached depth at start of analysis) and the `onUpdate` callback skips any depth `d ≤ resumeFromDepth` — so the depth counter never goes backward on resume.
+
+**Why remove movetime:** The 45s movetime cut off analysis around depth 20-22 for complex positions, making depth 25 unreachable. Since users can navigate away at any time (which sends `stop`), movetime is not needed as a safety net.
+
+**Partial caching behavior:** If interrupted at depth 12, the cache stores the depth-12 result. On return: (1) cache hit → depth-12 arrows shown instantly + `setAnalyzingPosition(true)`; (2) new analysis re-runs from depth 1 (Stockfish hash table makes depths 1-12 very fast); (3) `onUpdate` skips depths 1-12 silently; (4) depth counter resumes at 13, 14, ... — user sees seamless continuation from where they left off.
+
+**Full cache hit (depth ≥ 25):** `displayFen` effect returns early, no re-analysis.
+
+**Revert path:** Change `POSITION_MAX_DEPTH = 25` to `16` and restore `movetime 45000` in `stockfish.ts` dispatch.

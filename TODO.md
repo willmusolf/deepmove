@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-04-15 — Responsive layout polish (3 rounds): fixed coord labels (container-query cqw units), nav collapse (logo hidden, ☰ icon), sort dropdown moved to list header, board dvh formula 200→158px (+27px board height), player-info-box 52→44px, app-main padding 1rem→0.75rem, side-col flex-grow (absorbs horizontal slack), ad-col breakpoint 1380→1330px, removed collapsed-nav --board-vw-offset overrides (eliminated board jump on nav toggle), nav-sidebar transition: width 0.2s ease.
+**Last Session**: 2026-04-15 — Depth analysis overhaul: fixed UCI stop/go race condition (isready/readyok handshake in drainQueue), incremental partial caching (positionCache updates on every onUpdate), POSITION_MAX_DEPTH=25 (was 16, no movetime cap), true resume (onUpdate skips depths ≤ resumeFromDepth so counter never goes backward on nav back).
 
 ---
 
@@ -637,13 +637,6 @@ See above in "Next After Launch"
 ---
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
-
--letters/numbers arent in the same sizing / position relative to board resizing always?
--positioning of player box and spacing of images etc should be perfect and consistent as well too
-
-
--depth analysis sometimes stops analyzing again when you interrupt it going deeper then coming back to it
--have depth analysis load from where it was and go deeprer ( to 25????) thats what lichess is or will that be expenisve or something
 
 
 

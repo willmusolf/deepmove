@@ -36,6 +36,10 @@ import { detectOpening } from './chess/openings'
 
 // Lichess-style thickness brushes — all green, varying weight
 const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
+// Max depth for per-position multi-PV analysis. Analysis runs continuously to this
+// depth and caches partial results at each depth — so interrupting and returning
+// resumes visually from the last reached depth.
+const POSITION_MAX_DEPTH = 25
 
 type PanelTab = "analysis" | "load" | "coach"
 type ImportTab = "chesscom" | "lichess" | "pgn"
@@ -189,18 +193,10 @@ export default function App() {
   // When true, the next displayFen change is from a piece move — skip the 180ms deferral
   const isPieceMoveRef = useRef(false)
 
-  function triggerPositionAnalysis(fen: string) {
+  function triggerPositionAnalysis(fen: string, depth = POSITION_MAX_DEPTH) {
     // NOTE: callers are responsible for calling stopPositionAnalysis() before this.
     // Do NOT call stopPositionAnalysis() here — it would send a second 'stop' command
     // to the worker, which races with the new analysis dispatch and kills it at low depth.
-
-    const cached = positionCache.current.get(fen)
-    if (cached) {
-      setCurrentPositionLines(cached)
-      setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
-      setAnalyzingPosition(false)
-      return
-    }
 
     // Cap multi-PV to legal move count (avoids duplicate arrows on forced moves)
     let numLines = 2
@@ -214,20 +210,26 @@ export default function App() {
         return
       }
       numLines = Math.min(2, legalMoveCount)
-    } catch { /* invalid FEN — fall through with default 3 */ }
+    } catch { /* invalid FEN — fall through with default 2 */ }
 
     const token = ++positionTokenRef.current
     setAnalyzingPosition(true)
-    setCurrentAnalysisDepth(0)
+    // Snapshot cached depth at the start of this analysis run.
+    // onUpdate skips any depth ≤ resumeFromDepth so the counter never goes backward:
+    // if we left at depth 12, we show 12 from cache, then continue at 13, 14...
+    const resumeFromDepth = positionCache.current.get(fen)?.[0]?.depth ?? 0
+    if (resumeFromDepth === 0) setCurrentAnalysisDepth(0)
 
-    analyzePositionLines(fen, 16, numLines, (lines, depth) => {
+    analyzePositionLines(fen, depth, numLines, (lines, d) => {
       if (positionTokenRef.current !== token) return
+      if (d <= resumeFromDepth) return  // skip already-seen depths
       setCurrentPositionLines(lines)
-      setCurrentAnalysisDepth(depth)
+      setCurrentAnalysisDepth(d)
+      if (lines.length > 0) positionCache.current.set(fen, lines)
     })
       .then(lines => {
         if (positionTokenRef.current !== token) return
-        if (lines.length > 0) positionCache.current.set(fen, lines)  // don't cache empty (engine not ready)
+        if (lines.length > 0) positionCache.current.set(fen, lines)
         setCurrentPositionLines(lines)
         setCurrentAnalysisDepth(lines[0]?.depth ?? 0)
         setAnalyzingPosition(false)
@@ -248,23 +250,34 @@ export default function App() {
     stopPositionAnalysis()
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
 
-    // Show cached result immediately — no blank flash, no delay
     const cached = positionCache.current.get(displayFen)
-    if (cached) {
+
+    // Always show any cached result immediately (partial or full depth)
+    if (cached && cached.length > 0) {
       setCurrentPositionLines(cached)
       setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
-      setAnalyzingPosition(false)
-      return
+      if ((cached[0]?.depth ?? 0) >= POSITION_MAX_DEPTH) {
+        // Full depth — no further analysis needed
+        setAnalyzingPosition(false)
+        return
+      }
+      // Partial depth — show cached arrows but fall through to continue analyzing
+      setAnalyzingPosition(true)
     }
 
     if (!isReady) return  // engine not ready yet — isReady effect will seed analysis
 
+    const hasPartialCache = (cached?.length ?? 0) > 0
+
     if (isPieceMoveRef.current) {
       // Piece move (drag or best-line click) — clear stale lines immediately so
-      // skeleton loaders appear at once, then fire analysis with no deferral.
+      // skeleton loaders appear at once (unless we have partial cache for this position),
+      // then fire analysis with no deferral.
       isPieceMoveRef.current = false
-      setCurrentPositionLines([])
-      setCurrentAnalysisDepth(0)
+      if (!hasPartialCache) {
+        setCurrentPositionLines([])
+        setCurrentAnalysisDepth(0)
+      }
       triggerPositionAnalysis(displayFen)
     } else {
       // Key-hold detection: if arrow-key nav events arrive faster than 100ms apart,
@@ -274,25 +287,22 @@ export default function App() {
       lastNavTimeRef.current = now
 
       if (gap < 100) {
-        // Flying through moves — check cache first for instant display
-        const fastCached = positionCache.current.get(displayFen)
-        if (fastCached) {
-          setCurrentPositionLines(fastCached)
-          setCurrentAnalysisDepth(fastCached[0]?.depth ?? 0)
-          setAnalyzingPosition(false)
-          return
+        // Flying through moves — partial/full cached lines already shown above.
+        // If no cache, clear stale arrows and defer analysis until user pauses.
+        if (!hasPartialCache) {
+          setCurrentPositionLines([])
+          setCurrentAnalysisDepth(0)
         }
-        // Not cached — clear stale arrows and defer analysis until user pauses
-        setCurrentPositionLines([])
-        setCurrentAnalysisDepth(0)
         navHoldTimerRef.current = setTimeout(() => {
           triggerPositionAnalysis(displayFen)
         }, 180)
       } else {
-        // Single arrow key press — clear stale arrows immediately, then fire analysis.
-        // Old arrows belong to a different position; showing them is misleading.
-        setCurrentPositionLines([])
-        setCurrentAnalysisDepth(0)
+        // Single arrow key press — if no cache, clear stale arrows from previous position.
+        // Partial cache already displayed above so we keep them.
+        if (!hasPartialCache) {
+          setCurrentPositionLines([])
+          setCurrentAnalysisDepth(0)
+        }
         triggerPositionAnalysis(displayFen)
       }
     }
@@ -1124,12 +1134,13 @@ export default function App() {
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
                           </span>
                           {currentAnalysisDepth > 0 ? (
-                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / 16{isAnalyzingPosition ? ' …' : ''}</span>
+                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / 25{isAnalyzingPosition ? ' …' : ''}</span>
                           ) : isAnalyzingPosition ? (
                             <span className="eval-display-depth">analyzing…</span>
                           ) : mainEval && !inBranch ? (
                             <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
                           ) : null}
+
                         </div>
                       )}
 
@@ -1206,12 +1217,13 @@ export default function App() {
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
                           </span>
                           {currentAnalysisDepth > 0 ? (
-                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / 16{isAnalyzingPosition ? ' …' : ''}</span>
+                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / 25{isAnalyzingPosition ? ' …' : ''}</span>
                           ) : isAnalyzingPosition ? (
                             <span className="eval-display-depth">analyzing…</span>
                           ) : mainEval && !inBranch ? (
                             <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
                           ) : null}
+
                       </div>
 
                       {/* Coach comment box — where the graph/report was */}
@@ -1401,10 +1413,11 @@ export default function App() {
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
                           </span>
                           {currentAnalysisDepth > 0 ? (
-                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / 16{isAnalyzingPosition ? ' …' : ''}</span>
+                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / 25{isAnalyzingPosition ? ' …' : ''}</span>
                           ) : isAnalyzingPosition ? (
                             <span className="eval-display-depth">analyzing…</span>
                           ) : null}
+
                         </div>
                       )}
 
