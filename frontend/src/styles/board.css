@@ -31,26 +31,23 @@ cg-board square.check {
   touch-action: none;
 }
 
-/* Coordinate labels — lowercase, bigger */
+/* Coordinate labels — board-relative size via container query */
 coords coord {
-  font-weight: 200;
-  font-size: 0.95rem;
+  font-weight: 400;
+  font-size: clamp(10px, 2.0cqw, 15px);
   text-transform: lowercase;
 }
 
-/* ranks (left) — nudge numbers up */
+/* ranks — let chessground's base translateY(39%) handle vertical centering */
 coords.ranks coord {
-  position: relative;
-  top: -6px;
   pointer-events: none;
 }
 
-/* files (bottom) — letters sit too low */
+/* files — center within the 16px row chessground reserves at bottom: -4px */
 coords.files coord {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
-  transform: translateY(-11px);
   pointer-events: none;
 }
 
@@ -78,10 +75,11 @@ cg-board {
 }
 
 .chess-board-container {
-  width: min(880px, calc(100dvh - 165px), calc(100vw - 660px));
-  height: min(880px, calc(100dvh - 165px), calc(100vw - 660px));
+  width: min(880px, calc(100dvh - 158px), calc(100vw - var(--board-vw-offset)));
+  height: min(880px, calc(100dvh - 158px), calc(100vw - var(--board-vw-offset)));
   position: relative;
   flex-shrink: 0;
+  container-type: inline-size;
 }
 
 /* ── Main content area ────────────────────────────────────────────────── */
@@ -90,9 +88,9 @@ cg-board {
   min-height: 0;
   display: flex;
   gap: 1rem;
-  padding: 1rem 1.5rem;
+  padding: 0.75rem 1.5rem;
   align-items: stretch;
-  overflow-y: auto;
+  overflow-y: hidden;
   overflow-x: hidden;
 }
 
@@ -141,7 +139,7 @@ cg-board {
 
 /* ── Player Info Box (Chess.com-style two-line layout) ────────────────── */
 .player-info-box {
-  height: 52px;
+  height: 44px;
   background: #4d4d4d;
   border: 1px solid #505050;
   box-sizing: border-box;
@@ -289,7 +287,7 @@ cg-board {
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 0.5rem 0.75rem;
-  margin-top: 0.5rem;
+  margin-top: 0.35rem;
   margin-left: calc(16px + 8px); /* align with board edge, not eval bar */
   flex-shrink: 0;
   width: calc(100% - 24px);
@@ -745,6 +743,7 @@ cg-board {
 .nav-sidebar {
   width: var(--layout-nav-width);
   flex-shrink: 0;
+  transition: width 0.2s ease;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--color-border);
@@ -937,6 +936,8 @@ cg-board {
   .board-controls {
     flex-wrap: wrap;
     padding-left: 0;
+    margin-left: 22px;  /* align with board: eval(16)+gap(6) */
+    width: calc(100% - 22px);
   }
 
   .panel-tabs {
@@ -962,7 +963,8 @@ cg-board {
   }
 
   .board-controls {
-    width: 100%;
+    margin-left: 18px;  /* align with board: eval(12)+gap(6) */
+    width: calc(100% - 18px);
   }
 
   .import-tabs,
@@ -1001,7 +1003,8 @@ cg-board {
   .board-controls {
     justify-content: flex-start;
     gap: 0.35rem;
-    width: 100%;
+    margin-left: 14px;  /* align with board: eval(10)+gap(4) */
+    width: calc(100% - 14px);
   }
 
   .board-controls__nav,
@@ -1623,6 +1626,8 @@ cg-board {
 }
 
 .account-link-input {
+  flex: 1;
+  min-width: 0;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -4582,8 +4587,8 @@ cg-board {
 }
 
 .practice-line-list {
-  max-height: 240px;
-  overflow-y: auto;
+  max-height: none;
+  overflow-y: visible;
   padding-right: 0.2rem;
 }
 
@@ -4601,8 +4606,8 @@ cg-board {
 }
 
 .practice-feedback--success {
-  background: rgba(74, 158, 255, 0.12);
-  color: var(--color-text);
+  background: rgba(74, 222, 128, 0.13);
+  color: #d4fae4;
 }
 
 .practice-alt-box {
@@ -4610,8 +4615,182 @@ cg-board {
   border: 1px solid var(--color-border);
 }
 
+
+/* ── Practice: board flash animations ────────────────────────────── */
+@keyframes practice-flash-correct {
+  0%   { box-shadow: inset 0 0 0 4px rgba(74, 222, 128, 0); }
+  25%  { box-shadow: inset 0 0 0 6px rgba(74, 222, 128, 0.72); }
+  100% { box-shadow: inset 0 0 0 4px rgba(74, 222, 128, 0); }
+}
+@keyframes practice-flash-incorrect {
+  0%   { box-shadow: inset 0 0 0 4px rgba(239, 68, 68, 0); }
+  25%  { box-shadow: inset 0 0 0 6px rgba(239, 68, 68, 0.72); }
+  100% { box-shadow: inset 0 0 0 4px rgba(239, 68, 68, 0); }
+}
+.practice-board-flash-wrap {
+  position: relative;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.practice-board-flash--correct {
+  animation: practice-flash-correct 0.55s ease-out forwards;
+}
+.practice-board-flash--incorrect {
+  animation: practice-flash-incorrect 0.55s ease-out forwards;
+}
+
+/* ── Practice: feedback variants ─────────────────────────────────── */
+.practice-feedback--incorrect {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fdd5d5;
+}
+.practice-feedback--revealed {
+  background: rgba(74, 158, 255, 0.12);
+  color: var(--color-text);
+}
+
+/* ── Practice: preview notation ──────────────────────────────────── */
+.practice-notation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  font-size: 0.9rem;
+  line-height: 2;
+}
+.practice-notation-pair {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  margin-right: 0.5rem;
+}
+.practice-notation__num {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  min-width: 1.4rem;
+}
+.practice-notation-san {
+  padding: 0.05rem 0.28rem;
+  border-radius: 3px;
+  color: var(--color-text-muted);
+  line-height: 1.8;
+}
+.practice-notation-san--user {
+  color: var(--color-text);
+  cursor: pointer;
+}
+.practice-notation-san--user:hover {
+  background: rgba(74, 158, 255, 0.1);
+  color: var(--color-accent);
+}
+.practice-notation-san--current {
+  background: rgba(74, 158, 255, 0.2);
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+/* ── Practice: preview header (title + CTA row) ───────────────────── */
+.practice-preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+.practice-preview-cta {
+  flex-shrink: 0;
+}
+
+/* ── Practice: reps panel elements ───────────────────────────────── */
+.practice-reps-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.1rem;
+}
+.practice-reps-step {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.practice-reps-primary-btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 0.85rem;
+}
+.practice-reps-secondary {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.55rem;
+}
+.practice-reps-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  padding: 0.2rem 0;
+  transition: color 0.12s;
+}
+.practice-reps-link:hover:not(:disabled) {
+  color: var(--color-text);
+}
+.practice-reps-link:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── Practice: compact history in reps panel ─────────────────────── */
+.practice-history-compact {
+  font-size: 0.83rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  line-height: 1.6;
+  margin-top: 0.55rem;
+  word-break: break-word;
+}
+
 @media (max-width: 1023px) {
   .practice-panel-stats {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+
+/* ── Desktop: lock side panel width + ensure no scroll ────────────────── */
+@media (min-width: 1181px) {
+  .side-col {
+    flex: 1 1 280px;
+    min-width: 280px;
+    max-width: 440px;
+    width: auto;
+  }
+}
+
+/* ── Ad column (desktop only, right of side panel) ────────────────────── */
+.ad-col {
+  flex: 0 0 160px;
+  width: 160px;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+
+.ad-placeholder {
+  width: 160px;
+  flex: 1;
+  min-height: 160px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  text-align: center;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 1329px) {
+  .ad-col { display: none; }
 }

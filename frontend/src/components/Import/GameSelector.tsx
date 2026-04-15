@@ -377,6 +377,19 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
           Cancel
         </button>
       )}
+
+        <select
+          className="game-sort-select"
+          value={sortKey}
+          onChange={e => setSortKey(e.target.value as SortKey)}
+        >
+          <option value="date-desc">Newest</option>
+          <option value="date-asc">Oldest</option>
+          <option value="opp-desc">Opp ↓</option>
+          <option value="opp-asc">Opp ↑</option>
+          <option value="user-desc">My rating ↓</option>
+          <option value="user-asc">My rating ↑</option>
+        </select>
     </div>
 
     <div className="game-filter-bar">
@@ -447,18 +460,6 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
             </button>
           ))}
         </div>
-        <select
-          className="game-sort-select"
-          value={sortKey}
-          onChange={e => setSortKey(e.target.value as SortKey)}
-        >
-          <option value="date-desc">Newest</option>
-          <option value="date-asc">Oldest</option>
-          <option value="opp-desc">Opp ↓</option>
-          <option value="opp-asc">Opp ↑</option>
-          <option value="user-desc">My rating ↓</option>
-          <option value="user-asc">My rating ↑</option>
-        </select>
       </div>
     </div>
     </div>{/* end game-list-controls */}

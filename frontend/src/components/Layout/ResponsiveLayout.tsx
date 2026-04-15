@@ -24,6 +24,9 @@ export default function ResponsiveLayout({ currentPage, onNavigate, children }: 
     typeof window !== 'undefined' && window.matchMedia(COMPACT_NAV_MEDIA_QUERY).matches
   ))
   const [navOpen, setNavOpen] = useState(false)
+  const [navCollapsed, setNavCollapsed] = useState(() => (
+    typeof window !== 'undefined' && localStorage.getItem('nav-collapsed') === 'true'
+  ))
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -65,8 +68,23 @@ export default function ResponsiveLayout({ currentPage, onNavigate, children }: 
     setNavOpen(false)
   }
 
+  function handleToggleCollapse() {
+    setNavCollapsed(prev => {
+      const next = !prev
+      localStorage.setItem('nav-collapsed', String(next))
+      return next
+    })
+  }
+
+  const collapsed = !isCompactNav && navCollapsed
+
   return (
-    <div className={`app app-shell${isCompactNav ? ' app-shell--compact-nav' : ''}${navOpen ? ' app-shell--nav-open' : ''}`}>
+    <div className={[
+      'app app-shell',
+      isCompactNav ? 'app-shell--compact-nav' : '',
+      navOpen ? 'app-shell--nav-open' : '',
+      collapsed ? 'app-shell--nav-collapsed' : '',
+    ].filter(Boolean).join(' ')}>
       {isCompactNav && (
         <button
           type="button"
@@ -76,7 +94,12 @@ export default function ResponsiveLayout({ currentPage, onNavigate, children }: 
         />
       )}
 
-      <NavSidebar currentPage={currentPage} onNavigate={handleNavigate} />
+      <NavSidebar
+        currentPage={currentPage}
+        onNavigate={handleNavigate}
+        collapsed={collapsed}
+        onToggleCollapse={!isCompactNav ? handleToggleCollapse : undefined}
+      />
 
       <div className="app-content">
         {isCompactNav && (
@@ -88,7 +111,7 @@ export default function ResponsiveLayout({ currentPage, onNavigate, children }: 
               aria-expanded={navOpen}
               onClick={() => setNavOpen(true)}
             >
-              Menu
+              ☰
             </button>
 
             <div className="app-header__brand">

@@ -1452,6 +1452,9 @@ export default function App() {
                   )}
                 </div>
               </div>
+              <div className="ad-col">
+                <div className="ad-placeholder">Ad</div>
+              </div>
             </>
           )}
 

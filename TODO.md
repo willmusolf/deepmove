@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-04-10 — Chess.com API compliance: (1) sequential rate limiting (200ms delay) + 429 handling in fetchArchives(); (2) X-App-Name header on all requests; (3) IndexedDB archiveCache store (DB v1→v2) — completed months cached indefinitely, zero API calls on reconnect; (4) backend chesscom.py User-Agent + 429 handling. Investigated Chessiro/Chess.com TOS incident — root cause was copied piece assets (not AI coaching); DeepMove uses cburnett (open-source) so no IP risk.
+**Last Session**: 2026-04-15 — Responsive layout polish (3 rounds): fixed coord labels (container-query cqw units), nav collapse (logo hidden, ☰ icon), sort dropdown moved to list header, board dvh formula 200→158px (+27px board height), player-info-box 52→44px, app-main padding 1rem→0.75rem, side-col flex-grow (absorbs horizontal slack), ad-col breakpoint 1380→1330px, removed collapsed-nav --board-vw-offset overrides (eliminated board jump on nav toggle), nav-sidebar transition: width 0.2s ease.
 
 ---
 
@@ -12,7 +12,7 @@ Follow this order unless something urgent breaks:
 - [x] 1. Coaching pipeline overhaul ✅
 - [ ] 2. Stripe + rate limiting
 - [ ] 3. Deploy production stack to `deepmove.io`
-- [ ] 4. Responsive layout + resizing pass
+- [x] 4. Responsive layout + resizing pass ✅ (core done — board sizing, nav, coord labels, ad threshold)
 - [ ] 5. Final polish, audits, and launch cleanup
 
 **Why this order:** coaching quality is the core product, payments + deployment unlock launch, and the responsive/layout pass should happen after the main feature set is stable so it only has to be solved once.
@@ -638,8 +638,8 @@ See above in "Next After Launch"
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
 
-
--page being scrolllable for opening name and buttons etc on bigger screen? spacing is good but can vertically scroll sometimes which isnt great. static sizing needs to be slightly better bc its scrollable on a default sized screen
+-letters/numbers arent in the same sizing / position relative to board resizing always?
+-positioning of player box and spacing of images etc should be perfect and consistent as well too
 
 
 -depth analysis sometimes stops analyzing again when you interrupt it going deeper then coming back to it
@@ -648,17 +648,11 @@ See above in "Next After Launch"
 
 
 
--have a thing to close the menu?
+
+-ads
 
 
-
--and for play mode we want to add something in the todo with the coaches stuff to practice specific openings and gambits and defenses as well like chessreps?
--what is chessreps.com and how do we make a free vesrion of it
-
-
--chessigma / chess.com reviews have it so it shows what the best move is AFTER the move is already done in a green arrow. do we want that or keep our version of analysis? but sometimes its consistent and wswithces to suggesting the best moves for the current user in green arrows like ours?
-
-
+-landing page/clicking logo takes you there
 
 -if you click on a miss symbol it shows you the line for the tactice? how are misses calculated and all of them for that matter? also add something for show line or something like that that chess.com has?
 

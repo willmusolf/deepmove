@@ -19,6 +19,7 @@
   --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
   --radius: 6px;
   --layout-nav-width: 180px;
+  --board-vw-offset: 548px;  /* no-ad: nav(180)+padding(48)+eval+gap(24)+gap(16)+side(280) */
   --layout-header-height: 58px;
 }
 
@@ -73,9 +74,9 @@ body {
   background: var(--color-surface-2);
   color: var(--color-text);
   border-radius: var(--radius);
-  padding: 0.42rem 0.7rem;
-  font-size: 0.8rem;
-  font-weight: 600;
+  padding: 0.4rem 0.5rem;
+  font-size: 1.1rem;
+  font-weight: normal;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
@@ -187,5 +188,56 @@ html.theme-light body {
 
   .app-header__page {
     display: none;
+  }
+}
+
+/* ── Collapsed desktop nav ─────────────────────────────────────────────── */
+
+.app-shell--nav-collapsed .nav-sidebar {
+  width: 48px;
+}
+
+.app-shell--nav-collapsed .nav-logo__name,
+.app-shell--nav-collapsed .nav-item span:not(.nav-icon),
+.app-shell--nav-collapsed .nav-soon {
+  display: none;
+}
+
+.app-shell--nav-collapsed .nav-item {
+  justify-content: center;
+  padding: 0.6rem 0;
+  border-left-color: transparent;
+}
+
+.app-shell--nav-collapsed .nav-item.active {
+  border-left-color: transparent;
+  background: rgba(74, 158, 255, 0.1);
+}
+
+.nav-collapse-btn {
+  width: 100%;
+  padding: 0.6rem 0;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1.1rem;
+  text-align: center;
+  transition: color 0.15s;
+}
+
+.nav-collapse-btn:hover {
+  color: var(--color-text);
+}
+
+.app-shell--nav-collapsed .nav-logo {
+  display: none;
+}
+
+/* ── Wide screens: ad column visible, larger board offset ──────────────── */
+@media (min-width: 1330px) {
+  :root {
+    --board-vw-offset: 724px;  /* nav(180)+padding(48)+eval+gap(24)+gap(16)+side(280)+gap(16)+ad(160) */
   }
 }
