@@ -48,15 +48,18 @@ For this reason, the backend supports both:
 
 - `ALLOWED_ORIGINS`
   comma-separated exact origins
+- `ALLOWED_ORIGINS_CSV`
+  same as above; both names are accepted
 - `ALLOWED_ORIGIN_REGEX`
   regex for dynamic preview hosts
 
 Suggested staging values:
 
 - `ALLOWED_ORIGINS=https://staging.deepmove.io`
-- `ALLOWED_ORIGIN_REGEX=^https://.*-willmusolfs-projects\\.vercel\\.app$`
+- `ALLOWED_ORIGIN_REGEX=^https://.*-willmusolfs-projects\.vercel\.app$`
 
 Adjust the regex if your Vercel preview host pattern changes.
+In dashboard text fields, use single backslashes as shown above. Do not paste doubled source-code escapes like `\\.`.
 
 For production, keep using exact origins only.
 
