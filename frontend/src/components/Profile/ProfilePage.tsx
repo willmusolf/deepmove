@@ -1,5 +1,5 @@
 // ProfilePage.tsx — User profile & settings
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import {
   clearAdminLessonCache,
   getAdminOpsStatus,
@@ -55,7 +55,16 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   const [pwMsg, setPwMsg] = useState('')
   const [pwIsError, setPwIsError] = useState(false)
 
-  async function handleChangePassword() {
+  useEffect(() => {
+    setChesscomInput(user?.chesscom_username ?? '')
+  }, [user?.chesscom_username])
+
+  useEffect(() => {
+    setLichessInput(user?.lichess_username ?? '')
+  }, [user?.lichess_username])
+
+  async function handleChangePassword(event?: FormEvent) {
+    event?.preventDefault()
     if (newPw !== confirmPw) {
       setPwMsg('Passwords do not match')
       setPwIsError(true)
@@ -84,7 +93,8 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
     }
   }
 
-  async function handleSaveAccounts() {
+  async function handleSaveAccounts(event?: FormEvent) {
+    event?.preventDefault()
     setAccountSaving(true)
     setAccountMsg('')
     try {
@@ -277,12 +287,14 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
       {user && (
         <section className="profile-section">
           <h3 className="profile-section-title">Security</h3>
-          <div className="profile-field-group">
+          <form className="profile-field-group" onSubmit={handleChangePassword}>
             <div className="profile-field">
               <label className="profile-field-label">Current password</label>
               <input
                 className="profile-input"
                 type="password"
+                name="current_password"
+                autoComplete="current-password"
                 value={currentPw}
                 onChange={e => setCurrentPw(e.target.value)}
               />
@@ -292,6 +304,8 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
               <input
                 className="profile-input"
                 type="password"
+                name="new_password"
+                autoComplete="new-password"
                 value={newPw}
                 onChange={e => setNewPw(e.target.value)}
               />
@@ -301,6 +315,8 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
               <input
                 className="profile-input"
                 type="password"
+                name="confirm_new_password"
+                autoComplete="new-password"
                 value={confirmPw}
                 onChange={e => setConfirmPw(e.target.value)}
               />
@@ -308,7 +324,7 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
             <div className="profile-field-row">
               <button
                 className="btn btn-primary"
-                onClick={handleChangePassword}
+                type="submit"
                 disabled={pwSaving || !currentPw || !newPw || !confirmPw}
               >
                 {pwSaving ? 'Changing…' : 'Change Password'}
@@ -319,7 +335,7 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
                 </span>
               )}
             </div>
-          </div>
+          </form>
         </section>
       )}
 
@@ -327,13 +343,19 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
       <section className="profile-section">
         <h3 className="profile-section-title">Chess Accounts</h3>
         <p className="profile-section-desc">Link your accounts to auto-load your games in the Review tab.</p>
-        <div className="profile-field-group">
+        <form className="profile-field-group" onSubmit={handleSaveAccounts} autoComplete="off">
           <div className="profile-field">
             <label className="profile-field-label">Chess.com username</label>
             <input
               className="profile-input"
               type="text"
+              name="chesscom_username"
               placeholder="e.g. hikaru"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              data-lpignore="true"
               value={chesscomInput}
               onChange={e => setChesscomInput(e.target.value)}
               disabled={!user}
@@ -344,7 +366,13 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
             <input
               className="profile-input"
               type="text"
+              name="lichess_username"
               placeholder="e.g. DrNykterstein"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              data-lpignore="true"
               value={lichessInput}
               onChange={e => setLichessInput(e.target.value)}
               disabled={!user}
@@ -353,7 +381,7 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
           <div className="profile-field-row">
             <button
               className="btn btn-primary"
-              onClick={handleSaveAccounts}
+              type="submit"
               disabled={!user || accountSaving}
             >
               {accountSaving ? 'Saving…' : 'Save'}
@@ -364,7 +392,7 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
               </span>
             )}
           </div>
-        </div>
+        </form>
       </section>
 
       {/* ── Your Ratings ─────────────────────────────────────────────── */}
