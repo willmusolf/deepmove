@@ -117,3 +117,41 @@ jobs:
         run: |
           echo "RENDER_DEPLOY_HOOK_URL is not configured."
           echo "Add the Render deploy hook URL as a GitHub Actions repository secret to enable automatic backend deploys."
+
+  production-smoke:
+    name: Production — Smoke Check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [frontend-ci, backend-ci, backend-deploy]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect backend changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
+
+      - name: Wait for deploys to settle
+        run: sleep 90
+
+      - name: Check frontend homepage
+        run: |
+          curl --fail --silent --show-error --location \
+            --max-time 20 \
+            https://www.deepmove.io > /dev/null
+
+      - name: Check backend health
+        run: |
+          curl --fail --silent --show-error \
+            --max-time 20 \
+            https://api.deepmove.io/health | tee /tmp/deepmove-health.json
+          grep -q '"status":"ok"' /tmp/deepmove-health.json
+
+      - name: Note backend deploy expectation
+        if: steps.changes.outputs.backend != 'true'
+        run: echo "No backend files changed in this push; the backend deploy hook was not expected to fire."
