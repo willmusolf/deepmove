@@ -51,6 +51,7 @@ backend/alembic/versions/__pycache__/
 frontend/public/stockfish/*.wasm
 frontend/public/stockfish/*.js
 !frontend/public/stockfish/.gitkeep
+!frontend/public/stockfish/worker.js
 
 # Internal Claude / dev planning docs — not for public repo
 CLAUDE.md
