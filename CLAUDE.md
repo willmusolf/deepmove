@@ -7,6 +7,31 @@
 - Refuse to publish mixed-scope work from a dirty checkout
 - If the local tree is already mixed, snapshot it to a `wip-*` branch first, then split focused PRs from clean worktrees
 
+## Default Repo Workflow
+
+- Start new work from clean `main`, not from an old feature branch or dirty checkout
+- Before editing, run `git status -sb` and confirm whether the current tree is clean or mixed
+- If the tree is mixed, preserve it first on a `wip-*` branch before splitting focused PRs
+- Prefer one focused PR per task; use stacked PRs only when two PRs intentionally share the same files and the lower PR has not merged yet
+- After a stacked base PR merges, retarget the upper PR to `main`
+- After merge, return the local repo to clean `main`, fast-forward it, and remove temporary worktrees/branches that are no longer needed
+- Keep any truly unreviewed leftover edits on a separate follow-up branch and open a small draft PR instead of leaving them only local
+
+## PR Review Defaults
+
+- Default to draft PRs first
+- Ask for or use AI review plus CI plus human review; do not rely on AI review alone for risky changes
+- Close backup/snapshot PRs without merging once the real split PRs are merged
+- When a user asks "what's next?", check open PR state first, then propose the smallest safe next step instead of broad new work
+
+## GitHub Settings To Recommend
+
+- Require pull requests before merging to `main`
+- Require status checks before merge
+- Enable auto-merge
+- Recommend enabling one primary AI reviewer: GitHub Copilot automatic review or CodeRabbit
+- Point to `docs/github-review-setup.md` and `CONTRIBUTING.md` before inventing a new workflow
+
 ## What Is DeepMove?
 
 DeepMove is a free AI chess coaching web app. It provides game review (interactive board, eval bar, move-by-move analysis) with a GM-level coaching layer that teaches chess PRINCIPLES derived from the user's own games.
