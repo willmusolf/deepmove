@@ -1,10 +1,13 @@
 """auth.py — Authentication routes (email/password + OAuth)."""
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+import re
+
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
+from app.rate_limiting import limiter
 from app.schemas.user import AuthResponse, UserCreate, UserResponse
 from app.utils.security import (
     create_access_token,
@@ -15,6 +18,22 @@ from app.utils.security import (
 )
 
 router = APIRouter()
+
+_PASSWORD_RE = re.compile(r"(?=.*[A-Za-z])(?=.*[0-9])")
+
+
+def _validate_password(password: str) -> None:
+    """Raise 422 if password doesn't meet minimum complexity."""
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must be at least 8 characters",
+        )
+    if not _PASSWORD_RE.search(password):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must contain at least one letter and one number",
+        )
 
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
@@ -43,8 +62,11 @@ def _user_response(user: User) -> UserResponse:
 
 
 @router.post("/register", response_model=AuthResponse)
-async def register(body: UserCreate, response: Response, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+async def register(request: Request, body: UserCreate, response: Response, db: Session = Depends(get_db)):
     """Create a new account with email + password."""
+    _validate_password(body.password)
+
     # Check for existing email (case-insensitive)
     existing = db.query(User).filter(User.email == body.email.lower()).first()
     if existing:
@@ -69,7 +91,8 @@ async def register(body: UserCreate, response: Response, db: Session = Depends(g
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(body: UserCreate, response: Response, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+async def login(request: Request, body: UserCreate, response: Response, db: Session = Depends(get_db)):
     """Log in with email + password."""
     user = db.query(User).filter(User.email == body.email.lower()).first()
     if user is None or user.hashed_password is None:
@@ -86,7 +109,9 @@ async def login(body: UserCreate, response: Response, db: Session = Depends(get_
 
 
 @router.post("/refresh", response_model=AuthResponse)
+@limiter.limit("20/minute")
 async def refresh(
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
     deepmove_refresh: str | None = Cookie(None),

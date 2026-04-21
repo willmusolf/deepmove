@@ -46,6 +46,9 @@ const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
 const POSITION_MAX_DEPTH = 28
 
 type PanelTab = "analysis" | "load" | "coach"
+
+// Set VITE_COACHING_ENABLED=true in Vercel env vars to enable coaching in production
+const COACHING_ENABLED = import.meta.env.VITE_COACHING_ENABLED === 'true'
 type ImportTab = "chesscom" | "lichess" | "pgn"
 
 const APP_UI_SESSION_KEY = 'deepmove_appUi'
@@ -1335,7 +1338,14 @@ export default function App() {
                     </>
                   )}
 
-                  {panelTab === 'coach' && isLoaded && (
+                  {panelTab === 'coach' && isLoaded && !COACHING_ENABLED && (
+                    <div className="coming-soon-panel">
+                      <h3>AI Coaching</h3>
+                      <p>Our AI coach is coming soon &mdash; it analyzes your critical moments and teaches you the chess principles behind why positions go wrong.</p>
+                      <p className="coming-soon-sub">Game review, eval bar, and best lines are fully live now.</p>
+                    </div>
+                  )}
+                  {panelTab === 'coach' && isLoaded && COACHING_ENABLED && (
                     <>
                       {/* Engine / analyzing status */}
                       {engineStatus === 'error' && (
