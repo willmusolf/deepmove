@@ -16,6 +16,7 @@ from app.database import Base, _psycopg3_url
 from app.dependencies import get_db
 from app.main import app
 from app.models import Game, Lesson, User, UserPrinciple  # noqa: F401
+from app.rate_limiting import limiter
 
 
 def _get_test_db_url() -> str:
@@ -64,6 +65,19 @@ def client(db_session):
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def disable_rate_limiting():
+    """Keep pytest deterministic by disabling request throttling in tests.
+
+    The suite reuses the same in-process app and client IP, which would otherwise
+    cause auth-related tests to trip the production rate limits across test cases.
+    """
+    previous = limiter.enabled
+    limiter.enabled = False
+    yield
+    limiter.enabled = previous
 
 
 @pytest.fixture()

@@ -1,8 +1,7 @@
 // stockfish.ts — Web Worker manager for Stockfish WASM
 //
-// The worker IS /public/stockfish/stockfish.js (nmrugg build).
-// It auto-detects worker context and speaks UCI over postMessage.
-// We just send UCI strings in and parse UCI strings back out.
+// Use a tiny classic-worker wrapper around the stockfish.js bundle.
+// That keeps worker initialization deterministic across browsers and bundlers.
 
 import { Chess } from 'chess.js'
 
@@ -81,7 +80,7 @@ export class StockfishEngine {
 
   async initialize(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.worker = new Worker('/stockfish/stockfish.js')
+      this.worker = new Worker('/stockfish/worker.js')
 
       let settled = false
 
