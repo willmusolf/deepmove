@@ -70,8 +70,8 @@ class TestRegister:
             "email": "empty@deepmove.io",
             "password": "",
         })
-        # Backend doesn't enforce min length — frontend handles it
-        assert resp.status_code == 200
+        assert resp.status_code == 422
+        assert "at least 8 characters" in resp.json()["detail"]
 
 
 # ── Login ────────────────────────────────────────────────────────────────────
