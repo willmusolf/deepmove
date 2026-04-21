@@ -17,6 +17,7 @@ DeepMove uses:
 5. After merge:
    - Vercel should auto-deploy the frontend from `main`
    - GitHub Actions should trigger the Render backend deploy hook, but only when backend files changed
+   - GitHub Actions should run a small production smoke check against `deepmove.io` and `api.deepmove.io/health`
 
 ### Why this is the right default
 
@@ -54,3 +55,13 @@ Find it in Render:
 The Render service is rooted at `backend/`.
 That means frontend-only changes should not cause a backend deploy.
 This is expected and desirable.
+
+### What the smoke check does
+
+After merges to `main`, GitHub Actions waits briefly and then:
+
+- requests `https://www.deepmove.io`
+- requests `https://api.deepmove.io/health`
+
+This is an uptime check, not a version-matching deployment check.
+It helps catch obvious production incidents quickly, but it does not prove that the newest backend revision is serving traffic.
