@@ -1,4 +1,4 @@
-.PHONY: install dev-frontend dev-backend dev-coach typecheck test test-frontend test-backend lint test-chess test-coaching test-ui check check-coaching review-3b build help
+.PHONY: install dev-frontend dev-backend dev-coach typecheck test test-frontend test-backend lint test-chess test-coaching test-ui check check-coaching review-3b build worktree ship ship-checks help
 
 # ── Setup ──────────────────────────────────────────────────────────────────
 install:
@@ -81,6 +81,25 @@ review-3b:
 build:
 	cd frontend && npm run build
 
+# ── Git workflow ────────────────────────────────────────────────────────────
+worktree:
+	@test -n "$(BRANCH)" || (echo "Usage: make worktree BRANCH=codex-fix-short-description [DIR=../DeepMove-my-worktree] [BASE=origin/main]" && exit 1)
+	./scripts/new-worktree.sh "$(BRANCH)" "$(or $(DIR),)" "$(or $(BASE),origin/main)"
+
+ship-checks:
+	@test -n "$(FILES)" || (echo "Usage: make ship-checks FILES=\"frontend/src/styles/board.css\"" && exit 1)
+	./scripts/relevant-checks.sh $(FILES)
+
+ship:
+	@test -n "$(FILES)" || (echo "Usage: make ship FILES=\"frontend/src/styles/board.css\" MESSAGE=\"Fix ...\" [TITLE=\"[codex] Fix ...\"] [BRANCH=codex-fix-...] [BODY_FILE=/tmp/pr.md]" && exit 1)
+	@test -n "$(MESSAGE)" || (echo "Usage: make ship FILES=\"...\" MESSAGE=\"Fix ...\"" && exit 1)
+	./scripts/ship-pr.sh \
+		$(if $(BRANCH),--branch "$(BRANCH)") \
+		--message "$(MESSAGE)" \
+		$(if $(TITLE),--title "$(TITLE)") \
+		$(if $(BODY_FILE),--body-file "$(BODY_FILE)") \
+		-- $(FILES)
+
 # ── Help ───────────────────────────────────────────────────────────────────
 help:
 	@echo "DeepMove development commands:"
@@ -97,3 +116,6 @@ help:
 	@echo "  make review-3b      — Print the manual product review loop for Prompt 3B"
 	@echo "  make lint           — Lint frontend and backend"
 	@echo "  make build          — Production build"
+	@echo "  make worktree       — Create a clean sibling worktree from origin/main"
+	@echo "  make ship-checks    — Run the relevant local checks for a scoped file list"
+	@echo "  make ship           — Stage only named files, run checks, commit, push, and open a draft PR"
