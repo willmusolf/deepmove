@@ -130,7 +130,17 @@ The current coaching pipeline is functional but lessons are generic, often wrong
 - [ ] Return 429 with upgrade prompt when limit hit
 - [ ] LLM model routing: Haiku for ≤1600, Sonnet for 1600+
 
-### 4. Deploy to deepmove.io
+### 4. GitHub Repo Settings (unlock branch protection)
+- [ ] Make repo public on GitHub → Settings → Danger Zone → "Change visibility" → Public
+  - No credentials in history (verified: .env gitignored, only placeholder strings committed)
+  - Making public ≠ open source — no LICENSE file = all rights reserved, you own it
+  - Unlocks: branch protection, required CI checks, auto-merge (all need Pro or public repo)
+  - Minor risk: product spec / coaching philosophy was in CLAUDE.md — now untracked before going public
+- [ ] After going public: run `gh api` branch protection command (CI must pass before merge)
+- [ ] `gh repo edit willmusolf/deepmove --enable-auto-merge`
+- [ ] Install CodeRabbit free tier → coderabbit.ai → GitHub app → install on this repo
+
+### 5. Deploy to deepmove.io
 - [ ] Frontend → Vercel, connect deepmove.io domain
 - [ ] Backend → Railway (or Render)
 - [ ] Production Neon project (separate from dev)
