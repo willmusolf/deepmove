@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.routes.auth import _set_refresh_cookie
+from app.routes.auth import _set_refresh_cookie, _validate_password
 from app.schemas.user import AuthResponse, PasswordChange, UserResponse, UserUpdate
 from app.utils.security import (
     create_access_token,
@@ -148,11 +148,7 @@ async def change_password(
             detail="Current password is incorrect",
         )
 
-    if len(body.new_password) < 8:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="New password must be at least 8 characters",
-        )
+    _validate_password(body.new_password)
 
     user.hashed_password = hash_password(body.new_password)
     user.token_version += 1  # Invalidate all existing sessions

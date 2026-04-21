@@ -5,28 +5,35 @@ generates the LLM lesson, returns structured coaching response.
 The LLM NEVER analyzes chess positions directly.
 It receives verified facts and writes the lesson text.
 """
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.database import SessionLocal
 from app.dependencies import get_current_user, get_optional_user
 from app.models.game import Game
 from app.models.lesson import Lesson
 from app.models.user import User
+from app.rate_limiting import limiter
 from app.schemas.coaching import CoachingRequest, CoachingResponse
 from app.services import coaching as coaching_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
 @router.post("/lesson", response_model=CoachingResponse)
+@limiter.limit("30/minute")
 async def generate_lesson(
-    request: CoachingRequest,
+    request: Request,
+    body: CoachingRequest,
     user: User | None = Depends(get_optional_user),
 ):
     # Open DB only if the user is authenticated — avoids waking Neon for guest requests
     db = SessionLocal() if (user is not None and SessionLocal is not None) else None
     try:
-        return await _generate_lesson_impl(request, user, db)
+        return await _generate_lesson_impl(body, user, db)
     finally:
         if db is not None:
             db.close()
@@ -49,7 +56,6 @@ async def _generate_lesson_impl(
     # ── 1. Look up game row ──────────────────────────────────────────────────
     game: Game | None = None
     if user and request.backend_game_id:
-        # Direct PK lookup — fast path, used when game was synced this session
         game = (
             db.query(Game)
             .filter(Game.id == request.backend_game_id, Game.user_id == user.id)
@@ -91,8 +97,9 @@ async def _generate_lesson_impl(
     # ── 3. Generate lesson (in-memory LRU cache + LLM) ───────────────────────
     try:
         result = await coaching_service.generate_lesson(request.model_dump())
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+    except Exception:
+        logger.exception("Lesson generation failed for move %s", request.move_number)
+        raise HTTPException(status_code=500, detail="Lesson generation failed. Please try again.")
 
     # ── 4. Persist to DB for logged-in users (skip if already LRU-cached) ────
     if game and user and not result.get("cached"):
