@@ -529,7 +529,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
                 if (!sq) return null
                 return <div className="board-result-badge board-result-badge--checkmate" style={_sqPos(sq)}>#</div>
               }
-              if (_chess.isStalemate() || _chess.isInsufficientMaterial() || _chess.isThreefoldRepetition() || _chess.isDraw()) {
+              if (_chess.isDraw() || (endReason === 'threefold' && browsePosition === null)) {
                 const wSq = _findKing('w'), bSq = _findKing('b')
                 return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(wSq)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(bSq)}>½</div>}</>
               }
