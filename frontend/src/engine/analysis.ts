@@ -181,16 +181,8 @@ export async function analyzeGame(
     const color: 'white' | 'black' = i % 2 === 0 ? 'white' : 'black'
     const evalResult = await engine.analyzePosition(fen, depth, movetime)
 
-    // Stockfish score cp is from the side-to-move's perspective.
-    // After white's move, black is to move → negate to get white-perspective.
-    // After black's move, white is to move → already correct.
-    const scoreWhite = color === 'white' ? -evalResult.score : evalResult.score
-    // Normalize mateIn to white-perspective (same logic as score normalization):
-    // After white's move, black is to move → engine mateIn is from black's perspective → negate.
-    // After black's move, white is to move → engine mateIn is from white's perspective → use as-is.
-    const mateInWhite = evalResult.mateIn !== null
-      ? (color === 'white' ? -evalResult.mateIn : evalResult.mateIn)
-      : null
+    const scoreWhite = evalResult.score
+    const mateInWhite = evalResult.mateIn
 
     const sacrifice = isSacrificeFn(history[i], positions[i + 1])
     const grade = classifyMove(prevScore, scoreWhite, color, legalMoveCounts[i], sacrifice, prevOpponentGrade)

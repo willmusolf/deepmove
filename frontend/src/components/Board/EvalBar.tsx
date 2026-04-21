@@ -3,6 +3,7 @@
 // Holds last known eval to prevent 50/50 flash during transitions.
 
 import { useRef } from 'react'
+import { formatEval } from '../../utils/format'
 
 interface EvalBarProps {
   evalCentipawns?: number  // undefined = no data yet (shows 50/50)
@@ -53,14 +54,9 @@ export default function EvalBar({
   const botColor = orientation === 'white' ? '#e8e6e0' : '#2a2a2a'
 
   // Build the label shown at the boundary
-  let boundaryLabel: string
-  if (mate && mIn != null) {
-    boundaryLabel = mIn === 0 ? '#' : `M${Math.abs(mIn)}`
-  } else {
-    const pawns = cp / 100
-    const sign = pawns > 0 ? '+' : ''
-    boundaryLabel = `${sign}${pawns.toFixed(1)}`
-  }
+  const boundaryLabel = mate
+    ? formatEval(cp, true, mIn)
+    : `${cp >= 0 ? '+' : ''}${(cp / 100).toFixed(1)}`
 
   return (
     <div className="eval-bar-container" style={hidden ? { visibility: 'hidden' } : undefined}>
