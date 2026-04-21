@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import type { MoveEval } from '../engine/analysis'
 import type { TopLine } from '../engine/stockfish'
 import type { CriticalMoment } from '../chess/types'
+import { readSessionJson, removeSessionValue, writeSessionJson } from '../utils/sessionStorage'
 
 
 export interface GameMeta {
@@ -11,6 +12,25 @@ export interface GameMeta {
   result: 'W' | 'L' | 'D'
   timeControl: string
   endTime: number
+}
+
+const GAME_SESSION_KEY = 'deepmove_reviewGameSession'
+
+interface PersistedGameState {
+  pgn: string | null
+  rawPgn: string | null
+  loadedPgn: string | null
+  moveEvals: MoveEval[]
+  criticalMoments: CriticalMoment[]
+  userElo: number
+  userColor: 'white' | 'black' | null
+  platform: 'chesscom' | 'lichess' | null
+  totalMovesCount: number
+  currentGameId: string | null
+  backendGameId: number | null
+  currentGameMeta: GameMeta | null
+  skipNextAnalysis: boolean
+  resumeFromIndex: number
 }
 
 interface GameState {
@@ -55,29 +75,137 @@ interface GameState {
   reset: () => void
 }
 
-const initialState = {
+const initialState: {
+  pgn: string | null
+  rawPgn: string | null
+  loadedPgn: string | null
+  moveEvals: MoveEval[]
+  analyzedCount: number
+  criticalMoments: CriticalMoment[]
+  userElo: number
+  userColor: 'white' | 'black' | null
+  platform: 'chesscom' | 'lichess' | null
+  isAnalyzing: boolean
+  totalMovesCount: number
+  currentPositionLines: TopLine[]
+  isAnalyzingPosition: boolean
+  currentGameId: string | null
+  backendGameId: number | null
+  currentGameMeta: GameMeta | null
+  skipNextAnalysis: boolean
+  resumeFromIndex: number
+} = {
   pgn: null,
-  rawPgn: null as string | null,
-  loadedPgn: null as string | null,
+  rawPgn: null,
+  loadedPgn: null,
   moveEvals: [],
   analyzedCount: 0,
   criticalMoments: [],
   userElo: 1200,
-  userColor: null as 'white' | 'black' | null,
-  platform: null as 'chesscom' | 'lichess' | null,
+  userColor: null,
+  platform: null,
   isAnalyzing: false,
   totalMovesCount: 0,
   currentPositionLines: [],
   isAnalyzingPosition: false,
-  currentGameId: null as string | null,
-  backendGameId: null as number | null,
-  currentGameMeta: null as GameMeta | null,
+  currentGameId: null,
+  backendGameId: null,
+  currentGameMeta: null,
   skipNextAnalysis: false,
   resumeFromIndex: 0,
 }
 
+function sanitizeMoveEvals(value: unknown): MoveEval[] {
+  return Array.isArray(value) ? value as MoveEval[] : []
+}
+
+function sanitizeCriticalMoments(value: unknown): CriticalMoment[] {
+  return Array.isArray(value) ? value as CriticalMoment[] : []
+}
+
+function sanitizeGameMeta(value: unknown): GameMeta | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+
+  const meta = value as Partial<GameMeta>
+  if (typeof meta.opponent !== 'string') return null
+  if (typeof meta.opponentRating !== 'number') return null
+  if (meta.result !== 'W' && meta.result !== 'L' && meta.result !== 'D') return null
+  if (typeof meta.timeControl !== 'string') return null
+  if (typeof meta.endTime !== 'number') return null
+
+  return {
+    opponent: meta.opponent,
+    opponentRating: meta.opponentRating,
+    result: meta.result,
+    timeControl: meta.timeControl,
+    endTime: meta.endTime,
+  }
+}
+
+function loadGameState(): typeof initialState {
+  const parsed = readSessionJson<Partial<PersistedGameState>>(GAME_SESSION_KEY)
+  if (!parsed || typeof parsed !== 'object' || typeof parsed.pgn !== 'string') {
+    return initialState
+  }
+
+  const moveEvals = sanitizeMoveEvals(parsed.moveEvals)
+  const criticalMoments = sanitizeCriticalMoments(parsed.criticalMoments)
+  const resumeFromIndex = typeof parsed.resumeFromIndex === 'number'
+    ? parsed.resumeFromIndex
+    : moveEvals.length
+
+  return {
+    ...initialState,
+    pgn: parsed.pgn,
+    rawPgn: typeof parsed.rawPgn === 'string' ? parsed.rawPgn : parsed.pgn,
+    loadedPgn: typeof parsed.loadedPgn === 'string' ? parsed.loadedPgn : null,
+    moveEvals,
+    analyzedCount: moveEvals.length,
+    criticalMoments,
+    userElo: typeof parsed.userElo === 'number' ? parsed.userElo : initialState.userElo,
+    userColor: parsed.userColor === 'white' || parsed.userColor === 'black' ? parsed.userColor : null,
+    platform: parsed.platform === 'chesscom' || parsed.platform === 'lichess' ? parsed.platform : null,
+    totalMovesCount: typeof parsed.totalMovesCount === 'number' ? parsed.totalMovesCount : 0,
+    currentGameId: typeof parsed.currentGameId === 'string' ? parsed.currentGameId : null,
+    backendGameId: typeof parsed.backendGameId === 'number' ? parsed.backendGameId : null,
+    currentGameMeta: sanitizeGameMeta(parsed.currentGameMeta),
+    skipNextAnalysis: parsed.skipNextAnalysis === true,
+    resumeFromIndex,
+  }
+}
+
+function toPersistedGameState(state: GameState): PersistedGameState {
+  return {
+    pgn: state.pgn,
+    rawPgn: state.rawPgn,
+    loadedPgn: state.loadedPgn,
+    moveEvals: state.moveEvals,
+    criticalMoments: state.criticalMoments,
+    userElo: state.userElo,
+    userColor: state.userColor,
+    platform: state.platform,
+    totalMovesCount: state.totalMovesCount,
+    currentGameId: state.currentGameId,
+    backendGameId: state.backendGameId,
+    currentGameMeta: state.currentGameMeta,
+    skipNextAnalysis: state.skipNextAnalysis,
+    resumeFromIndex: state.resumeFromIndex,
+  }
+}
+
+function persistGameState(state: GameState) {
+  if (!state.pgn) {
+    removeSessionValue(GAME_SESSION_KEY)
+    return
+  }
+
+  writeSessionJson(GAME_SESSION_KEY, toPersistedGameState(state))
+}
+
+const hydratedInitialState = loadGameState()
+
 export const useGameStore = create<GameState>(set => ({
-  ...initialState,
+  ...hydratedInitialState,
   setPgn: pgn => set({ pgn }),
   setRawPgn: rawPgn => set({ rawPgn }),
   setLoadedPgn: loadedPgn => set({ loadedPgn }),
@@ -96,5 +224,12 @@ export const useGameStore = create<GameState>(set => ({
   setCurrentGameMeta: currentGameMeta => set({ currentGameMeta }),
   setSkipNextAnalysis: skipNextAnalysis => set({ skipNextAnalysis }),
   setResumeFromIndex: resumeFromIndex => set({ resumeFromIndex }),
-  reset: () => set(initialState),
+  reset: () => {
+    removeSessionValue(GAME_SESSION_KEY)
+    set(initialState)
+  },
 }))
+
+useGameStore.subscribe((state) => {
+  persistGameState(state)
+})

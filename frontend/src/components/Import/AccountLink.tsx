@@ -91,12 +91,15 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
   const [history, setHistory] = useState<string[]>(() => getHistory(platform))
   const [showSuggestions, setShowSuggestions] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const fetchingRef = useRef(false)
 
   const bump = useCallback(() => setIdentityVersion(v => v + 1), [])
 
   const fetchGames = useCallback(async (name: string) => {
     const trimmed = name.trim()
     if (!trimmed) return
+    if (fetchingRef.current) return
+    fetchingRef.current = true
     setShowSuggestions(false)
     setLoading(true)
     setError(null)
@@ -112,10 +115,14 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
         return
       }
       if (isReload && platform === 'lichess') {
-        const newGames = await getNewLichessGames(trimmed, newestEndTime)
-        if (newGames.length > 0) {
-          const pag: PaginationState = { platform, hasMore: false }
-          onGamesAppended(newGames, pag)
+        try {
+          const newGames = await getNewLichessGames(trimmed, newestEndTime)
+          if (newGames.length > 0) {
+            const pag: PaginationState = { platform, hasMore: false }
+            onGamesAppended(newGames, pag)
+          }
+        } catch {
+          // Silently ignore transient reload errors — existing games still shown
         }
         return
       }
@@ -143,6 +150,7 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
         ? 'User not found.'
         : 'Failed to fetch games. Check the username and try again.')
     } finally {
+      fetchingRef.current = false
       setLoading(false)
     }
   }, [platform, onGamesLoaded, onGamesAppended, newestEndTime, loadedUser])
