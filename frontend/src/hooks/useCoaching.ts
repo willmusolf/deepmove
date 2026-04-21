@@ -83,6 +83,7 @@ export function gradeToComment(grade: MoveGrade, moveSan: string): string {
 }
 
 interface UseCoachingOptions {
+  enabled?: boolean
   criticalMoments: CriticalMoment[]
   moveEvals: MoveEval[]
   pgn: string
@@ -98,6 +99,7 @@ interface UseCoachingOptions {
 }
 
 export function useCoaching({
+  enabled = true,
   criticalMoments,
   moveEvals,
   pgn,
@@ -125,6 +127,14 @@ export function useCoaching({
   }, [pgn])
 
   useEffect(() => {
+    if (!enabled) {
+      setLessons([])
+      setMoveComments([])
+      setEnrichedMoments([])
+      setCurrentIndex(0)
+      fetchedKeysRef.current = new Set()
+      return
+    }
     if (!pgn || criticalMoments.length === 0 || moveEvals.length === 0) return
 
     // Step 1: Enrich moments with real features + analysis facts
@@ -300,7 +310,7 @@ export function useCoaching({
         ))
       } }, idx * 2000)
     })
-  }, [pgn, criticalMoments, moveEvals, userElo, timeControl, backendGameId, platformGameId, platform])
+  }, [enabled, pgn, criticalMoments, moveEvals, userElo, timeControl, backendGameId, platformGameId, platform])
 
   const currentLesson = lessons[currentIndex] ?? null
 

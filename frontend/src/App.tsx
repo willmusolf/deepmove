@@ -175,6 +175,8 @@ export default function App() {
   const currentGameMeta = useGameStore(s => s.currentGameMeta)
   const currentGameId = useGameStore(s => s.currentGameId)
   const backendGameId = useGameStore(s => s.backendGameId)
+  const [panelTab, setPanelTab] = useState<PanelTab>(savedUiState?.panelTab ?? 'load')
+  const [importTab, setImportTab] = useState<ImportTab>(savedUiState?.importTab ?? 'chesscom')
 
   const { isReady, engineStatus, runAnalysis, analyzePositionLines, analyzePositionSingleBg, stopPositionAnalysis } = useStockfish()
   const { enabled: soundEnabled, toggle: toggleSound, playMoveSound } = useSound()
@@ -183,6 +185,7 @@ export default function App() {
     lessons: coachLessons,
     moveComments: coachMoveComments,
   } = useCoaching({
+    enabled: COACHING_ENABLED && panelTab === 'coach' && isLoaded,
     criticalMoments,
     moveEvals,
     pgn: pgn ?? '',
@@ -462,8 +465,6 @@ export default function App() {
     }
   }, [isLoaded, moves, currentMoveIndex])
 
-  const [panelTab, setPanelTab] = useState<PanelTab>(savedUiState?.panelTab ?? 'load')
-  const [importTab, setImportTab] = useState<ImportTab>(savedUiState?.importTab ?? 'chesscom')
   const [chesscomGames, setChesscomGames] = useState<ChessComGame[]>([])
   const [lichessGames, setLichessGames] = useState<LichessGame[]>([])
   const [chesscomUsername, setChesscomUsername] = useState('')
@@ -1654,8 +1655,6 @@ export default function App() {
                   setLichessUsername(username)
                   setImportTab('lichess')
                 }
-                goToPage('review')
-                setPanelTab('load')
               }}
             />
           )}
