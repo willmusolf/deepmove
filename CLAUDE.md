@@ -1,5 +1,12 @@
 # CLAUDE.md — DeepMove
 
+## Git Workflow Guardrails
+
+- Prefer a clean sibling worktree per task: `scripts/new-worktree.sh codex-fix-short-description`
+- Use `scripts/ship-pr.sh` to publish scoped work instead of ad hoc `git add -A`
+- Refuse to publish mixed-scope work from a dirty checkout
+- If the local tree is already mixed, snapshot it to a `wip-*` branch first, then split focused PRs from clean worktrees
+
 ## What Is DeepMove?
 
 DeepMove is a free AI chess coaching web app. It provides game review (interactive board, eval bar, move-by-move analysis) with a GM-level coaching layer that teaches chess PRINCIPLES derived from the user's own games.
