@@ -189,6 +189,18 @@ export function useBotPlay(onNavigateToReview: () => void) {
   // Prevents concurrent execution of move processing. Guards against stale
   // chessground `after` callbacks arriving via setTimeout(1).
   const isProcessingMoveRef = useRef(false)
+  const positionCountsRef = useRef<Map<string, number>>(new Map())
+
+  function getPositionKey(fen: string): string {
+    return fen.split(' ').slice(0, 4).join(' ')
+  }
+  function recordPosition(fen: string) {
+    const key = getPositionKey(fen)
+    positionCountsRef.current.set(key, (positionCountsRef.current.get(key) ?? 0) + 1)
+  }
+  function isThreefoldByHistory(fen: string): boolean {
+    return (positionCountsRef.current.get(getPositionKey(fen)) ?? 0) >= 3
+  }
 
   const store = usePlayStore
   const gameStore = useGameStore
@@ -308,7 +320,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
       state.setResult('draw', 'insufficient-material')
       return true
     }
-    if (chess.isThreefoldRepetition()) {
+    if (isThreefoldByHistory(chess.fen())) {
       state.setResult('draw', 'threefold')
       return true
     }
@@ -378,6 +390,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
 
     playSound(premoveSan)
     isProcessingMoveRef.current = false
+    recordPosition(premoveFen)
 
     return premoveFen
   }
@@ -485,6 +498,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
     playSound(san)
 
     // Check terminal after bot move
+    recordPosition(botNewFen)
     const chess3 = new Chess(botNewFen)
     if (checkTerminal(chess3)) return
 
@@ -497,7 +511,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
     if (premoveFen) {
       // Check terminal after premove
       const chess4 = new Chess(premoveFen)
-      if (checkTerminal(chess4)) return
+      if (checkTerminal(chess4)) return  // position already recorded in drainPremoveQueue
 
       // Premove applied — schedule the next bot move; it will drain the next
       // queued premove (if any) after it lands.
@@ -556,6 +570,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
     clearPremoveQueue()
 
     // Check terminal
+    recordPosition(newFen)
     const chess2 = new Chess(newFen)
     if (checkTerminal(chess2)) return
 
@@ -568,6 +583,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
     cancelClockRaf()
     clearPremoveQueue()
     isProcessingMoveRef.current = false
+    positionCountsRef.current = new Map([[getPositionKey(STARTING_FEN), 1]])
     store.getState().startGame(config)
 
     // If user plays black, bot goes first
