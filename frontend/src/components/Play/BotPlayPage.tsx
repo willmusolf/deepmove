@@ -18,6 +18,38 @@ import { useAuthStore } from '../../stores/authStore'
 import type { TopLine } from '../../engine/stockfish'
 import type { DrawShape } from '../Board/ChessBoard'
 import { Chess } from 'chess.js'
+import { readSessionJson, writeSessionJson } from '../../utils/sessionStorage'
+
+const BOTPLAY_SINGLE_LINE_DEPTH = 26
+const BOTPLAY_MULTI_LINE_DEPTH = 24
+const PLAY_UI_SESSION_KEY = 'deepmove_playUi'
+
+interface PlayUiState {
+  orientation: 'white' | 'black'
+  showAnalysis: boolean
+  showArrows: boolean
+  browsePosition: string | null
+  browsePath: string[]
+  atBrowseStart: boolean
+  browseStep: number
+}
+
+function loadPlayUiState(): PlayUiState | null {
+  const parsed = readSessionJson<Partial<PlayUiState>>(PLAY_UI_SESSION_KEY)
+  if (!parsed || typeof parsed !== 'object') return null
+
+  return {
+    orientation: parsed.orientation === 'black' ? 'black' : 'white',
+    showAnalysis: parsed.showAnalysis === true,
+    showArrows: parsed.showArrows === true,
+    browsePosition: typeof parsed.browsePosition === 'string' ? parsed.browsePosition : null,
+    browsePath: Array.isArray(parsed.browsePath)
+      ? parsed.browsePath.filter(nodeId => typeof nodeId === 'string')
+      : [],
+    atBrowseStart: parsed.atBrowseStart === true,
+    browseStep: typeof parsed.browseStep === 'number' ? parsed.browseStep : 0,
+  }
+}
 
 interface Props {
   analyzePositionLines: (
@@ -31,6 +63,7 @@ interface Props {
 }
 
 export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis, onNavigateToReview }: Props) {
+  const savedUiState = useMemo(() => loadPlayUiState(), [])
   const { handleBoardMove, cancelPremoveQueue, premoveQueue, virtualBoardFen, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
   const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound } = useSound()
 
@@ -53,20 +86,22 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   const displayName = authUser?.chesscom_username ?? authUser?.lichess_username ?? 'You'
 
   // Board orientation (local state — user can flip any time)
-  const [orientation, setOrientation] = useState<'white' | 'black'>('white')
+  const [orientation, setOrientation] = useState<'white' | 'black'>(savedUiState?.orientation ?? 'white')
 
   // Browse mode: browsePosition is the FEN shown on board; browsePathRef tracks the node-ID path
-  const [browsePosition, setBrowsePositionRaw] = useState<string | null>(null)
+  const [browsePosition, setBrowsePositionRaw] = useState<string | null>(savedUiState?.browsePosition ?? null)
+  const [browsePath, setBrowsePath] = useState<string[]>(savedUiState?.browsePath ?? [])
+  const [atBrowseStart, setAtBrowseStart] = useState(savedUiState?.atBrowseStart ?? false)
   // Wrap setBrowsePosition: cancel premove queue whenever entering browse mode
   const setBrowsePosition = useCallback((fen: string | null) => {
     if (fen !== null) cancelPremoveQueue()
     setBrowsePositionRaw(fen)
   }, [cancelPremoveQueue])
-  const browsePathRef = useRef<string[]>([])
+  const browsePathRef = useRef<string[]>(browsePath)
   // true when user has browsed all the way back to move 0 (prevents loop back to live tip)
-  const atBrowseStartRef = useRef(false)
+  const atBrowseStartRef = useRef(atBrowseStart)
   // Increments on every navigation step so ChessBoard's pathKey changes and cancelMove() fires
-  const [browseStep, setBrowseStep] = useState(0)
+  const [browseStep, setBrowseStep] = useState(savedUiState?.browseStep ?? 0)
 
   // Refs for use inside keydown handler (avoid stale closure)
   const treeRef = useRef(tree)
@@ -77,29 +112,80 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   currentPathRef.current = currentPath
 
   // Analysis overlay (hidden by default — seeing eval is "cheating")
-  const [showAnalysis, setShowAnalysis] = useState(false)
-  const [showArrows, setShowArrows] = useState(false)
+  const [showAnalysis, setShowAnalysis] = useState(savedUiState?.showAnalysis ?? false)
+  const [showArrows, setShowArrows] = useState(savedUiState?.showArrows ?? false)
   const [positionLines, setPositionLines] = useState<TopLine[]>([])
-  const analysisAbortRef = useRef<boolean>(false)
+  const analysisTokenRef = useRef(0)
+
+  useEffect(() => {
+    browsePathRef.current = browsePath
+  }, [browsePath])
+
+  useEffect(() => {
+    atBrowseStartRef.current = atBrowseStart
+  }, [atBrowseStart])
+
+  useEffect(() => {
+    writeSessionJson(PLAY_UI_SESSION_KEY, {
+      orientation,
+      showAnalysis,
+      showArrows,
+      browsePosition,
+      browsePath,
+      atBrowseStart,
+      browseStep,
+    } satisfies PlayUiState)
+  }, [orientation, showAnalysis, showArrows, browsePosition, browsePath, atBrowseStart, browseStep])
+
+  useEffect(() => {
+    if (status === 'idle') {
+      if (browsePosition !== null) setBrowsePositionRaw(null)
+      if (browsePath.length > 0) setBrowsePath([])
+      if (atBrowseStart) setAtBrowseStart(false)
+      return
+    }
+
+    const safePath: string[] = []
+    for (const nodeId of browsePath) {
+      const node = tree[nodeId]
+      if (!node) break
+      const expectedParent = safePath[safePath.length - 1] ?? null
+      if (node.parentId !== expectedParent) break
+      safePath.push(nodeId)
+    }
+
+    const expectedBrowsePosition = safePath.length === 0
+      ? (atBrowseStart ? STARTING_FEN : null)
+      : (tree[safePath[safePath.length - 1]]?.fen ?? null)
+
+    if (safePath.length !== browsePath.length) {
+      setBrowsePath(safePath)
+      return
+    }
+
+    if (browsePosition !== expectedBrowsePosition) {
+      setBrowsePositionRaw(expectedBrowsePosition)
+    }
+  }, [status, tree, browsePath, browsePosition, atBrowseStart])
 
   // Auto-snap back to live position when bot finishes thinking (only if browsing)
   useEffect(() => {
     if (!isBotThinking && browsePosition !== null) {
       setBrowsePosition(null)
-      browsePathRef.current = []
+      setBrowsePath([])
       // NOTE: do NOT reset atBrowseStartRef here — the user may have browsed to
       // move 0 before the bot finished; resetting here would re-enable the loop bug.
     }
-  }, [isBotThinking])
+  }, [browsePosition, isBotThinking, setBrowsePosition])
 
   // Clear browse position when game resets
   useEffect(() => {
     if (status === 'idle') {
       setBrowsePosition(null)
-      browsePathRef.current = []
-      atBrowseStartRef.current = false
+      setBrowsePath([])
+      setAtBrowseStart(false)
     }
-  }, [status])
+  }, [setBrowsePosition, status])
 
   // ── Arrow key navigation ─────────────────────────────────────────────────
   useEffect(() => {
@@ -122,26 +208,28 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
           // Not browsing yet — step into the last live node's parent
           if (livePath.length === 0) return
           const newPath = livePath.slice(0, -1)
-          browsePathRef.current = newPath
+          setBrowsePath(newPath)
           if (newPath.length === 0) {
-            atBrowseStartRef.current = true
+            setAtBrowseStart(true)
             setBrowsePosition(STARTING_FEN)
             setBrowseStep(s => s + 1)
           } else {
             const nodeId = newPath[newPath.length - 1]
+            setAtBrowseStart(false)
             setBrowsePosition(t[nodeId]?.fen ?? null)
             setBrowseStep(s => s + 1)
           }
         } else {
           // Already browsing — step back one more
           const newPath = browsePath.slice(0, -1)
-          browsePathRef.current = newPath
+          setBrowsePath(newPath)
           if (newPath.length === 0) {
-            atBrowseStartRef.current = true
+            setAtBrowseStart(true)
             setBrowsePosition(STARTING_FEN)
             setBrowseStep(s => s + 1)
           } else {
             const nodeId = newPath[newPath.length - 1]
+            setAtBrowseStart(false)
             setBrowsePosition(t[nodeId]?.fen ?? null)
             setBrowseStep(s => s + 1)
           }
@@ -161,14 +249,14 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
         // Don't go past the live position
         const livePathSet = new Set(livePath)
         if (!livePathSet.has(nextId) && pathToStep.length >= livePath.length) return
-        atBrowseStartRef.current = false
-        browsePathRef.current = [...pathToStep, nextId]
+        setAtBrowseStart(false)
+        setBrowsePath([...pathToStep, nextId])
         const node = t[nextId]
         if (!node) return
         // If we've reached the live tip, exit browse mode
         if (nextId === livePath[livePath.length - 1]) {
           setBrowsePosition(null)
-          browsePathRef.current = []
+          setBrowsePath([])
           setBrowseStep(s => s + 1)
         } else {
           setBrowsePosition(node.fen)
@@ -185,7 +273,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   const isUserTurn = config ? turnColor === config.userColor : false
 
   // Last move squares for board highlight
-  const activePath = browsePosition !== null ? browsePathRef.current : currentPath
+  const activePath = browsePosition !== null ? browsePath : currentPath
   const lastNode = activePath.length > 0 ? tree[activePath[activePath.length - 1]] : null
   const lastMove: [Key, Key] | undefined = lastNode ? [lastNode.from as Key, lastNode.to as Key] : undefined
 
@@ -193,33 +281,38 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   const analysisFen = browsePosition ?? currentFen
   useEffect(() => {
     const needsAnalysis = showAnalysis || showArrows
+    analysisTokenRef.current += 1
+    stopPositionAnalysis()
+
     if (!needsAnalysis || status === 'idle') {
       setPositionLines([])
       return
     }
-    analysisAbortRef.current = true
-    stopPositionAnalysis()
 
     const fen = analysisFen
-    analysisAbortRef.current = false
+    const token = ++analysisTokenRef.current
 
-    // Cap multi-PV to legal move count
-    let numLines = 3
+    // Use a stronger single line for the eval bar, and multi-PV only when arrows are visible.
+    let numLines = showArrows ? 2 : 1
+    let depth = showArrows ? BOTPLAY_MULTI_LINE_DEPTH : BOTPLAY_SINGLE_LINE_DEPTH
     try {
       const chess = new Chess(fen)
       const legalMoveCount = chess.moves().length
       if (legalMoveCount === 0) { setPositionLines([]); return }
-      numLines = Math.min(3, legalMoveCount)
+      numLines = Math.min(numLines, legalMoveCount)
+      if (numLines <= 1) depth = BOTPLAY_SINGLE_LINE_DEPTH
     } catch { /* invalid FEN */ }
 
-    analyzePositionLines(fen, 16, numLines, (lines) => {
-      if (!analysisAbortRef.current) setPositionLines(lines)
+    analyzePositionLines(fen, depth, numLines, (lines) => {
+      if (analysisTokenRef.current !== token) return
+      setPositionLines(lines)
     }).then(lines => {
-      if (!analysisAbortRef.current) setPositionLines(lines)
+      if (analysisTokenRef.current !== token) return
+      setPositionLines(lines)
     }).catch(() => {})
 
     return () => {
-      analysisAbortRef.current = true
+      analysisTokenRef.current += 1
     }
   }, [analysisFen, showAnalysis, showArrows, status])  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -242,12 +335,17 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
     const lines = positionLines
     if (lines.length === 0) return []
     const best = lines[0]
+    const seenFirstMove = new Set<string>()
     return lines.filter((line, i) => {
+      const firstMove = line.pv[0] ?? ''
+      if (seenFirstMove.has(firstMove)) return false
+      seenFirstMove.add(firstMove)
       if (i === 0) return true
       if (best.isMate !== line.isMate) return false
       if (best.isMate && line.isMate) {
         if (best.mateIn !== null && line.mateIn !== null) {
           if ((best.mateIn > 0) !== (line.mateIn > 0)) return false
+          return Math.abs(line.mateIn) <= Math.abs(best.mateIn)
         }
         return true
       }
@@ -281,9 +379,10 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
     setPositionLines([])
     setShowAnalysis(false)
     setBrowsePosition(null)
-    browsePathRef.current = []
+    setBrowsePath([])
+    setAtBrowseStart(false)
     resetPlay()
-  }, [resetPlay, stopPositionAnalysis])
+  }, [resetPlay, setBrowsePosition, stopPositionAnalysis])
 
   // ── User color display info ──────────────────────────────────────────────
   const userIsWhite = config ? config.userColor === 'white' : orientation === 'white'
@@ -395,7 +494,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
               />
             )}
 
-            <div onContextMenu={cancelPremoveQueue}>
+            <div onContextMenu={cancelPremoveQueue} style={{ position: 'relative' }}>
             <ChessBoard
               fen={displayFen}
               orientation={orientation}
@@ -409,6 +508,33 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
               premoveQueue={!browsePosition && status === 'playing' ? premoveQueue : undefined}
               forceCheck={endReason === 'resigned' && config && browsePosition === null ? config.userColor : undefined}
             />
+            {(() => {
+              const _chess = new Chess(displayFen)
+              const _findKing = (c: 'w' | 'b'): string | null => {
+                for (const f of 'abcdefgh') for (const r of '12345678') {
+                  const p = _chess.get(`${f}${r}` as any)
+                  if (p?.type === 'k' && p.color === c) return f + r
+                }
+                return null
+              }
+              const _sqPos = (sq: string) => {
+                const file = sq.charCodeAt(0) - 97
+                const rank = parseInt(sq[1], 10) - 1
+                const lc = orientation === 'white' ? file : (7 - file)
+                const tc = orientation === 'white' ? (7 - rank) : rank
+                return { left: `${(lc + 1) * 12.5}%`, top: `${tc * 12.5}%` }
+              }
+              if (_chess.isCheckmate()) {
+                const sq = _findKing(_chess.turn())
+                if (!sq) return null
+                return <div className="board-result-badge board-result-badge--checkmate" style={_sqPos(sq)}>#</div>
+              }
+              if (_chess.isStalemate() || _chess.isInsufficientMaterial() || _chess.isThreefoldRepetition() || _chess.isDraw()) {
+                const wSq = _findKing('w'), bSq = _findKing('b')
+                return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(wSq)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(bSq)}>½</div>}</>
+              }
+              return null
+            })()}
             </div>
 
             {/* Bottom player box */}
@@ -489,18 +615,18 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
         <MoveList
           tree={tree}
           rootId={rootId}
-          currentPath={browsePosition ? browsePathRef.current : currentPath}
+          currentPath={browsePosition ? browsePath : currentPath}
           moveGrades={[]}
           onNodeClick={(path) => {
             const nodeId = path[path.length - 1]
             const node = tree[nodeId]
             if (!node) return
-            atBrowseStartRef.current = false
-            browsePathRef.current = path
+            setAtBrowseStart(false)
+            setBrowsePath(path)
             // If clicking the live tip, exit browse mode
             if (nodeId === currentPath[currentPath.length - 1]) {
               setBrowsePosition(null)
-              browsePathRef.current = []
+              setBrowsePath([])
             } else {
               setBrowsePosition(node.fen)
             }

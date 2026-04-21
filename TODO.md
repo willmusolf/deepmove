@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-04-15 — Depth analysis overhaul: fixed UCI stop/go race condition (isready/readyok handshake in drainQueue), incremental partial caching (positionCache updates on every onUpdate), POSITION_MAX_DEPTH=25 (was 16, no movetime cap), true resume (onUpdate skips depths ≤ resumeFromDepth so counter never goes backward on nav back).
+**Last Session**: 2026-04-15 — Responsive layout polish (3 rounds): fixed coord labels (container-query cqw units), nav collapse (logo hidden, ☰ icon), sort dropdown moved to list header, board dvh formula 200→158px (+27px board height), player-info-box 52→44px, app-main padding 1rem→0.75rem, side-col flex-grow (absorbs horizontal slack), ad-col breakpoint 1380→1330px, removed collapsed-nav --board-vw-offset overrides (eliminated board jump on nav toggle), nav-sidebar transition: width 0.2s ease.
 
 ---
 
@@ -638,25 +638,34 @@ See above in "Next After Launch"
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
 
+-ads. how do we get the ball rolling ot acutally have them and make sure we can get money and have them be visual on resize? sometimes if we shrink it horziontally the ad placeholder disapperas too like it can have more space normally on a lot of screen sizes? what will we do for ads on mobile?
+
+
+-thorough updating of memory claude.md todo.md general progress update check in and set up bunch of audi it prompts for all aspects including testing, ui/ux, backend, frontend, plan, security, scaling etc 
+-thorough systematic audits to make sure everything is as simple and efficient and fast as it can possibly be and for security as well and scaling, all possible standard security measures for injections and anything crucial to making this a big app, want you to ask questions and push back on anything and really go big picture here. i trust you and your judgment lets go from there
+
+-vercel was hacked recently we should rotate keys before anything crucial?
+
+-coaching
+
+-deploy app before coaching? coming soon? or what just launch as chessigma competitor for now?
+
+-make reels / videos with voiceover for it? plus slideshows idk
 
 
 
 
--ads
-
-
--landing page/clicking logo takes you there
-
--if you click on a miss symbol it shows you the line for the tactice? how are misses calculated and all of them for that matter? also add something for show line or something like that that chess.com has?
 
 
 
+EVENTUALLY
+-if you click on a miss symbol it shows you the line for the tactic that you missed? how are misses calculated and all of them for that matter? also add something for show line or something like that that chess.com has?
 
--test FEN string
-
-
--refresh on play page doesnt hold stats and takes you back to load?
-
--thorough systematic audits to make sure everything is as simple and efficient and fast as it can possibly be and for security as well and scaling, all possible standard security measures for injections and anything crucial to making this a big app
 
 -make this into an ios app
+
+
+
+
+
+

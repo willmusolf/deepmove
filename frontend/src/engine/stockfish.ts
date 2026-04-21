@@ -6,7 +6,7 @@
 
 import { Chess } from 'chess.js'
 
-const MIN_MULTIPV_DISPLAY_DEPTH = 5
+const MIN_MULTIPV_DISPLAY_DEPTH = 10
 
 export interface EvalResult {
   fen: string
@@ -70,6 +70,15 @@ export class StockfishEngine {
   // Pending queue item waiting for readyok before dispatch (race-condition guard)
   private pendingQueueItem: QueueItem | null = null
 
+  private normalizeScoreForWhite(rawScore: number): number {
+    return this.currentSideToMove === 'w' ? rawScore : -rawScore
+  }
+
+  private normalizeMateForWhite(mateIn: number | null): number | null {
+    if (mateIn === null) return null
+    return this.currentSideToMove === 'w' ? mateIn : -mateIn
+  }
+
   async initialize(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.worker = new Worker('/stockfish/stockfish.js')
@@ -86,6 +95,13 @@ export class StockfishEngine {
       this.worker.onmessage = (e: MessageEvent<string>) => {
         const line = e.data
         if (line === 'uciok') {
+          this.worker!.postMessage('setoption name Hash value 128')
+          // Use multiple threads if SharedArrayBuffer is available (requires COOP/COEP headers).
+          // Cap at 4 — diminishing returns beyond that; leave 1 core for the UI thread.
+          const threads = typeof SharedArrayBuffer !== 'undefined'
+            ? Math.min(4, Math.max(1, (navigator.hardwareConcurrency ?? 2) - 1))
+            : 1
+          this.worker!.postMessage(`setoption name Threads value ${threads}`)
           this.worker!.postMessage('isready')
         } else if (line === 'readyok') {
           if (settled) return
@@ -159,10 +175,8 @@ export class StockfishEngine {
         }
 
         // Convert to white-perspective
-        const score = this.currentSideToMove === 'w' ? rawScore : -rawScore
-        const whiteMateIn = isMate && mateIn !== null
-          ? (this.currentSideToMove === 'w' ? mateIn : -mateIn)
-          : null
+        const score = this.normalizeScoreForWhite(rawScore)
+        const whiteMateIn = isMate ? this.normalizeMateForWhite(mateIn) : null
 
         const san = pv.length > 0 ? this.uciToSan(this.currentFen, pv[0]) : ''
 
@@ -191,12 +205,12 @@ export class StockfishEngine {
         if (mateMatch) {
           const m = parseInt(mateMatch[1], 10)
           this.latestIsMate = true
-          this.latestMateIn = m
-          this.latestScore = m > 0 ? 30_000 : -30_000
+          this.latestMateIn = this.normalizeMateForWhite(m)
+          this.latestScore = this.normalizeScoreForWhite(m > 0 ? 30_000 : -30_000)
         } else if (cpMatch) {
           this.latestIsMate = false
           this.latestMateIn = null
-          this.latestScore = parseInt(cpMatch[1], 10)
+          this.latestScore = this.normalizeScoreForWhite(parseInt(cpMatch[1], 10))
         }
 
         if (pvMatch) this.latestPv = pvMatch[1].trim().split(' ')
