@@ -1,10 +1,11 @@
 // useGameReview.ts — Tree-based game navigation with branch/variation support
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { Chess } from 'chess.js'
 import { useGameStore } from '../stores/gameStore'
 import { cleanPgn, extractClockTimes } from '../chess/pgn'
 import { STARTING_FEN } from '../chess/constants'
 import type { MoveNode, MoveTree } from '../chess/types'
+import { readSessionJson, removeSessionValue, writeSessionJson } from '../utils/sessionStorage'
 
 
 interface ParsedGame {
@@ -83,6 +84,98 @@ const EMPTY_BRANCH: BranchState = {
   pgnKey: null, nodes: {}, extraChildren: {}, currentPath: [], branchCounter: 0,
 }
 
+const REVIEW_BRANCH_SESSION_KEY = 'deepmove_reviewBranchState'
+
+function sanitizeBranchNodes(value: unknown): MoveTree {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([id, rawNode]) => {
+      if (!rawNode || typeof rawNode !== 'object' || Array.isArray(rawNode)) return []
+      const node = rawNode as Partial<MoveNode>
+      if (typeof node.san !== 'string') return []
+      if (typeof node.from !== 'string' || typeof node.to !== 'string' || typeof node.fen !== 'string') return []
+      if (!Array.isArray(node.childIds) || !node.childIds.every(childId => typeof childId === 'string')) return []
+      if (node.parentId !== null && typeof node.parentId !== 'string') return []
+      if (typeof node.moveNumber !== 'number') return []
+      if (node.color !== 'white' && node.color !== 'black') return []
+      if (typeof node.isMainLine !== 'boolean') return []
+
+      return [[id, {
+        id,
+        san: node.san,
+        from: node.from,
+        to: node.to,
+        fen: node.fen,
+        childIds: node.childIds,
+        parentId: node.parentId ?? null,
+        moveNumber: node.moveNumber,
+        color: node.color,
+        isMainLine: node.isMainLine,
+        ...(typeof node.grade === 'string' ? { grade: node.grade } : {}),
+        ...(typeof node.clockTime === 'string' ? { clockTime: node.clockTime } : {}),
+      } satisfies MoveNode]]
+    }),
+  )
+}
+
+function sanitizeExtraChildren(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([parentId, childIds]) => {
+      if (!Array.isArray(childIds) || !childIds.every(childId => typeof childId === 'string')) return []
+      return [[parentId, childIds]]
+    }),
+  )
+}
+
+function sanitizeCurrentPath(path: unknown, tree: MoveTree): string[] {
+  if (!Array.isArray(path)) return []
+
+  const safe: string[] = []
+  for (const rawId of path) {
+    if (typeof rawId !== 'string') break
+    const node = tree[rawId]
+    if (!node) break
+    const expectedParent = safe[safe.length - 1] ?? null
+    if (node.parentId !== expectedParent) break
+    safe.push(rawId)
+  }
+  return safe
+}
+
+function sanitizeStoredPath(path: unknown): string[] {
+  return Array.isArray(path) ? path.filter(id => typeof id === 'string') : []
+}
+
+function loadBranchState(pgn: string | null): BranchState {
+  if (!pgn) return EMPTY_BRANCH
+
+  const parsed = readSessionJson<Partial<BranchState>>(REVIEW_BRANCH_SESSION_KEY)
+  if (!parsed || parsed.pgnKey !== pgn) {
+    return { ...EMPTY_BRANCH, pgnKey: pgn }
+  }
+
+  const nodes = sanitizeBranchNodes(parsed.nodes)
+  return {
+    pgnKey: pgn,
+    nodes,
+    extraChildren: sanitizeExtraChildren(parsed.extraChildren),
+    currentPath: sanitizeStoredPath(parsed.currentPath),
+    branchCounter: typeof parsed.branchCounter === 'number' ? parsed.branchCounter : 0,
+  }
+}
+
+function persistBranchState(state: BranchState) {
+  if (!state.pgnKey) {
+    removeSessionValue(REVIEW_BRANCH_SESSION_KEY)
+    return
+  }
+
+  writeSessionJson(REVIEW_BRANCH_SESSION_KEY, state)
+}
+
 export function useGameReview() {
   const pgn = useGameStore(s => s.pgn)
   const rawPgn = useGameStore(s => s.rawPgn)
@@ -94,7 +187,7 @@ export function useGameReview() {
   }, [pgn, rawPgn])
 
   // All branch/navigation state in one object keyed by pgnKey
-  const [branchState, setBranchState] = useState<BranchState>(EMPTY_BRANCH)
+  const [branchState, setBranchState] = useState<BranchState>(() => loadBranchState(pgn))
 
   // Ref to the most recently added branch node ID (set synchronously in addVariationMove)
   const lastAddedNodeIdRef = useRef<string | null>(null)
@@ -102,9 +195,9 @@ export function useGameReview() {
   // Synchronous reset when game changes — React re-renders immediately without flash
   let activeBranch = branchState
   if (branchState.pgnKey !== pgn) {
-    const fresh: BranchState = { pgnKey: pgn, nodes: {}, extraChildren: {}, currentPath: [], branchCounter: 0 }
-    setBranchState(fresh)
-    activeBranch = fresh
+    const restored = loadBranchState(pgn)
+    setBranchState(restored)
+    activeBranch = restored
     lastAddedNodeIdRef.current = null
   }
 
@@ -120,11 +213,25 @@ export function useGameReview() {
       result[id] = extra ? { ...node, childIds: [...node.childIds, ...extra] } : node
     }
     return result
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseData.tree, activeBranch.nodes, activeBranch.extraChildren])
 
-  const { currentPath } = activeBranch
   const rootId = baseData.rootId
+
+  const currentPath = useMemo(() => {
+    const merged: MoveTree = {}
+    for (const [id, node] of Object.entries(baseData.tree)) merged[id] = node
+    for (const [id, node] of Object.entries(activeBranch.nodes)) merged[id] = node
+    return sanitizeCurrentPath(activeBranch.currentPath, merged)
+  }, [activeBranch.currentPath, activeBranch.nodes, baseData.tree])
+
+  useEffect(() => {
+    if (activeBranch.currentPath.length === currentPath.length) return
+    setBranchState(prev => ({ ...prev, currentPath }))
+  }, [activeBranch.currentPath, currentPath])
+
+  useEffect(() => {
+    persistBranchState({ ...activeBranch, currentPath })
+  }, [activeBranch, currentPath])
 
   // ── Derived values ──────────────────────────────────────────────────────────
 
@@ -274,7 +381,7 @@ export function useGameReview() {
       }
     })
 
-  }, [currentPath, tree])
+  }, [branchState.branchCounter, currentPath, tree])
 
   const isLoaded =
     pgn !== null && baseData.parseError === null && Object.keys(baseData.tree).length > 0

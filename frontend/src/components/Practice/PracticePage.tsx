@@ -76,7 +76,10 @@ export default function PracticePage() {
   const selectedLine = selectedChapter?.lines.find((line) => line.id === selectedLineId)
     ?? selectedChapter?.lines[0]
     ?? null
-  const lineSteps = selectedLine ? flattenLinePositions(selectedLine) : []
+  const lineSteps = useMemo(
+    () => (selectedLine ? flattenLinePositions(selectedLine) : []),
+    [selectedLine],
+  )
   const currentStep = lineSteps[currentStepIndex] ?? null
   const progressLabel = lineSteps.length > 0 ? `${currentStepIndex + 1} / ${lineSteps.length}` : '0 / 0'
   const lineProgress = useMemo(
@@ -260,6 +263,33 @@ export default function PracticePage() {
                   ? () => setPracticeFeedback('That move is not legal in this position.')
                   : undefined}
               />
+            {(() => {
+              const _chess = new Chess(currentStep.fen)
+              const _findKing = (c: 'w' | 'b'): string | null => {
+                for (const f of 'abcdefgh') for (const r of '12345678') {
+                  const p = _chess.get(`${f}${r}` as any)
+                  if (p?.type === 'k' && p.color === c) return f + r
+                }
+                return null
+              }
+              const _sqPos = (sq: string) => {
+                const file = sq.charCodeAt(0) - 97
+                const rank = parseInt(sq[1], 10) - 1
+                const lc = orientation === 'white' ? file : (7 - file)
+                const tc = orientation === 'white' ? (7 - rank) : rank
+                return { left: `${(lc + 1) * 12.5}%`, top: `${tc * 12.5}%` }
+              }
+              if (_chess.isCheckmate()) {
+                const sq = _findKing(_chess.turn())
+                if (!sq) return null
+                return <div className="board-result-badge board-result-badge--checkmate" style={_sqPos(sq)}>#</div>
+              }
+              if (_chess.isStalemate() || _chess.isInsufficientMaterial() || _chess.isThreefoldRepetition() || _chess.isDraw()) {
+                const wSq = _findKing('w'), bSq = _findKing('b')
+                return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(wSq)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(bSq)}>½</div>}</>
+              }
+              return null
+            })()}
             </div>
 
             <PlayerInfoBox
