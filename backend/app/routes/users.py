@@ -29,9 +29,9 @@ async def update_me(
     db: Session = Depends(get_db),
 ):
     """Update user profile fields."""
-    if body.chesscom_username is not None:
+    if "chesscom_username" in body.model_fields_set:
         user.chesscom_username = body.chesscom_username
-    if body.lichess_username is not None:
+    if "lichess_username" in body.model_fields_set:
         user.lichess_username = body.lichess_username
     if body.elo_estimate is not None:
         user.elo_estimate = body.elo_estimate
