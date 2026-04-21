@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
+import { renderHook } from '@testing-library/react'
+import { act } from 'react'
 import { useGameReview, buildTreeFromPgn, getPathToNode } from './useGameReview'
 import { useGameStore } from '../stores/gameStore'
 
@@ -19,7 +20,6 @@ beforeEach(() => { act(() => { setPgn(TEST_PGN) }) })
 afterEach(() => { act(() => { setPgn(null) }) })
 
 // Helper: advance forward N times sequentially
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function goForwardN(result: any, n: number) {
   for (let i = 0; i < n; i++) {
     act(() => result.current.goForward())

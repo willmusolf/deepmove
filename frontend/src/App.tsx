@@ -25,11 +25,15 @@ import { useStockfish } from './hooks/useStockfish'
 import { useSound } from './hooks/useSound'
 import { useAuthStore } from './stores/authStore'
 import { useGameStore } from './stores/gameStore'
+import { clearPlaySession, usePlayStore } from './stores/playStore'
 import type { TopLine } from './engine/stockfish'
 import { classifyMove } from './engine/analysis'
 import type { MoveGrade } from './engine/analysis'
 import type { Key } from 'chessground/types'
 import { cacheRatingsFromGameList, readCachedRatings } from './components/Import/normalizeGame'
+import { formatEval } from './utils/format'
+import { pruneReviewPendingNodes, shouldTrackReviewPendingNode } from './utils/reviewPending'
+import { readSessionJson, writeSessionJson } from './utils/sessionStorage'
 import { Chess } from 'chess.js'
 import './styles/board.css'
 import { detectOpening } from './chess/openings'
@@ -39,12 +43,74 @@ const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
 // Max depth for per-position multi-PV analysis. Analysis runs continuously to this
 // depth and caches partial results at each depth — so interrupting and returning
 // resumes visually from the last reached depth.
-const POSITION_MAX_DEPTH = 25
+const POSITION_MAX_DEPTH = 28
 
 type PanelTab = "analysis" | "load" | "coach"
 type ImportTab = "chesscom" | "lichess" | "pgn"
 
+const APP_UI_SESSION_KEY = 'deepmove_appUi'
+
+interface AppUiState {
+  currentPage: Page
+  panelTab: PanelTab
+  importTab: ImportTab
+  orientation: 'white' | 'black'
+  showEvalBar: boolean
+  showArrows: boolean
+  showGrades: boolean
+}
+
+function isPanelTab(value: unknown): value is PanelTab {
+  return value === 'analysis' || value === 'load' || value === 'coach'
+}
+
+function isImportTab(value: unknown): value is ImportTab {
+  return value === 'chesscom' || value === 'lichess' || value === 'pgn'
+}
+
+function isPage(value: unknown): value is Page {
+  return value === 'review'
+    || value === 'practice'
+    || value === 'play'
+    || value === 'dashboard'
+    || value === 'settings'
+    || value === 'about'
+}
+
+function loadAppUiState(): AppUiState | null {
+  const parsed = readSessionJson<Partial<AppUiState>>(APP_UI_SESSION_KEY)
+  if (parsed && typeof parsed === 'object') {
+    return {
+      currentPage: isPage(parsed.currentPage) ? parsed.currentPage : 'review',
+      panelTab: isPanelTab(parsed.panelTab) ? parsed.panelTab : 'load',
+      importTab: isImportTab(parsed.importTab) ? parsed.importTab : 'chesscom',
+      orientation: parsed.orientation === 'black' ? 'black' : 'white',
+      showEvalBar: parsed.showEvalBar !== false,
+      showArrows: parsed.showArrows !== false,
+      showGrades: parsed.showGrades !== false,
+    }
+  }
+
+  const legacyPage = typeof window !== 'undefined'
+    ? window.sessionStorage.getItem('deepmove_currentPage')
+    : null
+  return legacyPage && isPage(legacyPage)
+    ? {
+        currentPage: legacyPage,
+        panelTab: 'load',
+        importTab: 'chesscom',
+        orientation: 'white',
+        showEvalBar: true,
+        showArrows: true,
+        showGrades: true,
+      }
+    : null
+}
+
 export default function App() {
+  const savedUiState = useMemo(() => loadAppUiState(), [])
+  const savedPlayStatus = useMemo(() => usePlayStore.getState().status, [])
+  const savedReviewColor = useMemo(() => useGameStore.getState().userColor, [])
   const {
     currentFen,
     moves,
@@ -181,7 +247,7 @@ export default function App() {
   // Opening detection for free-play mode — tracks main-line moves from the hook
   useEffect(() => {
     if (!isLoaded) setOpeningName(detectOpening(analysisMainLineSans))
-  }, [isLoaded, analysisMainLineSans]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoaded, analysisMainLineSans])
 
   // Per-position multi-PV analysis — runs whenever current position changes.
   // Also runs in free-play mode when pieces are pushed on the board.
@@ -295,7 +361,7 @@ export default function App() {
         }
         navHoldTimerRef.current = setTimeout(() => {
           triggerPositionAnalysis(displayFen)
-        }, 180)
+        }, 250)
       } else {
         // Single arrow key press — if no cache, clear stale arrows from previous position.
         // Partial cache already displayed above so we keep them.
@@ -370,11 +436,17 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAnalyzing])
 
-  const [orientation, setOrientation] = useState<'white' | 'black'>('white')
+  const [orientation, setOrientation] = useState<'white' | 'black'>(
+    savedUiState?.orientation ?? savedReviewColor ?? 'white'
+  )
+  const previousPgnRef = useRef(pgn)
 
   // Auto-orient board when a new game loads
   useEffect(() => {
-    if (pgn) setOrientation(userColor ?? 'white')
+    if (pgn && previousPgnRef.current !== pgn) {
+      setOrientation(userColor ?? 'white')
+    }
+    previousPgnRef.current = pgn
   }, [pgn, userColor])
 
   // Opening detection for loaded games — update as user navigates
@@ -385,19 +457,41 @@ export default function App() {
     }
   }, [isLoaded, moves, currentMoveIndex])
 
-  const [panelTab, setPanelTab] = useState<PanelTab>('load')
-  const [importTab, setImportTab] = useState<ImportTab>('chesscom')
+  const [panelTab, setPanelTab] = useState<PanelTab>(savedUiState?.panelTab ?? 'load')
+  const [importTab, setImportTab] = useState<ImportTab>(savedUiState?.importTab ?? 'chesscom')
   const [chesscomGames, setChesscomGames] = useState<ChessComGame[]>([])
   const [lichessGames, setLichessGames] = useState<LichessGame[]>([])
   const [chesscomUsername, setChesscomUsername] = useState('')
   const [lichessUsername, setLichessUsername] = useState('')
   const [chesscomPagination, setChesscomPagination] = useState<PaginationState | null>(null)
   const [lichessPagination, setLichessPagination] = useState<PaginationState | null>(null)
-  const [currentPage, setCurrentPage] = useState<Page>('review')
-  const [showEvalBar, setShowEvalBar] = useState(true)
+  const [currentPage, setCurrentPage] = useState<Page>(() => {
+    const saved = savedUiState?.currentPage ?? 'review'
+    if (saved === 'play' && savedPlayStatus === 'idle') {
+      return 'review'
+    }
+    return saved
+  })
+  const goToPage = (page: Page) => {
+    if (page !== 'play') clearPlaySession()
+    setCurrentPage(page)
+  }
+  const [showEvalBar, setShowEvalBar] = useState(savedUiState?.showEvalBar ?? true)
   const viewMode = panelTab === 'coach' ? 'coach' : 'classic'
-  const [showArrows, setShowArrows] = useState(true)
-  const [showGrades, setShowGrades] = useState(true)
+  const [showArrows, setShowArrows] = useState(savedUiState?.showArrows ?? true)
+  const [showGrades, setShowGrades] = useState(savedUiState?.showGrades ?? true)
+
+  useEffect(() => {
+    writeSessionJson(APP_UI_SESSION_KEY, {
+      currentPage,
+      panelTab,
+      importTab,
+      orientation,
+      showEvalBar,
+      showArrows,
+      showGrades,
+    } satisfies AppUiState)
+  }, [currentPage, panelTab, importTab, orientation, showEvalBar, showArrows, showGrades])
 
 
   // Last-move highlight: always reflects the actual last move in currentPath
@@ -426,6 +520,12 @@ export default function App() {
     }
   }, [isLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!isLoaded) return
+
+    setPendingBranchNodes(prev => pruneReviewPendingNodes(prev, moveTree, branchGrades))
+  }, [isLoaded, moveTree, branchGrades])
+
   // ── Keyboard navigation ────────────────────────────────────────────────────
 
   const goBackFn = useCallback(() => {
@@ -434,7 +534,7 @@ export default function App() {
     const curInBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
     if (curInBranch && currentPath.length > 1) {
       const destId = currentPath[currentPath.length - 2]
-      if (destId && !branchGrades.has(destId)) {
+      if (shouldTrackReviewPendingNode(destId, moveTree, branchGrades)) {
         setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
       }
     }
@@ -449,7 +549,7 @@ export default function App() {
     if (nextId) playMoveSound(moveTree[nextId]?.san ?? '')
     // Eagerly mark destination pending so badge shows spinner on first render after nav
     const curInBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
-    if (nextId && curInBranch && !branchGrades.has(nextId)) {
+    if (curInBranch && shouldTrackReviewPendingNode(nextId, moveTree, branchGrades)) {
       setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nextId); return s })
     }
     goForward()
@@ -614,10 +714,8 @@ export default function App() {
         return  // finally still clears pendingBranchNodes
       }
 
-      const rawBefore = beforeResult.score
-      const rawAfter = afterResult.score
-      const evalBefore = color === 'white' ? rawBefore : -rawBefore
-      const evalAfter  = color === 'white' ? -rawAfter : rawAfter
+      const evalBefore = beforeResult.score
+      const evalAfter = afterResult.score
 
       const grade = classifyMove(evalBefore, evalAfter, color, legalCount)
       setBranchGrades(prev => new Map(prev).set(nodeId, grade))
@@ -668,27 +766,42 @@ export default function App() {
     navigateTo(path)
   }
 
-  // Free-play: enter first move of a best line (clicked in BestLines panel or via arrow)
+  // Enter first move of a best line (clicked in BestLines panel or via arrow).
+  // In game review mode: plays into the game's variation tree (same as dragging the piece).
+  // In sandbox mode: plays into the free-play analysis tree.
   function handleAnalysisBestLineClick(line: TopLine) {
     const uci = line.pv[0]
     if (!uci || uci.length < 4) return
     const from = uci.slice(0, 2)
     const to = uci.slice(2, 4)
     const promotion = uci.length === 5 ? uci[4] : undefined
-    const chess = new Chess(analysisFen)
-    const result = chess.move({ from, to, promotion })
-    if (!result) return
-    playMoveSound(result.san)
-    pathKeyRef.current++
-    const parentFen = analysisFen
-    const newFen = chess.fen()
-    analysisBoardAddMove(from, to, result.san, newFen)
-    const nodeId = analysisLastAddedNodeIdRef.current
-    if (nodeId && isReady && !branchGrades.has(nodeId)) {
-      setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nodeId); return s })
-      void evaluateBranchMove(nodeId, parentFen, newFen)
+
+    if (isLoaded) {
+      // Game review mode — delegate to handleBoardMove which handles main-line advance vs branch
+      const chess = new Chess(currentFen)
+      const result = chess.move({ from, to, promotion })
+      if (!result) return
+      playMoveSound(result.san)
+      isPieceMoveRef.current = true
+      pathKeyRef.current++
+      handleBoardMove(from, to, result.san, chess.fen())
+    } else {
+      // Sandbox/free-play mode
+      const chess = new Chess(analysisFen)
+      const result = chess.move({ from, to, promotion })
+      if (!result) return
+      playMoveSound(result.san)
+      pathKeyRef.current++
+      const parentFen = analysisFen
+      const newFen = chess.fen()
+      analysisBoardAddMove(from, to, result.san, newFen)
+      const nodeId = analysisLastAddedNodeIdRef.current
+      if (nodeId && isReady && !branchGrades.has(nodeId)) {
+        setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nodeId); return s })
+        void evaluateBranchMove(nodeId, parentFen, newFen)
+      }
+      if (panelTab !== 'coach') setPanelTab('analysis')
     }
-    if (panelTab !== 'coach') setPanelTab('analysis')
   }
 
 
@@ -753,13 +866,6 @@ export default function App() {
   const stableIsMate = evalCp !== undefined ? evalIsMate : lastEvalRef.current.isMate
   const stableMateIn = evalCp !== undefined ? evalMateIn : lastEvalRef.current.mateIn
 
-  function formatEval(score: number | undefined, isMate: boolean, mateIn: number | null): string {
-    if (score === undefined) return '—'
-    if (isMate) return mateIn !== null ? `M${Math.abs(mateIn)}` : 'M'
-    const pawns = (score / 100).toFixed(2)
-    return score >= 0 ? `+${pawns}` : pawns
-  }
-
   // ── Arrow shapes ───────────────────────────────────────────────────────────
 
   // Show 1-3 lines based on how close alternatives are to the best move,
@@ -814,7 +920,7 @@ export default function App() {
 
 
   return (
-    <ResponsiveLayout currentPage={currentPage} onNavigate={setCurrentPage}>
+    <ResponsiveLayout currentPage={currentPage} onNavigate={goToPage}>
       <div className="app-main">
           {currentPage === 'review' && (
             <>
@@ -955,6 +1061,33 @@ export default function App() {
                           {g.symbol}
                         </div>
                       )
+                    })()}
+                    {(() => {
+                      const _chess = new Chess(displayFen)
+                      const _findKing = (c: 'w' | 'b'): string | null => {
+                        for (const f of 'abcdefgh') for (const r of '12345678') {
+                          const p = _chess.get(`${f}${r}` as any)
+                          if (p?.type === 'k' && p.color === c) return f + r
+                        }
+                        return null
+                      }
+                      const _sqPos = (sq: string) => {
+                        const file = sq.charCodeAt(0) - 97
+                        const rank = parseInt(sq[1], 10) - 1
+                        const lc = orientation === 'white' ? file : (7 - file)
+                        const tc = orientation === 'white' ? (7 - rank) : rank
+                        return { left: `${(lc + 1) * 12.5}%`, top: `${tc * 12.5}%` }
+                      }
+                      if (_chess.isCheckmate()) {
+                        const sq = _findKing(_chess.turn())
+                        if (!sq) return null
+                        return <div className="board-result-badge board-result-badge--checkmate" style={_sqPos(sq)}>#</div>
+                      }
+                      if (_chess.isStalemate() || _chess.isInsufficientMaterial() || _chess.isThreefoldRepetition() || _chess.isDraw()) {
+                        const wSq = _findKing('w'), bSq = _findKing('b')
+                        return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(wSq)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(bSq)}>½</div>}</>
+                      }
+                      return null
                     })()}
                     </div>
                     {isLoaded ? (
@@ -1145,14 +1278,14 @@ export default function App() {
                       )}
 
 
-                      {/* Best lines + eval graph — hidden while game analysis is running */}
-                      {(!showAnalyzingBar || atStartOnMainLine) && (
-                        <BestLines
-                          lines={visibleLines}
-                          isAnalyzingPosition={isAnalyzingPosition}
-                          onLineClick={handleAnalysisBestLineClick}
-                        />
-                      )}
+                      {/* Keep best lines visible while full-game analysis runs so move switches
+                          still show suggestions/skeletons instead of collapsing the panel. */}
+                      <BestLines
+                        lines={visibleLines}
+                        isAnalyzingPosition={isAnalyzingPosition}
+                        onLineClick={handleAnalysisBestLineClick}
+                      />
+
                       {/* Eval graph — hidden during analysis, shown after completion */}
                       {!showAnalyzingBar && moveEvals.length > 0 && (
                         <EvalGraph
@@ -1353,7 +1486,14 @@ export default function App() {
                               setLichessGames(prev => {
                                 const existing = new Set(prev.map(g => (g as LichessGame).id))
                                 const fresh = (newGames as LichessGame[]).filter(g => !existing.has((g as LichessGame).id))
-                                return [...fresh, ...prev]
+                                const merged = [...fresh, ...prev]
+                                try {
+                                  localStorage.setItem(
+                                    `deepmove_gamelist_lichess_${lichessUsername.toLowerCase()}`,
+                                    JSON.stringify({ games: merged.slice(0, 2000), pagination: lichessPagination, fetchedAt: Date.now() })
+                                  )
+                                } catch {}
+                                return merged
                               })
                             }}
                             newestEndTime={lichessGames.length > 0
@@ -1483,7 +1623,7 @@ export default function App() {
                   setLichessUsername(username)
                   setImportTab('lichess')
                 }
-                setCurrentPage('review')
+                goToPage('review')
                 setPanelTab('load')
               }}
             />
@@ -1493,7 +1633,7 @@ export default function App() {
             <BotPlayPage
               analyzePositionLines={analyzePositionLines}
               stopPositionAnalysis={stopPositionAnalysis}
-              onNavigateToReview={() => setCurrentPage('review')}
+              onNavigateToReview={() => goToPage('review')}
             />
           )}
       </div>

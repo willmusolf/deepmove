@@ -106,15 +106,6 @@ export default function PlaySetupPanel({ initialOrientation, onStart, engineRead
         </div>
       </div>
 
-            <div className="play-setup-section">
-        <label className="play-setup-label">Coach Mode</label>
-        <div className="play-setup-coach-row">
-          <button className="play-setup-pill play-setup-pill--disabled" disabled>
-            Coming Soon
-          </button>
-        </div>
-      </div>
-
       <button className="play-setup-start-btn" onClick={handleStart} disabled={!engineReady}>
         {engineReady ? 'Start Game' : 'Loading engine…'}
       </button>
