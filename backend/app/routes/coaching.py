@@ -9,6 +9,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from app.config import settings
 from app.database import SessionLocal
 from app.dependencies import get_current_user, get_optional_user
 from app.models.game import Game
@@ -30,6 +31,9 @@ async def generate_lesson(
     body: CoachingRequest,
     user: User | None = Depends(get_optional_user),
 ):
+    if not settings.coaching_enabled:
+        raise HTTPException(status_code=503, detail="AI coaching is not enabled")
+
     # Open DB only if the user is authenticated — avoids waking Neon for guest requests
     db = SessionLocal() if (user is not None and SessionLocal is not None) else None
     try:
