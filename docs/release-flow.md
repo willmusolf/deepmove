@@ -18,6 +18,10 @@ DeepMove uses:
    - Vercel should auto-deploy the frontend from `main`
    - GitHub Actions should trigger the Render backend deploy hook, but only when backend files changed
    - GitHub Actions should run a small production smoke check against `deepmove.io` and `api.deepmove.io/health`
+6. For staging:
+   - merge or push to `staging`
+   - GitHub Actions should trigger the staging Render deploy hook, but only when backend files changed
+   - GitHub Actions should run a small staging smoke check against `staging-api.deepmove.io/health`
 
 ### Why this is the right default
 
@@ -61,6 +65,7 @@ For production, keep using exact origins only.
 Add this repository secret:
 
 - `RENDER_DEPLOY_HOOK_URL`
+- `RENDER_STAGING_DEPLOY_HOOK_URL`
 
 Find it in Render:
 
@@ -68,6 +73,8 @@ Find it in Render:
 2. Go to `Settings`
 3. Copy the deploy hook URL
 4. Add it in GitHub at `Settings > Secrets and variables > Actions`
+
+Repeat the same steps for the staging backend service and save that URL as `RENDER_STAGING_DEPLOY_HOOK_URL`.
 
 ### Important note about monorepo deploys
 
@@ -84,3 +91,9 @@ After merges to `main`, GitHub Actions waits briefly and then:
 
 This is an uptime check, not a version-matching deployment check.
 It helps catch obvious production incidents quickly, but it does not prove that the newest backend revision is serving traffic.
+
+After pushes to `staging`, GitHub Actions waits briefly and then:
+
+- requests `https://staging-api.deepmove.io/health`
+
+This is also an uptime check, not a version-matching deployment check.

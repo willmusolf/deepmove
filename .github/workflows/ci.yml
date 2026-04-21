@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   pull_request:
     branches: [main]
 
@@ -155,3 +155,58 @@ jobs:
       - name: Note backend deploy expectation
         if: steps.changes.outputs.backend != 'true'
         run: echo "No backend files changed in this push; the backend deploy hook was not expected to fire."
+
+  staging-deploy:
+    name: Staging — Deploy to Render
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+    needs: [frontend-ci, backend-ci]
+    runs-on: ubuntu-latest
+    env:
+      RENDER_STAGING_DEPLOY_HOOK_URL: ${{ secrets.RENDER_STAGING_DEPLOY_HOOK_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect backend changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
+
+      - name: Trigger Render staging deploy hook
+        if: steps.changes.outputs.backend == 'true' && env.RENDER_STAGING_DEPLOY_HOOK_URL != ''
+        run: curl --fail --silent --show-error --request POST "$RENDER_STAGING_DEPLOY_HOOK_URL"
+
+      - name: Skip deploy when backend is unchanged
+        if: steps.changes.outputs.backend != 'true'
+        run: echo "No backend changes in this push; skipping staging Render deploy."
+
+      - name: Warn when staging deploy hook secret is missing
+        if: steps.changes.outputs.backend == 'true' && env.RENDER_STAGING_DEPLOY_HOOK_URL == ''
+        run: |
+          echo "RENDER_STAGING_DEPLOY_HOOK_URL is not configured."
+          echo "Add the staging Render deploy hook URL as a GitHub Actions repository secret to enable automatic staging deploys."
+
+  staging-smoke:
+    name: Staging — Smoke Check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+    needs: [frontend-ci, backend-ci, staging-deploy]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for staging deploys to settle
+        run: sleep 90
+
+      - name: Check staging backend health
+        run: |
+          curl --fail --silent --show-error \
+            --max-time 20 \
+            https://staging-api.deepmove.io/health | tee /tmp/deepmove-staging-health.json
+          grep -q '"status":"ok"' /tmp/deepmove-staging-health.json
