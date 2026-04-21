@@ -8,9 +8,10 @@ import type { Page } from '../Layout/NavSidebar'
 interface UserMenuProps {
   currentPage: Page
   onNavigate: (page: Page) => void
+  collapsed?: boolean
 }
 
-export default function UserMenu({ currentPage, onNavigate }: UserMenuProps) {
+export default function UserMenu({ currentPage, onNavigate, collapsed = false }: UserMenuProps) {
   const user = useAuthStore(s => s.user)
   const isLoading = useAuthStore(s => s.isLoading)
   const [showAuth, setShowAuth] = useState(false)
@@ -31,6 +32,25 @@ export default function UserMenu({ currentPage, onNavigate }: UserMenuProps) {
   }
 
   if (!user) {
+    if (collapsed) {
+      return (
+        <div className="nav-user nav-user--collapsed">
+          <button
+            className="nav-user-icon-btn"
+            onClick={() => setShowAuth(true)}
+            title="Sign In"
+          >
+            ⊙
+          </button>
+          {showAuth && (
+            <AuthModal
+              onClose={() => setShowAuth(false)}
+              onSuccess={handleAuthSuccess}
+            />
+          )}
+        </div>
+      )
+    }
     return (
       <>
         <div className="nav-user">
@@ -55,6 +75,30 @@ export default function UserMenu({ currentPage, onNavigate }: UserMenuProps) {
     user.email.split('@')[0]
 
   const initial = displayName[0].toUpperCase()
+
+  if (collapsed) {
+    return (
+      <div className="nav-user nav-user--collapsed">
+        <button
+          className={`nav-user-btn${currentPage === 'settings' ? ' active' : ''}`}
+          onClick={() => onNavigate('settings')}
+          title={displayName + ' — Profile & Settings'}
+        >
+          <span className="nav-user-avatar-wrap">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={displayName}
+                className="nav-user-avatar nav-user-avatar--img"
+              />
+            ) : (
+              <span className="nav-user-avatar">{initial}</span>
+            )}
+          </span>
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="nav-user">

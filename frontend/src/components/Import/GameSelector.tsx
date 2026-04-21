@@ -86,7 +86,16 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
   const [loadingMore, setLoadingMore] = useState(false)
   const [isLoadingAll, setIsLoadingAll] = useState(false)
   const cancelLoadAllRef = useRef(false)
-  const oldestTimestampRef = useRef<number>(Date.now())
+  // For Lichess, initialize to the oldest cached game's createdAt so load-all resumes
+  // from where the cache left off, not from Date.now() (which re-fetches all cached games).
+  const oldestTimestampRef = useRef<number>(
+    platform === 'lichess' && games.length > 0
+      ? (games as LichessGame[]).reduce(
+          (min, g) => (g.createdAt < min ? g.createdAt : min),
+          (games as LichessGame[])[0].createdAt
+        )
+      : Date.now()
+  )
 
   // Auto-load tracking — fires once per username load when hasMore is true
   // Always initialize false so cache-restored loads also trigger auto-load
@@ -224,6 +233,11 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
 
   const handleSelect = useCallback(async (g: NormalizedGame) => {
     onBeforeGameLoad?.()
+
+    // Resolve the IndexedDB cache before resetting the current review state so the UI
+    // doesn't briefly fall back to the empty sandbox placeholders between game loads.
+    const cached = await getAnalyzedGame(g.gameId)
+
     reset()
     setCurrentGameId(g.gameId)
     setCurrentGameMeta({
@@ -237,7 +251,6 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     if (g.userRating && g.userRating > 0) setUserElo(g.userRating)
     setPlatform(platform)
 
-    const cached = await getAnalyzedGame(g.gameId)
     if (cached) {
       setBackendGameId(cached.backendGameId ?? null)
       setRawPgn(cached.rawPgn)
@@ -261,7 +274,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     setLoadedPgn(g.pgn)
     setPgn(cleanPgn(g.pgn))
     onGameLoaded()
-  }, [reset, setCurrentGameId, setBackendGameId, setCurrentGameMeta, setSkipNextAnalysis, setResumeFromIndex, setUserColor, setUserElo, setPlatform, setRawPgn, setLoadedPgn, setPgn, setMoveEvals, setCriticalMoments, onGameLoaded, platform])
+  }, [reset, setCurrentGameId, setBackendGameId, setCurrentGameMeta, setSkipNextAnalysis, setResumeFromIndex, setUserColor, setUserElo, setPlatform, setRawPgn, setLoadedPgn, setPgn, setMoveEvals, setCriticalMoments, onBeforeGameLoad, onGameLoaded, platform])
 
   // Uses paginationRef for async safety — JSX uses pagination prop for rendering
   const handleLoadMore = useCallback(async (): Promise<boolean> => {

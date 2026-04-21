@@ -149,6 +149,8 @@ export function useBotPlay(onNavigateToReview: () => void) {
   const lastTickRef = useRef<number>(0)
   const audioRefs = useRef<Partial<Record<string, HTMLAudioElement>>>({})
   const [botEngineReady, setBotEngineReady] = useState(false)
+  const playStatus = usePlayStore(s => s.status)
+  const clockRunning = usePlayStore(s => s.clockRunning)
 
   // ── Virtual board FEN ──────────────────────────────────────────────────────
   // The FEN passed to ChessBoard — real position with all queued premoves applied.
@@ -219,7 +221,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Clock RAF loop ───────────────────────────────────────────────────────
-  function startClockRaf() {
+  const startClockRaf = useCallback(() => {
     lastTickRef.current = performance.now()
     function tick() {
       const now = performance.now()
@@ -247,14 +249,23 @@ export function useBotPlay(onNavigateToReview: () => void) {
       clockRafRef.current = requestAnimationFrame(tick)
     }
     clockRafRef.current = requestAnimationFrame(tick)
-  }
+  }, [store])
 
-  function cancelClockRaf() {
+  const cancelClockRaf = useCallback(() => {
     if (clockRafRef.current !== null) {
       cancelAnimationFrame(clockRafRef.current)
       clockRafRef.current = null
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (playStatus === 'playing' && clockRunning) {
+      if (clockRafRef.current === null) startClockRaf()
+      return
+    }
+
+    cancelClockRaf()
+  }, [playStatus, clockRunning, startClockRaf, cancelClockRaf])
 
   // ── Sound helper ─────────────────────────────────────────────────────────
   function playSound(san: string) {
@@ -559,10 +570,6 @@ export function useBotPlay(onNavigateToReview: () => void) {
     isProcessingMoveRef.current = false
     store.getState().startGame(config)
 
-    if (config.timeControl !== 'none') {
-      startClockRaf()
-    }
-
     // If user plays black, bot goes first
     if (config.userColor === 'black') {
       setTimeout(() => scheduleBotMove(STARTING_FEN), 100)
@@ -576,7 +583,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
     clearPremoveQueue()
     state.setResult('user-loss', 'resigned')
     cancelClockRaf()
-  }, [])
+  }, [cancelClockRaf, store])
 
   // ── Review game ──────────────────────────────────────────────────────────
   const reviewGame = useCallback(() => {
@@ -592,7 +599,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
     gs.setPlatform(null)
 
     onNavigateToReview()
-  }, [onNavigateToReview])
+  }, [gameStore, onNavigateToReview, store])
 
   // ── Clock display helpers (exported for BotPlayPage) ─────────────────────
   const getWhiteClockDisplay = useCallback((): string | undefined => {
