@@ -29,35 +29,34 @@ cg-board square.check {
   width: 100%;
   height: 100%;
   touch-action: none;
+  overflow: hidden;  /* clips file descenders that extend below the board edge */
 }
 
-/* Coordinate labels — board-relative size via container query */
+/* Coordinate label font size */
 coords coord {
   font-weight: 400;
-  font-size: clamp(10px, 2.0cqw, 15px);
+  font-size: clamp(10px, 1.75cqw, 14px);
   text-transform: lowercase;
   line-height: 1;
 }
 
-/* ranks — override chessground's translateY(39%) so labels sit at exact square center */
-coords.ranks coord {
-  font-size: clamp(10px, 1.8cqw, 13px);
-  line-height: 1;
-  overflow: hidden;
-  transform: none;       /* override chessground's translateY(39%) — flex centering handles it */
-  display: flex;
-  align-items: center;   /* vertically center within each rank cell = consistent at any board size */
-  pointer-events: none;
+.cg-wrap coords.ranks {
+  left: calc(var(--board-coord-inset) - 2px);
 }
 
-/* files — center within the 16px row chessground reserves at bottom: -4px */
-coords.files coord {
-  font-size: clamp(10px, 1.8cqw, 14px);
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
+.cg-wrap coords.ranks coord {
+  transform: translateY(calc(18px + var(--board-coord-inset)));
+}
+
+.cg-wrap coords.files {
+  left: 0;
+  text-align: left;
+}
+
+.cg-wrap coords.files coord {
+  box-sizing: border-box;
+  padding-left: var(--board-coord-inset);
+  transform: translateY(calc(var(--board-file-offset) - 2px));
 }
 
 /* Coordinate colors — use !important to enforce correct alternation */
@@ -84,6 +83,8 @@ cg-board {
 }
 
 .chess-board-container {
+  --board-coord-inset: 0.75cqw;
+  --board-file-offset: clamp(2px, 0.55cqw, 4px);
   width: min(880px, calc(100dvh - 158px), calc(100vw - var(--board-vw-offset)));
   height: min(880px, calc(100dvh - 158px), calc(100vw - var(--board-vw-offset)));
   position: relative;
@@ -4824,4 +4825,3 @@ cg-board {
 @media (max-width: 1329px) {
   .ad-col { display: none; }
 }
-
