@@ -1,8 +1,6 @@
 // stockfish.worker.ts
-// We keep the real worker entry in /public/stockfish/worker.js so Vite leaves it
-// untouched and the Stockfish bundle runs in a guaranteed classic-worker context.
-//
-// This file is intentionally empty.
+// The nmrugg stockfish.js bundle in /public/stockfish/stockfish.js is itself the
+// real worker entrypoint. This file remains intentionally empty.
 // See stockfish.ts for the engine manager.
 
 export {}
