@@ -127,3 +127,8 @@ def clear_lesson_cache() -> int:
     count = len(_lesson_cache)
     _lesson_cache.clear()
     return count
+
+
+def lesson_cache_size() -> int:
+    """Return current in-memory lesson cache size."""
+    return len(_lesson_cache)
