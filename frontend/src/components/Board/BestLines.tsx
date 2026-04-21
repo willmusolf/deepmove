@@ -2,6 +2,7 @@
 // Clicking a line enters variation mode to walk through the PV on the board.
 
 import type { TopLine } from '../../engine/stockfish'
+import { formatEval } from '../../utils/format'
 
 interface BestLinesProps {
   lines: TopLine[]
@@ -12,11 +13,7 @@ interface BestLinesProps {
 const LINE_COLORS = ['#4ade80', '#60a5fa', '#facc15']  // green, blue, yellow
 
 function formatScore(line: TopLine): string {
-  if (line.isMate) {
-    return line.mateIn !== null ? `M${Math.abs(line.mateIn)}` : 'M'
-  }
-  const pawns = (line.score / 100).toFixed(2)
-  return line.score >= 0 ? `+${pawns}` : pawns
+  return formatEval(line.score, line.isMate, line.mateIn)
 }
 
 export default function BestLines({ lines, isAnalyzingPosition, onLineClick }: BestLinesProps) {

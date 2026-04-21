@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { classifyMove, isSacrificeFn } from './analysis'
+import { describe, it, expect, vi } from 'vitest'
+import { analyzeGame, classifyMove, isSacrificeFn } from './analysis'
 
 describe('classifyMove', () => {
   it('returns forced when only one legal move', () => {
@@ -103,5 +103,42 @@ describe('isSacrificeFn', () => {
     const sacrificeFen = '4k3/3p4/4Q3/8/8/8/8/4K3 b - - 0 1'
     const move2 = { piece: 'q', captured: undefined as string | undefined, to: 'e6' }
     expect(isSacrificeFn(move2, sacrificeFen)).toBe(true)
+  })
+})
+
+describe('analyzeGame', () => {
+  it('preserves white-perspective engine scores and mate distances', async () => {
+    const engine = {
+      analyzePosition: vi
+        .fn()
+        .mockResolvedValueOnce({
+          fen: '',
+          depth: 16,
+          score: 120,
+          isMate: true,
+          mateIn: 4,
+          bestMove: 'e7e5',
+          pv: ['e7e5'],
+        })
+        .mockResolvedValueOnce({
+          fen: '',
+          depth: 16,
+          score: 15,
+          isMate: false,
+          mateIn: null,
+          bestMove: 'g1f3',
+          pv: ['g1f3'],
+        }),
+    } as any
+
+    const results = await analyzeGame('1. e4 e5', engine, 16)
+
+    expect(results).toHaveLength(2)
+    expect(results[0].color).toBe('white')
+    expect(results[0].eval.score).toBe(120)
+    expect(results[0].eval.mateIn).toBe(4)
+    expect(results[1].color).toBe('black')
+    expect(results[1].eval.score).toBe(15)
+    expect(results[1].eval.mateIn).toBeNull()
   })
 })

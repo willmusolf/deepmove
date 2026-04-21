@@ -11,7 +11,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "postinstall": "node -e \"const{cpSync,existsSync}=require('fs');const src='node_modules/stockfish/bin/stockfish-18-asm.js';const dst='public/stockfish/stockfish.js';if(existsSync(src)){cpSync(src,dst);console.log('stockfish-18-asm.js copied')}else{console.warn('stockfish npm package not found, skipping copy')}\""
+    "postinstall": "node -e \"const{cpSync,existsSync}=require('fs');const src='node_modules/stockfish/bin/stockfish-18-lite-single.js';const dst='public/stockfish/stockfish.js';if(existsSync(src)){cpSync(src,dst);console.log('stockfish-18-lite-single.js (WASM loader) copied')}else{console.warn('stockfish npm package not found, skipping copy')}\""
   },
   "dependencies": {
     "chess.js": "^1.3.0",
@@ -22,18 +22,19 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "^6.0.0",
-    "@testing-library/react": "^14.0.0",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@typescript-eslint/eslint-plugin": "^8.15.0",
-    "@typescript-eslint/parser": "^8.15.0",
-    "@vitejs/plugin-react": "^4.3.4",
-    "eslint": "^9.15.0",
-    "jsdom": "^29.0.0",
-    "stockfish": "^18.0.5",
-    "typescript": "^5.6.3",
-    "vite": "^6.0.3",
-    "vitest": "^2.1.8"
+    "@testing-library/jest-dom": "6.0.0",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@typescript-eslint/eslint-plugin": "8.57.0",
+    "@typescript-eslint/parser": "8.57.0",
+    "@vitejs/plugin-react": "4.3.4",
+    "eslint": "9.39.4",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "jsdom": "24.1.3",
+    "stockfish": "18.0.5",
+    "typescript": "5.6.3",
+    "vite": "6.0.3",
+    "vitest": "2.1.9"
   }
 }

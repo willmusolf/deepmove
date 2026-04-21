@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import type { MoveEval } from '../../engine/analysis'
 import type { CriticalMoment } from '../../chess/types'
+import { formatEval } from '../../utils/format'
 
 interface EvalGraphProps {
   moveEvals: MoveEval[]
@@ -112,8 +113,6 @@ export default function EvalGraph({
   // full game length from PGN, so x-positions are stable even as analysis fills in.
   const total = Math.max(totalMoves, analyzed, 1)
 
-  if (total === 0) return null
-
   const { colWidth, midY, points, annotations, criticalBands, curvePath } = useMemo(() => {
     const cw = svgWidth / (total + 1)
     const mx = (i: number) => i * cw
@@ -169,12 +168,6 @@ export default function EvalGraph({
   const tooltipLeftPct = hoveredX !== null
     ? Math.max(4, Math.min(96, (hoveredX / svgWidth) * 100))
     : null
-
-  function formatEval(score: number, isMate: boolean, mateIn: number | null): string {
-    if (isMate) return mateIn !== null ? `M${Math.abs(mateIn)}` : 'M'
-    const pawns = (score / 100).toFixed(2)
-    return score >= 0 ? `+${pawns}` : pawns
-  }
 
   function handleClick(e: React.MouseEvent<SVGSVGElement>) {
     if (analyzed === 0) return
