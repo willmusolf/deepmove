@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -81,3 +81,39 @@ jobs:
           ANTHROPIC_API_KEY: ""
           ENVIRONMENT: test
           SECRET_KEY: ci-test-secret-key-not-for-production
+
+  backend-deploy:
+    name: Backend — Deploy to Render
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [frontend-ci, backend-ci]
+    runs-on: ubuntu-latest
+    env:
+      RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect backend changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
+
+      - name: Trigger Render deploy hook
+        if: steps.changes.outputs.backend == 'true' && env.RENDER_DEPLOY_HOOK_URL != ''
+        run: curl --fail --silent --show-error --request POST "$RENDER_DEPLOY_HOOK_URL"
+
+      - name: Skip deploy when backend is unchanged
+        if: steps.changes.outputs.backend != 'true'
+        run: echo "No backend changes in this push; skipping Render deploy."
+
+      - name: Warn when deploy hook secret is missing
+        if: steps.changes.outputs.backend == 'true' && env.RENDER_DEPLOY_HOOK_URL == ''
+        run: |
+          echo "RENDER_DEPLOY_HOOK_URL is not configured."
+          echo "Add the Render deploy hook URL as a GitHub Actions repository secret to enable automatic backend deploys."
