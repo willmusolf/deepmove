@@ -37,6 +37,25 @@ If you want frontend previews to test against a non-production backend, add a si
 
 That gives every Vercel PR preview a real backend without paying for a fresh backend per PR.
 
+### Staging CORS and preview auth
+
+Because DeepMove uses cookie-based auth, the staging backend must explicitly allow the preview frontend origins.
+For this reason, the backend supports both:
+
+- `ALLOWED_ORIGINS`
+  comma-separated exact origins
+- `ALLOWED_ORIGIN_REGEX`
+  regex for dynamic preview hosts
+
+Suggested staging values:
+
+- `ALLOWED_ORIGINS=https://staging.deepmove.io`
+- `ALLOWED_ORIGIN_REGEX=^https://.*-willmusolfs-projects\\.vercel\\.app$`
+
+Adjust the regex if your Vercel preview host pattern changes.
+
+For production, keep using exact origins only.
+
 ### Required GitHub secret for backend auto-deploy
 
 Add this repository secret:

@@ -1,6 +1,10 @@
-"""config.py — Application settings loaded from environment variables"""
+"""config.py — Application settings loaded from environment variables."""
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _parse_csv(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 class Settings(BaseSettings):
@@ -43,9 +47,15 @@ class Settings(BaseSettings):
     # Feature flags
     coaching_enabled: bool = False
 
+    # Optional explicit CORS config for staging/preview environments
+    allowed_origins_csv: str = ""
+    allowed_origin_regex: str = ""
+
     # CORS — frontend origins allowed to call this API
     @property
     def allowed_origins(self) -> list[str]:
+        if self.allowed_origins_csv:
+            return _parse_csv(self.allowed_origins_csv)
         if self.environment == "development":
             return ["http://localhost:5173", "http://localhost:3000"]
         return ["https://deepmove.io", "https://www.deepmove.io"]
