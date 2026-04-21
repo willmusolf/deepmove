@@ -1,5 +1,5 @@
 """config.py — Application settings loaded from environment variables."""
-from pydantic import model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -48,7 +48,10 @@ class Settings(BaseSettings):
     coaching_enabled: bool = False
 
     # Optional explicit CORS config for staging/preview environments
-    allowed_origins_csv: str = ""
+    allowed_origins_csv: str = Field(
+        default="",
+        validation_alias=AliasChoices("ALLOWED_ORIGINS_CSV", "ALLOWED_ORIGINS"),
+    )
     allowed_origin_regex: str = ""
 
     # CORS — frontend origins allowed to call this API
@@ -59,6 +62,19 @@ class Settings(BaseSettings):
         if self.environment == "development":
             return ["http://localhost:5173", "http://localhost:3000"]
         return ["https://deepmove.io", "https://www.deepmove.io"]
+
+    @property
+    def cors_origin_regex(self) -> str | None:
+        r"""Normalize the most common dashboard escape mistake for regex env vars.
+
+        Render/Vercel dashboard inputs should use single backslashes, e.g.
+        `^https://.*-willmusolfs-projects\.vercel\.app$`.
+        If a double-escaped value is pasted from source code, collapse `\\.` to `\.`
+        so preview-origin CORS still works.
+        """
+        if not self.allowed_origin_regex:
+            return None
+        return self.allowed_origin_regex.replace("\\\\.", "\\.")
 
     # LLM model selection
     lesson_model: str = "claude-haiku-4-5-20251001"      # Full lessons
