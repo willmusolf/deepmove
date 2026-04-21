@@ -11,6 +11,11 @@ import { usePrefsStore, type AppTheme, type BoardTheme } from '../../stores/pref
 import { clearAllAnalyses } from '../../services/gameDB'
 import { readCachedRatings, type DetectedRatings } from '../Import/normalizeGame'
 
+const REVIEW_USERNAME_STORAGE = {
+  chesscom: 'deepmove_chesscom_username',
+  lichess: 'deepmove_lichess_username',
+} as const
+
 interface ProfilePageProps {
   /** Called when user saves a chess platform username so the Review tab can pre-fill it */
   onUsernameLinked?: (platform: 'chesscom' | 'lichess', username: string) => void
@@ -85,10 +90,10 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
     try {
       const payload: Parameters<typeof updateProfile>[0] = {}
       if (chesscomInput.trim() !== (user?.chesscom_username ?? '')) {
-        payload.chesscom_username = chesscomInput.trim() || undefined
+        payload.chesscom_username = chesscomInput.trim() || null
       }
       if (lichessInput.trim() !== (user?.lichess_username ?? '')) {
-        payload.lichess_username = lichessInput.trim() || undefined
+        payload.lichess_username = lichessInput.trim() || null
       }
 
       if (Object.keys(payload).length === 0) {
@@ -99,6 +104,15 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
 
       await updateProfile(payload)
       setAccountMsg('Saved!')
+
+      if ('chesscom_username' in payload) {
+        if (payload.chesscom_username) localStorage.setItem(REVIEW_USERNAME_STORAGE.chesscom, payload.chesscom_username)
+        else localStorage.removeItem(REVIEW_USERNAME_STORAGE.chesscom)
+      }
+      if ('lichess_username' in payload) {
+        if (payload.lichess_username) localStorage.setItem(REVIEW_USERNAME_STORAGE.lichess, payload.lichess_username)
+        else localStorage.removeItem(REVIEW_USERNAME_STORAGE.lichess)
+      }
 
       // Notify parent so Review tab can auto-load games
       if (payload.chesscom_username) {
@@ -159,7 +173,9 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
     try {
       const data = await getAdminOpsStatus()
       setAdminOps(data)
+      setAdminErr('')
     } catch (err) {
+      setAdminOps(null)
       setAdminErr(err instanceof Error ? err.message : 'Could not load admin status')
     } finally {
       setAdminLoading(false)
@@ -517,19 +533,19 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
               <div className="profile-admin-stats">
                 <div className="profile-admin-stat">
                   <span>Users</span>
-                  <strong>{adminLoading ? '…' : adminOps?.counts.users ?? 0}</strong>
+                  <strong>{adminLoading ? '…' : adminOps ? adminOps.counts.users : '—'}</strong>
                 </div>
                 <div className="profile-admin-stat">
                   <span>Games</span>
-                  <strong>{adminLoading ? '…' : adminOps?.counts.games ?? 0}</strong>
+                  <strong>{adminLoading ? '…' : adminOps ? adminOps.counts.games : '—'}</strong>
                 </div>
                 <div className="profile-admin-stat">
                   <span>Lessons</span>
-                  <strong>{adminLoading ? '…' : adminOps?.counts.lessons ?? 0}</strong>
+                  <strong>{adminLoading ? '…' : adminOps ? adminOps.counts.lessons : '—'}</strong>
                 </div>
                 <div className="profile-admin-stat">
                   <span>Principles</span>
-                  <strong>{adminLoading ? '…' : adminOps?.counts.principles ?? 0}</strong>
+                  <strong>{adminLoading ? '…' : adminOps ? adminOps.counts.principles : '—'}</strong>
                 </div>
               </div>
             </div>
