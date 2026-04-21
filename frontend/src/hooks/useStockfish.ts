@@ -134,10 +134,14 @@ export function useStockfish() {
     }
 
     try {
+      const depth = getAnalysisDepth(userElo)
+      // Depth 18 (1600+ Elo): no movetime cap — let depth constraint alone determine completion.
+      // Depth ≤14: 200ms cap keeps per-move analysis fast enough for lower-Elo players.
+      const movetime = depth <= 14 ? 200 : undefined
       const results = await analyzeGame(
-        pgn, engine, getAnalysisDepth(userElo),
+        pgn, engine, depth,
         (_done, total) => { if (accumulatedEvals.length === startFromIndex) setTotalMovesCount(total) },
-        controller.signal, 100,
+        controller.signal, movetime,
         onMoveComplete,
         startFromIndex,
         initialEvals,

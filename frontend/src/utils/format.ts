@@ -24,10 +24,16 @@ export function capScore(s: number): number {
   return Math.max(-SCORE_CAP, Math.min(SCORE_CAP, s))
 }
 
-/** Format an eval score for display (e.g. "+1.50", "-0.30", "M3") */
+/** Format an eval score for display (e.g. "+1.50", "-0.30", "+M3") */
 export function formatEval(score: number | undefined, isMate: boolean, mateIn: number | null): string {
   if (score === undefined) return '\u2014'  // em dash
-  if (isMate) return mateIn !== null ? `M${Math.abs(mateIn)}` : 'M'
+  if (isMate) {
+    if (mateIn === 0) return '#'
+    const sign = mateIn !== null
+      ? (mateIn > 0 ? '+' : '-')
+      : (score >= 0 ? '+' : '-')
+    return mateIn !== null ? `${sign}M${Math.abs(mateIn)}` : `${sign}M`
+  }
   const pawns = (score / 100).toFixed(2)
   return score >= 0 ? `+${pawns}` : pawns
 }
