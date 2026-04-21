@@ -1,5 +1,11 @@
 // ProfilePage.tsx — User profile & settings
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import {
+  clearAdminLessonCache,
+  getAdminOpsStatus,
+  setAdminCoachingEnabled,
+  type AdminOpsStatus,
+} from './adminApi'
 import { useAuthStore } from '../../stores/authStore'
 import { usePrefsStore, type AppTheme, type BoardTheme } from '../../stores/prefsStore'
 import { clearAllAnalyses } from '../../services/gameDB'
@@ -28,6 +34,13 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
 
   // Cache clear
   const [clearMsg, setClearMsg] = useState('')
+
+  // Admin ops
+  const [adminOps, setAdminOps] = useState<AdminOpsStatus | null>(null)
+  const [adminLoading, setAdminLoading] = useState(false)
+  const [adminBusy, setAdminBusy] = useState(false)
+  const [adminMsg, setAdminMsg] = useState('')
+  const [adminErr, setAdminErr] = useState('')
 
   // Password change
   const [currentPw, setCurrentPw] = useState('')
@@ -137,6 +150,68 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
     const count = await clearAllAnalyses()
     setClearMsg(`Cleared ${count} cached game${count !== 1 ? 's' : ''}.`)
     setTimeout(() => setClearMsg(''), 4000)
+  }
+
+  async function loadAdminOps() {
+    if (!user?.is_admin) return
+    setAdminLoading(true)
+    setAdminErr('')
+    try {
+      const data = await getAdminOpsStatus()
+      setAdminOps(data)
+    } catch (err) {
+      setAdminErr(err instanceof Error ? err.message : 'Could not load admin status')
+    } finally {
+      setAdminLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (user?.is_admin) {
+      void loadAdminOps()
+    } else {
+      setAdminOps(null)
+      setAdminErr('')
+      setAdminMsg('')
+    }
+  }, [user?.is_admin])
+
+  async function handleSetCoachingEnabled(enabled: boolean) {
+    setAdminBusy(true)
+    setAdminErr('')
+    setAdminMsg('')
+    try {
+      const result = await setAdminCoachingEnabled(enabled)
+      setAdminMsg(result.message)
+      setAdminOps(prev => prev ? {
+        ...prev,
+        coaching_enabled: result.coaching_enabled ?? prev.coaching_enabled,
+      } : prev)
+      await loadAdminOps()
+    } catch (err) {
+      setAdminErr(err instanceof Error ? err.message : 'Could not update coaching state')
+    } finally {
+      setAdminBusy(false)
+    }
+  }
+
+  async function handleClearLessonCache() {
+    setAdminBusy(true)
+    setAdminErr('')
+    setAdminMsg('')
+    try {
+      const result = await clearAdminLessonCache()
+      setAdminMsg(result.message)
+      setAdminOps(prev => prev ? {
+        ...prev,
+        lesson_cache_entries: result.lesson_cache_entries ?? prev.lesson_cache_entries,
+      } : prev)
+      await loadAdminOps()
+    } catch (err) {
+      setAdminErr(err instanceof Error ? err.message : 'Could not clear lesson cache')
+    } finally {
+      setAdminBusy(false)
+    }
   }
 
   const BOARD_THEMES: { id: BoardTheme; label: string; lightColor: string; darkColor: string }[] = [
@@ -382,6 +457,91 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
           </div>
         </div>
       </section>
+
+      {user?.is_admin && (
+        <section className="profile-section">
+          <h3 className="profile-section-title">Admin Ops</h3>
+          <p className="profile-section-desc">
+            Lightweight production controls for your account. Coaching toggle applies to the
+            current backend instance and resets on restart unless the backend env is changed.
+          </p>
+          <div className="profile-admin-grid">
+            <div className="profile-admin-card">
+              <span className="profile-admin-label">AI coaching</span>
+              <strong className={`profile-admin-value${adminOps?.coaching_enabled ? ' is-live' : ''}`}>
+                {adminLoading ? 'Loading…' : adminOps?.coaching_enabled ? 'Enabled' : 'Disabled'}
+              </strong>
+              <div className="profile-admin-actions">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => handleSetCoachingEnabled(false)}
+                  disabled={adminBusy || adminLoading || adminOps?.coaching_enabled === false}
+                >
+                  Disable
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => handleSetCoachingEnabled(true)}
+                  disabled={adminBusy || adminLoading || adminOps?.coaching_enabled === true}
+                >
+                  Enable
+                </button>
+              </div>
+            </div>
+
+            <div className="profile-admin-card">
+              <span className="profile-admin-label">Lesson cache</span>
+              <strong className="profile-admin-value">
+                {adminLoading ? 'Loading…' : `${adminOps?.lesson_cache_entries ?? 0} entries`}
+              </strong>
+              <div className="profile-admin-actions">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => void loadAdminOps()}
+                  disabled={adminBusy || adminLoading}
+                >
+                  Refresh
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleClearLessonCache}
+                  disabled={adminBusy || adminLoading}
+                >
+                  Clear cache
+                </button>
+              </div>
+            </div>
+
+            <div className="profile-admin-card profile-admin-card--wide">
+              <span className="profile-admin-label">Production counts</span>
+              <div className="profile-admin-stats">
+                <div className="profile-admin-stat">
+                  <span>Users</span>
+                  <strong>{adminLoading ? '…' : adminOps?.counts.users ?? 0}</strong>
+                </div>
+                <div className="profile-admin-stat">
+                  <span>Games</span>
+                  <strong>{adminLoading ? '…' : adminOps?.counts.games ?? 0}</strong>
+                </div>
+                <div className="profile-admin-stat">
+                  <span>Lessons</span>
+                  <strong>{adminLoading ? '…' : adminOps?.counts.lessons ?? 0}</strong>
+                </div>
+                <div className="profile-admin-stat">
+                  <span>Principles</span>
+                  <strong>{adminLoading ? '…' : adminOps?.counts.principles ?? 0}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {(adminMsg || adminErr) && (
+            <p className={`profile-admin-message${adminErr ? ' is-error' : ''}`}>
+              {adminErr || adminMsg}
+            </p>
+          )}
+        </section>
+      )}
 
       {/* ── Account ──────────────────────────────────────────────────── */}
       <section className="profile-section">
