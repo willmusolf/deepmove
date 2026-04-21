@@ -133,6 +133,7 @@ export default function App() {
     blackElo,
     totalMoves,
     parseError,
+    result: gameResult,
   } = useGameReview()
 
   const {
@@ -148,6 +149,7 @@ export default function App() {
     navigateTo: analysisBoardNavigateTo,
     resetBoard: analysisBoardReset,
     lastAddedNodeIdRef: analysisLastAddedNodeIdRef,
+    startFen: analysisBoardStartFen,
   } = useAnalysisBoard()
 
   const reset = useGameStore(s => s.reset)
@@ -1083,9 +1085,28 @@ export default function App() {
                         if (!sq) return null
                         return <div className="board-result-badge board-result-badge--checkmate" style={_sqPos(sq)}>#</div>
                       }
-                      if (_chess.isStalemate() || _chess.isInsufficientMaterial() || _chess.isThreefoldRepetition() || _chess.isDraw()) {
+                      // FEN-based draws (stalemate, insufficient material, 50-move) — work without history
+                      if (_chess.isDraw()) {
                         const wSq = _findKing('w'), bSq = _findKing('b')
                         return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(wSq)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(bSq)}>½</div>}</>
+                      }
+                      // Game review: PGN result header fallback for history-dependent draws (threefold etc.)
+                      if (isLoaded && !inBranch && gameResult === '1/2-1/2'
+                          && currentNodeId !== null && (moveTree[currentNodeId]?.childIds.length ?? 0) === 0) {
+                        const wSq = _findKing('w'), bSq = _findKing('b')
+                        return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(wSq)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(bSq)}>½</div>}</>
+                      }
+                      // Sandbox: count position repetitions by walking analysis move history
+                      if (!isLoaded) {
+                        const _posKey = displayFen.split(' ').slice(0, 4).join(' ')
+                        let _repCount = analysisPath.filter(id =>
+                          analysisTree[id]?.fen?.split(' ').slice(0, 4).join(' ') === _posKey
+                        ).length
+                        if (analysisBoardStartFen.split(' ').slice(0, 4).join(' ') === _posKey) _repCount++
+                        if (_repCount >= 3) {
+                          const wSq = _findKing('w'), bSq = _findKing('b')
+                          return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(wSq)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(bSq)}>½</div>}</>
+                        }
                       }
                       return null
                     })()}
