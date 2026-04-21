@@ -2,7 +2,7 @@
 
 **Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
 
-**Last Session**: 2026-04-15 — Depth analysis overhaul: fixed UCI stop/go race condition (isready/readyok handshake in drainQueue), incremental partial caching (positionCache updates on every onUpdate), POSITION_MAX_DEPTH=25 (was 16, no movetime cap), true resume (onUpdate skips depths ≤ resumeFromDepth so counter never goes backward on nav back).
+**Last Session**: 2026-04-15 — Responsive layout polish (3 rounds): fixed coord labels (container-query cqw units), nav collapse (logo hidden, ☰ icon), sort dropdown moved to list header, board dvh formula 200→158px (+27px board height), player-info-box 52→44px, app-main padding 1rem→0.75rem, side-col flex-grow (absorbs horizontal slack), ad-col breakpoint 1380→1330px, removed collapsed-nav --board-vw-offset overrides (eliminated board jump on nav toggle), nav-sidebar transition: width 0.2s ease.
 
 ---
 
@@ -130,23 +130,15 @@ The current coaching pipeline is functional but lessons are generic, often wrong
 - [ ] Return 429 with upgrade prompt when limit hit
 - [ ] LLM model routing: Haiku for ≤1600, Sonnet for 1600+
 
-### 4. GitHub Repo Settings (unlock branch protection)
-- [ ] Make repo public on GitHub → Settings → Danger Zone → "Change visibility" → Public
-  - No credentials in history (verified: .env gitignored, only placeholder strings committed)
-  - Making public ≠ open source — no LICENSE file = all rights reserved, you own it
-  - Unlocks: branch protection, required CI checks, auto-merge (all need Pro or public repo)
-  - Minor risk: product spec / coaching philosophy was in CLAUDE.md — now untracked before going public
-- [ ] After going public: run `gh api` branch protection command (CI must pass before merge)
-- [ ] `gh repo edit willmusolf/deepmove --enable-auto-merge`
-- [ ] Install CodeRabbit free tier → coderabbit.ai → GitHub app → install on this repo
-
-### 5. Deploy to deepmove.io
+### 4. Deploy to deepmove.io
 - [ ] Frontend → Vercel, connect deepmove.io domain
 - [ ] Backend → Railway (or Render)
 - [ ] Production Neon project (separate from dev)
 - [ ] Configure env vars, SSL, CORS for production domains
 - [ ] Set ANTHROPIC_API_KEY in production env
 - [ ] Smoke test full flow end-to-end on production URL
+- [ ] Post-launch infra cleanup: verify Vercel auto-deploy triggers correctly on every `main` push
+- [ ] Post-launch infra cleanup: lock down GitHub `main` with branch protection / required PR review / required checks / no direct pushes except owner
 
 ---
 
@@ -648,25 +640,52 @@ See above in "Next After Launch"
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
 
+-the best lines things that we can click on are forever loading until both the analysis is finished AND we move to another move on the transcript. otherwise its those placeholders for a while. sometimes its forver while the anlaysis is going im sure its sometehing with lcicking on it or moving while the analysis is going in parallel interfering idk make it better and more consistent and good for move 0 too right awya for both games that have alrady been analyzed and new games etc
+
+
+for ui, the chess board is sometimes smaller then the player box and theres a sliver of gray on the right side of the board only? how do we fix this? make player box slightly smaller or what?
+
+
+ok great and anything to have codex do after? and clean up the docs and have codex review the work as well 
 
 
 
 
--ads
 
 
--landing page/clicking logo takes you there
 
--if you click on a miss symbol it shows you the line for the tactice? how are misses calculated and all of them for that matter? also add something for show line or something like that that chess.com has?
+-ads. how do we get the ball rolling ot acutally have them and make sure we can get money and have them be visual on resize? sometimes if we shrink it horziontally the ad placeholder disapperas too like it can have more space normally on a lot of screen sizes? what will we do for ads on mobile?
 
 
 
 
--test FEN string
+-vercel was hacked recently we should rotate keys before anything crucial?
 
 
--refresh on play page doesnt hold stats and takes you back to load?
+-deploy app before coaching? coming soon? or what just launch as chessigma competitor for now?
 
--thorough systematic audits to make sure everything is as simple and efficient and fast as it can possibly be and for security as well and scaling, all possible standard security measures for injections and anything crucial to making this a big app
+
+-make reels / videos with voiceover for it? plus slideshows idk
+
+
+-coaching? we need more stats and anlaysis for each move and for everyhting with it to be much much much better
+
+
+
+
+
+
+
+
+
+
+EVENTUALLY
+-if you click on a miss symbol it shows you the line for the tactic that you missed? how are misses calculated and all of them for that matter? also add something for show line or something like that that chess.com has?
+
 
 -make this into an ios app
+
+
+
+
+

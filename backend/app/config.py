@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # Frontend URL (for OAuth redirects back to the app)
     frontend_url: str = "http://localhost:5173"
 
+    # Feature flags
+    coaching_enabled: bool = False
+
     # CORS — frontend origins allowed to call this API
     @property
     def allowed_origins(self) -> list[str]:
