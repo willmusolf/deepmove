@@ -188,6 +188,7 @@ export function useAnalysisBoard() {
     currentPath: state.currentPath,
     rootBranchIds: state.rootBranchIds,
     currentFen,
+    startFen: state.startFen,
     mainLineSans,
     addMove,
     goBack,
