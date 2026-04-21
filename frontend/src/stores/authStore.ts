@@ -32,8 +32,8 @@ interface AuthState {
   logout: () => Promise<void>
   refresh: () => Promise<void>
   updateProfile: (data: {
-    chesscom_username?: string
-    lichess_username?: string
+    chesscom_username?: string | null
+    lichess_username?: string | null
     elo_estimate?: number
     preferences?: Record<string, unknown>
   }) => Promise<void>
