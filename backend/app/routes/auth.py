@@ -1,4 +1,5 @@
 """auth.py — Authentication routes (email/password + OAuth)."""
+import logging
 import re
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.dependencies import get_current_user, get_db
+from app.logging_utils import client_ip_from_request, log_event
 from app.models.user import User
 from app.rate_limiting import limiter
 from app.schemas.user import AuthResponse, UserCreate, UserResponse
@@ -18,6 +20,7 @@ from app.utils.security import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 _PASSWORD_RE = re.compile(r"(?=.*[A-Za-z])(?=.*[0-9])")
 
@@ -66,9 +69,10 @@ def _user_response(user: User) -> UserResponse:
 async def register(request: Request, body: UserCreate, response: Response, db: Session = Depends(get_db)):
     """Create a new account with email + password."""
     _validate_password(body.password)
+    email = body.email.lower()
 
     # Check for existing email (case-insensitive)
-    existing = db.query(User).filter(User.email == body.email.lower()).first()
+    existing = db.query(User).filter(User.email == email).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -76,7 +80,7 @@ async def register(request: Request, body: UserCreate, response: Response, db: S
         )
 
     user = User(
-        email=body.email.lower(),
+        email=email,
         hashed_password=hash_password(body.password),
     )
     db.add(user)
@@ -86,6 +90,14 @@ async def register(request: Request, body: UserCreate, response: Response, db: S
     access = create_access_token(user.id, user.token_version)
     refresh = create_refresh_token(user.id, user.token_version)
     _set_refresh_cookie(response, refresh)
+    log_event(
+        logger,
+        logging.INFO,
+        "auth.register",
+        email=user.email,
+        ip=client_ip_from_request(request),
+        user_id=user.id,
+    )
 
     return AuthResponse(access_token=access, user=_user_response(user))
 
@@ -94,16 +106,42 @@ async def register(request: Request, body: UserCreate, response: Response, db: S
 @limiter.limit("10/minute")
 async def login(request: Request, body: UserCreate, response: Response, db: Session = Depends(get_db)):
     """Log in with email + password."""
-    user = db.query(User).filter(User.email == body.email.lower()).first()
+    email = body.email.lower()
+    ip = client_ip_from_request(request)
+    user = db.query(User).filter(User.email == email).first()
     if user is None or user.hashed_password is None:
+        log_event(
+            logger,
+            logging.WARNING,
+            "auth.login_failed",
+            email=email,
+            ip=ip,
+            reason="invalid_credentials",
+        )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     if not verify_password(body.password, user.hashed_password):
+        log_event(
+            logger,
+            logging.WARNING,
+            "auth.login_failed",
+            email=email,
+            ip=ip,
+            reason="invalid_credentials",
+        )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     access = create_access_token(user.id, user.token_version)
     refresh = create_refresh_token(user.id, user.token_version)
     _set_refresh_cookie(response, refresh)
+    log_event(
+        logger,
+        logging.INFO,
+        "auth.login",
+        email=user.email,
+        ip=ip,
+        user_id=user.id,
+    )
 
     return AuthResponse(access_token=access, user=_user_response(user))
 
@@ -117,34 +155,41 @@ async def refresh(
     deepmove_refresh: str | None = Cookie(None),
 ):
     """Exchange a valid refresh token for a new access token."""
+    ip = client_ip_from_request(request)
     if deepmove_refresh is None:
+        log_event(logger, logging.WARNING, "auth.refresh_failed", ip=ip, reason="missing")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token")
 
     payload = decode_token(deepmove_refresh)
     if payload is None or payload.get("type") != "refresh":
         _clear_refresh_cookie(response)
+        log_event(logger, logging.WARNING, "auth.refresh_failed", ip=ip, reason="invalid")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
     user_id = int(payload["sub"])
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         _clear_refresh_cookie(response)
+        log_event(logger, logging.WARNING, "auth.refresh_failed", ip=ip, reason="user_not_found")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
     if payload.get("tv") != user.token_version:
         _clear_refresh_cookie(response)
+        log_event(logger, logging.WARNING, "auth.refresh_failed", ip=ip, reason="revoked")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked")
 
     access = create_access_token(user.id, user.token_version)
     # Rotate refresh token
     new_refresh = create_refresh_token(user.id, user.token_version)
     _set_refresh_cookie(response, new_refresh)
+    log_event(logger, logging.INFO, "auth.refresh", ip=ip, user_id=user.id)
 
     return AuthResponse(access_token=access, user=_user_response(user))
 
 
 @router.post("/logout")
 async def logout(
+    request: Request,
     response: Response,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -153,6 +198,9 @@ async def logout(
     user.token_version += 1
     db.commit()
     _clear_refresh_cookie(response)
+    ip = client_ip_from_request(request)
+    log_event(logger, logging.INFO, "auth.logout", ip=ip, user_id=user.id)
+    log_event(logger, logging.INFO, "auth.token_revoked", ip=ip, user_id=user.id)
     return {"status": "logged_out"}
 
 

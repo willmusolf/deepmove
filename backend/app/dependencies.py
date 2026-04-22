@@ -1,15 +1,18 @@
 """dependencies.py — FastAPI dependency injection (DB session, auth)."""
+import logging
 from collections.abc import Generator
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
+from app.logging_utils import client_ip_from_request, log_event
 from app.models.user import User
 from app.utils.security import decode_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
+logger = logging.getLogger(__name__)
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -51,6 +54,7 @@ def get_current_user(
 
 
 def get_optional_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> User | None:
     """Like get_current_user but returns None for anonymous/invalid tokens.
@@ -68,19 +72,36 @@ def get_optional_user(
     from app.database import SessionLocal  # local import to avoid circular
     if SessionLocal is None:
         return None
+    user_id = int(payload["sub"])
+    ip = client_ip_from_request(request)
     try:
         db = SessionLocal()
-    except Exception:
+    except Exception as exc:
         # DB unavailable (Neon suspended, network issue) — treat as guest
+        log_event(
+            logger,
+            logging.WARNING,
+            "system.auth_degradation",
+            user_id_from_token=user_id,
+            ip=ip,
+            error_type=type(exc).__name__,
+        )
         return None
     try:
-        user_id = int(payload["sub"])
         user = db.query(User).filter(User.id == user_id).first()
         if user is None or payload.get("tv") != user.token_version:
             return None
         return user
-    except Exception:
+    except Exception as exc:
         # Query failed — treat as guest rather than 500
+        log_event(
+            logger,
+            logging.WARNING,
+            "system.auth_degradation",
+            user_id_from_token=user_id,
+            ip=ip,
+            error_type=type(exc).__name__,
+        )
         return None
     finally:
         db.close()
