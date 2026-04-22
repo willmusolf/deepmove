@@ -77,16 +77,19 @@ async def generate_lesson(
     started = time.perf_counter()
     try:
         result = await _generate_lesson_impl(body, request=request, user=user, db=db)
+        result_payload = (
+            result.model_dump() if isinstance(result, CoachingResponse) else result
+        )
         log_event(
             logger,
             logging.INFO,
             "coaching.lesson_generated",
             category=body.category or body.principle_id,
             elo_band=body.elo_band,
-            model=result.get("model"),
+            model=result_payload.get("model"),
             latency_ms=round((time.perf_counter() - started) * 1000, 2),
-            cached=result.get("cached", False),
-            fallback_used=result.get("fallback_used", False),
+            cached=result_payload.get("cached", False),
+            fallback_used=result_payload.get("fallback_used", False),
         )
         return result
     except HTTPException as exc:
