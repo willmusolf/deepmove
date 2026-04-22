@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     # Feature flags
     coaching_enabled: bool = False
     trusted_proxy_depth: int = Field(default=1, ge=1)
+    free_tier_daily_lessons: int = Field(default=50, ge=1)
+    premium_daily_lessons: int = Field(default=500, ge=1)
+    guest_daily_lessons: int = Field(default=10, ge=1)
+    max_daily_llm_calls: int = Field(default=5000, ge=1)
+    estimated_llm_cost_usd: float = Field(default=0.01, ge=0)
 
     # Optional explicit CORS config for staging/preview environments
     allowed_origins_csv: str = Field(
