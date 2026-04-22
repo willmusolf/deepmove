@@ -31,10 +31,12 @@ Log every significant technical decision here. Date, decision, rationale, altern
 **Migration rationale:** Neon offers serverless auto-scaling, branching for dev/preview, and a more generous free tier. Supabase was only used as a plain Postgres host — no SDK features were in use, making the migration a connection string swap.
 **Upgrade path:** Neon Pro ($19/mo) if we exceed free tier limits.
 
-### ADR-006: Vercel (Frontend) + Railway (Backend)
-**Decision:** Frontend on Vercel, backend on Railway.
-**Rationale:** Vercel: zero-config for Vite/React, global CDN, free tier handles 1000+ daily visits. Railway: simple Python/FastAPI hosting, auto-deploy from GitHub, $5/mo hobby plan.
-**Accounts:** Personal accounts (not org) — transfer to org later if project grows to a team.
+### ADR-006: Vercel (Frontend) + Render (Backend)
+**Decision:** Frontend on Vercel, backend on Render.
+**Original rationale:** Vercel remains the best fit for the static Vite frontend, preview URLs, and CDN distribution.
+**Updated backend rationale (2026-04-22):** Render replaced Railway for the FastAPI backend because the deploy flow, health checks, and staging/production split are clearer for DeepMove's current setup. Render also fits the current staging branch workflow and deploy-hook based CI integration.
+**Operational model:** `main` promotes production, `staging` promotes the shared staging backend, and GitHub Actions triggers backend deploys only when backend files change.
+**Accounts:** Personal accounts for now — transfer to an org later if the project becomes a team product.
 
 ### ADR-007: Closed Source
 **Decision:** Private GitHub repo. All Rights Reserved. No license file.
