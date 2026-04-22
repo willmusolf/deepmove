@@ -6,12 +6,14 @@ The LLM NEVER analyzes chess positions directly.
 It receives verified facts and writes the lesson text.
 """
 import logging
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.config import settings
 from app.database import SessionLocal
 from app.dependencies import get_current_user, get_optional_user
+from app.logging_utils import client_ip_from_request, log_event
 from app.models.game import Game
 from app.models.lesson import Lesson
 from app.models.user import User
@@ -31,13 +33,58 @@ async def generate_lesson(
     body: CoachingRequest,
     user: User | None = Depends(get_optional_user),
 ):
+    log_event(
+        logger,
+        logging.INFO,
+        "coaching.lesson_requested",
+        category=body.category or body.principle_id,
+        elo_band=body.elo_band,
+        game_phase=body.game_phase,
+        is_authenticated=user is not None,
+    )
     if not settings.coaching_enabled:
         raise HTTPException(status_code=503, detail="AI coaching is not enabled")
 
     # Open DB only if the user is authenticated — avoids waking Neon for guest requests
     db = SessionLocal() if (user is not None and SessionLocal is not None) else None
+    started = time.perf_counter()
     try:
-        return await _generate_lesson_impl(body, user, db)
+        result = await _generate_lesson_impl(body, user, db)
+        log_event(
+            logger,
+            logging.INFO,
+            "coaching.lesson_generated",
+            category=body.category or body.principle_id,
+            elo_band=body.elo_band,
+            model=result.get("model"),
+            latency_ms=round((time.perf_counter() - started) * 1000, 2),
+            cached=result.get("cached", False),
+            fallback_used=result.get("fallback_used", False),
+        )
+        return result
+    except HTTPException as exc:
+        if exc.status_code >= 500:
+            log_event(
+                logger,
+                logging.ERROR,
+                "coaching.lesson_failed",
+                category=body.category or body.principle_id,
+                elo_band=body.elo_band,
+                error_type=f"http_{exc.status_code}",
+                fallback_used=False,
+            )
+        raise
+    except Exception as exc:
+        log_event(
+            logger,
+            logging.ERROR,
+            "coaching.lesson_failed",
+            category=body.category or body.principle_id,
+            elo_band=body.elo_band,
+            error_type=type(exc).__name__,
+            fallback_used=False,
+        )
+        raise
     finally:
         if db is not None:
             db.close()
@@ -131,9 +178,17 @@ async def generate_socratic_question():
 
 
 @router.delete("/cache")
-def flush_lesson_cache(current_user: User = Depends(get_current_user)):
+def flush_lesson_cache(request: Request, current_user: User = Depends(get_current_user)):
     """Flush the in-memory LRU lesson cache (admin only)."""
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin only")
     count = coaching_service.clear_lesson_cache()
+    log_event(
+        logger,
+        logging.INFO,
+        "admin.cache_clear",
+        admin_id=current_user.id,
+        ip=client_ip_from_request(request),
+        entries_removed=count,
+    )
     return {"cleared": True, "entries_removed": count}
