@@ -9,6 +9,11 @@ def test_health_check(client):
     assert response.json() == {"status": "ok", "service": "deepmove-api"}
 
 
+def test_health_check_accepts_head(client):
+    response = client.head("/health")
+    assert response.status_code == 200
+
+
 def test_health_deep_ok(client, monkeypatch):
     async def fake_database_check() -> bool:
         return True
@@ -31,6 +36,17 @@ def test_health_deep_ok(client, monkeypatch):
         },
         "environment": "staging",
     }
+
+
+def test_health_deep_accepts_head(client, monkeypatch):
+    async def fake_database_check() -> bool:
+        return True
+
+    monkeypatch.setattr("app.main._database_is_reachable", fake_database_check)
+
+    response = client.head("/health/deep")
+
+    assert response.status_code == 200
 
 
 def test_health_deep_degraded_when_database_unreachable(client, monkeypatch):
