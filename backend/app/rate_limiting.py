@@ -8,24 +8,28 @@ from ipaddress import ip_address
 from fastapi import Request
 from slowapi import Limiter
 
+from app.config import settings
 
-def _get_real_client_ip(request: Request) -> str:
-    """Best-effort client IP extraction for hosted reverse-proxy deployments.
 
-    Railway and similar platforms terminate TLS and forward requests through a proxy.
-    We prefer the first X-Forwarded-For hop when present, but still fall back to the
-    client host that Starlette/Uvicorn exposes locally.
+def get_trusted_client_ip(request: Request) -> str:
+    """Extract the client IP using a trusted proxy depth from the right-hand side.
 
-    This assumes the app is only reachable through a trusted proxy in production.
+    Render appends the connecting client IP to any existing X-Forwarded-For header
+    rather than stripping it. That means the leftmost value may be spoofed by the
+    caller, while the rightmost value is the hop added by the trusted Render proxy.
+    If we later place another trusted proxy in front of Render, increase
+    TRUSTED_PROXY_DEPTH to select the Nth-from-right hop instead.
     """
     forwarded_for = request.headers.get("x-forwarded-for", "")
     if forwarded_for:
-        candidate = forwarded_for.split(",", 1)[0].strip()
-        try:
-            ip_address(candidate)
-            return candidate
-        except ValueError:
-            pass
+        hops = [hop.strip() for hop in forwarded_for.split(",") if hop.strip()]
+        if len(hops) >= settings.trusted_proxy_depth:
+            candidate = hops[-settings.trusted_proxy_depth]
+            try:
+                ip_address(candidate)
+                return candidate
+            except ValueError:
+                pass
 
     if request.client and request.client.host:
         return request.client.host
@@ -33,4 +37,4 @@ def _get_real_client_ip(request: Request) -> str:
     return "unknown"
 
 
-limiter = Limiter(key_func=_get_real_client_ip)
+limiter = Limiter(key_func=get_trusted_client_ip)

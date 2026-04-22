@@ -56,6 +56,7 @@ class Settings(BaseSettings):
 
     # Feature flags
     coaching_enabled: bool = False
+    trusted_proxy_depth: int = Field(default=1, ge=1)
 
     # Optional explicit CORS config for staging/preview environments
     allowed_origins_csv: str = Field(
