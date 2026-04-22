@@ -15,7 +15,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, _psycopg3_url
 from app.dependencies import get_db
 from app.main import app
-from app.models import Game, Lesson, User, UserPrinciple  # noqa: F401
+from app.models import AdminAuditLog, Game, Lesson, User, UserPrinciple  # noqa: F401
 from app.rate_limiting import limiter
 
 

@@ -1,4 +1,6 @@
 """admin.py — Schemas for admin-only ops endpoints."""
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -24,3 +26,18 @@ class AdminActionResult(BaseModel):
     message: str
     coaching_enabled: bool | None = None
     lesson_cache_entries: int | None = None
+
+
+class AdminAuditLogEntry(BaseModel):
+    id: int
+    admin_user_id: int
+    admin_email: str
+    action: str
+    details: dict
+    ip_address: str
+    created_at: datetime
+
+
+class AdminAuditLogResponse(BaseModel):
+    entries: list[AdminAuditLogEntry]
+    total: int
