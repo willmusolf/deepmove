@@ -101,9 +101,38 @@ See `docs/principle-taxonomy.md` for all coaching principles.
 
 ## Deploy
 
-- **Frontend:** Push to GitHub → Vercel auto-deploys (connect repo in Vercel dashboard)
-- **Backend:** Push to GitHub → Railway auto-deploys (connect repo in Railway dashboard)
-- **Database:** Already live on Neon — use the same DATABASE_URL in production env vars
+- **Frontend:** Vercel deploys from GitHub. Preview deploys come from PR branches, production deploys come from `main`.
+- **Backend:** Render deploys from GitHub via the `RENDER_DEPLOY_HOOK_URL` GitHub Actions secret. Only backend changes trigger the deploy hook.
+- **Database:** Neon hosts both staging and production PostgreSQL databases. Use the pooled connection string in Render env vars.
+
+### Current production hosting
+
+- `https://www.deepmove.io` → Vercel frontend
+- `https://api.deepmove.io` → Render backend
+- `https://staging-api.deepmove.io` → Render staging backend
+
+### Production env vars
+
+Backend (`Render`):
+
+- `ENVIRONMENT=production`
+- `DATABASE_URL=<Neon pooled URL>`
+- `SECRET_KEY=<32+ random bytes hex>`
+- `ANTHROPIC_API_KEY=<Anthropic key>`
+- `ALLOWED_ORIGINS=https://deepmove.io,https://www.deepmove.io`
+
+Frontend (`Vercel` production):
+
+- `VITE_API_URL=https://api.deepmove.io`
+
+Frontend (`Vercel` preview):
+
+- `VITE_API_URL=https://staging-api.deepmove.io`
+
+### Release flow
+
+Use the documented staging → production process in [docs/release-runbook.md](./release-runbook.md).
+The shorter overview lives in [docs/release-flow.md](./release-flow.md).
 
 ## Getting Stockfish
 

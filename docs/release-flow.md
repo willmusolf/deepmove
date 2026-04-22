@@ -85,6 +85,11 @@ The Render service is rooted at `backend/`.
 That means frontend-only changes should not cause a backend deploy.
 This is expected and desirable.
 
+### Related docs
+
+- Full release checklist: [release-runbook.md](./release-runbook.md)
+- Live service ownership and recovery steps: [production-ops.md](./production-ops.md)
+
 ### Operational runbook
 
 For the exact staging-to-production checklist, rollback steps, and emergency coaching disable procedure, see [release-runbook.md](./release-runbook.md).
