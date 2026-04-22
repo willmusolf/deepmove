@@ -137,13 +137,13 @@ app.include_router(coaching.router, prefix="/coaching", tags=["coaching"])
 app.include_router(admin.router, prefix="/admin", tags=["admin"])
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health_check():
     """Simple health check — used by Railway and monitoring."""
     return {"status": "ok", "service": "deepmove-api"}
 
 
-@app.get("/health/deep")
+@app.api_route("/health/deep", methods=["GET", "HEAD"])
 @limiter.limit("10/minute")
 async def deep_health_check(request: Request):
     """Runtime health check for smoke tests and uptime monitoring."""
