@@ -175,16 +175,24 @@ jobs:
       - name: Check production backend health only
         if: steps.changes.outputs.backend != 'true'
         run: |
-          curl --fail --silent --show-error \
-            --max-time 20 \
-            https://api.deepmove.io/health/deep > /tmp/deepmove-health.json
-          python - <<'PY'
+          for attempt in $(seq 1 18); do
+            if curl --fail --silent --show-error \
+              --max-time 20 \
+              https://api.deepmove.io/health/deep > /tmp/deepmove-health.json \
+              && python - <<'PY'
           import json
 
           payload = json.load(open('/tmp/deepmove-health.json'))
           assert payload["status"] == "ok", payload
           assert payload["checks"]["database"] == "ok", payload
           PY
+            then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Production backend did not stay healthy long enough for smoke validation."
+          exit 1
 
       - name: Note backend deploy expectation
         if: steps.changes.outputs.backend != 'true'
@@ -277,16 +285,24 @@ jobs:
       - name: Check staging backend health only
         if: steps.changes.outputs.backend != 'true'
         run: |
-          curl --fail --silent --show-error \
-            --max-time 20 \
-            https://staging-api.deepmove.io/health/deep > /tmp/deepmove-staging-health.json
-          python - <<'PY'
+          for attempt in $(seq 1 18); do
+            if curl --fail --silent --show-error \
+              --max-time 20 \
+              https://staging-api.deepmove.io/health/deep > /tmp/deepmove-staging-health.json \
+              && python - <<'PY'
           import json
 
           payload = json.load(open('/tmp/deepmove-staging-health.json'))
           assert payload["status"] == "ok", payload
           assert payload["checks"]["database"] == "ok", payload
           PY
+            then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Staging backend did not stay healthy long enough for smoke validation."
+          exit 1
 
       - name: Note backend deploy expectation
         if: steps.changes.outputs.backend != 'true'
