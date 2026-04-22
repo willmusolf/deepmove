@@ -1,44 +1,48 @@
 """coaching.py — Pydantic schemas for coaching API request/response"""
-from pydantic import BaseModel
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, Field
+
+BoundedFact = Annotated[str, Field(max_length=500)]
 
 
 class CoachingRequest(BaseModel):
     # Game context
-    user_elo: int
-    opponent_elo: int
+    user_elo: int = Field(ge=0, le=4000)
+    opponent_elo: int = Field(ge=0, le=4000)
     time_control: str          # e.g. "600" (seconds)
-    time_control_label: str    # "bullet" | "blitz" | "rapid" | "classical"
-    game_phase: str
+    time_control_label: Literal["bullet", "blitz", "rapid", "classical"]
+    game_phase: Literal["opening", "middlegame", "endgame"]
 
     # Move data
-    move_number: int
-    move_played: str           # SAN notation
+    move_number: int = Field(ge=1, le=500)
+    move_played: str = Field(max_length=20)           # SAN notation
     eval_before: float         # centipawns
     eval_after: float
     eval_swing_cp: float
 
     # Analysis-first classification
-    category: str | None = None
+    category: str | None = Field(default=None, max_length=50)
     mistake_type: str | None = None
-    principle_id: str | None = None
-    principle_name: str | None = None
-    principle_description: str | None = None
-    principle_takeaway: str | None = None
+    principle_id: str | None = Field(default=None, max_length=50)
+    principle_name: str | None = Field(default=None, max_length=100)
+    principle_description: str | None = Field(default=None, max_length=500)
+    principle_takeaway: str | None = Field(default=None, max_length=500)
     confidence: float = 100    # kept for DB/backward compat
 
     # Pre-verified facts from feature extraction
-    verified_facts: list[str]  # Human-readable fact strings
-    engine_move_idea: str      # What the engine's move was trying to do
+    verified_facts: list[BoundedFact] = Field(max_length=10)
+    engine_move_idea: str = Field(max_length=500)
 
     # Cache metadata
-    elo_band: str              # e.g. "1200-1400"
-    position_hash: str         # Hash of key position features
+    elo_band: str = Field(max_length=20)              # e.g. "1200-1400"
+    position_hash: str = Field(max_length=128)        # Hash of key position features
 
     # Persistence identifiers (optional — guests and PGN-paste skip DB save)
     backend_game_id: int | None = None    # DB primary key — preferred over platform_game_id lookup
-    platform_game_id: str | None = None   # platform-specific game ID (e.g. Chess.com game ID)
-    platform: str | None = None           # "chesscom" | "lichess" | "pgn-paste"
-    color: str = "white"                  # "white" | "black" — whose move this was
+    platform_game_id: str | None = Field(default=None, max_length=100)
+    platform: Literal["chesscom", "lichess", "pgn-paste"] | None = None
+    color: Literal["white", "black"] = "white"
 
 
 class CoachingResponse(BaseModel):

@@ -19,6 +19,12 @@ class TestGameCRUD:
         resp = client.post("/games/", json=make_game_payload())
         assert resp.status_code == 401
 
+    def test_create_game_rejects_oversized_pgn(self, auth_client):
+        client, token, user = auth_client
+        resp = client.post("/games/", json=make_game_payload(pgn="x" * (50 * 1024 + 1)))
+        assert resp.status_code == 422
+        assert "50KB" in resp.text
+
     def test_get_game(self, auth_client):
         client, token, user = auth_client
         create = client.post("/games/", json=make_game_payload())
@@ -186,3 +192,10 @@ class TestSyncStatus:
         # Server should send A to client
         download_ids = [g["platform_game_id"] for g in data["to_download"]]
         assert "sync_a" in download_ids
+
+    def test_sync_status_rejects_more_than_200_games(self, auth_client):
+        client, token, user = auth_client
+        resp = client.post("/games/sync-status", json={
+            "games": [{"platform_game_id": f"sync_{i}"} for i in range(201)]
+        })
+        assert resp.status_code == 422
