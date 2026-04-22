@@ -1,23 +1,33 @@
 """game.py — Pydantic schemas for game API"""
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
+
+MAX_PGN_BYTES = 50 * 1024
 
 
 class GameCreate(BaseModel):
-    platform: str               # "chesscom" | "lichess" | "pgn-paste"
-    platform_game_id: str | None = None
+    platform: Literal["chesscom", "lichess", "pgn-paste"]
+    platform_game_id: str | None = Field(default=None, max_length=100)
     pgn: str
-    user_color: str | None = None
-    user_elo: int | None = None
-    opponent: str | None = None
-    opponent_rating: int | None = None
-    result: str | None = None   # "W" | "L" | "D"
-    time_control: str | None = None
+    user_color: Literal["white", "black"] | None = None
+    user_elo: int | None = Field(default=None, ge=0, le=4000)
+    opponent: str | None = Field(default=None, max_length=100)
+    opponent_rating: int | None = Field(default=None, ge=0, le=4000)
+    result: Literal["W", "L", "D"] | None = None
+    time_control: str | None = Field(default=None, max_length=20)
     end_time: int | None = None  # unix ms
-    move_evals: list | None = None
-    critical_moments: list | None = None
+    move_evals: list[dict] | None = Field(default=None, max_length=500)
+    critical_moments: list[dict] | None = Field(default=None, max_length=20)
     analyzed_at: str | None = None  # ISO timestamp
+
+    @field_validator("pgn")
+    @classmethod
+    def validate_pgn_size(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > MAX_PGN_BYTES:
+            raise ValueError("PGN exceeds 50KB limit")
+        return value
 
 
 class GameResponse(BaseModel):
@@ -59,7 +69,7 @@ class GameListResponse(BaseModel):
 
 
 class SyncStatusRequest(BaseModel):
-    games: list[dict]  # [{ platform_game_id, analyzedAt }]
+    games: list[dict] = Field(max_length=200)  # [{ platform_game_id, analyzedAt }]
 
 
 class SyncStatusResponse(BaseModel):
