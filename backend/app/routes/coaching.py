@@ -136,6 +136,11 @@ async def _generate_lesson_impl(
     - Checks DB for an existing lesson before calling Claude (survives server restarts)
     - Saves the generated lesson to DB after generation
     """
+    if user and db is not None:
+        # get_optional_user() verifies auth in its own short-lived session.
+        # Re-load the user inside this request's DB session so quota updates persist.
+        user = db.query(User).filter(User.id == user.id).first()
+
     # ── 1. Look up game row ──────────────────────────────────────────────────
     game: Game | None = None
     if user and coaching_request.backend_game_id:
