@@ -87,9 +87,11 @@ cg-board {
   --board-file-offset: clamp(2px, 0.55cqw, 4px);
   width: 100%;
   aspect-ratio: 1;
+  display: block;
   position: relative;
   flex-shrink: 0;
   container-type: inline-size;
+  overflow: hidden;
 }
 
 /* ── Main content area ────────────────────────────────────────────────── */
@@ -418,6 +420,8 @@ cg-board {
 }
 
 .panel-tab {
+  flex: 1 1 0;
+  min-width: 0;
   padding: 0.2rem 0.75rem;
   background: none;
   border: none;
@@ -425,6 +429,7 @@ cg-board {
   color: var(--color-text-muted);
   font-size: 0.8rem;
   font-weight: 500;
+  text-align: center;
   cursor: pointer;
   transition: color 0.15s;
 }
@@ -838,6 +843,7 @@ cg-board {
   gap: 8px;
   align-items: stretch;
   max-width: 100%;
+  min-width: 0;
   width: fit-content;
 }
 
@@ -847,9 +853,11 @@ cg-board {
   flex-direction: column;
   flex-shrink: 0;
   min-width: 0;
+  max-width: 100%;
   width: min(880px, calc(100dvh - 164px), calc(100vw - var(--board-vw-offset)));
   border: 1px solid #505050;
   background: #4d4d4d;
+  overflow: hidden;
 }
 
 .player-info-box {
@@ -989,12 +997,11 @@ cg-board {
 
   .panel-tabs {
     height: auto;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .panel-tab {
-    flex: 1 1 96px;
-    text-align: center;
+    flex: 1 1 0;
   }
 }
 
@@ -1059,6 +1066,16 @@ cg-board {
     width: 100%;
   }
 
+  .board-controls__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .board-controls__actions .board-control-btn {
+    width: 100%;
+  }
+
   .board-and-players {
     width: calc(100% - 6px);
     margin: 0 auto;
@@ -1078,12 +1095,6 @@ cg-board {
   .move-counter {
     min-width: 0;
     font-size: 0.75rem;
-  }
-
-  .panel-tabs {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.2rem;
   }
 
   .panel-tab,

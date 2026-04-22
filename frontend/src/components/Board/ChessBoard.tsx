@@ -226,6 +226,7 @@ export default function ChessBoard({
   const interactiveRef = useRef(interactive)
   const userPerspectiveRef = useRef(userPerspective)
   const prevPathKeyRef = useRef(pathKey)
+  const sizeRef = useRef({ width: 0, height: 0 })
 
   // Track when the board has a real layout size so shapes only sync after mount.
   // Avoid writing inline width/height here: that can leave the board "stuck" at a
@@ -235,7 +236,16 @@ export default function ChessBoard({
     if (!el) return
     const ro = new ResizeObserver(entries => {
       const { width, height } = entries[0].contentRect
-      if (width > 0 && height > 0) setBoardReady(true)
+      if (width <= 0 || height <= 0) return
+
+      const widthChanged = Math.abs(width - sizeRef.current.width) > 0.5
+      const heightChanged = Math.abs(height - sizeRef.current.height) > 0.5
+
+      if (!widthChanged && !heightChanged) return
+
+      sizeRef.current = { width, height }
+      setBoardReady(true)
+      requestAnimationFrame(() => apiRef.current?.redrawAll())
     })
     ro.observe(el)
     return () => ro.disconnect()
