@@ -136,25 +136,60 @@ jobs:
               - 'backend/**'
               - '.github/workflows/ci.yml'
 
-      - name: Wait for deploys to settle
-        run: sleep 90
-
       - name: Check frontend homepage
         run: |
           curl --fail --silent --show-error --location \
             --max-time 20 \
             https://www.deepmove.io > /dev/null
 
-      - name: Check backend health
+      - name: Wait for production backend deep health
+        run: |
+          for attempt in $(seq 1 18); do
+            if curl --fail --silent --show-error \
+              --max-time 20 \
+              https://api.deepmove.io/health/deep > /tmp/deepmove-health.json; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Production backend did not become healthy in time."
+          exit 1
+
+      - name: Validate production backend deep health payload
+        run: |
+          python - <<'PY'
+          import json
+
+          payload = json.load(open('/tmp/deepmove-health.json'))
+          assert payload["status"] == "ok", payload
+          assert payload["checks"]["database"] == "ok", payload
+          PY
+
+      - name: Verify deployed production commit SHA
+        if: steps.changes.outputs.backend == 'true'
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
         run: |
           curl --fail --silent --show-error \
             --max-time 20 \
-            https://api.deepmove.io/health | tee /tmp/deepmove-health.json
-          grep -q '"status":"ok"' /tmp/deepmove-health.json
+            https://api.deepmove.io/version > /tmp/deepmove-version.json
+          python - <<'PY'
+          import json
+          import os
+
+          payload = json.load(open('/tmp/deepmove-version.json'))
+          expected = os.environ["EXPECTED_SHA"]
+          actual = payload["commit_sha"]
+          assert actual == expected, {
+              "expected_commit_sha": expected,
+              "actual_commit_sha": actual,
+              "version_payload": payload,
+          }
+          PY
 
       - name: Note backend deploy expectation
         if: steps.changes.outputs.backend != 'true'
-        run: echo "No backend files changed in this push; the backend deploy hook was not expected to fire."
+        run: echo "No backend files changed in this push; backend SHA verification is skipped."
 
   staging-deploy:
     name: Staging — Deploy to Render
@@ -201,12 +236,60 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Wait for staging deploys to settle
-        run: sleep 90
+      - name: Detect backend changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
 
-      - name: Check staging backend health
+      - name: Wait for staging backend deep health
+        run: |
+          for attempt in $(seq 1 18); do
+            if curl --fail --silent --show-error \
+              --max-time 20 \
+              https://staging-api.deepmove.io/health/deep > /tmp/deepmove-staging-health.json; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Staging backend did not become healthy in time."
+          exit 1
+
+      - name: Validate staging backend deep health payload
+        run: |
+          python - <<'PY'
+          import json
+
+          payload = json.load(open('/tmp/deepmove-staging-health.json'))
+          assert payload["status"] == "ok", payload
+          assert payload["checks"]["database"] == "ok", payload
+          PY
+
+      - name: Verify deployed staging commit SHA
+        if: steps.changes.outputs.backend == 'true'
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
         run: |
           curl --fail --silent --show-error \
             --max-time 20 \
-            https://staging-api.deepmove.io/health | tee /tmp/deepmove-staging-health.json
-          grep -q '"status":"ok"' /tmp/deepmove-staging-health.json
+            https://staging-api.deepmove.io/version > /tmp/deepmove-staging-version.json
+          python - <<'PY'
+          import json
+          import os
+
+          payload = json.load(open('/tmp/deepmove-staging-version.json'))
+          expected = os.environ["EXPECTED_SHA"]
+          actual = payload["commit_sha"]
+          assert actual == expected, {
+              "expected_commit_sha": expected,
+              "actual_commit_sha": actual,
+              "version_payload": payload,
+          }
+          PY
+
+      - name: Note backend deploy expectation
+        if: steps.changes.outputs.backend != 'true'
+        run: echo "No backend files changed in this push; backend SHA verification is skipped."

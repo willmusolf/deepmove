@@ -1,4 +1,6 @@
 """config.py — Application settings loaded from environment variables."""
+from datetime import UTC, datetime
+
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,6 +21,14 @@ class Settings(BaseSettings):
     # App
     environment: str = "development"
     secret_key: str = "change-me-in-production"
+    git_commit_sha: str = Field(
+        default="unknown",
+        validation_alias=AliasChoices("GIT_COMMIT_SHA", "RENDER_GIT_COMMIT", "COMMIT_SHA"),
+    )
+    build_time: str = Field(
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        validation_alias=AliasChoices("BUILD_TIME", "BUILD_TIMESTAMP"),
+    )
 
     # JWT
     jwt_algorithm: str = "HS256"
