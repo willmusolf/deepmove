@@ -19,9 +19,9 @@ Follow this order unless something urgent breaks:
 
 ---
 
-## 🚀 LAUNCH CHECKLIST (remaining blockers)
+## 🚀 CURRENT LAUNCH PRIORITIES
 
-These things need to happen before launch. Everything else can follow.
+These are the highest-value launch and immediate post-launch items. Completed infra work stays documented below, but it is no longer a blocker list.
 
 ### 1. Mobile + Responsive Launch Polish
 - [ ] Stop the move list from dragging the page down on mobile when a game loads or a move changes
@@ -119,13 +119,13 @@ These things need to happen before launch. Everything else can follow.
 - [ ] 3. Fix nav collapse behavior
 - [ ] 4. Fix Review layout and overflow traps
 - [ ] 5. Port the same system into Play
+- [ ] 6. Run the responsive QA checklist and only then do visual polish
 
 ### 3. Coaching Quality QA (post-launch quality pass)
 - [ ] Run 10 real moosetheman123 games through the current pipeline
 - [ ] For each lesson: "Would a chess player actually learn something from this?"
 - [ ] Tighten bad/generic lessons with verified facts, not prompt fluff
 - [ ] Expand move-by-move stats only where they make lessons materially better
-- [ ] 6. Run the responsive QA checklist and only then do visual polish
 
 ### 4. Stripe + Rate Limiting
 - [ ] Create Stripe account + products (Premium Monthly $5, Premium Annual $40)
@@ -137,15 +137,15 @@ These things need to happen before launch. Everything else can follow.
 - [ ] Return 429 with upgrade prompt when limit hit
 - [ ] LLM model routing: Haiku for ≤1600, Sonnet for 1600+
 
-### 5. Deploy to deepmove.io
-- [ ] Frontend → Vercel, connect deepmove.io domain
-- [ ] Backend → Railway (or Render)
-- [ ] Production Neon project (separate from dev)
-- [ ] Configure env vars, SSL, CORS for production domains
-- [ ] Set ANTHROPIC_API_KEY in production env
-- [ ] Smoke test full flow end-to-end on production URL
-- [ ] Post-launch infra cleanup: verify Vercel auto-deploy triggers correctly on every `main` push
-- [ ] Post-launch infra cleanup: lock down GitHub `main` with branch protection / required PR review / required checks / no direct pushes except owner
+### 5. Deploy to deepmove.io ✅
+- [x] Frontend → Vercel, connect deepmove.io domain
+- [x] Backend → Render
+- [x] Production Neon project
+- [x] Configure env vars, SSL, CORS for production domains
+- [x] Set ANTHROPIC_API_KEY in production env
+- [x] Smoke test full flow end-to-end on production URL
+- [x] Verify Vercel auto-deploy triggers correctly on every `main` push
+- [x] Lock down GitHub `main` with branch protection / required PR review / required checks / no direct pushes except owner
 
 ---
 
@@ -691,6 +691,5 @@ EVENTUALLY
 
 
 -make this into an ios app
-
 
 
