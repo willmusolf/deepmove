@@ -1,24 +1,16 @@
 ## Summary
-- What changed for users or developers?
-
-## Included In Scope
-- List the intended files or behaviors in this PR.
-
-## Explicitly Excluded
-- List nearby changes that were left out on purpose.
+- What changed?
 
 ## Validation
-- [ ] Local checks passed
+- [ ] Local checks passed where relevant
 - [ ] CI passed
-- [ ] Manual QA completed where relevant
+- [ ] Manual QA done where relevant
 
 Commands run:
-- ``
 
-## Review Focus
-- Call out the highest-risk behavior or edge case for reviewers.
+```bash
+# paste commands here if useful
+```
 
-## AI Review
-- [ ] GitHub Copilot automatic review is enabled, or Copilot was requested manually
-- [ ] CodeRabbit is enabled, or not in use for this repo
-- [ ] AI comments were addressed or explicitly dismissed
+## Notes For Reviewers
+- Call out any risky area, edge case, or follow-up work if needed.
