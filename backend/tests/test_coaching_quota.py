@@ -3,8 +3,10 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
+from app.main import app
 from app.models.game import Game
 from app.models.lesson import Lesson
 from app.models.user import User
@@ -44,9 +46,19 @@ def _stub_lesson(**overrides):
     return result
 
 
+@pytest.fixture()
+def coaching_auth_client(auth_client, db_session, monkeypatch):
+    client, token, user = auth_client
+    shared_session_factory = sessionmaker(bind=db_session.connection())
+    monkeypatch.setattr("app.database.SessionLocal", shared_session_factory)
+    monkeypatch.setattr("app.routes.coaching.SessionLocal", shared_session_factory)
+    yield client, token, user
+    app.dependency_overrides.clear()
+
+
 class TestCoachingQuota:
-    def test_free_user_limit_returns_429(self, auth_client, db_session, monkeypatch):
-        client, _token, user_data = auth_client
+    def test_free_user_limit_returns_429(self, coaching_auth_client, db_session, monkeypatch):
+        client, _token, user_data = coaching_auth_client
         user = db_session.query(User).filter(User.id == user_data["id"]).first()
         assert user is not None
         user.daily_lesson_count = settings.free_tier_daily_lessons
@@ -65,8 +77,8 @@ class TestCoachingQuota:
         assert detail["limit"] == settings.free_tier_daily_lessons
         assert detail["used"] == settings.free_tier_daily_lessons
 
-    def test_premium_user_limit_returns_429(self, auth_client, db_session, monkeypatch):
-        client, _token, user_data = auth_client
+    def test_premium_user_limit_returns_429(self, coaching_auth_client, db_session, monkeypatch):
+        client, _token, user_data = coaching_auth_client
         user = db_session.query(User).filter(User.id == user_data["id"]).first()
         assert user is not None
         user.is_premium = True
@@ -107,8 +119,8 @@ class TestCoachingQuota:
         assert detail["limit"] == settings.guest_daily_lessons
         assert detail["used"] == settings.guest_daily_lessons
 
-    def test_cached_db_lesson_is_served_even_at_quota(self, auth_client, db_session):
-        client, _token, user_data = auth_client
+    def test_cached_db_lesson_is_served_even_at_quota(self, coaching_auth_client, db_session):
+        client, _token, user_data = coaching_auth_client
         user = db_session.query(User).filter(User.id == user_data["id"]).first()
         assert user is not None
 
@@ -146,8 +158,8 @@ class TestCoachingQuota:
         assert data["cached"] is True
         assert data["lesson"] == "Cached lesson"
 
-    def test_global_ceiling_serves_fallback_without_incrementing_user(self, auth_client, db_session, monkeypatch):
-        client, _token, user_data = auth_client
+    def test_global_ceiling_serves_fallback_without_incrementing_user(self, coaching_auth_client, db_session, monkeypatch):
+        client, _token, user_data = coaching_auth_client
         user = db_session.query(User).filter(User.id == user_data["id"]).first()
         assert user is not None
         monkeypatch.setattr(settings, "max_daily_llm_calls", 1)
@@ -185,8 +197,8 @@ class TestCoachingQuota:
         assert data["spend"]["daily_llm_ceiling"] == settings.max_daily_llm_calls
         assert data["spend"]["estimated_daily_cost_usd"] == 0.01
 
-    def test_user_quota_resets_on_new_day(self, auth_client, db_session, monkeypatch):
-        client, _token, user_data = auth_client
+    def test_user_quota_resets_on_new_day(self, coaching_auth_client, db_session, monkeypatch):
+        client, _token, user_data = coaching_auth_client
         user = db_session.query(User).filter(User.id == user_data["id"]).first()
         assert user is not None
         user.daily_lesson_count = settings.free_tier_daily_lessons
