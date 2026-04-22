@@ -11,9 +11,16 @@ class AdminCounts(BaseModel):
     principles: int
 
 
+class AdminSpendSummary(BaseModel):
+    daily_llm_calls: int
+    daily_llm_ceiling: int
+    estimated_daily_cost_usd: float
+
+
 class AdminOpsStatus(BaseModel):
     coaching_enabled: bool
     lesson_cache_entries: int
+    spend: AdminSpendSummary
     counts: AdminCounts
 
 
