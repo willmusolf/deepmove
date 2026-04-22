@@ -11,6 +11,7 @@ CRITICAL RULES (from CLAUDE.md):
 """
 import asyncio
 import logging
+from datetime import UTC, date, datetime, timedelta
 
 import anthropic
 from cachetools import LRUCache
@@ -25,6 +26,9 @@ logger = logging.getLogger(__name__)
 # Cache key: {category}:{game_phase}:{elo_band}:{position_hash}
 # TODO: Replace with Upstash Redis when traffic warrants it
 _lesson_cache: LRUCache = LRUCache(maxsize=1000)
+_guest_usage: dict[str, tuple[int, date]] = {}
+_global_daily_calls = 0
+_global_reset_date = datetime.now(UTC).date()
 
 # Singleton Anthropic client — reuses HTTP/2 connections across requests
 _anthropic_client: anthropic.AsyncAnthropic | None = None
@@ -51,6 +55,77 @@ def _strip_fact_prefix(fact: str) -> str:
     return fact.split(": ", 1)[1].strip() if ": " in fact else fact.strip()
 
 
+def _today_utc() -> date:
+    return datetime.now(UTC).date()
+
+
+def seconds_until_midnight_utc() -> int:
+    now = datetime.now(UTC)
+    tomorrow = (now + timedelta(days=1)).date()
+    midnight = datetime.combine(tomorrow, datetime.min.time(), tzinfo=UTC)
+    return max(1, int((midnight - now).total_seconds()))
+
+
+def _reset_global_counter_if_needed() -> None:
+    global _global_daily_calls, _global_reset_date
+    today = _today_utc()
+    if _global_reset_date < today:
+        _global_daily_calls = 0
+        _global_reset_date = today
+
+
+def get_guest_usage(ip_address: str) -> tuple[int, date]:
+    today = _today_utc()
+    count, reset_date = _guest_usage.get(ip_address, (0, today))
+    if reset_date < today:
+        count, reset_date = 0, today
+    return count, reset_date
+
+
+def increment_guest_usage(ip_address: str) -> int:
+    count, reset_date = get_guest_usage(ip_address)
+    count += 1
+    _guest_usage[ip_address] = (count, reset_date)
+    return count
+
+
+def is_global_ceiling_reached() -> bool:
+    _reset_global_counter_if_needed()
+    return _global_daily_calls >= settings.max_daily_llm_calls
+
+
+def increment_global_daily_calls() -> int:
+    global _global_daily_calls
+    _reset_global_counter_if_needed()
+    _global_daily_calls += 1
+    return _global_daily_calls
+
+
+def get_spend_summary() -> dict:
+    _reset_global_counter_if_needed()
+    return {
+        "daily_llm_calls": _global_daily_calls,
+        "daily_llm_ceiling": settings.max_daily_llm_calls,
+        "estimated_daily_cost_usd": round(_global_daily_calls * settings.estimated_llm_cost_usd, 2),
+    }
+
+
+def reset_usage_state() -> None:
+    global _global_daily_calls, _global_reset_date
+    _lesson_cache.clear()
+    _guest_usage.clear()
+    _global_daily_calls = 0
+    _global_reset_date = _today_utc()
+
+
+def get_cached_lesson(coaching_request: dict) -> dict | None:
+    cache_key = _build_cache_key(coaching_request)
+    cached = _lesson_cache.get(cache_key)
+    if cached is None:
+        return None
+    return {**cached, "cached": True}
+
+
 def _build_fallback_lesson(coaching_request: dict) -> str:
     facts = coaching_request.get("verified_facts", [])
     category = coaching_request.get("category") or coaching_request.get("principle_id") or "unknown"
@@ -71,14 +146,27 @@ def _build_fallback_lesson(coaching_request: dict) -> str:
     return " ".join(sentences[:4])
 
 
+def build_fallback_result(coaching_request: dict) -> dict:
+    return {
+        "lesson": _build_fallback_lesson(coaching_request),
+        "category": coaching_request.get("category"),
+        "principle_id": coaching_request.get("principle_id") or coaching_request.get("category"),
+        "confidence": coaching_request.get("confidence", 0),
+        "cached": False,
+        "fallback_used": True,
+        "model": "fallback",
+    }
+
+
 async def generate_lesson(coaching_request: dict) -> dict:
     """Generate a coaching lesson for a critical moment.
 
     Category labels are metadata. The prompt always teaches from verified facts.
     """
     cache_key = _build_cache_key(coaching_request)
-    if cache_key in _lesson_cache:
-        return {**_lesson_cache[cache_key], "cached": True}
+    cached = get_cached_lesson(coaching_request)
+    if cached is not None:
+        return cached
 
     confidence = coaching_request.get("confidence", 0)
     lesson_text = ""
@@ -104,11 +192,9 @@ async def generate_lesson(coaching_request: dict) -> dict:
             lesson_text = message.content[0].text  # type: ignore[index]
         except Exception:
             logger.exception("LLM lesson generation failed")
-            lesson_text = _build_fallback_lesson(coaching_request)
-            fallback_used = True
+            return build_fallback_result(coaching_request)
     else:
-        lesson_text = _build_fallback_lesson(coaching_request)
-        fallback_used = True
+        return build_fallback_result(coaching_request)
 
     result = {
         "lesson": lesson_text,
