@@ -7,7 +7,7 @@ import type { MoveGrade } from '../../engine/analysis'
 import type { MoveNode, MoveTree } from '../../chess/types'
 import { getPathToNode } from '../../hooks/useGameReview'
 
-const MOBILE_MOVE_LIST_QUERY = '(max-width: 860px)'
+const PHONE_MOVE_LIST_QUERY = '(max-width: 639px)'
 
 // ─── Grade badge ─────────────────────────────────────────────────────────────
 
@@ -217,7 +217,7 @@ export default function MoveList({
     if (!container) return
     const activeId = currentPath[currentPath.length - 1]
     if (!activeId) return
-    if (typeof window !== 'undefined' && window.matchMedia(MOBILE_MOVE_LIST_QUERY).matches) return
+    if (typeof window !== 'undefined' && window.matchMedia(PHONE_MOVE_LIST_QUERY).matches) return
 
     const el = container.querySelector<HTMLElement>(`[data-node-id="${activeId}"]`)
     if (!el || container.scrollHeight <= container.clientHeight + 1) return
