@@ -51,3 +51,4 @@ class CoachingResponse(BaseModel):
     principle_id: str | None = None
     confidence: float
     cached: bool
+    fallback_used: bool = False

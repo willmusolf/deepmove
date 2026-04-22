@@ -18,6 +18,7 @@ from app.schemas.admin import (
     AdminAuditLogResponse,
     AdminCounts,
     AdminOpsStatus,
+    AdminSpendSummary,
     AdminToggleRequest,
 )
 from app.services import coaching as coaching_service
@@ -58,6 +59,7 @@ def get_ops_status(
     return AdminOpsStatus(
         coaching_enabled=settings.coaching_enabled,
         lesson_cache_entries=coaching_service.lesson_cache_size(),
+        spend=AdminSpendSummary(**coaching_service.get_spend_summary()),
         counts=AdminCounts(
             users=db.query(User).count(),
             games=db.query(Game).count(),

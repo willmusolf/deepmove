@@ -1,7 +1,7 @@
 """user.py — SQLAlchemy User model"""
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Boolean, Index, Integer, Text, func, text
+from sqlalchemy import BigInteger, Boolean, Date, Index, Integer, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,6 +19,10 @@ class User(Base):
     is_premium: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     elo_estimate: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    daily_lesson_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    daily_lesson_reset: Mapped[date] = mapped_column(
+        Date, nullable=False, server_default=func.current_date()
+    )
 
     # Linked chess platform accounts
     chesscom_username: Mapped[str | None] = mapped_column(Text, nullable=True)
