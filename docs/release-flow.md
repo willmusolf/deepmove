@@ -21,7 +21,7 @@ DeepMove uses:
 6. For staging:
    - merge or push to `staging`
    - GitHub Actions should trigger the staging Render deploy hook, but only when backend files changed
-   - GitHub Actions should run a small staging smoke check against `staging-api.deepmove.io/health`
+   - GitHub Actions should run a staging smoke check against `staging-api.deepmove.io/health/deep`
 
 ### Why this is the right default
 
@@ -85,18 +85,24 @@ The Render service is rooted at `backend/`.
 That means frontend-only changes should not cause a backend deploy.
 This is expected and desirable.
 
+### Operational runbook
+
+For the exact staging-to-production checklist, rollback steps, and emergency coaching disable procedure, see [release-runbook.md](./release-runbook.md).
+
 ### What the smoke check does
 
-After merges to `main`, GitHub Actions waits briefly and then:
+After merges to `main`, GitHub Actions:
 
 - requests `https://www.deepmove.io`
-- requests `https://api.deepmove.io/health`
+- waits for `https://api.deepmove.io/health/deep`
+- if backend files changed, verifies `https://api.deepmove.io/version` matches the pushed commit SHA
 
-This is an uptime check, not a version-matching deployment check.
-It helps catch obvious production incidents quickly, but it does not prove that the newest backend revision is serving traffic.
+This is now a deployment check, not just a shallow uptime check.
+It helps catch both obvious production incidents and stale backend deploys.
 
-After pushes to `staging`, GitHub Actions waits briefly and then:
+After pushes to `staging`, GitHub Actions:
 
-- requests `https://staging-api.deepmove.io/health`
+- waits for `https://staging-api.deepmove.io/health/deep`
+- if backend files changed, verifies `https://staging-api.deepmove.io/version` matches the pushed commit SHA
 
-This is also an uptime check, not a version-matching deployment check.
+This gives the staging lane the same deployment verification behavior as production.
