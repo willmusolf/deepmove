@@ -1,8 +1,8 @@
 # DeepMove Development TODO
 
-**Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
+**Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ · Play vs Bot ✅ · Game import ✅ · Move grading ✅ · Deploy ✅ · Security hardening ✅ · CI/CD ✅
 
-**Last Session**: 2026-04-15 — Responsive layout polish (3 rounds): fixed coord labels (container-query cqw units), nav collapse (logo hidden, ☰ icon), sort dropdown moved to list header, board dvh formula 200→158px (+27px board height), player-info-box 52→44px, app-main padding 1rem→0.75rem, side-col flex-grow (absorbs horizontal slack), ad-col breakpoint 1380→1330px, removed collapsed-nav --board-vw-offset overrides (eliminated board jump on nav toggle), nav-sidebar transition: width 0.2s ease.
+**Last Session**: 2026-04-22 — TODO cleanup + launch planning. Previous: security hardening (PRs #8-#15), deploy automation, staging pipeline, CORS fixes, admin ops panel, coaching kill switch, input validation.
 
 ---
 
@@ -10,10 +10,11 @@
 
 Follow this order unless something urgent breaks:
 - [x] 1. Coaching pipeline overhaul ✅
-- [ ] 2. Stripe + rate limiting
-- [ ] 3. Deploy production stack to `deepmove.io`
+- [x] 2a. Rate limiting ✅ (slowapi, per-IP limits on all endpoints)
+- [ ] 2b. Stripe (not started)
+- [x] 3. Deploy production stack to `deepmove.io` ✅ (Vercel + Render + Neon, CI/CD, staging pipeline)
 - [x] 4. Responsive layout + resizing pass ✅ (core done — board sizing, nav, coord labels, ad threshold)
-- [ ] 5. Final polish, audits, and launch cleanup
+- [ ] 5. Final polish, audits, and launch cleanup (partially done — security hardening, admin ops, input validation landed)
 
 **Why this order:** coaching quality is the core product, payments + deployment unlock launch, and the responsive/layout pass should happen after the main feature set is stable so it only has to be solved once.
 
@@ -23,14 +24,14 @@ Follow this order unless something urgent breaks:
 
 These things need to happen before launch. Everything else can follow.
 
-### 1. Coaching Pipeline Overhaul (do first — see detailed section below)
-The current coaching pipeline is functional but lessons are generic, often wrong, or missing entirely. The classifier only has 5 of 19 rules, 3 of 6 extractors are stubs, and the LLM gets noisy/incorrect facts. This needs the analysis-first rewrite before validation is meaningful.
-- [ ] Complete the analysis-first pipeline rewrite (see section below)
-- [ ] Run 10 real moosetheman123 games through the new pipeline
+### 1. Coaching Pipeline Overhaul ✅ (analysis-first rewrite complete)
+Pipeline rewrite done: 6 categories, analysis-first facts, MoveCoachComment live, Haiku lessons loading.
+- [x] Complete the analysis-first pipeline rewrite ✅
+- [ ] Run 10 real moosetheman123 games through the pipeline — **quality QA still needed**
 - [ ] For each lesson: "Would a chess player actually learn something from this?"
 - [ ] Iterate until consistently yes
 
-### 2. Responsive Layout + Resizing (final pre-launch polish pass after core features are stable)
+### 2. Responsive Layout + Resizing (POST-LAUNCH — core desktop done, mobile/tablet polish remaining)
 - [ ] Define breakpoints before more UI polish: mobile `<640`, tablet `640-1023`, small desktop `1024-1279`, desktop `1280-1535`, wide `1536+`
 - [ ] Fix desktop resizing first: board, move list, coach panel, eval graph, and controls should stay usable at common laptop widths (especially 1024-1440)
 - [ ] Keep the board as the primary visual anchor on desktop: preserve a strong side-by-side layout on roomy screens, but never let side panels crush the board below a good-looking playable size
@@ -120,7 +121,10 @@ The current coaching pipeline is functional but lessons are generic, often wrong
 - [ ] 5. Port the same system into Play
 - [ ] 6. Run the responsive QA checklist and only then do visual polish
 
-### 3. Stripe + Rate Limiting
+### 3a. Rate Limiting ✅
+Per-IP rate limiting via slowapi on all sensitive endpoints: login 10/min, register 3/min, refresh 20/min, coaching 30/min.
+
+### 3b. Stripe (not started)
 - [ ] Create Stripe account + products (Premium Monthly $5, Premium Annual $40)
 - [ ] Stripe Checkout for subscription signup
 - [ ] Stripe Customer Portal for card management + cancellation
@@ -130,17 +134,42 @@ The current coaching pipeline is functional but lessons are generic, often wrong
 - [ ] Return 429 with upgrade prompt when limit hit
 - [ ] LLM model routing: Haiku for ≤1600, Sonnet for 1600+
 
-### 4. Deploy to deepmove.io
-- [ ] Frontend → Vercel, connect deepmove.io domain
-- [ ] Backend → Railway (or Render)
-- [ ] Production Neon project (separate from dev)
-- [ ] Configure env vars, SSL, CORS for production domains
-- [ ] Set ANTHROPIC_API_KEY in production env
-- [ ] Smoke test full flow end-to-end on production URL
-- [ ] Post-launch infra cleanup: verify Vercel auto-deploy triggers correctly on every `main` push
-- [ ] Post-launch infra cleanup: lock down GitHub `main` with branch protection / required PR review / required checks / no direct pushes except owner
+### 4. Deploy to deepmove.io ✅
+- [x] Frontend → Vercel (deepmove.io + www.deepmove.io) ✅
+- [x] Backend → Render (api.deepmove.io + staging-api.deepmove.io) ✅
+- [x] Production Neon project ✅
+- [x] Configure env vars, SSL, CORS for production domains ✅
+- [x] Set ANTHROPIC_API_KEY in production env ✅
+- [x] Smoke test full flow end-to-end on production URL ✅
+- [x] Vercel auto-deploy on main push ✅
+- [x] GitHub main branch protection ✅
 
 ---
+
+
+## 🛡️ INFRA HARDENING
+
+### Done ✅
+- [x] Security hardening — bcrypt auth, HttpOnly cookies, token versioning, refresh rotation, password validation
+- [x] Rate limiting — slowapi on all sensitive endpoints (login 10/min, register 3/min, refresh 20/min, coaching 30/min)
+- [x] CORS — explicit origins, no wildcards, staging preview support, CSP headers
+- [x] Admin ops panel — /admin/ops/status, coaching toggle, cache clear
+- [x] Coaching kill switch — COACHING_ENABLED flag, toggleable at runtime
+- [x] Input validation — PGN size limits, field constraints, Pydantic validators (on staging)
+- [x] Production deploy hooks — GitHub Actions triggers Render on backend changes to main
+- [x] Staging deploy hooks — GitHub Actions triggers staging Render on staging branch
+- [x] Production smoke checks — CI verifies /health after deploy
+- [x] Staging smoke checks — CI verifies staging /health after deploy
+- [x] CORS env clarity — preview origins handled correctly per environment
+- [x] Branch protection — required PR reviews + checks on main
+
+### Remaining
+- [ ] `/health/deep` + `/version` endpoint — deep health check (DB connectivity) + commit provenance
+- [ ] Structured logging + auth audit trail — JSON logs, request IDs, auth event logging, admin action logging
+- [ ] LLM spend controls — per-user daily quotas, global ceiling (blocks enabling coaching publicly)
+- [ ] Release runbook — extend `docs/release-flow.md` with staging verification, rollback, emergency procedures
+- [ ] UptimeRobot setup — uptime monitoring on `/health/deep`, doubles as Neon keep-alive
+- [ ] Rate limiter trust boundary — verify Render proxy behavior with X-Forwarded-For, fix IP extraction if needed
 
 ## 📣 MARKETING, LAUNCH & MONETIZATION
 
@@ -265,7 +294,7 @@ The current coaching pipeline is functional but lessons are generic, often wrong
 ---
 
 
-## 🔥 COACHING PIPELINE OVERHAUL — Analysis-First Rewrite
+## 🔥 COACHING PIPELINE OVERHAUL — Analysis-First Rewrite ✅ (COMPLETE)
 
 ### The Problem
 Current pipeline is **principle-first**: classify each critical moment into 1 of 19 principles → build facts around that principle → LLM writes about the principle. This fails because:
@@ -300,55 +329,55 @@ The LLM becomes a **copywriter**, not a chess analyst. All chess intelligence st
 
 ### Implementation Steps
 
-#### Step A: Implement Stub Extractors
-- [ ] **pieceActivity.ts** — currently returns all zeros. Implement:
+#### Step A: Implement Stub Extractors ✅
+- [x] **pieceActivity.ts** — currently returns all zeros. Implement:
   - `totalMobility`: sum of legal moves across all non-king pieces
   - `passivePieces`: pieces with 0-2 legal moves (square list)
   - `centralizedPieces`: count on central squares
   - `badBishop`: bishop where majority of own pawns sit on same color squares
   - Note: chess.js `moves()` only works for side to move — flip side-to-move in FEN for after-move positions
-- [ ] **kingSafety.ts** — currently returns hardcoded defaults. Implement:
+- [x] **kingSafety.ts** — currently returns hardcoded defaults. Implement:
   - `castled`: king position → 'kingside'/'queenside'/'none'
   - `pawnShieldIntegrity` (0-3): count pawns on 3 squares in front of king
   - `openFilesNearKing`: from existing `getOpenFiles()`, filter to king's file ± 1
   - `score` (0-100): +30 uncastled in non-endgame, +15 per missing shield pawn, +10 per open file near king
 
-#### Step B: Fix engineBest Population
-- [ ] In `enrichCriticalMoments()` (features.ts), extract engine's best move from `moveEvals[evalIdx - 1].eval.bestMove`
-- [ ] Convert UCI → SAN using `beforeChess.move({ from, to, promotion })`
-- [ ] Feed into `describeEngineMoveIdea()` and the enriched moment's `engineBest` array
-- [ ] Handle edge cases: evalIdx === 0, promotions, castling
+#### Step B: Fix engineBest Population ✅
+- [x] In `enrichCriticalMoments()` (features.ts), extract engine's best move from `moveEvals[evalIdx - 1].eval.bestMove`
+- [x] Convert UCI → SAN using `beforeChess.move({ from, to, promotion })`
+- [x] Feed into `describeEngineMoveIdea()` and the enriched moment's `engineBest` array
+- [x] Handle edge cases: evalIdx === 0, promotions, castling
 
-#### Step C: New Types + Analysis Facts Builder
-- [ ] Add `MistakeCategory` type and `AnalysisFacts` interface to types.ts
-- [ ] Write `buildAnalysisFacts()` in classifier.ts — builds the 5 facts + category label
-- [ ] Category classifier is after-the-fact (priority: hanging → ignored threat → missed tactic → didn't castle → didn't develop → aimless → unknown)
+#### Step C: New Types + Analysis Facts Builder ✅
+- [x] Add `MistakeCategory` type and `AnalysisFacts` interface to types.ts
+- [x] Write `buildAnalysisFacts()` in classifier.ts — builds the 5 facts + category label
+- [x] Category classifier is after-the-fact (priority: hanging → ignored threat → missed tactic → didn't castle → didn't develop → aimless → unknown)
 
-#### Step D: Update Pipeline Flow
-- [ ] Update `enrichCriticalMoments()` to call `buildAnalysisFacts()` and attach to moments
-- [ ] Update `useCoaching.ts` — **remove the classification gate** that filters out null-classification moments. Every enriched moment gets a lesson now.
-- [ ] Update request body: `category` instead of `principle_id`, `verified_facts` from `analysisFacts.factList`
-- [ ] Update `CoachingLesson` interface: `category`/`categoryName` instead of `principleId`/`principleName`
+#### Step D: Update Pipeline Flow ✅
+- [x] Update `enrichCriticalMoments()` to call `buildAnalysisFacts()` and attach to moments
+- [x] Update `useCoaching.ts` — **remove the classification gate** that filters out null-classification moments. Every enriched moment gets a lesson now.
+- [x] Update request body: `category` instead of `principle_id`, `verified_facts` from `analysisFacts.factList`
+- [x] Update `CoachingLesson` interface: `category`/`categoryName` instead of `principleId`/`principleName`
 
-#### Step E: Rewrite Prompts (Terse GM Voice)
-- [ ] **system.py** — 2-4 sentences, blunt, confident. Never "the engine suggests." First sentence: what went wrong. Last sentence: one rule for next game. Add few-shot examples of good lessons.
-- [ ] **lesson.py** — simplify `build_lesson_prompt()`: remove confidence branching, remove principle block, remove checklist injection. Keep elo tone hints + urgency tiers. Reframe engine idea as concept not specific move.
+#### Step E: Rewrite Prompts (Terse GM Voice) ✅
+- [x] **system.py** — 2-4 sentences, blunt, confident. Never "the engine suggests." First sentence: what went wrong. Last sentence: one rule for next game. Add few-shot examples of good lessons.
+- [x] **lesson.py** — simplify `build_lesson_prompt()`: remove confidence branching, remove principle block, remove checklist injection. Keep elo tone hints + urgency tiers. Reframe engine idea as concept not specific move.
 
-#### Step F: Backend Schema + Cache Updates
-- [ ] Add `category` and `mistake_type` to coaching request schema
-- [ ] Update cache key: `{category}:{game_phase}:{elo_band}:{position_hash}`
-- [ ] Keep `principle_id` column for backward compat (stores category string now)
+#### Step F: Backend Schema + Cache Updates ✅
+- [x] Add `category` and `mistake_type` to coaching request schema
+- [x] Update cache key: `{category}:{game_phase}:{elo_band}:{position_hash}`
+- [x] Keep `principle_id` column for backward compat (stores category string now)
 
-#### Step G: Frontend UI Updates
-- [ ] Update taxonomy.ts — add `CATEGORIES` map alongside existing `PRINCIPLES`
-- [ ] Update CoachPanel + LessonCard to use `categoryName` with colored badge
-- [ ] Category badge colors: red (hung_piece), orange (ignored_threat), yellow (missed_tactic), gray (aimless_move), etc.
+#### Step G: Frontend UI Updates ✅
+- [x] Update taxonomy.ts — add `CATEGORIES` map alongside existing `PRINCIPLES`
+- [x] Update CoachPanel + LessonCard to use `categoryName` with colored badge
+- [x] Category badge colors: red (hung_piece), orange (ignored_threat), yellow (missed_tactic), gray (aimless_move), etc.
 
-#### Step H: Validation
-- [ ] `npx tsc --noEmit` clean
+#### Step H: Validation (REMAINING — quality QA pass needed)
+- [x] `npx tsc --noEmit` clean
 - [ ] Test 5+ moosetheman123 games through full pipeline
 - [ ] Verify: lessons fire on all critical moments (not filtered out), 2-4 sentences, blunt, position-specific
-- [ ] Backend tests still pass
+- [x] Backend tests still pass
 
 ### Future Ideas (not this pass)
 - [ ] **Pattern tracking across games** — "You've ignored opponent threats in 4 of your last 10 games"
@@ -643,23 +672,31 @@ See above in "Next After Launch"
 -the best lines things that we can click on are forever loading until both the analysis is finished AND we move to another move on the transcript. otherwise its those placeholders for a while. sometimes its forver while the anlaysis is going im sure its sometehing with lcicking on it or moving while the analysis is going in parallel interfering idk make it better and more consistent and good for move 0 too right awya for both games that have alrady been analyzed and new games etc
 
 
+
+
 for ui, the chess board is sometimes smaller then the player box and theres a sliver of gray on the right side of the board only? how do we fix this? make player box slightly smaller or what?
+-also mobile ui! when we load a game should go to chessboard? not down to transcript? give me a seires of things to test for mobile ui so we can flesh it out and make it perfect.
+any time we make a move it scrolls down too
+also the load and analysis button tabs are solid but the coach is below load so it looks weird af they can all fit next to each other right? also someof the buttons overlap like badges button only gets removed below the board other buttons are on top
+same resizing issue with the gray sliver on the right side of the board
+but pretty amazing start
 
 
-ok great and anything to have codex do after? and clean up the docs and have codex review the work as well 
 
 
 
 
+
+re analyzing on alraeady analyzed games if we refresh? not storing graph and report etc properly?? something with cache on prod or something idk need to do a deep dive on this?
+
+we are analyzing up to depth 28 lets make sure it reflects that instead of saying / 25 have it go up!
+
+make practice page actually have the coming soon like the other ones? but dont get rid of progress fully on it i guess
 
 
 
 -ads. how do we get the ball rolling ot acutally have them and make sure we can get money and have them be visual on resize? sometimes if we shrink it horziontally the ad placeholder disapperas too like it can have more space normally on a lot of screen sizes? what will we do for ads on mobile?
 
-
-
-
--vercel was hacked recently we should rotate keys before anything crucial?
 
 
 -deploy app before coaching? coming soon? or what just launch as chessigma competitor for now?
