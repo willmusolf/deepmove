@@ -82,11 +82,14 @@ async def generate_lesson(coaching_request: dict) -> dict:
 
     confidence = coaching_request.get("confidence", 0)
     lesson_text = ""
+    fallback_used = False
+    model_used = "fallback"
 
     if settings.anthropic_api_key:
         client = _get_client()
         prompt = build_lesson_prompt(coaching_request)
         model = settings.lesson_model
+        model_used = model
 
         try:
             message = await asyncio.wait_for(
@@ -102,8 +105,10 @@ async def generate_lesson(coaching_request: dict) -> dict:
         except Exception:
             logger.exception("LLM lesson generation failed")
             lesson_text = _build_fallback_lesson(coaching_request)
+            fallback_used = True
     else:
         lesson_text = _build_fallback_lesson(coaching_request)
+        fallback_used = True
 
     result = {
         "lesson": lesson_text,
@@ -111,6 +116,8 @@ async def generate_lesson(coaching_request: dict) -> dict:
         "principle_id": coaching_request.get("principle_id") or coaching_request.get("category"),
         "confidence": confidence,
         "cached": False,
+        "fallback_used": fallback_used,
+        "model": model_used,
     }
 
     _lesson_cache[cache_key] = result

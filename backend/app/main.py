@@ -2,6 +2,8 @@
 import asyncio
 import logging
 import platform
+import time
+import uuid
 from contextlib import asynccontextmanager
 
 import sqlalchemy as sa
@@ -13,10 +15,12 @@ from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.database import engine
+from app.logging_utils import configure_logging, log_event, reset_request_id, set_request_id
 from app.rate_limiting import limiter
 from app.routes import admin, auth, coaching, games, users
 from app.services import coaching as coaching_service
 
+configure_logging(settings.environment)
 logger = logging.getLogger(__name__)
 
 
@@ -31,17 +35,41 @@ async def _wake_database() -> None:
         return
 
     for attempt in range(1, 6):
+        started = time.perf_counter()
         try:
             with engine.connect() as conn:
                 conn.execute(sa.text("SELECT 1"))
-            logger.info("DB ready (attempt %d)", attempt)
+            log_event(
+                logger,
+                logging.INFO,
+                "system.db_wake",
+                attempt=attempt,
+                success=True,
+                latency_ms=round((time.perf_counter() - started) * 1000, 2),
+            )
             return
         except Exception as exc:
             wait = attempt * 2
-            logger.warning("DB not ready (attempt %d): %s — retrying in %ds", attempt, exc, wait)
+            log_event(
+                logger,
+                logging.WARNING,
+                "system.db_wake",
+                attempt=attempt,
+                success=False,
+                latency_ms=round((time.perf_counter() - started) * 1000, 2),
+                retry_in_seconds=wait,
+                error_type=type(exc).__name__,
+            )
             await asyncio.sleep(wait)
 
-    logger.error("DB still unreachable after 5 attempts — requests will 503 until it wakes")
+    log_event(
+        logger,
+        logging.ERROR,
+        "system.db_wake",
+        attempt=5,
+        success=False,
+        error_type="database_unreachable_after_retries",
+    )
 
 
 def _check_database_sync() -> bool:
@@ -87,6 +115,19 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+    token = set_request_id(request_id)
+    request.state.request_id = request_id
+    try:
+        response = await call_next(request)
+    finally:
+        reset_request_id(token)
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 # Routers
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
