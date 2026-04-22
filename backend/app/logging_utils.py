@@ -9,6 +9,8 @@ from typing import Any
 from fastapi import Request
 from pythonjsonlogger.jsonlogger import JsonFormatter
 
+from app.rate_limiting import get_trusted_client_ip
+
 _request_id_var: ContextVar[str] = ContextVar("request_id", default="-")
 _BASE_RECORD_KEYS = set(logging.makeLogRecord({}).__dict__.keys())
 
@@ -28,15 +30,7 @@ def reset_request_id(token: Token[str]) -> None:
 def client_ip_from_request(request: Request | None) -> str:
     if request is None:
         return "unknown"
-
-    forwarded_for = request.headers.get("x-forwarded-for", "")
-    if forwarded_for:
-        return forwarded_for.split(",", 1)[0].strip() or "unknown"
-
-    if request.client and request.client.host:
-        return request.client.host
-
-    return "unknown"
+    return get_trusted_client_ip(request)
 
 
 class RequestContextFilter(logging.Filter):
