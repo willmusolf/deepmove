@@ -1256,7 +1256,7 @@ cg-board {
 @media (pointer: coarse) {
   .cg-wrap piece.dragging {
     scale: 1.28;
-    translate: 14% -30%;
+    translate: -4% -40%;
   }
 }
 
