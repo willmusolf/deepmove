@@ -237,6 +237,7 @@ export default function ChessBoard({
   const [pendingPromotion, setPendingPromotion] = useState<{ from: Key; to: Key; color: 'white' | 'black'; orientation: 'white' | 'black' } | null>(null)
   const [boardReady, setBoardReady] = useState(false)
   const [dragPreviewSquare, setDragPreviewSquare] = useState<Key | null>(null)
+  const [dragOriginSquare, setDragOriginSquare] = useState<Key | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
   const orientationRef = useRef(orientation)
@@ -455,6 +456,29 @@ export default function ChessBoard({
   // set() can never accidentally clear movable.dests during an arrows update.
   // boardReady is included so that if shapes arrive before the board has laid out
   // (width === 0), this effect re-runs once the ResizeObserver reports a real size.
+  const occupiedSquares = useMemo(() => {
+    const occupied = new Set<Key>()
+    try {
+      const chess = new Chess(fen)
+      const board = chess.board()
+      for (let rank = 0; rank < 8; rank += 1) {
+        for (let file = 0; file < 8; file += 1) {
+          if (board[rank][file]) {
+            occupied.add(fileRankToKey(file, rank))
+          }
+        }
+      }
+    } catch {
+      // Ignore malformed FEN; drag overlays simply won't render occupied-capture rings.
+    }
+    return occupied
+  }, [fen])
+
+  const dragDestinationSquares = useMemo(() => {
+    if (!isDragging || !dragOriginSquare) return []
+    return legalDests.get(dragOriginSquare) ?? []
+  }, [dragOriginSquare, isDragging, legalDests])
+
   useEffect(() => {
     if (!apiRef.current) return
     if (!containerRef.current || containerRef.current.getBoundingClientRect().width === 0) return
@@ -471,24 +495,40 @@ export default function ChessBoard({
       }
     }
 
+    const dragShapes: DrawShape[] = []
+    if (isDragging && dragOriginSquare) {
+      const dotSvg = '<circle cx="50" cy="50" r="15" fill="rgba(168,174,181,0.84)"/>'
+      const ringSvg = '<circle cx="50" cy="50" r="36" fill="none" stroke="rgba(168,174,181,0.9)" stroke-width="9"/>'
+      for (const square of dragDestinationSquares) {
+        dragShapes.push({
+          orig: square,
+          customSvg: {
+            html: occupiedSquares.has(square) ? ringSvg : dotSvg,
+          },
+        })
+      }
+    }
+
     apiRef.current.set({
-      drawable: { autoShapes: [...premoveShapes, ...shapes] },
+      drawable: { autoShapes: [...premoveShapes, ...dragShapes, ...shapes] },
     })
-  }, [shapes, boardReady, premoveQueue])
+  }, [shapes, boardReady, premoveQueue, isDragging, dragOriginSquare, dragDestinationSquares, occupiedSquares])
 
   useEffect(() => {
-    const syncDragPreview = (event: PointerEvent | MouseEvent | TouchEvent) => {
+    const syncDragPreview = (event: PointerEvent) => {
       const api = apiRef.current
       if (!api) return
 
       const currentDrag = api.state.draggable.current
       if (!currentDrag?.started) {
         setIsDragging(false)
+        setDragOriginSquare(null)
         setDragPreviewSquare(null)
         return
       }
 
       setIsDragging(true)
+      setDragOriginSquare(prev => (prev === currentDrag.orig ? prev : currentDrag.orig))
 
       const position = getEventPosition(event)
       if (!position) {
@@ -506,57 +546,52 @@ export default function ChessBoard({
 
     const clearDragPreview = () => {
       setIsDragging(false)
+      setDragOriginSquare(null)
       setDragPreviewSquare(null)
     }
 
     window.addEventListener('pointermove', syncDragPreview)
-    window.addEventListener('mousemove', syncDragPreview)
-    window.addEventListener('touchmove', syncDragPreview, { passive: true })
     window.addEventListener('pointerup', clearDragPreview)
-    window.addEventListener('mouseup', clearDragPreview)
-    window.addEventListener('touchend', clearDragPreview)
-    window.addEventListener('touchcancel', clearDragPreview)
+    window.addEventListener('pointercancel', clearDragPreview)
 
     return () => {
       window.removeEventListener('pointermove', syncDragPreview)
-      window.removeEventListener('mousemove', syncDragPreview)
-      window.removeEventListener('touchmove', syncDragPreview)
       window.removeEventListener('pointerup', clearDragPreview)
-      window.removeEventListener('mouseup', clearDragPreview)
-      window.removeEventListener('touchend', clearDragPreview)
-      window.removeEventListener('touchcancel', clearDragPreview)
+      window.removeEventListener('pointercancel', clearDragPreview)
     }
   }, [])
 
   useEffect(() => {
-    const el = wrapperRef.current
-    if (!el) return
+    const boardEl = containerRef.current?.querySelector('cg-board') as HTMLElement | null
+    if (!boardEl) return
 
     const syncPieceHover = (event: MouseEvent) => {
       const api = apiRef.current
       if (!api) return
       const key = api.getKeyAtDomPos([event.clientX, event.clientY])
-      el.style.cursor = key && api.state.pieces.has(key) ? 'pointer' : 'default'
+      boardEl.style.cursor = key && api.state.pieces.has(key) ? 'pointer' : 'default'
     }
 
     const clearPieceHover = () => {
-      el.style.cursor = 'default'
+      boardEl.style.cursor = 'default'
     }
 
-    el.addEventListener('mousemove', syncPieceHover)
-    el.addEventListener('mouseleave', clearPieceHover)
+    boardEl.addEventListener('mousemove', syncPieceHover)
+    boardEl.addEventListener('mouseleave', clearPieceHover)
 
     return () => {
-      el.removeEventListener('mousemove', syncPieceHover)
-      el.removeEventListener('mouseleave', clearPieceHover)
+      boardEl.removeEventListener('mousemove', syncPieceHover)
+      boardEl.removeEventListener('mouseleave', clearPieceHover)
     }
   }, [])
 
   useEffect(() => {
     setIsDragging(false)
+    setDragOriginSquare(null)
     setDragPreviewSquare(null)
-    if (wrapperRef.current) {
-      wrapperRef.current.style.cursor = 'default'
+    const boardEl = containerRef.current?.querySelector('cg-board') as HTMLElement | null
+    if (boardEl) {
+      boardEl.style.cursor = 'default'
     }
   }, [fen, orientation, pathKey])
 
@@ -590,6 +625,13 @@ export default function ChessBoard({
       aria-label="Chess board"
     >
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {dragDestinationSquares.map(square => (
+        <div
+          key={`drag-dest-${square}`}
+          className={`board-drag-move-dest${occupiedSquares.has(square) ? ' board-drag-move-dest--occupied' : ''}`}
+          style={getSquarePosition(square, orientation)}
+        />
+      ))}
       {dragPreviewSquare && (
         <>
           <div
