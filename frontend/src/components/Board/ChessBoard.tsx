@@ -237,6 +237,7 @@ export default function ChessBoard({
   const [pendingPromotion, setPendingPromotion] = useState<{ from: Key; to: Key; color: 'white' | 'black'; orientation: 'white' | 'black' } | null>(null)
   const [boardReady, setBoardReady] = useState(false)
   const [dragPreviewSquare, setDragPreviewSquare] = useState<Key | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
 
   const orientationRef = useRef(orientation)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -482,9 +483,12 @@ export default function ChessBoard({
 
       const currentDrag = api.state.draggable.current
       if (!currentDrag?.started) {
+        setIsDragging(false)
         setDragPreviewSquare(null)
         return
       }
+
+      setIsDragging(true)
 
       const position = getEventPosition(event)
       if (!position) {
@@ -493,15 +497,17 @@ export default function ChessBoard({
       }
 
       const hovered = api.getKeyAtDomPos(position)
-      const legalTargets = api.state.movable.dests?.get(currentDrag.orig as Key) ?? []
-      const nextSquare = hovered && hovered !== currentDrag.orig && legalTargets.includes(hovered)
+      const nextSquare = hovered && hovered !== currentDrag.orig
         ? hovered
         : null
 
       setDragPreviewSquare(prev => (prev === nextSquare ? prev : nextSquare))
     }
 
-    const clearDragPreview = () => setDragPreviewSquare(null)
+    const clearDragPreview = () => {
+      setIsDragging(false)
+      setDragPreviewSquare(null)
+    }
 
     window.addEventListener('pointermove', syncDragPreview)
     window.addEventListener('mousemove', syncDragPreview)
@@ -523,6 +529,7 @@ export default function ChessBoard({
   }, [])
 
   useEffect(() => {
+    setIsDragging(false)
     setDragPreviewSquare(null)
   }, [fen, orientation, pathKey])
 
@@ -549,7 +556,12 @@ export default function ChessBoard({
   }, [pendingPromotion])
 
   return (
-    <div ref={wrapperRef} className="chess-board-container" role="region" aria-label="Chess board">
+    <div
+      ref={wrapperRef}
+      className={`chess-board-container${isDragging ? ' board-dragging' : ''}`}
+      role="region"
+      aria-label="Chess board"
+    >
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {dragPreviewSquare && (
         <div
