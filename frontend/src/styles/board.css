@@ -29,32 +29,36 @@ cg-board square.check {
 cg-board square.selected {
   background: radial-gradient(
     circle at center,
-    rgba(255, 255, 255, 0.16) 0 32%,
-    rgba(124, 136, 149, 0.28) 33% 52%,
-    rgba(71, 164, 91, 0.82) 53% 62%,
-    rgba(0, 0, 0, 0) 63%
+    rgba(255, 230, 120, 0.36) 0 56%,
+    rgba(232, 195, 62, 0.9) 57% 70%,
+    rgba(0, 0, 0, 0) 71%
   ) !important;
   box-shadow:
-    0 0 0 7px rgba(132, 140, 149, 0.2),
-    inset 0 0 0 2px rgba(255, 255, 255, 0.3);
+    0 0 0 5px rgba(230, 198, 79, 0.18),
+    inset 0 0 0 2px rgba(255, 246, 197, 0.3);
 }
 
 cg-board square.move-dest {
-  background: radial-gradient(rgba(20, 85, 30, 0.38) 24%, transparent 25%) !important;
+  background: radial-gradient(rgba(168, 174, 181, 0.78) 19%, transparent 20%) !important;
 }
 
 cg-board square.move-dest.oc {
-  background: radial-gradient(transparent 0 78%, rgba(20, 85, 30, 0.38) 79% 100%) !important;
+  background: radial-gradient(transparent 0 74%, rgba(168, 174, 181, 0.84) 75% 100%) !important;
 }
 
-.cg-wrap piece.dragging,
 .cg-wrap piece.anim {
-  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35)) drop-shadow(0 0 10px rgba(71, 164, 91, 0.32));
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.22));
 }
 
 .cg-wrap piece.dragging {
-  transform: scale(1.08);
+  transform: scale(1.14);
   z-index: 110;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.4));
+}
+
+.cg-wrap piece.ghost {
+  opacity: 0.16;
+  filter: grayscale(1) brightness(1.5);
 }
 
 /* Board container sizing */
@@ -63,6 +67,21 @@ cg-board square.move-dest.oc {
   height: 100%;
   touch-action: none;
   overflow: hidden;  /* clips files descenders that extend 4px below the board edge */
+}
+
+.board-drag-target {
+  position: absolute;
+  z-index: 6;
+  width: 12.5%;
+  height: 12.5%;
+  border-radius: 50%;
+  transform: scale(1.16);
+  transform-origin: center;
+  background: rgba(173, 179, 186, 0.12);
+  box-shadow:
+    inset 0 0 0 4px rgba(201, 206, 212, 0.92),
+    0 0 0 7px rgba(123, 130, 139, 0.24);
+  pointer-events: none;
 }
 
 /* Coordinate label font size */
@@ -365,15 +384,6 @@ cg-board {
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-}
-
-.control-icon {
-  font-size: 0.95em;
-  line-height: 1;
-}
-
-.control-label {
-  line-height: 1;
 }
 
 .board-control-btn--active,
@@ -910,6 +920,7 @@ cg-board {
   border: 1px solid #505050;
   background: #4d4d4d;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .player-info-box {
@@ -1094,23 +1105,28 @@ cg-board {
 }
 
 @media (max-width: 480px) {
+  .app-main {
+    padding: 0.5rem 0.4rem;
+    gap: 0.5rem;
+  }
+
   .board-col {
-    max-width: calc(100vw - 0.75rem);
+    max-width: 100%;
   }
 
   .board-with-eval {
-    gap: 4px;
+    gap: 3px;
   }
 
   .eval-bar-container {
-    width: 10px;
+    width: 8px;
   }
 
   .board-controls {
     justify-content: flex-start;
     gap: 0.35rem;
-    margin-left: 14px;  /* align with board: eval(10)+gap(4) */
-    width: calc(100% - 14px);
+    margin-left: 11px;  /* align with board: eval(8)+gap(3) */
+    width: calc(100% - 11px);
   }
 
   .board-controls__nav,
@@ -1129,8 +1145,8 @@ cg-board {
   }
 
   .board-and-players {
-    width: calc(100% - 6px);
-    margin: 0 auto;
+    width: 100%;
+    margin: 0;
   }
 
   .board-controls .btn,
@@ -1141,10 +1157,6 @@ cg-board {
 
   .board-control-btn {
     min-height: 30px;
-  }
-
-  .board-controls__actions .control-label {
-    display: none;
   }
 
   .nav-btn {
@@ -1188,18 +1200,25 @@ cg-board {
   .board-grade-badge,
   .board-grade-badge-pending,
   .board-result-badge {
-    width: clamp(18px, 11%, 24px);
+    width: clamp(15px, 9.5%, 20px);
   }
 
   .board-grade-badge,
   .board-result-badge {
-    font-size: clamp(0.42rem, 1.5cqw, 0.62rem);
+    font-size: clamp(0.36rem, 1.15cqw, 0.54rem);
   }
 
   .board-grade-badge[data-grade="brilliant"],
   .board-grade-badge[data-grade="blunder"],
   .board-grade-badge[data-grade="inaccuracy"] {
-    font-size: clamp(0.38rem, 1.25cqw, 0.52rem);
+    font-size: clamp(0.34rem, 1cqw, 0.48rem);
+  }
+
+  .board-drag-target {
+    transform: scale(1.2);
+    box-shadow:
+      inset 0 0 0 3px rgba(201, 206, 212, 0.94),
+      0 0 0 6px rgba(123, 130, 139, 0.26);
   }
 }
 
@@ -1401,17 +1420,17 @@ cg-board {
 .board-grade-badge {
   position: absolute;
   z-index: 10;
-  width: clamp(18px, 12%, 28px);
+  width: clamp(16px, 10.5%, 24px);
   aspect-ratio: 1;
   border-radius: 50%;
-  transform: translate(-75%, -25%);
+  transform: translate(-58%, -14%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   font-weight: 900;
   font-family: system-ui, -apple-system, sans-serif;
-  font-size: clamp(0.55rem, 2.2cqw, 0.85rem);
+  font-size: clamp(0.48rem, 1.8cqw, 0.74rem);
   line-height: 1;
   pointer-events: none;
   letter-spacing: -0.03em;
@@ -1422,17 +1441,17 @@ cg-board {
 .board-grade-badge[data-grade="brilliant"],
 .board-grade-badge[data-grade="blunder"],
 .board-grade-badge[data-grade="inaccuracy"] {
-  font-size: clamp(0.45rem, 1.7cqw, 0.65rem);
+  font-size: clamp(0.4rem, 1.45cqw, 0.56rem);
 }
 
 /* Pending spinner for board badge while branch eval is in flight */
 .board-grade-badge-pending {
   position: absolute;
   z-index: 10;
-  width: clamp(18px, 12%, 28px);
+  width: clamp(16px, 10.5%, 24px);
   aspect-ratio: 1;
   border-radius: 50%;
-  transform: translate(-75%, -25%);
+  transform: translate(-58%, -14%);
   background: rgba(30, 30, 30, 0.75);
   box-shadow: inset 0 0 0 2px rgba(255,255,255,0.15), 0 2px 8px rgba(0,0,0,0.55);
   pointer-events: none;
@@ -1451,17 +1470,17 @@ cg-board {
 .board-result-badge {
   position: absolute;
   z-index: 11;
-  width: clamp(18px, 12%, 28px);
+  width: clamp(16px, 10.5%, 24px);
   aspect-ratio: 1;
   border-radius: 50%;
-  transform: translate(-75%, -25%);
+  transform: translate(-58%, -14%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   font-weight: 900;
   font-family: system-ui, -apple-system, sans-serif;
-  font-size: clamp(0.55rem, 2.2cqw, 0.85rem);
+  font-size: clamp(0.48rem, 1.8cqw, 0.74rem);
   line-height: 1;
   pointer-events: none;
   box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35), 0 2px 8px rgba(0,0,0,0.55);
@@ -1469,7 +1488,7 @@ cg-board {
 .board-result-badge--checkmate { background: #111; }
 .board-result-badge--draw {
   background: #6b7280;
-  font-size: clamp(0.45rem, 1.6cqw, 0.65rem);
+  font-size: clamp(0.4rem, 1.35cqw, 0.56rem);
 }
 
 /* Move list adjustments for badges */

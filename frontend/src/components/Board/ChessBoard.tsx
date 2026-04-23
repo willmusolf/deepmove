@@ -56,6 +56,26 @@ function fileRankToKey(f: number, r: number): Key {
   return (String.fromCharCode(97 + f) + (8 - r)) as Key
 }
 
+function getSquarePosition(square: Key, orientation: 'white' | 'black'): React.CSSProperties {
+  const file = square.charCodeAt(0) - 97
+  const rank = parseInt(square[1], 10) - 1
+  const leftCell = orientation === 'white' ? file : (7 - file)
+  const topCell = orientation === 'white' ? (7 - rank) : rank
+
+  return {
+    left: `${leftCell * 12.5}%`,
+    top: `${topCell * 12.5}%`,
+  }
+}
+
+function getEventPosition(event: PointerEvent | MouseEvent | TouchEvent): [number, number] | null {
+  if ('touches' in event) {
+    const touch = event.touches[0] ?? event.changedTouches[0]
+    return touch ? [touch.clientX, touch.clientY] : null
+  }
+  return [event.clientX, event.clientY]
+}
+
 /** Apply a premove without legality checks (pinned pieces, check, etc.).
  *  Uses chess.js put/remove rather than move(), so legality is not validated.
  *  The premove may become legal when it fires; if still illegal, drainPremoveQueue
@@ -216,6 +236,7 @@ export default function ChessBoard({
 
   const [pendingPromotion, setPendingPromotion] = useState<{ from: Key; to: Key; color: 'white' | 'black'; orientation: 'white' | 'black' } | null>(null)
   const [boardReady, setBoardReady] = useState(false)
+  const [dragPreviewSquare, setDragPreviewSquare] = useState<Key | null>(null)
 
   const orientationRef = useRef(orientation)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -454,6 +475,57 @@ export default function ChessBoard({
     })
   }, [shapes, boardReady, premoveQueue])
 
+  useEffect(() => {
+    const syncDragPreview = (event: PointerEvent | MouseEvent | TouchEvent) => {
+      const api = apiRef.current
+      if (!api) return
+
+      const currentDrag = api.state.draggable.current
+      if (!currentDrag?.started) {
+        setDragPreviewSquare(null)
+        return
+      }
+
+      const position = getEventPosition(event)
+      if (!position) {
+        setDragPreviewSquare(null)
+        return
+      }
+
+      const hovered = api.getKeyAtDomPos(position)
+      const legalTargets = api.state.movable.dests?.get(currentDrag.orig as Key) ?? []
+      const nextSquare = hovered && hovered !== currentDrag.orig && legalTargets.includes(hovered)
+        ? hovered
+        : null
+
+      setDragPreviewSquare(prev => (prev === nextSquare ? prev : nextSquare))
+    }
+
+    const clearDragPreview = () => setDragPreviewSquare(null)
+
+    window.addEventListener('pointermove', syncDragPreview)
+    window.addEventListener('mousemove', syncDragPreview)
+    window.addEventListener('touchmove', syncDragPreview, { passive: true })
+    window.addEventListener('pointerup', clearDragPreview)
+    window.addEventListener('mouseup', clearDragPreview)
+    window.addEventListener('touchend', clearDragPreview)
+    window.addEventListener('touchcancel', clearDragPreview)
+
+    return () => {
+      window.removeEventListener('pointermove', syncDragPreview)
+      window.removeEventListener('mousemove', syncDragPreview)
+      window.removeEventListener('touchmove', syncDragPreview)
+      window.removeEventListener('pointerup', clearDragPreview)
+      window.removeEventListener('mouseup', clearDragPreview)
+      window.removeEventListener('touchend', clearDragPreview)
+      window.removeEventListener('touchcancel', clearDragPreview)
+    }
+  }, [])
+
+  useEffect(() => {
+    setDragPreviewSquare(null)
+  }, [fen, orientation, pathKey])
+
   const handlePromotion = useCallback((piece: string) => {
     if (!pendingPromotion) return
     const { from, to } = pendingPromotion
@@ -479,6 +551,12 @@ export default function ChessBoard({
   return (
     <div ref={wrapperRef} className="chess-board-container" role="region" aria-label="Chess board">
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {dragPreviewSquare && (
+        <div
+          className="board-drag-target"
+          style={getSquarePosition(dragPreviewSquare, orientation)}
+        />
+      )}
       {pendingPromotion && (() => {
         const { to, color, orientation: ori } = pendingPromotion
         const fileIndex = to.charCodeAt(0) - 97

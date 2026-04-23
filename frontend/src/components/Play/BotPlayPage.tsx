@@ -584,8 +584,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
               title={soundEnabled ? 'Mute sounds' : 'Unmute sounds'}
               aria-pressed={soundEnabled}
             >
-              <span className="control-icon" aria-hidden="true">{soundEnabled ? '🔊' : '🔇'}</span>
-              <span className="control-label">Sound</span>
+              Sound
             </button>
 
             <button
