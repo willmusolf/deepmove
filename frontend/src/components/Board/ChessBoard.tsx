@@ -363,7 +363,8 @@ export default function ChessBoard({
       draggable: {
         enabled: interactive || !!userPerspective,
         showGhost: true,
-        distance: 3,
+        distance: 0,
+        autoDistance: true,
       },
       premovable: {
         // Disabled — we handle premoves via virtual FEN in useBotPlay.

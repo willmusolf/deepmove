@@ -1205,7 +1205,8 @@ export default function App() {
                       title={soundEnabled ? 'Mute sounds' : 'Unmute sounds'}
                       aria-pressed={soundEnabled}
                     >
-                      Sound
+                      <span className="control-icon" aria-hidden="true">{soundEnabled ? '🔊' : '🔇'}</span>
+                      <span className="control-label">Sound</span>
                     </button>
 
                     <button
