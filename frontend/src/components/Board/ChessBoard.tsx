@@ -76,6 +76,10 @@ function getEventPosition(event: PointerEvent | MouseEvent | TouchEvent): [numbe
   return [event.clientX, event.clientY]
 }
 
+function isPieceTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && !!target.closest('piece')
+}
+
 /** Apply a premove without legality checks (pinned pieces, check, etc.).
  *  Uses chess.js put/remove rather than move(), so legality is not validated.
  *  The premove may become legal when it fires; if still illegal, drainPremoveQueue
@@ -238,6 +242,7 @@ export default function ChessBoard({
   const [boardReady, setBoardReady] = useState(false)
   const [dragPreviewSquare, setDragPreviewSquare] = useState<Key | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isTouchDragPrimed, setIsTouchDragPrimed] = useState(false)
 
   const orientationRef = useRef(orientation)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -506,6 +511,7 @@ export default function ChessBoard({
 
     const clearDragPreview = () => {
       setIsDragging(false)
+      setIsTouchDragPrimed(false)
       setDragPreviewSquare(null)
     }
 
@@ -529,7 +535,47 @@ export default function ChessBoard({
   }, [])
 
   useEffect(() => {
+    const el = wrapperRef.current
+    if (!el) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.pointerType === 'touch' && isPieceTarget(event.target)) {
+        setIsTouchDragPrimed(true)
+      }
+    }
+
+    const handleTouchStart = (event: TouchEvent) => {
+      if (isPieceTarget(event.target)) {
+        setIsTouchDragPrimed(true)
+      }
+    }
+
+    const handleTouchRelease = () => {
+      requestAnimationFrame(() => {
+        if (!apiRef.current?.state.draggable.current?.started) {
+          setIsTouchDragPrimed(false)
+        }
+      })
+    }
+
+    el.addEventListener('pointerdown', handlePointerDown, true)
+    el.addEventListener('touchstart', handleTouchStart, { capture: true, passive: true })
+    window.addEventListener('pointerup', handleTouchRelease, true)
+    window.addEventListener('touchend', handleTouchRelease, true)
+    window.addEventListener('touchcancel', handleTouchRelease, true)
+
+    return () => {
+      el.removeEventListener('pointerdown', handlePointerDown, true)
+      el.removeEventListener('touchstart', handleTouchStart, true)
+      window.removeEventListener('pointerup', handleTouchRelease, true)
+      window.removeEventListener('touchend', handleTouchRelease, true)
+      window.removeEventListener('touchcancel', handleTouchRelease, true)
+    }
+  }, [])
+
+  useEffect(() => {
     setIsDragging(false)
+    setIsTouchDragPrimed(false)
     setDragPreviewSquare(null)
   }, [fen, orientation, pathKey])
 
@@ -558,7 +604,7 @@ export default function ChessBoard({
   return (
     <div
       ref={wrapperRef}
-      className={`chess-board-container${isDragging ? ' board-dragging' : ''}`}
+      className={`chess-board-container${isDragging ? ' board-dragging' : ''}${isTouchDragPrimed ? ' board-drag-primed' : ''}`}
       role="region"
       aria-label="Chess board"
     >
