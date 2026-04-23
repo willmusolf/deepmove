@@ -238,7 +238,6 @@ export default function ChessBoard({
   const [boardReady, setBoardReady] = useState(false)
   const [dragPreviewSquare, setDragPreviewSquare] = useState<Key | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [isHoveringPiece, setIsHoveringPiece] = useState(false)
 
   const orientationRef = useRef(orientation)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -537,11 +536,12 @@ export default function ChessBoard({
       const api = apiRef.current
       if (!api) return
       const key = api.getKeyAtDomPos([event.clientX, event.clientY])
-      const nextHoveringPiece = !!(key && api.state.pieces.has(key))
-      setIsHoveringPiece(prev => (prev === nextHoveringPiece ? prev : nextHoveringPiece))
+      el.style.cursor = key && api.state.pieces.has(key) ? 'pointer' : 'default'
     }
 
-    const clearPieceHover = () => setIsHoveringPiece(false)
+    const clearPieceHover = () => {
+      el.style.cursor = 'default'
+    }
 
     el.addEventListener('mousemove', syncPieceHover)
     el.addEventListener('mouseleave', clearPieceHover)
@@ -554,8 +554,10 @@ export default function ChessBoard({
 
   useEffect(() => {
     setIsDragging(false)
-    setIsHoveringPiece(false)
     setDragPreviewSquare(null)
+    if (wrapperRef.current) {
+      wrapperRef.current.style.cursor = 'default'
+    }
   }, [fen, orientation, pathKey])
 
   const handlePromotion = useCallback((piece: string) => {
@@ -583,7 +585,7 @@ export default function ChessBoard({
   return (
     <div
       ref={wrapperRef}
-      className={`chess-board-container${isDragging ? ' board-dragging' : ''}${isHoveringPiece ? ' board-hover-piece' : ''}`}
+      className={`chess-board-container${isDragging ? ' board-dragging' : ''}`}
       role="region"
       aria-label="Chess board"
     >

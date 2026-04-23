@@ -75,6 +75,7 @@ cg-board square.move-dest.oc {
     inset 0 0 0 4px rgba(188, 194, 201, 0.98),
     0 2px 8px rgba(58, 64, 72, 0.18);
   pointer-events: none;
+  display: none;
 }
 
 .board-hover-outline {
@@ -100,10 +101,6 @@ cg-board square.move-dest.oc {
 
 .chess-board-container {
   cursor: default;
-}
-
-.chess-board-container.board-hover-piece {
-  cursor: pointer;
 }
 
 /* Coordinate label font size */
@@ -1254,6 +1251,15 @@ cg-board {
 }
 
 @media (pointer: coarse) {
+  .board-drag-target {
+    display: block;
+    transform: scale(1.34);
+    background: rgba(101, 108, 117, 0.26);
+    box-shadow:
+      inset 0 0 0 4px rgba(182, 188, 196, 0.98),
+      0 3px 10px rgba(50, 56, 64, 0.24);
+  }
+
   .cg-wrap piece.dragging {
     scale: 1.28;
     translate: -4% -40%;
@@ -1458,7 +1464,7 @@ cg-board {
 .board-grade-badge {
   position: absolute;
   z-index: 10;
-  width: clamp(16px, 10.5%, 24px);
+  width: clamp(18px, 11.75%, 27px);
   aspect-ratio: 1;
   border-radius: 50%;
   transform: translate(-58%, -14%);
@@ -1468,7 +1474,7 @@ cg-board {
   color: #fff;
   font-weight: 900;
   font-family: system-ui, -apple-system, sans-serif;
-  font-size: clamp(0.48rem, 1.8cqw, 0.74rem);
+  font-size: clamp(0.52rem, 1.95cqw, 0.8rem);
   line-height: 1;
   pointer-events: none;
   letter-spacing: -0.03em;
@@ -1479,14 +1485,14 @@ cg-board {
 .board-grade-badge[data-grade="brilliant"],
 .board-grade-badge[data-grade="blunder"],
 .board-grade-badge[data-grade="inaccuracy"] {
-  font-size: clamp(0.4rem, 1.45cqw, 0.56rem);
+  font-size: clamp(0.44rem, 1.65cqw, 0.62rem);
 }
 
 /* Pending spinner for board badge while branch eval is in flight */
 .board-grade-badge-pending {
   position: absolute;
   z-index: 10;
-  width: clamp(16px, 10.5%, 24px);
+  width: clamp(18px, 11.75%, 27px);
   aspect-ratio: 1;
   border-radius: 50%;
   transform: translate(-58%, -14%);
@@ -1508,7 +1514,7 @@ cg-board {
 .board-result-badge {
   position: absolute;
   z-index: 11;
-  width: clamp(16px, 10.5%, 24px);
+  width: clamp(18px, 11.75%, 27px);
   aspect-ratio: 1;
   border-radius: 50%;
   transform: translate(-58%, -14%);
@@ -1518,7 +1524,7 @@ cg-board {
   color: #fff;
   font-weight: 900;
   font-family: system-ui, -apple-system, sans-serif;
-  font-size: clamp(0.48rem, 1.8cqw, 0.74rem);
+  font-size: clamp(0.52rem, 1.95cqw, 0.8rem);
   line-height: 1;
   pointer-events: none;
   box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35), 0 2px 8px rgba(0,0,0,0.55);
@@ -1526,7 +1532,7 @@ cg-board {
 .board-result-badge--checkmate { background: #111; }
 .board-result-badge--draw {
   background: #6b7280;
-  font-size: clamp(0.4rem, 1.35cqw, 0.56rem);
+  font-size: clamp(0.44rem, 1.5cqw, 0.62rem);
 }
 
 /* Move list adjustments for badges */
