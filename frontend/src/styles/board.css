@@ -46,8 +46,6 @@ cg-board square.move-dest.oc {
 .cg-wrap piece.dragging {
   z-index: 110;
   filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.4));
-  scale: 1.28;
-  translate: 14% -30%;
   transform-origin: center;
 }
 
@@ -66,7 +64,7 @@ cg-board square.move-dest.oc {
 
 .board-drag-target {
   position: absolute;
-  z-index: 6;
+  z-index: 7;
   width: 12.5%;
   height: 12.5%;
   border-radius: 50%;
@@ -79,6 +77,17 @@ cg-board square.move-dest.oc {
   pointer-events: none;
 }
 
+.board-hover-outline {
+  position: absolute;
+  z-index: 6;
+  width: 12.5%;
+  height: 12.5%;
+  box-sizing: border-box;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1.5px rgba(210, 214, 220, 0.62);
+  pointer-events: none;
+}
+
 .chess-board-container.board-dragging cg-board square.selected {
   background: rgba(242, 206, 82, 0.22) !important;
   box-shadow: inset 0 0 0 1px rgba(255, 246, 197, 0.28);
@@ -87,6 +96,14 @@ cg-board square.move-dest.oc {
 .chess-board-container.board-dragging cg-board square.move-dest,
 .chess-board-container.board-dragging cg-board square.move-dest.oc {
   background: transparent !important;
+}
+
+.chess-board-container {
+  cursor: default;
+}
+
+.chess-board-container.board-hover-piece {
+  cursor: pointer;
 }
 
 /* Coordinate label font size */
@@ -1233,6 +1250,13 @@ cg-board {
     box-shadow:
       inset 0 0 0 4px rgba(188, 194, 201, 0.98),
       0 2px 8px rgba(58, 64, 72, 0.2);
+  }
+}
+
+@media (pointer: coarse) {
+  .cg-wrap piece.dragging {
+    scale: 1.28;
+    translate: 14% -30%;
   }
 }
 

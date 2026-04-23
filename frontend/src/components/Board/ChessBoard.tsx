@@ -238,6 +238,7 @@ export default function ChessBoard({
   const [boardReady, setBoardReady] = useState(false)
   const [dragPreviewSquare, setDragPreviewSquare] = useState<Key | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isHoveringPiece, setIsHoveringPiece] = useState(false)
 
   const orientationRef = useRef(orientation)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -529,7 +530,31 @@ export default function ChessBoard({
   }, [])
 
   useEffect(() => {
+    const el = wrapperRef.current
+    if (!el) return
+
+    const syncPieceHover = (event: MouseEvent) => {
+      const api = apiRef.current
+      if (!api) return
+      const key = api.getKeyAtDomPos([event.clientX, event.clientY])
+      const nextHoveringPiece = !!(key && api.state.pieces.has(key))
+      setIsHoveringPiece(prev => (prev === nextHoveringPiece ? prev : nextHoveringPiece))
+    }
+
+    const clearPieceHover = () => setIsHoveringPiece(false)
+
+    el.addEventListener('mousemove', syncPieceHover)
+    el.addEventListener('mouseleave', clearPieceHover)
+
+    return () => {
+      el.removeEventListener('mousemove', syncPieceHover)
+      el.removeEventListener('mouseleave', clearPieceHover)
+    }
+  }, [])
+
+  useEffect(() => {
     setIsDragging(false)
+    setIsHoveringPiece(false)
     setDragPreviewSquare(null)
   }, [fen, orientation, pathKey])
 
@@ -558,16 +583,22 @@ export default function ChessBoard({
   return (
     <div
       ref={wrapperRef}
-      className={`chess-board-container${isDragging ? ' board-dragging' : ''}`}
+      className={`chess-board-container${isDragging ? ' board-dragging' : ''}${isHoveringPiece ? ' board-hover-piece' : ''}`}
       role="region"
       aria-label="Chess board"
     >
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {dragPreviewSquare && (
-        <div
-          className="board-drag-target"
-          style={getSquarePosition(dragPreviewSquare, orientation)}
-        />
+        <>
+          <div
+            className="board-hover-outline"
+            style={getSquarePosition(dragPreviewSquare, orientation)}
+          />
+          <div
+            className="board-drag-target"
+            style={getSquarePosition(dragPreviewSquare, orientation)}
+          />
+        </>
       )}
       {pendingPromotion && (() => {
         const { to, color, orientation: ori } = pendingPromotion
