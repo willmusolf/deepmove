@@ -46,8 +46,8 @@ cg-board square.move-dest.oc {
 .cg-wrap piece.dragging {
   z-index: 110;
   filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.4));
-  scale: 1.25;
-  translate: -18% -18%;
+  scale: 1.28;
+  translate: 14% -30%;
   transform-origin: center;
 }
 
@@ -79,10 +79,9 @@ cg-board square.move-dest.oc {
   pointer-events: none;
 }
 
-.chess-board-container.board-drag-primed cg-board square.selected,
 .chess-board-container.board-dragging cg-board square.selected {
-  background: transparent !important;
-  box-shadow: none !important;
+  background: rgba(242, 206, 82, 0.22) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 246, 197, 0.28);
 }
 
 .chess-board-container.board-dragging cg-board square.move-dest,
