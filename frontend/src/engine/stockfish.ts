@@ -109,12 +109,10 @@ export class StockfishEngine {
         const line = e.data
         if (line === 'uciok') {
           this.worker!.postMessage('setoption name Hash value 128')
-          // Use multiple threads if SharedArrayBuffer is available (requires COOP/COEP headers).
-          // Cap at 4 — diminishing returns beyond that; leave 1 core for the UI thread.
-          const threads = typeof SharedArrayBuffer !== 'undefined'
-            ? Math.min(4, Math.max(1, (navigator.hardwareConcurrency ?? 2) - 1))
-            : 1
-          this.worker!.postMessage(`setoption name Threads value ${threads}`)
+          // The shipped asset is the Stockfish "lite-single" build, which only
+          // supports one thread. Sending a higher value can stall initialization
+          // on COEP-enabled production where SharedArrayBuffer is available.
+          this.worker!.postMessage('setoption name Threads value 1')
           this.worker!.postMessage('isready')
         } else if (line === 'readyok') {
           if (settled) return
