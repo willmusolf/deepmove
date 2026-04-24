@@ -49,6 +49,7 @@ cg-board square.move-dest.oc {
 .cg-wrap piece.dragging {
   z-index: 110;
   filter: none;
+  cursor: grabbing;
 }
 
 .cg-wrap piece.ghost {
@@ -66,6 +67,30 @@ cg-board square.move-dest.oc {
 
 .cg-wrap.manipulable cg-board {
   cursor: default;
+}
+
+.cg-wrap.manipulable piece {
+  pointer-events: auto;
+  cursor: default;
+}
+
+.cg-wrap.manipulable[data-cursor-color="white"] piece.white,
+.cg-wrap.manipulable[data-cursor-color="black"] piece.black {
+  cursor: pointer;
+}
+
+.board-drag-target {
+  position: absolute;
+  z-index: 5;
+  width: 12.5%;
+  height: 12.5%;
+  border-radius: 50%;
+  transform: scale(1.3);
+  transform-origin: center;
+  background: rgba(86, 92, 100, 0.2);
+  box-shadow: 0 3px 8px rgba(46, 52, 60, 0.1);
+  pointer-events: none;
+  display: block;
 }
 
 .board-hover-outline {
@@ -103,6 +128,11 @@ cg-board square.move-dest.oc {
 .chess-board-container.board-dragging cg-board square.move-dest.oc {
   background: transparent !important;
   box-shadow: none !important;
+}
+
+.chess-board-container.board-dragging .cg-wrap.manipulable cg-board,
+.chess-board-container.board-dragging .cg-wrap.manipulable piece.dragging {
+  cursor: grabbing;
 }
 
 .chess-board-container {
@@ -159,13 +189,17 @@ cg-board {
   background-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4PSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIgogICAgIHZpZXdCb3g9IjAgMCA4IDgiIHNoYXBlLXJlbmRlcmluZz0iY3Jpc3BFZGdlcyI+CjxnIGlkPSJhIj4KICA8ZyBpZD0iYiI+CiAgICA8ZyBpZD0iYyI+CiAgICAgIDxnIGlkPSJkIj4KICAgICAgICA8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBpZD0iZSIgb3BhY2l0eT0iMCIvPgogICAgICAgIDx1c2UgeD0iMSIgeT0iMSIgaHJlZj0iI2UiIHg6aHJlZj0iI2UiLz4KICAgICAgICA8cmVjdCB5PSIxIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBpZD0iZiIgb3BhY2l0eT0iMC4zOCIvPgogICAgICAgIDx1c2UgeD0iMSIgeT0iLTEiIGhyZWY9IiNmIiB4OmhyZWY9IiNmIi8+CiAgICAgIDwvZz4KICAgICAgPHVzZSB4PSIyIiBocmVmPSIjZCIgeDpocmVmPSIjZCIvPgogICAgPC9nPgogICAgPHVzZSB4PSI0IiBocmVmPSIjYyIgeDpocmVmPSIjYyIvPgogIDwvZz4KICA8dXNlIHk9IjIiIGhyZWY9IiNiIiB4OmhyZWY9IiNiIi8+CjwvZz4KPHVzZSB5PSI0IiBocmVmPSIjYSIgeDpocmVmPSIjYSIvPgo8L3N2Zz4=');
 }
 
+.chess-board-container,
+.board-overlay-host {
+  --board-badge-size: clamp(22px, 6.25%, 28px);
+  --board-badge-font-size: clamp(0.58rem, 1.1rem, 0.84rem);
+  --board-badge-wide-font-size: clamp(0.48rem, 0.88rem, 0.66rem);
+  --board-badge-draw-font-size: clamp(0.48rem, 0.86rem, 0.66rem);
+  --board-badge-inset-x: 1px;
+  --board-badge-inset-y: 1px;
+}
+
 .chess-board-container {
-  --board-badge-size: clamp(22px, 5.2%, 28px);
-  --board-badge-font-size: clamp(0.62rem, 0.72rem, 0.82rem);
-  --board-badge-wide-font-size: clamp(0.5rem, 0.58rem, 0.66rem);
-  --board-badge-draw-font-size: clamp(0.5rem, 0.58rem, 0.66rem);
-  --board-badge-inset-x: 2px;
-  --board-badge-inset-y: 2px;
   --board-coord-inset: 0.75cqw;
   --board-file-offset: clamp(2px, 0.55cqw, 4px);
   width: 100%;
@@ -175,6 +209,10 @@ cg-board {
   flex-shrink: 0;
   container-type: inline-size;
   overflow: hidden;
+}
+
+.board-overlay-host {
+  position: relative;
 }
 
 /* ── Main content area ────────────────────────────────────────────────── */
@@ -922,6 +960,11 @@ cg-board {
   justify-content: center;
 }
 
+.nav-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
 .nav-soon {
   font-size: 0.65rem;
   background: var(--color-surface-2);
@@ -1237,30 +1280,37 @@ cg-board {
   .clock-box { min-width: 52px; height: 30px; padding: 0 6px; }
   .clock-value { font-size: 1.1rem; }
 
-  .board-grade-badge,
-  .board-grade-badge-pending,
-  .board-result-badge {
-    width: clamp(16px, 5.1%, 20px);
-    transform: translate(calc(-100% - 1px), 1px);
-  }
-
-  .board-grade-badge,
-  .board-result-badge {
-    font-size: clamp(0.36rem, 0.95rem, 0.52rem);
-  }
-
-  .board-grade-badge[data-grade="brilliant"],
-  .board-grade-badge[data-grade="blunder"],
-  .board-grade-badge[data-grade="inaccuracy"] {
-    font-size: clamp(0.32rem, 0.8rem, 0.44rem);
+  .chess-board-container,
+  .board-overlay-host {
+    --board-badge-size: clamp(18px, 5.8%, 22px);
+    --board-badge-font-size: clamp(0.42rem, 0.98rem, 0.56rem);
+    --board-badge-wide-font-size: clamp(0.35rem, 0.84rem, 0.46rem);
+    --board-badge-draw-font-size: clamp(0.36rem, 0.88rem, 0.48rem);
+    --board-badge-inset-x: 1px;
+    --board-badge-inset-y: 1px;
   }
 
   .board-result-badge--draw {
-    font-size: clamp(0.34rem, 0.86rem, 0.46rem);
+    font-size: var(--board-badge-draw-font-size);
+  }
+
+  .board-drag-target {
+    transform: scale(1.38);
+    background: rgba(86, 92, 100, 0.22);
+    box-shadow: 0 3px 8px rgba(46, 52, 60, 0.08);
   }
 }
 
 @media (pointer: coarse) {
+  .board-hover-outline {
+    display: none;
+  }
+
+  .board-drag-target {
+    transform: scale(1.64);
+    background: rgba(68, 74, 82, 0.36);
+    box-shadow: 0 4px 12px rgba(28, 32, 38, 0.1);
+  }
 
   .cg-wrap piece.dragging {
     width: calc(12.5% * 1.32);
@@ -1471,40 +1521,40 @@ cg-board {
 .board-grade-badge {
   position: absolute;
   z-index: 10;
-  width: clamp(22px, 6.25%, 28px);
-  aspect-ratio: 1;
+  width: var(--board-badge-size);
+  height: var(--board-badge-size);
   border-radius: 50%;
-  transform: translate(calc(-100% - 2px), 2px);
+  transform: translateX(-100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   font-weight: 900;
   font-family: system-ui, -apple-system, sans-serif;
-  font-size: clamp(0.58rem, 1.1rem, 0.84rem);
+  font-size: var(--board-badge-font-size);
   line-height: 1;
   pointer-events: none;
   letter-spacing: -0.03em;
-  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35), 0 2px 8px rgba(0,0,0,0.55);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35);
 }
 
 /* Multi-char board badges need smaller font to fit */
 .board-grade-badge[data-grade="brilliant"],
 .board-grade-badge[data-grade="blunder"],
 .board-grade-badge[data-grade="inaccuracy"] {
-  font-size: clamp(0.48rem, 0.88rem, 0.66rem);
+  font-size: var(--board-badge-wide-font-size);
 }
 
 /* Pending spinner for board badge while branch eval is in flight */
 .board-grade-badge-pending {
   position: absolute;
   z-index: 10;
-  width: clamp(22px, 6.25%, 28px);
-  aspect-ratio: 1;
+  width: var(--board-badge-size);
+  height: var(--board-badge-size);
   border-radius: 50%;
-  transform: translate(calc(-100% - 2px), 2px);
+  transform: translateX(-100%);
   background: rgba(30, 30, 30, 0.75);
-  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.15), 0 2px 8px rgba(0,0,0,0.55);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.15);
   pointer-events: none;
 }
 .board-grade-badge-pending::after {
@@ -1521,17 +1571,17 @@ cg-board {
 .board-result-badge {
   position: absolute;
   z-index: 11;
-  width: clamp(22px, 6.25%, 28px);
-  aspect-ratio: 1;
+  width: var(--board-badge-size);
+  height: var(--board-badge-size);
   border-radius: 50%;
-  transform: translate(calc(-100% - 2px), 2px);
+  transform: translateX(-100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   font-weight: 900;
   font-family: system-ui, -apple-system, sans-serif;
-  font-size: clamp(0.58rem, 1.1rem, 0.84rem);
+  font-size: var(--board-badge-font-size);
   line-height: 1;
   pointer-events: none;
   box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35), 0 2px 8px rgba(0,0,0,0.55);
@@ -1539,7 +1589,7 @@ cg-board {
 .board-result-badge--checkmate { background: #111; }
 .board-result-badge--draw {
   background: #6b7280;
-  font-size: clamp(0.48rem, 0.86rem, 0.66rem);
+  font-size: var(--board-badge-draw-font-size);
 }
 
 /* Move list adjustments for badges */

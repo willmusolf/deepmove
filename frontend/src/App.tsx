@@ -35,6 +35,7 @@ import { formatEval } from './utils/format'
 import { pruneReviewPendingNodes, shouldTrackReviewPendingNode } from './utils/reviewPending'
 import { readSessionJson, writeSessionJson } from './utils/sessionStorage'
 import { Chess } from 'chess.js'
+import { getSquareOverlayPosition } from './chess/boardGeometry'
 import './styles/board.css'
 import { detectOpening } from './chess/openings'
 
@@ -963,7 +964,7 @@ export default function App() {
                         clockTime={undefined}
                       />
                     )}
-                    <div style={{ position: 'relative' }}>
+                    <div className="board-overlay-host">
                     <ChessBoard
                       key={isLoaded ? 'review' : 'freeplay'}
                       fen={displayFen}
@@ -1036,31 +1037,22 @@ export default function App() {
                         isMainLinePending
                       )
                       if (isPendingOnBoard && destSquare) {
-                        const file = destSquare.charCodeAt(0) - 97
-                        const rank = parseInt(destSquare[1], 10) - 1
-                        const leftCell = orientation === 'white' ? file : (7 - file)
-                        const topCell  = orientation === 'white' ? (7 - rank) : rank
                         return (
                           <div
                             key={`${destSquare}-pending`}
                             className="board-grade-badge-pending"
-                            style={{ left: `${(leftCell + 1) * 12.5}%`, top: `${topCell * 12.5}%` }}
+                            style={getSquareOverlayPosition(destSquare, orientation)}
                           />
                         )
                       }
                       if (!g || !destSquare) return null
-                      const file = destSquare.charCodeAt(0) - 97
-                      const rank = parseInt(destSquare[1], 10) - 1
-                      const leftCell = orientation === 'white' ? file : (7 - file)
-                      const topCell  = orientation === 'white' ? (7 - rank) : rank
                       return (
                         <div
                           key={destSquare}
                           className="board-grade-badge"
                           data-grade={grade ?? ''}
                           style={{
-                            left: `${(leftCell + 1) * 12.5}%`,
-                            top: `${topCell * 12.5}%`,
+                            ...getSquareOverlayPosition(destSquare, orientation),
                             background: g.color,
                           }}
                         >
@@ -1077,28 +1069,21 @@ export default function App() {
                         }
                         return null
                       }
-                      const _sqPos = (sq: string) => {
-                        const file = sq.charCodeAt(0) - 97
-                        const rank = parseInt(sq[1], 10) - 1
-                        const lc = orientation === 'white' ? file : (7 - file)
-                        const tc = orientation === 'white' ? (7 - rank) : rank
-                        return { left: `${(lc + 1) * 12.5}%`, top: `${tc * 12.5}%` }
-                      }
                       if (_chess.isCheckmate()) {
                         const sq = _findKing(_chess.turn())
                         if (!sq) return null
-                        return <div className="board-result-badge board-result-badge--checkmate" style={_sqPos(sq)}>#</div>
+                        return <div className="board-result-badge board-result-badge--checkmate" style={getSquareOverlayPosition(sq, orientation)}>#</div>
                       }
                       // FEN-based draws (stalemate, insufficient material, 50-move) — work without history
                       if (_chess.isDraw()) {
                         const wSq = _findKing('w'), bSq = _findKing('b')
-                        return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(wSq)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(bSq)}>½</div>}</>
+                        return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(wSq, orientation)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(bSq, orientation)}>½</div>}</>
                       }
                       // Game review: PGN result header fallback for history-dependent draws (threefold etc.)
                       if (isLoaded && !inBranch && gameResult === '1/2-1/2'
                           && currentNodeId !== null && (moveTree[currentNodeId]?.childIds.length ?? 0) === 0) {
                         const wSq = _findKing('w'), bSq = _findKing('b')
-                        return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(wSq)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(bSq)}>½</div>}</>
+                        return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(wSq, orientation)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(bSq, orientation)}>½</div>}</>
                       }
                       // Sandbox: count position repetitions by walking analysis move history
                       if (!isLoaded) {
@@ -1109,7 +1094,7 @@ export default function App() {
                         if (analysisBoardStartFen.split(' ').slice(0, 4).join(' ') === _posKey) _repCount++
                         if (_repCount >= 3) {
                           const wSq = _findKing('w'), bSq = _findKing('b')
-                          return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(wSq)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(bSq)}>½</div>}</>
+                          return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(wSq, orientation)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(bSq, orientation)}>½</div>}</>
                         }
                       }
                       return null
