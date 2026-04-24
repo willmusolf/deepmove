@@ -195,8 +195,8 @@ cg-board {
   --board-badge-font-size: clamp(0.58rem, 1.1rem, 0.84rem);
   --board-badge-wide-font-size: clamp(0.48rem, 0.88rem, 0.66rem);
   --board-badge-draw-font-size: clamp(0.48rem, 0.86rem, 0.66rem);
-  --board-badge-inset-x: 2px;
-  --board-badge-inset-y: 2px;
+  --board-badge-inset-x: 1px;
+  --board-badge-inset-y: 1px;
 }
 
 .chess-board-container {
@@ -1286,8 +1286,8 @@ cg-board {
     --board-badge-font-size: clamp(0.36rem, 0.95rem, 0.52rem);
     --board-badge-wide-font-size: clamp(0.32rem, 0.8rem, 0.44rem);
     --board-badge-draw-font-size: clamp(0.34rem, 0.86rem, 0.46rem);
-    --board-badge-inset-x: 1px;
-    --board-badge-inset-y: 1px;
+    --board-badge-inset-x: 0px;
+    --board-badge-inset-y: 0px;
   }
 
   .board-result-badge--draw {
