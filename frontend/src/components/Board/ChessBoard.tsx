@@ -600,12 +600,6 @@ export default function ChessBoard({
           style={getSquarePosition(square, orientation)}
         />
       ))}
-      {isDragging && dragOriginSquare && (
-        <div
-          className="board-drag-target board-drag-target--origin"
-          style={getSquarePosition(dragOriginSquare, orientation)}
-        />
-      )}
       {dragPreviewSquare && (
         <>
           {!occupiedSquares.has(dragPreviewSquare) && (
