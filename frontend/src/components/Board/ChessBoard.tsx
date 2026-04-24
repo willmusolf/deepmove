@@ -575,12 +575,16 @@ export default function ChessBoard({
     const syncPieceHover = (event: MouseEvent) => {
       const api = apiRef.current
       if (!api) return
+      if (isDragging) {
+        setBoardCursor('pointer')
+        return
+      }
       const key = api.getKeyAtDomPos([event.clientX, event.clientY])
       setBoardCursor(key && api.state.pieces.has(key) ? 'pointer' : 'default')
     }
 
     const clearPieceHover = () => {
-      setBoardCursor('default')
+      setBoardCursor(isDragging ? 'pointer' : 'default')
     }
 
     wrapperEl.addEventListener('mousemove', syncPieceHover)
@@ -590,7 +594,7 @@ export default function ChessBoard({
       wrapperEl.removeEventListener('mousemove', syncPieceHover)
       wrapperEl.removeEventListener('mouseleave', clearPieceHover)
     }
-  }, [])
+  }, [isDragging])
 
   useEffect(() => {
     setIsDragging(false)
