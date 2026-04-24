@@ -239,7 +239,6 @@ export default function ChessBoard({
   const [dragPreviewSquare, setDragPreviewSquare] = useState<Key | null>(null)
   const [dragOriginSquare, setDragOriginSquare] = useState<Key | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [dragPointerType, setDragPointerType] = useState<string | null>(null)
 
   const orientationRef = useRef(orientation)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -511,13 +510,11 @@ export default function ChessBoard({
         setIsDragging(false)
         setDragOriginSquare(null)
         setDragPreviewSquare(null)
-        setDragPointerType(null)
         return
       }
 
       setIsDragging(true)
       setDragOriginSquare(prev => (prev === currentDrag.orig ? prev : currentDrag.orig))
-      setDragPointerType(prev => (prev === event.pointerType ? prev : event.pointerType))
 
       const position = getEventPosition(event)
       if (!position) {
@@ -535,7 +532,6 @@ export default function ChessBoard({
       setIsDragging(false)
       setDragOriginSquare(null)
       setDragPreviewSquare(null)
-      setDragPointerType(null)
     }
 
     window.addEventListener('pointermove', syncDragPreview)
@@ -585,7 +581,6 @@ export default function ChessBoard({
     setIsDragging(false)
     setDragOriginSquare(null)
     setDragPreviewSquare(null)
-    setDragPointerType(null)
     const boardEl = containerRef.current?.querySelector('cg-board') as HTMLElement | null
     if (boardEl) {
       boardEl.style.cursor = 'default'
@@ -635,12 +630,10 @@ export default function ChessBoard({
             className="board-hover-outline"
             style={getSquarePosition(dragPreviewSquare, orientation)}
           />
-          {dragPointerType === 'touch' && (
-            <div
-              className="board-drag-target"
-              style={getSquarePosition(dragPreviewSquare, orientation)}
-            />
-          )}
+          <div
+            className="board-drag-target"
+            style={getSquarePosition(dragPreviewSquare, orientation)}
+          />
         </>
       )}
       {pendingPromotion && (() => {
