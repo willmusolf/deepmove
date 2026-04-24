@@ -76,25 +76,6 @@ function getEventPosition(event: PointerEvent | MouseEvent | TouchEvent): [numbe
   return [event.clientX, event.clientY]
 }
 
-function getSquareFromClientPosition(
-  clientX: number,
-  clientY: number,
-  boardEl: HTMLElement,
-  orientation: 'white' | 'black',
-): Key | null {
-  const rect = boardEl.getBoundingClientRect()
-  if (rect.width <= 0 || rect.height <= 0) return null
-  if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null
-
-  const fileIndex = Math.min(7, Math.max(0, Math.floor(((clientX - rect.left) / rect.width) * 8)))
-  const rankFromTop = Math.min(7, Math.max(0, Math.floor(((clientY - rect.top) / rect.height) * 8)))
-
-  const file = orientation === 'white' ? fileIndex : 7 - fileIndex
-  const rank = orientation === 'white' ? 7 - rankFromTop : rankFromTop
-
-  return `${String.fromCharCode(97 + file)}${rank + 1}` as Key
-}
-
 /** Apply a premove without legality checks (pinned pieces, check, etc.).
  *  Uses chess.js put/remove rather than move(), so legality is not validated.
  *  The premove may become legal when it fires; if still illegal, drainPremoveQueue
@@ -269,7 +250,6 @@ export default function ChessBoard({
   const userPerspectiveRef = useRef(userPerspective)
   const prevPathKeyRef = useRef(pathKey)
   const sizeRef = useRef({ width: 0, height: 0 })
-  const lastMousePositionRef = useRef<[number, number] | null>(null)
 
   // Track when the board has a real layout size so shapes only sync after mount.
   // Avoid writing inline width/height here: that can leave the board "stuck" at a
@@ -566,100 +546,31 @@ export default function ChessBoard({
   }, [])
 
   useEffect(() => {
-    const wrapperEl = wrapperRef.current
     const containerEl = containerRef.current
     const boardEl = containerEl?.querySelector('cg-board') as HTMLElement | null
-    const cgContainerEl = containerEl?.querySelector('cg-container') as HTMLElement | null
-    if (!wrapperEl || !containerEl || !boardEl) return
+    if (!boardEl) return
 
-    const setBoardCursor = (cursor: 'default' | 'pointer') => {
-      wrapperEl.style.cursor = cursor
-      containerEl.style.cursor = cursor
-      if (cgContainerEl) cgContainerEl.style.cursor = cursor
-      boardEl.style.cursor = cursor
+    const movableKeys = new Set(legalDests.keys())
+    const pieceEls = Array.from(boardEl.querySelectorAll('piece')) as HTMLElement[]
+    for (const pieceEl of pieceEls) {
+      const key = (pieceEl as HTMLElement & { cgKey?: string }).cgKey
+      const isMovablePiece = !isDragging && !!key && movableKeys.has(key as Key)
+      pieceEl.classList.toggle('piece-movable', isMovablePiece)
     }
 
-    const syncCursorAt = (clientX: number, clientY: number) => {
-      lastMousePositionRef.current = [clientX, clientY]
-      if (isDragging) {
-        setBoardCursor('pointer')
-        return
-      }
-      const key = getSquareFromClientPosition(
-        clientX,
-        clientY,
-        boardEl,
-        orientationRef.current,
-      )
-      setBoardCursor(key && legalDests.has(key) ? 'pointer' : 'default')
-    }
-
-    const syncPieceHover = (event: MouseEvent) => {
-      syncCursorAt(event.clientX, event.clientY)
-    }
-
-    const clearPieceHover = () => {
-      lastMousePositionRef.current = null
-      setBoardCursor(isDragging ? 'pointer' : 'default')
-    }
-
-    const initialMousePosition = lastMousePositionRef.current
-    if (initialMousePosition) {
-      syncCursorAt(initialMousePosition[0], initialMousePosition[1])
-    }
-
-    const handleWindowMove = (event: MouseEvent) => {
-      syncPieceHover(event)
-    }
-
-    const handleWindowDown = (event: MouseEvent) => {
-      syncPieceHover(event)
-    }
-
-    const handleWindowLeave = () => {
-      clearPieceHover()
-    }
-
-    window.addEventListener('mousemove', handleWindowMove, true)
-    window.addEventListener('mousedown', handleWindowDown, true)
-    window.addEventListener('blur', handleWindowLeave)
+    boardEl.classList.toggle('board-has-movable-pieces', !isDragging && movableKeys.size > 0)
 
     return () => {
-      window.removeEventListener('mousemove', handleWindowMove, true)
-      window.removeEventListener('mousedown', handleWindowDown, true)
-      window.removeEventListener('blur', handleWindowLeave)
+      boardEl.classList.remove('board-has-movable-pieces')
+      for (const pieceEl of pieceEls) pieceEl.classList.remove('piece-movable')
     }
-  }, [isDragging, legalDests])
+  }, [fen, legalDests, isDragging, orientation, pathKey])
 
   useEffect(() => {
     setIsDragging(false)
     setDragOriginSquare(null)
     setDragPreviewSquare(null)
-    const wrapperEl = wrapperRef.current
-    const containerEl = containerRef.current
-    const boardEl = containerEl?.querySelector('cg-board') as HTMLElement | null
-    const cgContainerEl = containerEl?.querySelector('cg-container') as HTMLElement | null
-    if (wrapperEl) wrapperEl.style.cursor = 'default'
-    if (containerEl) containerEl.style.cursor = 'default'
-    if (cgContainerEl) cgContainerEl.style.cursor = 'default'
-    if (boardEl) boardEl.style.cursor = 'default'
   }, [fen, orientation, pathKey])
-
-  useEffect(() => {
-    const position = lastMousePositionRef.current
-    const boardEl = containerRef.current?.querySelector('cg-board') as HTMLElement | null
-    const wrapperEl = wrapperRef.current
-    const containerEl = containerRef.current
-    const cgContainerEl = containerEl?.querySelector('cg-container') as HTMLElement | null
-    if (!position || !boardEl || !wrapperEl || !containerEl) return
-
-    const key = getSquareFromClientPosition(position[0], position[1], boardEl, orientationRef.current)
-    const cursor = !isDragging && key && legalDests.has(key) ? 'pointer' : 'default'
-    wrapperEl.style.cursor = cursor
-    containerEl.style.cursor = cursor
-    if (cgContainerEl) cgContainerEl.style.cursor = cursor
-    boardEl.style.cursor = cursor
-  }, [fen, orientation, pathKey, legalDests, isDragging])
 
   const handlePromotion = useCallback((piece: string) => {
     if (!pendingPromotion) return

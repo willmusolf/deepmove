@@ -68,6 +68,15 @@ cg-board square.move-dest.oc {
   cursor: default;
 }
 
+.cg-wrap.manipulable piece {
+  pointer-events: auto;
+  cursor: default;
+}
+
+.cg-wrap.manipulable piece.piece-movable {
+  cursor: pointer;
+}
+
 .board-hover-outline {
   position: absolute;
   z-index: 6;
