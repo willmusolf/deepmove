@@ -43,7 +43,7 @@ cg-board square.move-dest {
 cg-board square.move-dest.oc {
   background: transparent !important;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 6px rgba(78, 84, 92, 0.98);
+  box-shadow: inset 0 0 0 6px rgba(78, 84, 92, 0.76);
 }
 
 .cg-wrap piece.dragging {
@@ -99,8 +99,8 @@ cg-board square.move-dest.oc {
   width: 12.5%;
   height: 12.5%;
   box-sizing: border-box;
-  border-radius: 3px;
-  box-shadow: inset 0 0 0 4px rgba(184, 191, 200, 0.94);
+  border: 4px solid rgba(184, 191, 200, 0.94);
+  border-radius: 0;
   pointer-events: none;
 }
 
@@ -116,7 +116,7 @@ cg-board square.move-dest.oc {
 .board-drag-move-dest--occupied {
   background: transparent;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 6px rgba(78, 84, 92, 0.98);
+  box-shadow: inset 0 0 0 6px rgba(78, 84, 92, 0.76);
 }
 
 .chess-board-container.board-dragging cg-board square.selected {
@@ -212,7 +212,12 @@ cg-board {
 }
 
 .board-overlay-host {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(---cg-width, 100%);
+  height: var(---cg-height, 100%);
+  pointer-events: none;
 }
 
 /* ── Main content area ────────────────────────────────────────────────── */

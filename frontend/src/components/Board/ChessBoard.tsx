@@ -298,6 +298,7 @@ export default function ChessBoard({
     if (!containerRef.current) return
 
     const config: Config = {
+      addDimensionsCssVarsTo: wrapperRef.current ?? undefined,
       fen,
       orientation,
       turnColor: getTurnColor(fen),
@@ -605,27 +606,29 @@ export default function ChessBoard({
       aria-label="Chess board"
     >
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-      {dragDestinationSquares.map(square => (
-        <div
-          key={`drag-dest-${square}`}
-          className={`board-drag-move-dest${occupiedSquares.has(square) ? ' board-drag-move-dest--occupied' : ''}`}
-          style={getSquarePosition(square, orientation)}
-        />
-      ))}
-      {dragPreviewSquare && (
-        <>
-          {!isCoarsePointer && !occupiedSquares.has(dragPreviewSquare) && (
+      <div className="board-overlay-host" aria-hidden="true">
+        {dragDestinationSquares.map(square => (
+          <div
+            key={`drag-dest-${square}`}
+            className={`board-drag-move-dest${occupiedSquares.has(square) ? ' board-drag-move-dest--occupied' : ''}`}
+            style={getSquarePosition(square, orientation)}
+          />
+        ))}
+        {dragPreviewSquare && (
+          <>
+            {!isCoarsePointer && (
+              <div
+                className="board-hover-outline"
+                style={getSquarePosition(dragPreviewSquare, orientation)}
+              />
+            )}
             <div
-              className="board-hover-outline"
+              className="board-drag-target"
               style={getSquarePosition(dragPreviewSquare, orientation)}
             />
-          )}
-          <div
-            className="board-drag-target"
-            style={getSquarePosition(dragPreviewSquare, orientation)}
-          />
-        </>
-      )}
+          </>
+        )}
+      </div>
       {pendingPromotion && (() => {
         const { to, color, orientation: ori } = pendingPromotion
         const fileIndex = to.charCodeAt(0) - 97
