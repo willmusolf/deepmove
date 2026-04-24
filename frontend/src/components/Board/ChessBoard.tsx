@@ -56,15 +56,37 @@ function fileRankToKey(f: number, r: number): Key {
   return (String.fromCharCode(97 + f) + (8 - r)) as Key
 }
 
-function getSquarePosition(square: Key, orientation: 'white' | 'black'): React.CSSProperties {
+interface OverlayMetrics {
+  left: number
+  top: number
+  cellWidth: number
+  cellHeight: number
+}
+
+function getSquarePosition(
+  square: Key,
+  orientation: 'white' | 'black',
+  metrics: OverlayMetrics | null,
+): React.CSSProperties {
   const file = square.charCodeAt(0) - 97
   const rank = parseInt(square[1], 10) - 1
   const leftCell = orientation === 'white' ? file : (7 - file)
   const topCell = orientation === 'white' ? (7 - rank) : rank
 
+  if (metrics) {
+    return {
+      left: `${metrics.left + leftCell * metrics.cellWidth}px`,
+      top: `${metrics.top + topCell * metrics.cellHeight}px`,
+      width: `${metrics.cellWidth}px`,
+      height: `${metrics.cellHeight}px`,
+    }
+  }
+
   return {
     left: `${leftCell * 12.5}%`,
     top: `${topCell * 12.5}%`,
+    width: '12.5%',
+    height: '12.5%',
   }
 }
 
@@ -240,6 +262,7 @@ export default function ChessBoard({
   const [dragPreviewSquare, setDragPreviewSquare] = useState<Key | null>(null)
   const [dragOriginSquare, setDragOriginSquare] = useState<Key | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [overlayMetrics, setOverlayMetrics] = useState<OverlayMetrics | null>(null)
 
   const orientationRef = useRef(orientation)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -251,6 +274,38 @@ export default function ChessBoard({
   const userPerspectiveRef = useRef(userPerspective)
   const prevPathKeyRef = useRef(pathKey)
   const sizeRef = useRef({ width: 0, height: 0 })
+
+  const syncOverlayMetrics = useCallback(() => {
+    const api = apiRef.current
+    const wrapperEl = wrapperRef.current
+    const bounds = api?.state?.dom?.bounds
+    if (!api || !wrapperEl || typeof bounds !== 'function') return
+
+    const wrapperRect = wrapperEl.getBoundingClientRect()
+    const boardRect = bounds()
+    if (boardRect.width <= 0 || boardRect.height <= 0) return
+
+    setOverlayMetrics(prev => {
+      const next = {
+        left: boardRect.left - wrapperRect.left,
+        top: boardRect.top - wrapperRect.top,
+        cellWidth: boardRect.width / 8,
+        cellHeight: boardRect.height / 8,
+      }
+
+      if (
+        prev &&
+        Math.abs(prev.left - next.left) < 0.25 &&
+        Math.abs(prev.top - next.top) < 0.25 &&
+        Math.abs(prev.cellWidth - next.cellWidth) < 0.25 &&
+        Math.abs(prev.cellHeight - next.cellHeight) < 0.25
+      ) {
+        return prev
+      }
+
+      return next
+    })
+  }, [])
 
   // Track when the board has a real layout size so shapes only sync after mount.
   // Avoid writing inline width/height here: that can leave the board "stuck" at a
@@ -269,11 +324,14 @@ export default function ChessBoard({
 
       sizeRef.current = { width, height }
       setBoardReady(true)
-      requestAnimationFrame(() => apiRef.current?.redrawAll())
+      requestAnimationFrame(() => {
+        apiRef.current?.redrawAll()
+        syncOverlayMetrics()
+      })
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [syncOverlayMetrics])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return
@@ -426,12 +484,13 @@ export default function ChessBoard({
     }
 
     apiRef.current = Chessground(containerRef.current, config)
+    requestAnimationFrame(syncOverlayMetrics)
 
     return () => {
       apiRef.current?.destroy()
       apiRef.current = null
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [syncOverlayMetrics]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync FEN, orientation, and last-move highlight after init.
   // Explicitly passing lastMove on every navigation ensures the highlight
@@ -462,6 +521,7 @@ export default function ChessBoard({
       },
       draggable: { enabled: canInteract },
     })
+    requestAnimationFrame(syncOverlayMetrics)
   }, [fen, lastMove, orientation, interactive, pathKey, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective])
 
   // Sync engine arrow shapes — always re-pass movable so chessground's partial
@@ -609,20 +669,20 @@ export default function ChessBoard({
         <div
           key={`drag-dest-${square}`}
           className={`board-drag-move-dest${occupiedSquares.has(square) ? ' board-drag-move-dest--occupied' : ''}`}
-          style={getSquarePosition(square, orientation)}
+          style={getSquarePosition(square, orientation, overlayMetrics)}
         />
       ))}
       {dragPreviewSquare && (
         <>
-          {!isCoarsePointer && !occupiedSquares.has(dragPreviewSquare) && (
+          {!isCoarsePointer && (
             <div
               className="board-hover-outline"
-              style={getSquarePosition(dragPreviewSquare, orientation)}
+              style={getSquarePosition(dragPreviewSquare, orientation, overlayMetrics)}
             />
           )}
           <div
             className="board-drag-target"
-            style={getSquarePosition(dragPreviewSquare, orientation)}
+            style={getSquarePosition(dragPreviewSquare, orientation, overlayMetrics)}
           />
         </>
       )}
