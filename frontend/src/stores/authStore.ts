@@ -42,9 +42,10 @@ interface AuthState {
 }
 
 async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  // Merge caller's signal with a 5s timeout so auth calls never hang indefinitely
+  // Merge caller's signal with a 10s timeout so auth calls never hang indefinitely.
+  // 10s allows for Neon free-tier cold-start wake-up (~3-5s).
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 5000)
+  const timer = setTimeout(() => controller.abort(), 10_000)
   const { signal: callerSignal, ...restOptions } = options ?? {}
   if (callerSignal) callerSignal.addEventListener('abort', () => controller.abort())
 
@@ -117,7 +118,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   refresh: async () => {
     set({ isLoading: true })
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 3000)
+    const timer = setTimeout(() => controller.abort(), 5000)
     try {
       const data = await authFetch<AuthResponse>('/auth/refresh', {
         method: 'POST',
