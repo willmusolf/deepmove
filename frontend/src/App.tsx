@@ -1292,7 +1292,7 @@ export default function App() {
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
                           </span>
                           {currentAnalysisDepth > 0 ? (
-                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / 25{isAnalyzingPosition ? ' …' : ''}</span>
+                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
                           ) : isAnalyzingPosition ? (
                             <span className="eval-display-depth">analyzing…</span>
                           ) : mainEval && !inBranch ? (
@@ -1382,7 +1382,7 @@ export default function App() {
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
                           </span>
                           {currentAnalysisDepth > 0 ? (
-                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / 25{isAnalyzingPosition ? ' …' : ''}</span>
+                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
                           ) : isAnalyzingPosition ? (
                             <span className="eval-display-depth">analyzing…</span>
                           ) : mainEval && !inBranch ? (
@@ -1585,7 +1585,7 @@ export default function App() {
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
                           </span>
                           {currentAnalysisDepth > 0 ? (
-                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / 25{isAnalyzingPosition ? ' …' : ''}</span>
+                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
                           ) : isAnalyzingPosition ? (
                             <span className="eval-display-depth">analyzing…</span>
                           ) : null}

@@ -1,36 +1,37 @@
 # DeepMove Development TODO
 
-**Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ (analysis-first, coach tab live) · Play vs Bot ✅ · Game import filters ✅ · Move grading ✅
+**Current Status**: Board ✅ · Backend ✅ · Coaching pipeline ✅ · Play vs Bot ✅ · Game import ✅ · Move grading ✅ · Deploy ✅ · Security hardening ✅ · CI/CD ✅
 
-**Last Session**: 2026-04-15 — Responsive layout polish (3 rounds): fixed coord labels (container-query cqw units), nav collapse (logo hidden, ☰ icon), sort dropdown moved to list header, board dvh formula 200→158px (+27px board height), player-info-box 52→44px, app-main padding 1rem→0.75rem, side-col flex-grow (absorbs horizontal slack), ad-col breakpoint 1380→1330px, removed collapsed-nav --board-vw-offset overrides (eliminated board jump on nav toggle), nav-sidebar transition: width 0.2s ease.
+**Last Session**: 2026-04-22 — TODO cleanup + launch reprioritization. Previous: security hardening, deploy automation, staging pipeline, CORS fixes, admin ops panel, coaching kill switch, input validation.
 
 ---
 
 ## 🧭 RECOMMENDED BUILD ORDER FROM HERE
 
 Follow this order unless something urgent breaks:
-- [x] 1. Coaching pipeline overhaul ✅
-- [ ] 2. Stripe + rate limiting
-- [ ] 3. Deploy production stack to `deepmove.io`
-- [x] 4. Responsive layout + resizing pass ✅ (core done — board sizing, nav, coord labels, ad threshold)
-- [ ] 5. Final polish, audits, and launch cleanup
+- [ ] 1. Mobile + responsive launch polish
+- [ ] 2. Final polish, audits, and launch cleanup
+- [ ] 3. Coaching quality QA pass
+- [ ] 4. Stripe + monetization
+- [ ] 5. Post-launch expansion work
 
-**Why this order:** coaching quality is the core product, payments + deployment unlock launch, and the responsive/layout pass should happen after the main feature set is stable so it only has to be solved once.
+**Why this order:** the app is live enough to learn from real usage, so the highest-value work now is making review/play feel excellent on phones and narrow laptops. Deeper coaching quality work stays important, but it no longer blocks launch-day usability.
 
 ---
 
-## 🚀 LAUNCH CHECKLIST (remaining blockers)
+## 🚀 CURRENT LAUNCH PRIORITIES
 
-These things need to happen before launch. Everything else can follow.
+These are the highest-value launch and immediate post-launch items. Completed infra work stays documented below, but it is no longer a blocker list.
 
-### 1. Coaching Pipeline Overhaul (do first — see detailed section below)
-The current coaching pipeline is functional but lessons are generic, often wrong, or missing entirely. The classifier only has 5 of 19 rules, 3 of 6 extractors are stubs, and the LLM gets noisy/incorrect facts. This needs the analysis-first rewrite before validation is meaningful.
-- [ ] Complete the analysis-first pipeline rewrite (see section below)
-- [ ] Run 10 real moosetheman123 games through the new pipeline
-- [ ] For each lesson: "Would a chess player actually learn something from this?"
-- [ ] Iterate until consistently yes
+### 1. Mobile + Responsive Launch Polish
+- [ ] Stop the move list from dragging the page down on mobile when a game loads or a move changes
+- [ ] Keep the board as the first visible thing after load on phone-sized screens
+- [ ] Keep `Load / Analysis / Coach` on one row when they fit; no weird wrapping that makes Coach look detached
+- [ ] Fix board/right-edge sliver mismatch so the board and player boxes read as one clean unit
+- [ ] Make board controls wrap cleanly on small screens with no overlaps
+- [ ] Audit the populated Load tab on phones: import tabs, account row, filters, load actions, and game list header
 
-### 2. Responsive Layout + Resizing (final pre-launch polish pass after core features are stable)
+### 2. Responsive Layout + Resizing (core desktop done, mobile/tablet polish remaining)
 - [ ] Define breakpoints before more UI polish: mobile `<640`, tablet `640-1023`, small desktop `1024-1279`, desktop `1280-1535`, wide `1536+`
 - [ ] Fix desktop resizing first: board, move list, coach panel, eval graph, and controls should stay usable at common laptop widths (especially 1024-1440)
 - [ ] Keep the board as the primary visual anchor on desktop: preserve a strong side-by-side layout on roomy screens, but never let side panels crush the board below a good-looking playable size
@@ -120,7 +121,13 @@ The current coaching pipeline is functional but lessons are generic, often wrong
 - [ ] 5. Port the same system into Play
 - [ ] 6. Run the responsive QA checklist and only then do visual polish
 
-### 3. Stripe + Rate Limiting
+### 3. Coaching Quality QA (post-launch quality pass)
+- [ ] Run 10 real moosetheman123 games through the current pipeline
+- [ ] For each lesson: "Would a chess player actually learn something from this?"
+- [ ] Tighten bad/generic lessons with verified facts, not prompt fluff
+- [ ] Expand move-by-move stats only where they make lessons materially better
+
+### 4. Stripe + Rate Limiting
 - [ ] Create Stripe account + products (Premium Monthly $5, Premium Annual $40)
 - [ ] Stripe Checkout for subscription signup
 - [ ] Stripe Customer Portal for card management + cancellation
@@ -130,15 +137,15 @@ The current coaching pipeline is functional but lessons are generic, often wrong
 - [ ] Return 429 with upgrade prompt when limit hit
 - [ ] LLM model routing: Haiku for ≤1600, Sonnet for 1600+
 
-### 4. Deploy to deepmove.io
-- [ ] Frontend → Vercel, connect deepmove.io domain
-- [ ] Backend → Railway (or Render)
-- [ ] Production Neon project (separate from dev)
-- [ ] Configure env vars, SSL, CORS for production domains
-- [ ] Set ANTHROPIC_API_KEY in production env
-- [ ] Smoke test full flow end-to-end on production URL
-- [ ] Post-launch infra cleanup: verify Vercel auto-deploy triggers correctly on every `main` push
-- [ ] Post-launch infra cleanup: lock down GitHub `main` with branch protection / required PR review / required checks / no direct pushes except owner
+### 5. Deploy to deepmove.io ✅
+- [x] Frontend → Vercel, connect deepmove.io domain
+- [x] Backend → Render
+- [x] Production Neon project
+- [x] Configure env vars, SSL, CORS for production domains
+- [x] Set ANTHROPIC_API_KEY in production env
+- [x] Smoke test full flow end-to-end on production URL
+- [x] Verify Vercel auto-deploy triggers correctly on every `main` push
+- [x] Lock down GitHub `main` with branch protection / required PR review / required checks / no direct pushes except owner
 
 ---
 
@@ -684,8 +691,5 @@ EVENTUALLY
 
 
 -make this into an ios app
-
-
-
 
 
