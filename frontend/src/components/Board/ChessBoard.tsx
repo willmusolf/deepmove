@@ -269,6 +269,7 @@ export default function ChessBoard({
   const userPerspectiveRef = useRef(userPerspective)
   const prevPathKeyRef = useRef(pathKey)
   const sizeRef = useRef({ width: 0, height: 0 })
+  const lastMousePositionRef = useRef<[number, number] | null>(null)
 
   // Track when the board has a real layout size so shapes only sync after mount.
   // Avoid writing inline width/height here: that can leave the board "stuck" at a
@@ -578,32 +579,43 @@ export default function ChessBoard({
       boardEl.style.cursor = cursor
     }
 
-    const syncPieceHover = (event: PointerEvent | MouseEvent) => {
+    const syncCursorAt = (clientX: number, clientY: number) => {
       if (isDragging) {
         setBoardCursor('pointer')
         return
       }
       const key = getSquareFromClientPosition(
-        event.clientX,
-        event.clientY,
+        clientX,
+        clientY,
         boardEl,
         orientationRef.current,
       )
       setBoardCursor(key && legalDests.has(key) ? 'pointer' : 'default')
     }
 
+    const syncPieceHover = (event: MouseEvent) => {
+      lastMousePositionRef.current = [event.clientX, event.clientY]
+      syncCursorAt(event.clientX, event.clientY)
+    }
+
     const clearPieceHover = () => {
+      lastMousePositionRef.current = null
       setBoardCursor(isDragging ? 'pointer' : 'default')
     }
 
-    wrapperEl.addEventListener('pointerenter', syncPieceHover)
-    wrapperEl.addEventListener('pointermove', syncPieceHover)
-    wrapperEl.addEventListener('pointerleave', clearPieceHover)
+    const initialMousePosition = lastMousePositionRef.current
+    if (initialMousePosition) {
+      syncCursorAt(initialMousePosition[0], initialMousePosition[1])
+    }
+
+    wrapperEl.addEventListener('mousemove', syncPieceHover)
+    wrapperEl.addEventListener('mouseenter', syncPieceHover)
+    wrapperEl.addEventListener('mouseleave', clearPieceHover)
 
     return () => {
-      wrapperEl.removeEventListener('pointerenter', syncPieceHover)
-      wrapperEl.removeEventListener('pointermove', syncPieceHover)
-      wrapperEl.removeEventListener('pointerleave', clearPieceHover)
+      wrapperEl.removeEventListener('mousemove', syncPieceHover)
+      wrapperEl.removeEventListener('mouseenter', syncPieceHover)
+      wrapperEl.removeEventListener('mouseleave', clearPieceHover)
     }
   }, [isDragging, legalDests])
 
@@ -620,6 +632,22 @@ export default function ChessBoard({
     if (cgContainerEl) cgContainerEl.style.cursor = 'default'
     if (boardEl) boardEl.style.cursor = 'default'
   }, [fen, orientation, pathKey])
+
+  useEffect(() => {
+    const position = lastMousePositionRef.current
+    const boardEl = containerRef.current?.querySelector('cg-board') as HTMLElement | null
+    const wrapperEl = wrapperRef.current
+    const containerEl = containerRef.current
+    const cgContainerEl = containerEl?.querySelector('cg-container') as HTMLElement | null
+    if (!position || !boardEl || !wrapperEl || !containerEl) return
+
+    const key = getSquareFromClientPosition(position[0], position[1], boardEl, orientationRef.current)
+    const cursor = !isDragging && key && legalDests.has(key) ? 'pointer' : 'default'
+    wrapperEl.style.cursor = cursor
+    containerEl.style.cursor = cursor
+    if (cgContainerEl) cgContainerEl.style.cursor = cursor
+    boardEl.style.cursor = cursor
+  }, [fen, orientation, pathKey, legalDests, isDragging])
 
   const handlePromotion = useCallback((piece: string) => {
     if (!pendingPromotion) return
