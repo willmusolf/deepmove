@@ -498,12 +498,21 @@ export default function ChessBoard({
     const dragShapes: DrawShape[] = []
     if (isDragging && dragOriginSquare) {
       const dotSvg = '<circle cx="50" cy="50" r="15" fill="rgba(168,174,181,0.84)"/>'
-      const ringSvg = '<circle cx="50" cy="50" r="36" fill="none" stroke="rgba(168,174,181,0.9)" stroke-width="9"/>'
+      const cornerSvg = `
+        <rect x="8" y="8" width="18" height="6" rx="2" fill="rgba(58,64,72,0.72)"/>
+        <rect x="8" y="8" width="6" height="18" rx="2" fill="rgba(58,64,72,0.72)"/>
+        <rect x="74" y="8" width="18" height="6" rx="2" fill="rgba(58,64,72,0.72)"/>
+        <rect x="86" y="8" width="6" height="18" rx="2" fill="rgba(58,64,72,0.72)"/>
+        <rect x="8" y="86" width="18" height="6" rx="2" fill="rgba(58,64,72,0.72)"/>
+        <rect x="8" y="74" width="6" height="18" rx="2" fill="rgba(58,64,72,0.72)"/>
+        <rect x="74" y="86" width="18" height="6" rx="2" fill="rgba(58,64,72,0.72)"/>
+        <rect x="86" y="74" width="6" height="18" rx="2" fill="rgba(58,64,72,0.72)"/>
+      `
       for (const square of dragDestinationSquares) {
         dragShapes.push({
           orig: square,
           customSvg: {
-            html: occupiedSquares.has(square) ? ringSvg : dotSvg,
+            html: occupiedSquares.has(square) ? cornerSvg : dotSvg,
           },
         })
       }
