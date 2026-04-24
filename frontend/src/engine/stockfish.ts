@@ -1,8 +1,7 @@
 // stockfish.ts — Web Worker manager for Stockfish WASM
 //
-// The worker is /public/stockfish/stockfish.js (nmrugg build).
-// It auto-detects worker context and resolves its companion WASM file correctly
-// when loaded directly from the matching /stockfish/stockfish.js path.
+// The worker entry is /public/stockfish/worker.js, a tiny classic-worker wrapper
+// around the copied nmrugg Stockfish bundle in /public/stockfish/stockfish.js.
 
 import { Chess } from 'chess.js'
 
@@ -91,7 +90,7 @@ export class StockfishEngine {
 
   async initialize(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.worker = new Worker('/stockfish/stockfish.js')
+      this.worker = new Worker('/stockfish/worker.js')
 
       let settled = false
 
@@ -123,11 +122,11 @@ export class StockfishEngine {
       }
 
       this.worker.onerror = (err) => {
-        if (!err.message) return  // ignore spurious non-fatal worker errors
         if (settled) return
         settled = true
         if (this._initTimeoutId) { clearTimeout(this._initTimeoutId); this._initTimeoutId = null }
-        reject(new Error(`Stockfish worker error: ${err.message}`))
+        const message = err.message || 'Stockfish worker failed to load'
+        reject(new Error(`Stockfish worker error: ${message}`))
       }
 
       this.worker.postMessage('uci')
