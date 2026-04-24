@@ -498,21 +498,12 @@ export default function ChessBoard({
     const dragShapes: DrawShape[] = []
     if (isDragging && dragOriginSquare) {
       const dotSvg = '<circle cx="50" cy="50" r="15" fill="rgba(86,92,100,0.96)"/>'
-      const cornerSvg = `
-        <rect x="8" y="8" width="18" height="6" rx="2" fill="rgba(44,50,58,0.84)"/>
-        <rect x="8" y="8" width="6" height="18" rx="2" fill="rgba(44,50,58,0.84)"/>
-        <rect x="74" y="8" width="18" height="6" rx="2" fill="rgba(44,50,58,0.84)"/>
-        <rect x="86" y="8" width="6" height="18" rx="2" fill="rgba(44,50,58,0.84)"/>
-        <rect x="8" y="86" width="18" height="6" rx="2" fill="rgba(44,50,58,0.84)"/>
-        <rect x="8" y="74" width="6" height="18" rx="2" fill="rgba(44,50,58,0.84)"/>
-        <rect x="74" y="86" width="18" height="6" rx="2" fill="rgba(44,50,58,0.84)"/>
-        <rect x="86" y="74" width="6" height="18" rx="2" fill="rgba(44,50,58,0.84)"/>
-      `
+      const ringSvg = '<circle cx="50" cy="50" r="36" fill="none" stroke="rgba(86,92,100,0.96)" stroke-width="9"/>'
       for (const square of dragDestinationSquares) {
         dragShapes.push({
           orig: square,
           customSvg: {
-            html: occupiedSquares.has(square) ? cornerSvg : dotSvg,
+            html: occupiedSquares.has(square) ? ringSvg : dotSvg,
           },
         })
       }
@@ -571,26 +562,33 @@ export default function ChessBoard({
   }, [])
 
   useEffect(() => {
-    const boardEl = containerRef.current?.querySelector('cg-board') as HTMLElement | null
-    if (!boardEl) return
+    const wrapperEl = wrapperRef.current
+    if (!wrapperEl) return
+
+    const setBoardCursor = (cursor: 'default' | 'pointer') => {
+      const boardEl = containerRef.current?.querySelector('cg-board') as HTMLElement | null
+      if (boardEl) {
+        boardEl.style.cursor = cursor
+      }
+    }
 
     const syncPieceHover = (event: MouseEvent) => {
       const api = apiRef.current
       if (!api) return
       const key = api.getKeyAtDomPos([event.clientX, event.clientY])
-      boardEl.style.cursor = key && api.state.pieces.has(key) ? 'pointer' : 'default'
+      setBoardCursor(key && api.state.pieces.has(key) ? 'pointer' : 'default')
     }
 
     const clearPieceHover = () => {
-      boardEl.style.cursor = 'default'
+      setBoardCursor('default')
     }
 
-    boardEl.addEventListener('mousemove', syncPieceHover)
-    boardEl.addEventListener('mouseleave', clearPieceHover)
+    wrapperEl.addEventListener('mousemove', syncPieceHover)
+    wrapperEl.addEventListener('mouseleave', clearPieceHover)
 
     return () => {
-      boardEl.removeEventListener('mousemove', syncPieceHover)
-      boardEl.removeEventListener('mouseleave', clearPieceHover)
+      wrapperEl.removeEventListener('mousemove', syncPieceHover)
+      wrapperEl.removeEventListener('mouseleave', clearPieceHover)
     }
   }, [])
 
@@ -641,12 +639,14 @@ export default function ChessBoard({
           style={getSquarePosition(square, orientation)}
         />
       ))}
-      {dragPreviewSquare && !occupiedSquares.has(dragPreviewSquare) && (
+      {dragPreviewSquare && (
         <>
-          <div
-            className="board-hover-outline"
-            style={getSquarePosition(dragPreviewSquare, orientation)}
-          />
+          {!occupiedSquares.has(dragPreviewSquare) && (
+            <div
+              className="board-hover-outline"
+              style={getSquarePosition(dragPreviewSquare, orientation)}
+            />
+          )}
           <div
             className="board-drag-target"
             style={getSquarePosition(dragPreviewSquare, orientation)}
