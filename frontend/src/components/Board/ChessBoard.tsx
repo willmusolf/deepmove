@@ -76,6 +76,25 @@ function getEventPosition(event: PointerEvent | MouseEvent | TouchEvent): [numbe
   return [event.clientX, event.clientY]
 }
 
+function getSquareFromClientPosition(
+  clientX: number,
+  clientY: number,
+  boardEl: HTMLElement,
+  orientation: 'white' | 'black',
+): Key | null {
+  const rect = boardEl.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+  if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null
+
+  const fileIndex = Math.min(7, Math.max(0, Math.floor(((clientX - rect.left) / rect.width) * 8)))
+  const rankFromTop = Math.min(7, Math.max(0, Math.floor(((clientY - rect.top) / rect.height) * 8)))
+
+  const file = orientation === 'white' ? fileIndex : 7 - fileIndex
+  const rank = orientation === 'white' ? 7 - rankFromTop : rankFromTop
+
+  return `${String.fromCharCode(97 + file)}${rank + 1}` as Key
+}
+
 /** Apply a premove without legality checks (pinned pieces, check, etc.).
  *  Uses chess.js put/remove rather than move(), so legality is not validated.
  *  The premove may become legal when it fires; if still illegal, drainPremoveQueue
@@ -560,28 +579,33 @@ export default function ChessBoard({
     }
 
     const syncPieceHover = (event: PointerEvent | MouseEvent) => {
-      const api = apiRef.current
-      if (!api) return
       if (isDragging) {
         setBoardCursor('pointer')
         return
       }
-      const key = api.getKeyAtDomPos([event.clientX, event.clientY])
-      setBoardCursor(key && api.state.movable.dests?.has(key) ? 'pointer' : 'default')
+      const key = getSquareFromClientPosition(
+        event.clientX,
+        event.clientY,
+        boardEl,
+        orientationRef.current,
+      )
+      setBoardCursor(key && legalDests.has(key) ? 'pointer' : 'default')
     }
 
     const clearPieceHover = () => {
       setBoardCursor(isDragging ? 'pointer' : 'default')
     }
 
+    wrapperEl.addEventListener('pointerenter', syncPieceHover)
     wrapperEl.addEventListener('pointermove', syncPieceHover)
     wrapperEl.addEventListener('pointerleave', clearPieceHover)
 
     return () => {
+      wrapperEl.removeEventListener('pointerenter', syncPieceHover)
       wrapperEl.removeEventListener('pointermove', syncPieceHover)
       wrapperEl.removeEventListener('pointerleave', clearPieceHover)
     }
-  }, [isDragging])
+  }, [isDragging, legalDests])
 
   useEffect(() => {
     setIsDragging(false)
