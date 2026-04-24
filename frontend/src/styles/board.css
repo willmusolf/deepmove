@@ -41,15 +41,7 @@ cg-board square.move-dest {
 }
 
 cg-board square.move-dest.oc {
-  background:
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) left 8% top 8% / 24% 7% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) left 8% top 8% / 7% 24% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) right 8% top 8% / 24% 7% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) right 8% top 8% / 7% 24% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) left 8% bottom 8% / 24% 7% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) left 8% bottom 8% / 7% 24% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) right 8% bottom 8% / 24% 7% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) right 8% bottom 8% / 7% 24% no-repeat !important;
+  background: radial-gradient(transparent 0 72%, rgba(86, 92, 100, 0.96) 73% 100%) !important;
 }
 
 .cg-wrap piece.anim {
@@ -115,15 +107,7 @@ cg-board square.move-dest.oc {
 }
 
 .board-drag-move-dest--occupied {
-  background:
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) left 8% top 8% / 24% 7% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) left 8% top 8% / 7% 24% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) right 8% top 8% / 24% 7% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) right 8% top 8% / 7% 24% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) left 8% bottom 8% / 24% 7% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) left 8% bottom 8% / 7% 24% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) right 8% bottom 8% / 24% 7% no-repeat,
-    linear-gradient(rgba(44, 50, 58, 0.84), rgba(44, 50, 58, 0.84)) right 8% bottom 8% / 7% 24% no-repeat;
+  background: radial-gradient(transparent 0 72%, rgba(86, 92, 100, 0.96) 73% 100%);
 }
 
 .chess-board-container.board-dragging cg-board square.selected {
