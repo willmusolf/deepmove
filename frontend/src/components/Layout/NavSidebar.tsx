@@ -14,13 +14,10 @@ const MAIN_ITEMS = [
     id: 'review' as const,
     label: 'Review',
     icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9.5 21h5" />
-        <path d="M8 21h8" />
-        <path d="M9 18h6" />
-        <path d="M9 18c0-2.2 1.2-3.2 1.2-4.8 0-.8-.4-1.7-1.2-2.8h6c-.8 1.1-1.2 2-1.2 2.8 0 1.6 1.2 2.6 1.2 4.8" />
-        <path d="M11.4 10.4c-.9-1.1-1.4-2.2-1.4-3.4 0-2 1.4-3.5 3.4-3.5S16.8 5 16.8 7c0 1.2-.5 2.3-1.4 3.4" />
-        <path d="M12 5.2c.5-.7 1.1-1.1 1.8-1.1" />
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+        <path d="M12 4.25a3.15 3.15 0 1 0 0 6.3 3.15 3.15 0 0 0 0-6.3Z" />
+        <path d="M9.15 11.85a.95.95 0 0 0-.62 1.67c1 1 1.54 2.1 1.54 3.3v.18H8.6a.95.95 0 1 0 0 1.9h6.8a.95.95 0 1 0 0-1.9h-1.47v-.18c0-1.2.54-2.3 1.54-3.3a.95.95 0 0 0-.62-1.67H9.15Z" />
+        <path d="M7.4 19.75a.95.95 0 1 0 0 1.9h9.2a.95.95 0 1 0 0-1.9H7.4Z" />
       </svg>
     ),
   },

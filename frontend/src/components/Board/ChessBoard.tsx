@@ -546,14 +546,20 @@ export default function ChessBoard({
   }, [])
 
   useEffect(() => {
-    const boardEl = containerRef.current?.querySelector('cg-board') as HTMLElement | null
-    if (!boardEl) return
+    const wrapperEl = wrapperRef.current
+    const containerEl = containerRef.current
+    const boardEl = containerEl?.querySelector('cg-board') as HTMLElement | null
+    const cgContainerEl = containerEl?.querySelector('cg-container') as HTMLElement | null
+    if (!wrapperEl || !containerEl || !boardEl) return
 
     const setBoardCursor = (cursor: 'default' | 'pointer') => {
+      wrapperEl.style.cursor = cursor
+      containerEl.style.cursor = cursor
+      if (cgContainerEl) cgContainerEl.style.cursor = cursor
       boardEl.style.cursor = cursor
     }
 
-    const syncPieceHover = (event: MouseEvent) => {
+    const syncPieceHover = (event: PointerEvent | MouseEvent) => {
       const api = apiRef.current
       if (!api) return
       if (isDragging) {
@@ -568,12 +574,12 @@ export default function ChessBoard({
       setBoardCursor(isDragging ? 'pointer' : 'default')
     }
 
-    boardEl.addEventListener('mousemove', syncPieceHover)
-    boardEl.addEventListener('mouseleave', clearPieceHover)
+    wrapperEl.addEventListener('pointermove', syncPieceHover)
+    wrapperEl.addEventListener('pointerleave', clearPieceHover)
 
     return () => {
-      boardEl.removeEventListener('mousemove', syncPieceHover)
-      boardEl.removeEventListener('mouseleave', clearPieceHover)
+      wrapperEl.removeEventListener('pointermove', syncPieceHover)
+      wrapperEl.removeEventListener('pointerleave', clearPieceHover)
     }
   }, [isDragging])
 
@@ -581,10 +587,14 @@ export default function ChessBoard({
     setIsDragging(false)
     setDragOriginSquare(null)
     setDragPreviewSquare(null)
-    const boardEl = containerRef.current?.querySelector('cg-board') as HTMLElement | null
-    if (boardEl) {
-      boardEl.style.cursor = 'default'
-    }
+    const wrapperEl = wrapperRef.current
+    const containerEl = containerRef.current
+    const boardEl = containerEl?.querySelector('cg-board') as HTMLElement | null
+    const cgContainerEl = containerEl?.querySelector('cg-container') as HTMLElement | null
+    if (wrapperEl) wrapperEl.style.cursor = 'default'
+    if (containerEl) containerEl.style.cursor = 'default'
+    if (cgContainerEl) cgContainerEl.style.cursor = 'default'
+    if (boardEl) boardEl.style.cursor = 'default'
   }, [fen, orientation, pathKey])
 
   const handlePromotion = useCallback((piece: string) => {
