@@ -580,6 +580,7 @@ export default function ChessBoard({
     }
 
     const syncCursorAt = (clientX: number, clientY: number) => {
+      lastMousePositionRef.current = [clientX, clientY]
       if (isDragging) {
         setBoardCursor('pointer')
         return
@@ -594,7 +595,6 @@ export default function ChessBoard({
     }
 
     const syncPieceHover = (event: MouseEvent) => {
-      lastMousePositionRef.current = [event.clientX, event.clientY]
       syncCursorAt(event.clientX, event.clientY)
     }
 
@@ -608,14 +608,26 @@ export default function ChessBoard({
       syncCursorAt(initialMousePosition[0], initialMousePosition[1])
     }
 
-    wrapperEl.addEventListener('mousemove', syncPieceHover)
-    wrapperEl.addEventListener('mouseenter', syncPieceHover)
-    wrapperEl.addEventListener('mouseleave', clearPieceHover)
+    const handleWindowMove = (event: MouseEvent) => {
+      syncPieceHover(event)
+    }
+
+    const handleWindowDown = (event: MouseEvent) => {
+      syncPieceHover(event)
+    }
+
+    const handleWindowLeave = () => {
+      clearPieceHover()
+    }
+
+    window.addEventListener('mousemove', handleWindowMove, true)
+    window.addEventListener('mousedown', handleWindowDown, true)
+    window.addEventListener('blur', handleWindowLeave)
 
     return () => {
-      wrapperEl.removeEventListener('mousemove', syncPieceHover)
-      wrapperEl.removeEventListener('mouseenter', syncPieceHover)
-      wrapperEl.removeEventListener('mouseleave', clearPieceHover)
+      window.removeEventListener('mousemove', handleWindowMove, true)
+      window.removeEventListener('mousedown', handleWindowDown, true)
+      window.removeEventListener('blur', handleWindowLeave)
     }
   }, [isDragging, legalDests])
 
