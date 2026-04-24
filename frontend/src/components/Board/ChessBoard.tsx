@@ -236,6 +236,7 @@ export default function ChessBoard({
 
   const [pendingPromotion, setPendingPromotion] = useState<{ from: Key; to: Key; color: 'white' | 'black'; orientation: 'white' | 'black' } | null>(null)
   const [boardReady, setBoardReady] = useState(false)
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false)
   const [dragPreviewSquare, setDragPreviewSquare] = useState<Key | null>(null)
   const [dragOriginSquare, setDragOriginSquare] = useState<Key | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -272,6 +273,17 @@ export default function ChessBoard({
     })
     ro.observe(el)
     return () => ro.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+
+    const mediaQuery = window.matchMedia('(pointer: coarse)')
+    const syncPointerMode = () => setIsCoarsePointer(mediaQuery.matches)
+
+    syncPointerMode()
+    mediaQuery.addEventListener('change', syncPointerMode)
+    return () => mediaQuery.removeEventListener('change', syncPointerMode)
   }, [])
 
   // Keep refs current without triggering re-init
@@ -546,45 +558,21 @@ export default function ChessBoard({
   }, [])
 
   useEffect(() => {
-    const boardEl = containerRef.current?.querySelector('cg-board') as HTMLElement | null
-    if (!boardEl) return
-
-    const setBoardCursor = (cursor: 'default' | 'pointer') => {
-      boardEl.style.cursor = cursor
+    const wrapEl = containerRef.current
+    if (!wrapEl) return
+    const canShowPieceCursor = (interactive || !!userPerspective) && !isDragging
+    if (canShowPieceCursor) {
+      wrapEl.setAttribute('data-cursor-color', fenTurnColor)
+    } else {
+      wrapEl.removeAttribute('data-cursor-color')
     }
-
-    const syncPieceHover = (event: MouseEvent) => {
-      const api = apiRef.current
-      if (!api) return
-      if (isDragging) {
-        setBoardCursor('pointer')
-        return
-      }
-      const key = api.getKeyAtDomPos([event.clientX, event.clientY])
-      setBoardCursor(key && api.state.movable.dests?.has(key) ? 'pointer' : 'default')
-    }
-
-    const clearPieceHover = () => {
-      setBoardCursor(isDragging ? 'pointer' : 'default')
-    }
-
-    boardEl.addEventListener('mousemove', syncPieceHover)
-    boardEl.addEventListener('mouseleave', clearPieceHover)
-
-    return () => {
-      boardEl.removeEventListener('mousemove', syncPieceHover)
-      boardEl.removeEventListener('mouseleave', clearPieceHover)
-    }
-  }, [isDragging])
+    return () => wrapEl.removeAttribute('data-cursor-color')
+  }, [interactive, userPerspective, isDragging, fenTurnColor, fen, orientation, pathKey])
 
   useEffect(() => {
     setIsDragging(false)
     setDragOriginSquare(null)
     setDragPreviewSquare(null)
-    const boardEl = containerRef.current?.querySelector('cg-board') as HTMLElement | null
-    if (boardEl) {
-      boardEl.style.cursor = 'default'
-    }
   }, [fen, orientation, pathKey])
 
   const handlePromotion = useCallback((piece: string) => {
@@ -625,10 +613,18 @@ export default function ChessBoard({
         />
       ))}
       {dragPreviewSquare && (
-        <div
-          className="board-hover-outline"
-          style={getSquarePosition(dragPreviewSquare, orientation)}
-        />
+        <>
+          {!isCoarsePointer && !occupiedSquares.has(dragPreviewSquare) && (
+            <div
+              className="board-hover-outline"
+              style={getSquarePosition(dragPreviewSquare, orientation)}
+            />
+          )}
+          <div
+            className="board-drag-target"
+            style={getSquarePosition(dragPreviewSquare, orientation)}
+          />
+        </>
       )}
       {pendingPromotion && (() => {
         const { to, color, orientation: ori } = pendingPromotion

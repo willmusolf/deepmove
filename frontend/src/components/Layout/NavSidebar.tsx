@@ -10,7 +10,18 @@ interface NavSidebarProps {
 }
 
 const MAIN_ITEMS = [
-  { id: 'review' as const, label: 'Review', icon: '♟' },
+  {
+    id: 'review' as const,
+    label: 'Review',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="7" r="2.35" />
+        <path d="M10.1 11.9h3.8" />
+        <path d="M10.25 11.9c-1 1.15-1.55 2.35-1.55 3.65V17h6.6v-1.45c0-1.3-.55-2.5-1.55-3.65" />
+        <path d="M8 20h8" />
+      </svg>
+    ),
+  },
   { id: 'play'   as const, label: 'Play',   icon: '▶' },
 ]
 
