@@ -298,7 +298,6 @@ export default function ChessBoard({
     if (!containerRef.current) return
 
     const config: Config = {
-      addDimensionsCssVarsTo: wrapperRef.current ?? undefined,
       fen,
       orientation,
       turnColor: getTurnColor(fen),
