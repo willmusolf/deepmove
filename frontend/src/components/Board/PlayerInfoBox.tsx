@@ -151,7 +151,7 @@ export default function PlayerInfoBox({
           />
         ) : (
           <div className="avatar-fallback">
-            {username ? username.charAt(0).toUpperCase() : '?'}
+            {(username || 'P').charAt(0).toUpperCase()}
           </div>
         )}
       </div>

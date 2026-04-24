@@ -7,6 +7,8 @@ import type { MoveGrade } from '../../engine/analysis'
 import type { MoveNode, MoveTree } from '../../chess/types'
 import { getPathToNode } from '../../hooks/useGameReview'
 
+const PHONE_MOVE_LIST_QUERY = '(max-width: 639px)'
+
 // ─── Grade badge ─────────────────────────────────────────────────────────────
 
 const GRADE_CONFIG: Record<NonNullable<MoveGrade>, { label: string; cls: string }> = {
@@ -211,11 +213,29 @@ export default function MoveList({
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!containerRef.current) return
+    const container = containerRef.current
+    if (!container) return
     const activeId = currentPath[currentPath.length - 1]
     if (!activeId) return
-    const el = containerRef.current.querySelector<HTMLElement>(`[data-node-id="${activeId}"]`)
-    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    if (typeof window !== 'undefined' && window.matchMedia(PHONE_MOVE_LIST_QUERY).matches) return
+
+    const el = container.querySelector<HTMLElement>(`[data-node-id="${activeId}"]`)
+    if (!el || container.scrollHeight <= container.clientHeight + 1) return
+
+    const containerRect = container.getBoundingClientRect()
+    const itemRect = el.getBoundingClientRect()
+    const padding = 12
+
+    if (itemRect.top < containerRect.top + padding) {
+      const nextTop = container.scrollTop + (itemRect.top - containerRect.top) - padding
+      container.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' })
+      return
+    }
+
+    if (itemRect.bottom > containerRect.bottom - padding) {
+      const nextTop = container.scrollTop + (itemRect.bottom - containerRect.bottom) + padding
+      container.scrollTo({ top: nextTop, behavior: 'smooth' })
+    }
   }, [currentPath])
 
   if (!rootId) return <div className="move-list" />

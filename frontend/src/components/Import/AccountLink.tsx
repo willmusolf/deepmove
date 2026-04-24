@@ -33,6 +33,10 @@ const HISTORY_KEY: Record<Platform, string> = {
   lichess: 'deepmove_search_history_lichess',
 }
 
+function getStoredUsername(platform: Platform): string {
+  return localStorage.getItem(STORAGE_KEY[platform]) ?? getMyUsername(platform) ?? ''
+}
+
 const GAMELIST_CACHE_TTL = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 interface GameListCache {
@@ -81,9 +85,7 @@ function addToHistory(platform: Platform, username: string) {
 }
 
 export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, newestEndTime }: AccountLinkProps) {
-  const [username, setUsername] = useState(() => {
-    return localStorage.getItem(STORAGE_KEY[platform]) ?? getMyUsername(platform) ?? ''
-  })
+  const [username, setUsername] = useState(() => getStoredUsername(platform))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadedUser, setLoadedUser] = useState<string | null>(null)
@@ -99,6 +101,7 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
     const trimmed = name.trim()
     if (!trimmed) return
     if (fetchingRef.current) return
+    localStorage.setItem(STORAGE_KEY[platform], trimmed)
     fetchingRef.current = true
     setShowSuggestions(false)
     setLoading(true)
@@ -138,7 +141,6 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
         games = result.games
         pagination = { platform, hasMore: result.hasMore }
       }
-      localStorage.setItem(STORAGE_KEY[platform], trimmed)
       addToHistory(platform, trimmed)
       setHistory(getHistory(platform))
       setLoadedUser(trimmed)
@@ -157,11 +159,12 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
 
   // On mount: restore game list from cache if fresh, skipping the API call
   useEffect(() => {
-    const savedUsername = localStorage.getItem(STORAGE_KEY[platform]) ?? getMyUsername(platform)
+    const savedUsername = getStoredUsername(platform)
     if (!savedUsername) return
+    setUsername(savedUsername)
+    setLoadedUser(savedUsername)
     const cached = getGameListCache(platform, savedUsername)
     if (!cached) return
-    setLoadedUser(savedUsername)
     onGamesLoaded(cached.games, savedUsername, cached.pagination)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [platform])
