@@ -625,16 +625,10 @@ export default function ChessBoard({
         />
       ))}
       {dragPreviewSquare && (
-        <>
-          <div
-            className="board-hover-outline"
-            style={getSquarePosition(dragPreviewSquare, orientation)}
-          />
-          <div
-            className="board-drag-target"
-            style={getSquarePosition(dragPreviewSquare, orientation)}
-          />
-        </>
+        <div
+          className="board-hover-outline"
+          style={getSquarePosition(dragPreviewSquare, orientation)}
+        />
       )}
       {pendingPromotion && (() => {
         const { to, color, orientation: ori } = pendingPromotion
