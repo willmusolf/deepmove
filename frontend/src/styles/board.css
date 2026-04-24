@@ -108,7 +108,15 @@ cg-board square.move-dest.oc {
 }
 
 .board-drag-move-dest--occupied {
-  background: radial-gradient(transparent 0 72%, rgba(168, 174, 181, 0.94) 73% 100%);
+  background:
+    linear-gradient(rgba(58, 64, 72, 0.72), rgba(58, 64, 72, 0.72)) left 8% top 8% / 24% 7% no-repeat,
+    linear-gradient(rgba(58, 64, 72, 0.72), rgba(58, 64, 72, 0.72)) left 8% top 8% / 7% 24% no-repeat,
+    linear-gradient(rgba(58, 64, 72, 0.72), rgba(58, 64, 72, 0.72)) right 8% top 8% / 24% 7% no-repeat,
+    linear-gradient(rgba(58, 64, 72, 0.72), rgba(58, 64, 72, 0.72)) right 8% top 8% / 7% 24% no-repeat,
+    linear-gradient(rgba(58, 64, 72, 0.72), rgba(58, 64, 72, 0.72)) left 8% bottom 8% / 24% 7% no-repeat,
+    linear-gradient(rgba(58, 64, 72, 0.72), rgba(58, 64, 72, 0.72)) left 8% bottom 8% / 7% 24% no-repeat,
+    linear-gradient(rgba(58, 64, 72, 0.72), rgba(58, 64, 72, 0.72)) right 8% bottom 8% / 24% 7% no-repeat,
+    linear-gradient(rgba(58, 64, 72, 0.72), rgba(58, 64, 72, 0.72)) right 8% bottom 8% / 7% 24% no-repeat;
 }
 
 .chess-board-container.board-dragging cg-board square.selected {
@@ -1271,7 +1279,7 @@ cg-board {
   .board-drag-target {
     display: block;
     transform: scale(1.64);
-    background: rgba(72, 78, 86, 0.58);
+    background: rgba(72, 78, 86, 0.48);
     box-shadow: 0 4px 12px rgba(32, 36, 42, 0.22);
   }
 
