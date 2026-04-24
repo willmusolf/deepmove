@@ -497,16 +497,16 @@ export default function ChessBoard({
 
     const dragShapes: DrawShape[] = []
     if (isDragging && dragOriginSquare) {
-      const dotSvg = '<circle cx="50" cy="50" r="15" fill="rgba(168,174,181,0.84)"/>'
+      const dotSvg = '<circle cx="50" cy="50" r="15" fill="rgba(86,92,100,0.96)"/>'
       const cornerSvg = `
-        <rect x="8" y="8" width="18" height="6" rx="2" fill="rgba(58,64,72,0.72)"/>
-        <rect x="8" y="8" width="6" height="18" rx="2" fill="rgba(58,64,72,0.72)"/>
-        <rect x="74" y="8" width="18" height="6" rx="2" fill="rgba(58,64,72,0.72)"/>
-        <rect x="86" y="8" width="6" height="18" rx="2" fill="rgba(58,64,72,0.72)"/>
-        <rect x="8" y="86" width="18" height="6" rx="2" fill="rgba(58,64,72,0.72)"/>
-        <rect x="8" y="74" width="6" height="18" rx="2" fill="rgba(58,64,72,0.72)"/>
-        <rect x="74" y="86" width="18" height="6" rx="2" fill="rgba(58,64,72,0.72)"/>
-        <rect x="86" y="74" width="6" height="18" rx="2" fill="rgba(58,64,72,0.72)"/>
+        <rect x="8" y="8" width="18" height="6" rx="2" fill="rgba(44,50,58,0.84)"/>
+        <rect x="8" y="8" width="6" height="18" rx="2" fill="rgba(44,50,58,0.84)"/>
+        <rect x="74" y="8" width="18" height="6" rx="2" fill="rgba(44,50,58,0.84)"/>
+        <rect x="86" y="8" width="6" height="18" rx="2" fill="rgba(44,50,58,0.84)"/>
+        <rect x="8" y="86" width="18" height="6" rx="2" fill="rgba(44,50,58,0.84)"/>
+        <rect x="8" y="74" width="6" height="18" rx="2" fill="rgba(44,50,58,0.84)"/>
+        <rect x="74" y="86" width="18" height="6" rx="2" fill="rgba(44,50,58,0.84)"/>
+        <rect x="86" y="74" width="6" height="18" rx="2" fill="rgba(44,50,58,0.84)"/>
       `
       for (const square of dragDestinationSquares) {
         dragShapes.push({
@@ -641,7 +641,7 @@ export default function ChessBoard({
           style={getSquarePosition(square, orientation)}
         />
       ))}
-      {dragPreviewSquare && (
+      {dragPreviewSquare && !occupiedSquares.has(dragPreviewSquare) && (
         <>
           <div
             className="board-hover-outline"
