@@ -5,6 +5,7 @@ import ChessBoard, { type DrawShape } from '../Board/ChessBoard'
 import EvalBar from '../Board/EvalBar'
 import PlayerInfoBox from '../Board/PlayerInfoBox'
 import { OPENING_PRACTICE_COURSES } from '../../chess/practice'
+import { getSquareOverlayPosition } from '../../chess/boardGeometry'
 import type { OpeningCourse, OpeningLine, PracticePosition } from '../../chess/practice'
 import { summarizePracticeProgress, usePracticeStore, type PracticeProgressSummary } from '../../stores/practiceStore'
 
@@ -249,7 +250,7 @@ export default function PracticePage() {
               platform={null}
             />
 
-            <div style={{ position: 'relative' }}>
+            <div className="board-overlay-host">
               <ChessBoard
                 key={`${selectedLine.id}-${currentStepIndex}-${view}-${practiceBoardKey}`}
                 fen={currentStep.fen}
@@ -272,21 +273,14 @@ export default function PracticePage() {
                 }
                 return null
               }
-              const _sqPos = (sq: string) => {
-                const file = sq.charCodeAt(0) - 97
-                const rank = parseInt(sq[1], 10) - 1
-                const lc = orientation === 'white' ? file : (7 - file)
-                const tc = orientation === 'white' ? (7 - rank) : rank
-                return { left: `${(lc + 1) * 12.5}%`, top: `${tc * 12.5}%` }
-              }
               if (_chess.isCheckmate()) {
                 const sq = _findKing(_chess.turn())
                 if (!sq) return null
-                return <div className="board-result-badge board-result-badge--checkmate" style={_sqPos(sq)}>#</div>
+                return <div className="board-result-badge board-result-badge--checkmate" style={getSquareOverlayPosition(sq, orientation)}>#</div>
               }
               if (_chess.isStalemate() || _chess.isInsufficientMaterial() || _chess.isThreefoldRepetition() || _chess.isDraw()) {
                 const wSq = _findKing('w'), bSq = _findKing('b')
-                return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(wSq)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(bSq)}>½</div>}</>
+                return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(wSq, orientation)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(bSq, orientation)}>½</div>}</>
               }
               return null
             })()}
