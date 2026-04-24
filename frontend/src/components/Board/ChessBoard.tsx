@@ -236,6 +236,7 @@ export default function ChessBoard({
 
   const [pendingPromotion, setPendingPromotion] = useState<{ from: Key; to: Key; color: 'white' | 'black'; orientation: 'white' | 'black' } | null>(null)
   const [boardReady, setBoardReady] = useState(false)
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false)
   const [dragPreviewSquare, setDragPreviewSquare] = useState<Key | null>(null)
   const [dragOriginSquare, setDragOriginSquare] = useState<Key | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -272,6 +273,17 @@ export default function ChessBoard({
     })
     ro.observe(el)
     return () => ro.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+
+    const mediaQuery = window.matchMedia('(pointer: coarse)')
+    const syncPointerMode = () => setIsCoarsePointer(mediaQuery.matches)
+
+    syncPointerMode()
+    mediaQuery.addEventListener('change', syncPointerMode)
+    return () => mediaQuery.removeEventListener('change', syncPointerMode)
   }, [])
 
   // Keep refs current without triggering re-init
@@ -602,7 +614,7 @@ export default function ChessBoard({
       ))}
       {dragPreviewSquare && (
         <>
-          {!occupiedSquares.has(dragPreviewSquare) && (
+          {!isCoarsePointer && !occupiedSquares.has(dragPreviewSquare) && (
             <div
               className="board-hover-outline"
               style={getSquarePosition(dragPreviewSquare, orientation)}
