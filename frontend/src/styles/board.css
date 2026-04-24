@@ -41,7 +41,9 @@ cg-board square.move-dest {
 }
 
 cg-board square.move-dest.oc {
-  background: radial-gradient(transparent 0 72%, rgba(86, 92, 100, 0.96) 73% 100%) !important;
+  background: transparent !important;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 5px rgba(86, 92, 100, 0.96);
 }
 
 .cg-wrap piece.anim {
@@ -107,7 +109,9 @@ cg-board square.move-dest.oc {
 }
 
 .board-drag-move-dest--occupied {
-  background: radial-gradient(transparent 0 72%, rgba(86, 92, 100, 0.96) 73% 100%);
+  background: transparent;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 5px rgba(86, 92, 100, 0.96);
 }
 
 .chess-board-container.board-dragging cg-board square.selected {
@@ -1245,6 +1249,7 @@ cg-board {
   .board-grade-badge-pending,
   .board-result-badge {
     width: clamp(15px, 9.5%, 20px);
+    transform: translate(-50%, -8%);
   }
 
   .board-grade-badge,
