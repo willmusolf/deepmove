@@ -73,7 +73,8 @@ cg-board square.move-dest.oc {
   cursor: default;
 }
 
-.cg-wrap.manipulable piece.piece-movable {
+.cg-wrap.manipulable[data-cursor-color="white"] piece.white,
+.cg-wrap.manipulable[data-cursor-color="black"] piece.black {
   cursor: pointer;
 }
 
