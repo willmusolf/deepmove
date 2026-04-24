@@ -546,25 +546,16 @@ export default function ChessBoard({
   }, [])
 
   useEffect(() => {
-    const containerEl = containerRef.current
-    const boardEl = containerEl?.querySelector('cg-board') as HTMLElement | null
-    if (!boardEl) return
-
-    const movableKeys = new Set(legalDests.keys())
-    const pieceEls = Array.from(boardEl.querySelectorAll('piece')) as HTMLElement[]
-    for (const pieceEl of pieceEls) {
-      const key = (pieceEl as HTMLElement & { cgKey?: string }).cgKey
-      const isMovablePiece = !isDragging && !!key && movableKeys.has(key as Key)
-      pieceEl.classList.toggle('piece-movable', isMovablePiece)
+    const wrapEl = containerRef.current
+    if (!wrapEl) return
+    const canShowPieceCursor = (interactive || !!userPerspective) && !isDragging
+    if (canShowPieceCursor) {
+      wrapEl.setAttribute('data-cursor-color', fenTurnColor)
+    } else {
+      wrapEl.removeAttribute('data-cursor-color')
     }
-
-    boardEl.classList.toggle('board-has-movable-pieces', !isDragging && movableKeys.size > 0)
-
-    return () => {
-      boardEl.classList.remove('board-has-movable-pieces')
-      for (const pieceEl of pieceEls) pieceEl.classList.remove('piece-movable')
-    }
-  }, [fen, legalDests, isDragging, orientation, pathKey])
+    return () => wrapEl.removeAttribute('data-cursor-color')
+  }, [interactive, userPerspective, isDragging, fenTurnColor, fen, orientation, pathKey])
 
   useEffect(() => {
     setIsDragging(false)
