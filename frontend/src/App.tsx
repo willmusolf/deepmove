@@ -179,7 +179,15 @@ export default function App() {
   const [panelTab, setPanelTab] = useState<PanelTab>(savedUiState?.panelTab ?? 'load')
   const [importTab, setImportTab] = useState<ImportTab>(savedUiState?.importTab ?? 'chesscom')
 
-  const { isReady, engineStatus, runAnalysis, analyzePositionLines, analyzePositionSingleBg, stopPositionAnalysis } = useStockfish()
+  const {
+    isReady,
+    engineStatus,
+    runAnalysis,
+    cancelGameAnalysis,
+    analyzePositionLines,
+    analyzePositionSingleBg,
+    stopPositionAnalysis,
+  } = useStockfish()
   const { enabled: soundEnabled, toggle: toggleSound, playMoveSound } = useSound()
 
   const {
@@ -249,6 +257,7 @@ export default function App() {
   }, [pgn, isReady])
 
   const displayFen = isLoaded ? currentFen : analysisFen
+  const loadedGameKey = isLoaded ? (currentGameId ?? pgn ?? '__loaded-game__') : null
 
   // Opening name — detected from move sequence in both modes
   const [openingName, setOpeningName] = useState<string | null>(null)
@@ -509,23 +518,25 @@ export default function App() {
     : undefined
 
   useEffect(() => {
-    if (isLoaded) {
-      // Clear any arrows that were showing in free-play mode so they don't flash
-      // on the first position of the newly loaded game.
-      setCurrentPositionLines([])
-      setAnalyzingPosition(false)
-      setPanelTab('analysis')
-      analysisBoardReset()
-      setBranchGrades(new Map())
-      setPendingBranchNodes(new Set())
-      // Seed best-lines analysis for move 0. The displayFen effect won't re-fire if
-      // the new game starts at the same FEN (e.g. standard starting position), so we
-      // trigger explicitly here whenever the engine is already ready.
-      if (isReady) triggerPositionAnalysis(displayFen)
-    } else {
+    if (!loadedGameKey) {
       if (panelTab === 'coach') setPanelTab('analysis')
+      return
     }
-  }, [isLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Clear any arrows that were showing in free-play mode so they don't flash
+    // on the first position of the newly loaded game.
+    setCurrentPositionLines([])
+    setAnalyzingPosition(false)
+    setPanelTab('analysis')
+    analysisBoardReset()
+    setBranchGrades(new Map())
+    setPendingBranchNodes(new Set())
+
+    // Re-seed best-lines when the loaded game changes, even if the displayed FEN
+    // stays identical (for example move 0 in consecutive standard games).
+    handleBeforeGameLoad()
+    if (isReady) triggerPositionAnalysis(displayFen)
+  }, [loadedGameKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isLoaded) return
@@ -650,6 +661,7 @@ export default function App() {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   function handleNewGame() {
+    cancelGameAnalysis()
     positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
     stopPositionAnalysis()
     positionTokenRef.current++
@@ -668,6 +680,7 @@ export default function App() {
     if (analysisMainLineSans.length === 0) return
     const chess = new Chess()
     for (const san of analysisMainLineSans) chess.move(san)
+    cancelGameAnalysis()
     reset()
     setStoredUserColor(null)
     setPgn(chess.pgn())
@@ -677,6 +690,7 @@ export default function App() {
   // Called by GameSelector before loading a new game — stops any in-flight
   // position analysis so stale arrows can't flash on the new game's position.
   function handleBeforeGameLoad() {
+    cancelGameAnalysis()
     positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
     stopPositionAnalysis()
     positionTokenRef.current++
