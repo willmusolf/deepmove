@@ -964,7 +964,7 @@ export default function App() {
                         clockTime={undefined}
                       />
                     )}
-                    <div style={{ position: 'relative' }}>
+                    <div className="board-overlay-host">
                     <ChessBoard
                       key={isLoaded ? 'review' : 'freeplay'}
                       fen={displayFen}
