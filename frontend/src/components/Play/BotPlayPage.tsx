@@ -18,6 +18,7 @@ import { useAuthStore } from '../../stores/authStore'
 import type { TopLine } from '../../engine/stockfish'
 import type { DrawShape } from '../Board/ChessBoard'
 import { Chess } from 'chess.js'
+import { getSquareOverlayPosition } from '../../chess/boardGeometry'
 import { readSessionJson, writeSessionJson } from '../../utils/sessionStorage'
 
 const BOTPLAY_SINGLE_LINE_DEPTH = 26
@@ -517,21 +518,14 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
                 }
                 return null
               }
-              const _sqPos = (sq: string) => {
-                const file = sq.charCodeAt(0) - 97
-                const rank = parseInt(sq[1], 10) - 1
-                const lc = orientation === 'white' ? file : (7 - file)
-                const tc = orientation === 'white' ? (7 - rank) : rank
-                return { left: `${(lc + 1) * 12.5}%`, top: `${tc * 12.5}%` }
-              }
               if (_chess.isCheckmate()) {
                 const sq = _findKing(_chess.turn())
                 if (!sq) return null
-                return <div className="board-result-badge board-result-badge--checkmate" style={_sqPos(sq)}>#</div>
+                return <div className="board-result-badge board-result-badge--checkmate" style={getSquareOverlayPosition(sq, orientation)}>#</div>
               }
               if (_chess.isDraw() || (endReason === 'threefold' && browsePosition === null)) {
                 const wSq = _findKing('w'), bSq = _findKing('b')
-                return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(wSq)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={_sqPos(bSq)}>½</div>}</>
+                return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(wSq, orientation)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(bSq, orientation)}>½</div>}</>
               }
               return null
             })()}
