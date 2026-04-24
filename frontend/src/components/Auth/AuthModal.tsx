@@ -22,13 +22,16 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   const login = useAuthStore(s => s.login)
   const register = useAuthStore(s => s.register)
 
-  const pwLongEnough = password.length >= 6
+  const pwLongEnough = password.length >= 8
+  const pwHasLetter = /[A-Za-z]/.test(password)
+  const pwHasNumber = /[0-9]/.test(password)
+  const pwValid = pwLongEnough && pwHasLetter && pwHasNumber
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (tab === 'signup' && !pwLongEnough) {
-      setError('Password must be at least 6 characters')
+    if (tab === 'signup' && !pwValid) {
+      setError('Password must be at least 8 characters with a letter and a number')
       return
     }
     setLoading(true)
@@ -56,7 +59,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
   const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
-  const showRequirements = tab === 'signup' && (pwFocused || (password.length > 0 && !pwLongEnough))
+  const showRequirements = tab === 'signup' && (pwFocused || (password.length > 0 && !pwValid))
 
   return (
     <div className="auth-overlay" onClick={onClose}>
@@ -126,7 +129,11 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
             <div className="auth-requirements">
               <div className={`auth-req-row ${pwLongEnough ? 'auth-req-met' : 'auth-req-unmet'}`}>
                 <span>{pwLongEnough ? '\u2713' : '\u2717'}</span>
-                <span>At least 6 characters</span>
+                <span>At least 8 characters</span>
+              </div>
+              <div className={`auth-req-row ${pwHasLetter && pwHasNumber ? 'auth-req-met' : 'auth-req-unmet'}`}>
+                <span>{pwHasLetter && pwHasNumber ? '\u2713' : '\u2717'}</span>
+                <span>Contains a letter and a number</span>
               </div>
             </div>
           )}
