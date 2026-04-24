@@ -278,10 +278,11 @@ export default function ChessBoard({
   const syncOverlayMetrics = useCallback(() => {
     const api = apiRef.current
     const wrapperEl = wrapperRef.current
-    if (!api || !wrapperEl) return
+    const bounds = api?.state?.dom?.bounds
+    if (!api || !wrapperEl || typeof bounds !== 'function') return
 
     const wrapperRect = wrapperEl.getBoundingClientRect()
-    const boardRect = api.state.dom.bounds()
+    const boardRect = bounds()
     if (boardRect.width <= 0 || boardRect.height <= 0) return
 
     setOverlayMetrics(prev => {
