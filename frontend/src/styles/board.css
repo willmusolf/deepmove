@@ -1282,12 +1282,12 @@ cg-board {
 
   .chess-board-container,
   .board-overlay-host {
-    --board-badge-size: clamp(16px, 5.1%, 20px);
-    --board-badge-font-size: clamp(0.36rem, 0.95rem, 0.52rem);
-    --board-badge-wide-font-size: clamp(0.32rem, 0.8rem, 0.44rem);
-    --board-badge-draw-font-size: clamp(0.34rem, 0.86rem, 0.46rem);
-    --board-badge-inset-x: 0px;
-    --board-badge-inset-y: 0px;
+    --board-badge-size: clamp(18px, 5.8%, 22px);
+    --board-badge-font-size: clamp(0.42rem, 0.98rem, 0.56rem);
+    --board-badge-wide-font-size: clamp(0.35rem, 0.84rem, 0.46rem);
+    --board-badge-draw-font-size: clamp(0.36rem, 0.88rem, 0.48rem);
+    --board-badge-inset-x: 1px;
+    --board-badge-inset-y: 1px;
   }
 
   .board-result-badge--draw {
@@ -1519,7 +1519,7 @@ cg-board {
   position: absolute;
   z-index: 10;
   width: var(--board-badge-size);
-  aspect-ratio: 1;
+  height: var(--board-badge-size);
   border-radius: 50%;
   transform: translateX(-100%);
   display: flex;
@@ -1547,7 +1547,7 @@ cg-board {
   position: absolute;
   z-index: 10;
   width: var(--board-badge-size);
-  aspect-ratio: 1;
+  height: var(--board-badge-size);
   border-radius: 50%;
   transform: translateX(-100%);
   background: rgba(30, 30, 30, 0.75);
@@ -1569,7 +1569,7 @@ cg-board {
   position: absolute;
   z-index: 11;
   width: var(--board-badge-size);
-  aspect-ratio: 1;
+  height: var(--board-badge-size);
   border-radius: 50%;
   transform: translateX(-100%);
   display: flex;
