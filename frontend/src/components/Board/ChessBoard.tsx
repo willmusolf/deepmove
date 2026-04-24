@@ -600,11 +600,25 @@ export default function ChessBoard({
           style={getSquarePosition(square, orientation)}
         />
       ))}
-      {dragPreviewSquare && (
+      {isDragging && dragOriginSquare && (
         <div
-          className="board-hover-outline"
-          style={getSquarePosition(dragPreviewSquare, orientation)}
+          className="board-drag-target board-drag-target--origin"
+          style={getSquarePosition(dragOriginSquare, orientation)}
         />
+      )}
+      {dragPreviewSquare && (
+        <>
+          {!occupiedSquares.has(dragPreviewSquare) && (
+            <div
+              className="board-hover-outline"
+              style={getSquarePosition(dragPreviewSquare, orientation)}
+            />
+          )}
+          <div
+            className="board-drag-target"
+            style={getSquarePosition(dragPreviewSquare, orientation)}
+          />
+        </>
       )}
       {pendingPromotion && (() => {
         const { to, color, orientation: ori } = pendingPromotion
