@@ -51,7 +51,6 @@ cg-board square.move-dest.oc {
 .cg-wrap piece.dragging {
   z-index: 110;
   filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.4));
-  transform-origin: center;
 }
 
 .cg-wrap piece.ghost {
@@ -1284,9 +1283,13 @@ cg-board {
   }
 
   .cg-wrap piece.dragging {
-    scale: 1.22;
-    translate: -8% -16%;
-    transform-origin: 84% 84%;
+    width: calc(12.5% * 1.22);
+    height: calc(12.5% * 1.22);
+    translate: -9% -50%;
+    /* -9% horizontal: re-centers the enlarged piece under the touch point.
+       -50% vertical: re-centers (-9%) plus lifts piece above thumb (-41%).
+       Percentages are relative to the element's own size, so the offset
+       scales proportionally with the board. */
   }
 }
 
