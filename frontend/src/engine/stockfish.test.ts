@@ -77,4 +77,33 @@ describe('StockfishEngine multi-PV update gating', () => {
     ;(engine as any).onUciLine('bestmove e2e4')
     await expect(resultPromise).resolves.toHaveLength(2)
   })
+
+  it('rejects queued multi-PV requests when position analysis is cancelled', async () => {
+    const engine = createEngine()
+    const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+
+    const currentPromise = engine.analyzePositionMultiPV(fen, 18, 2)
+    const queuedPromise = engine.analyzePositionMultiPV(fen, 18, 2)
+
+    engine.stopPositionAnalysis()
+
+    await expect(queuedPromise).rejects.toThrow('Stockfish analysis cancelled')
+
+    ;(engine as any).onUciLine('bestmove e2e4')
+    await expect(currentPromise).resolves.toEqual([])
+  })
+
+  it('rejects a pending readyok-guarded multi-PV request when cancelled', async () => {
+    const engine = createEngine()
+    const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+
+    const currentPromise = engine.analyzePositionMultiPV(fen, 18, 2)
+    const pendingPromise = engine.analyzePositionMultiPV(fen, 18, 2)
+
+    ;(engine as any).onUciLine('bestmove e2e4')
+    engine.stopPositionAnalysis()
+
+    await expect(pendingPromise).rejects.toThrow('Stockfish analysis cancelled')
+    await expect(currentPromise).resolves.toEqual([])
+  })
 })

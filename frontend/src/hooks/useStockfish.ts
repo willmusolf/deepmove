@@ -27,6 +27,7 @@ export function useStockfish() {
   const backgroundRef = useRef<StockfishEngine | null>(null)
   const interactiveRef = useRef<StockfishEngine | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const analysisRunIdRef = useRef(0)
   const [isReady, setIsReady] = useState(false)
   const [engineStatus, setEngineStatus] = useState<EngineStatus>('loading')
 
@@ -62,6 +63,16 @@ export function useStockfish() {
     }
   }, [])
 
+  function cancelGameAnalysis() {
+    analysisRunIdRef.current += 1
+    abortRef.current?.abort()
+    abortRef.current = null
+    backgroundRef.current?.stop()
+    setAnalyzing(false)
+    setAnalyzedCount(0)
+    setTotalMovesCount(0)
+  }
+
   async function runAnalysis(pgn: string) {
     const engine = backgroundRef.current
     if (!engine || !isReady) return
@@ -70,6 +81,11 @@ export function useStockfish() {
     engine.stop()  // interrupt any in-flight background analysis
     const controller = new AbortController()
     abortRef.current = controller
+    const runId = analysisRunIdRef.current + 1
+    analysisRunIdRef.current = runId
+
+    const isCurrentRun = () =>
+      analysisRunIdRef.current === runId && abortRef.current === controller
 
     setAnalyzing(true)
     setAnalyzedCount(0)
@@ -119,6 +135,7 @@ export function useStockfish() {
     // Per-move callback: update store + save partial checkpoint to IndexedDB
     const accumulatedEvals: import('../engine/analysis').MoveEval[] = [...initialEvals]
     function onMoveComplete(moveEval: import('../engine/analysis').MoveEval) {
+      if (controller.signal.aborted || !isCurrentRun()) return
       accumulatedEvals.push(moveEval)
       setMoveEvals([...accumulatedEvals])
       setAnalyzedCount(accumulatedEvals.length)
@@ -140,14 +157,17 @@ export function useStockfish() {
       const movetime = depth <= 14 ? 200 : undefined
       const results = await analyzeGame(
         pgn, engine, depth,
-        (_done, total) => { if (accumulatedEvals.length === startFromIndex) setTotalMovesCount(total) },
+        (_done, total) => {
+          if (!isCurrentRun()) return
+          if (accumulatedEvals.length === startFromIndex) setTotalMovesCount(total)
+        },
         controller.signal, movetime,
         onMoveComplete,
         startFromIndex,
         initialEvals,
       )
 
-      if (controller.signal.aborted) { setAnalyzedCount(0); setTotalMovesCount(0); return }
+      if (controller.signal.aborted || !isCurrentRun()) return
 
       setMoveEvals(results)
       const moments = detectCriticalMoments(results, color, userElo)
@@ -174,9 +194,15 @@ export function useStockfish() {
         }
       }
     } catch (err) {
+      if (controller.signal.aborted || analysisRunIdRef.current !== runId) return
       console.error('Analysis failed:', err)
     } finally {
-      setAnalyzing(false)
+      if (abortRef.current === controller) {
+        abortRef.current = null
+      }
+      if (analysisRunIdRef.current === runId) {
+        setAnalyzing(false)
+      }
     }
   }
 
@@ -209,5 +235,14 @@ export function useStockfish() {
     return engine.analyzePosition(fen, depth)
   }
 
-  return { isReady, engineStatus, runAnalysis, analyzePositionLines, analyzePositionSingle, analyzePositionSingleBg, stopPositionAnalysis }
+  return {
+    isReady,
+    engineStatus,
+    runAnalysis,
+    cancelGameAnalysis,
+    analyzePositionLines,
+    analyzePositionSingle,
+    analyzePositionSingleBg,
+    stopPositionAnalysis,
+  }
 }

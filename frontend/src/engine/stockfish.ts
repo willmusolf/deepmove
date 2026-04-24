@@ -32,6 +32,7 @@ interface QueueItem {
   fen: string
   depth: number
   resolve: (result: EvalResult) => void
+  reject?: (reason?: unknown) => void
   multiPV?: number
   multiPvResolve?: (lines: TopLine[]) => void
   multiPvOnUpdate?: (lines: TopLine[], depth: number) => void
@@ -69,6 +70,15 @@ export class StockfishEngine {
 
   // Pending queue item waiting for readyok before dispatch (race-condition guard)
   private pendingQueueItem: QueueItem | null = null
+
+  private createCancelledError(): Error {
+    return new Error('Stockfish analysis cancelled')
+  }
+
+  private cancelQueueItem(item: QueueItem | null) {
+    if (!item) return
+    item.reject?.(this.createCancelledError())
+  }
 
   private normalizeScoreForWhite(rawScore: number): number {
     return this.currentSideToMove === 'w' ? rawScore : -rawScore
@@ -332,8 +342,8 @@ export class StockfishEngine {
   analyzePosition(fen: string, depth = 15, movetime?: number): Promise<EvalResult> {
     if (!this.worker) return Promise.reject(new Error('Engine not initialized'))
 
-    return new Promise((resolve) => {
-      const item: QueueItem = { fen, depth, movetime, resolve }
+    return new Promise((resolve, reject) => {
+      const item: QueueItem = { fen, depth, movetime, resolve, reject }
       if (this.busy) {
         this.queue.push(item)
       } else {
@@ -350,11 +360,12 @@ export class StockfishEngine {
   ): Promise<TopLine[]> {
     if (!this.worker) return Promise.reject(new Error('Engine not initialized'))
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const item: QueueItem = {
         fen,
         depth,
         resolve: () => {},  // unused for multi-PV
+        reject,
         multiPV: numLines,
         multiPvResolve: resolve,
         multiPvOnUpdate: onUpdate,
@@ -371,10 +382,21 @@ export class StockfishEngine {
    *  Never interrupts full-game single-PV analysis. */
   stopPositionAnalysis(): void {
     // Remove only multi-PV items from the queue (leave full-game single-PV items)
-    this.queue = this.queue.filter(item => !item.multiPV)
+    const retainedQueue: QueueItem[] = []
+    for (const item of this.queue) {
+      if (item.multiPV) {
+        this.cancelQueueItem(item)
+      } else {
+        retainedQueue.push(item)
+      }
+    }
+    this.queue = retainedQueue
     // Clear the onUpdate callback so no stale results can fire after stop
     this.currentMultiPvOnUpdate = null
     // Clear any pending multi-PV item waiting for readyok
+    if (this.pendingQueueItem?.multiPV) {
+      this.cancelQueueItem(this.pendingQueueItem)
+    }
     this.pendingQueueItem = null
     // If currently running a multi-PV analysis, stop it immediately
     if (this.worker && this.busy && this.currentIsMultiPV) {
@@ -386,7 +408,9 @@ export class StockfishEngine {
    *  Use this when switching games so the abort loop exits fast instead of waiting
    *  for the current depth-15 analysis to finish (~3-5s per position). */
   stop(): void {
+    for (const item of this.queue) this.cancelQueueItem(item)
     this.queue = []
+    this.cancelQueueItem(this.pendingQueueItem)
     this.pendingQueueItem = null
     if (this.worker && this.busy) {
       this.worker.postMessage('stop')
@@ -399,11 +423,12 @@ export class StockfishEngine {
   getBotMove(fen: string, elo: number, movetime: number): Promise<string> {
     if (!this.worker) return Promise.reject(new Error('Engine not initialized'))
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const item: QueueItem = {
         fen,
         depth: 0,          // unused — go movetime is used instead
         resolve: () => {}, // unused — botMoveResolve handles resolution
+        reject,
         botMoveResolve: resolve,
         botElo: elo,
         movetime,
@@ -421,7 +446,10 @@ export class StockfishEngine {
       clearTimeout(this._initTimeoutId)
       this._initTimeoutId = null
     }
+    for (const item of this.queue) this.cancelQueueItem(item)
+    this.cancelQueueItem(this.pendingQueueItem)
     this.queue = []
+    this.pendingQueueItem = null
     this.pendingResolve = null
     this.currentMultiPvResolve = null
     this.currentBotMoveResolve = null
