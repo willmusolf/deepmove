@@ -1271,14 +1271,14 @@ cg-board {
   .board-drag-target {
     display: block;
     transform: scale(1.64);
-    background: rgba(72, 78, 86, 0.86);
-    box-shadow: 0 4px 12px rgba(32, 36, 42, 0.3);
+    background: rgba(72, 78, 86, 0.58);
+    box-shadow: 0 4px 12px rgba(32, 36, 42, 0.22);
   }
 
   .cg-wrap piece.dragging {
     scale: 1.22;
-    translate: 0 0;
-    transform-origin: 72% 72%;
+    translate: -8% -16%;
+    transform-origin: 84% 84%;
   }
 }
 
