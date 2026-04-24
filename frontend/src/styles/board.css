@@ -37,13 +37,13 @@ cg-board square.selected {
 }
 
 cg-board square.move-dest {
-  background: radial-gradient(rgba(86, 92, 100, 0.92) 19%, transparent 20%) !important;
+  background: radial-gradient(rgba(78, 84, 92, 0.96) 20%, transparent 21%) !important;
 }
 
 cg-board square.move-dest.oc {
   background: transparent !important;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 5px rgba(86, 92, 100, 0.96);
+  box-shadow: inset 0 0 0 6px rgba(78, 84, 92, 0.98);
 }
 
 .cg-wrap piece.anim {
@@ -93,8 +93,8 @@ cg-board square.move-dest.oc {
   width: 12.5%;
   height: 12.5%;
   box-sizing: border-box;
-  border-radius: 2px;
-  box-shadow: inset 0 0 0 1.5px rgba(210, 214, 220, 0.62);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 2.5px rgba(194, 200, 208, 0.84);
   pointer-events: none;
 }
 
@@ -104,13 +104,13 @@ cg-board square.move-dest.oc {
   width: 12.5%;
   height: 12.5%;
   pointer-events: none;
-  background: radial-gradient(rgba(86, 92, 100, 0.92) 19%, transparent 20%);
+  background: radial-gradient(rgba(78, 84, 92, 0.96) 20%, transparent 21%);
 }
 
 .board-drag-move-dest--occupied {
   background: transparent;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 5px rgba(86, 92, 100, 0.96);
+  box-shadow: inset 0 0 0 6px rgba(78, 84, 92, 0.98);
 }
 
 .chess-board-container.board-dragging cg-board square.selected {
@@ -179,12 +179,12 @@ cg-board {
 }
 
 .chess-board-container {
-  --board-badge-size: clamp(18px, 6.2cqw, 24px);
-  --board-badge-font-size: clamp(0.5rem, 1.65cqw, 0.74rem);
-  --board-badge-wide-font-size: clamp(0.44rem, 1.42cqw, 0.6rem);
-  --board-badge-draw-font-size: clamp(0.44rem, 1.42cqw, 0.6rem);
-  --board-badge-inset-x: 2px;
-  --board-badge-inset-y: 2px;
+  --board-badge-size: clamp(20px, 7.9cqw, 28px);
+  --board-badge-font-size: clamp(0.54rem, 1.95cqw, 0.82rem);
+  --board-badge-wide-font-size: clamp(0.46rem, 1.65cqw, 0.64rem);
+  --board-badge-draw-font-size: clamp(0.46rem, 1.58cqw, 0.64rem);
+  --board-badge-inset-x: 1px;
+  --board-badge-inset-y: 1px;
   --board-coord-inset: 0.75cqw;
   --board-file-offset: clamp(2px, 0.55cqw, 4px);
   width: 100%;
