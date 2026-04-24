@@ -2,6 +2,8 @@
 //
 // The worker entry is /public/stockfish/worker.js, a tiny classic-worker wrapper
 // around the copied nmrugg Stockfish bundle in /public/stockfish/stockfish.js.
+// The Stockfish bundle reads self.location.hash in worker mode to discover the
+// wasm URL, so we pass the explicit binary path through the worker URL hash.
 
 import { Chess } from 'chess.js'
 
@@ -90,7 +92,7 @@ export class StockfishEngine {
 
   async initialize(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.worker = new Worker('/stockfish/worker.js')
+      this.worker = new Worker('/stockfish/worker.js#/stockfish/stockfish.wasm,worker')
 
       let settled = false
 
