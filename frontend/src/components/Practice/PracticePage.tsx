@@ -250,7 +250,7 @@ export default function PracticePage() {
               platform={null}
             />
 
-            <div style={{ position: 'relative' }}>
+            <div className="board-overlay-host">
               <ChessBoard
                 key={`${selectedLine.id}-${currentStepIndex}-${view}-${practiceBoardKey}`}
                 fen={currentStep.fen}

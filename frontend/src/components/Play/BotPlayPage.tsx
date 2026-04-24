@@ -495,7 +495,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
               />
             )}
 
-            <div onContextMenu={cancelPremoveQueue} style={{ position: 'relative' }}>
+            <div className="board-overlay-host" onContextMenu={cancelPremoveQueue}>
             <ChessBoard
               fen={displayFen}
               orientation={orientation}
