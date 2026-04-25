@@ -169,6 +169,7 @@ async def deep_health_check(request: Request):
             "coaching_enabled": settings.coaching_enabled,
             "lesson_cache_size": coaching_service.lesson_cache_size(),
         },
+        "environment": settings.environment,
     }
     if db_ok:
         return payload
