@@ -170,6 +170,8 @@ export function useStockfish() {
       if (controller.signal.aborted || !isCurrentRun()) return
 
       setMoveEvals(results)
+      // Mark analysis as complete so page refresh skips re-analysis
+      useGameStore.getState().setSkipNextAnalysis(true)
       const moments = detectCriticalMoments(results, color, userElo)
       setCriticalMoments(moments)
 
