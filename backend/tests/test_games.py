@@ -25,6 +25,18 @@ class TestGameCRUD:
         assert resp.status_code == 422
         assert "50KB" in resp.text
 
+    def test_create_game_rejects_invalid_analyzed_at(self, auth_client):
+        client, token, user = auth_client
+        resp = client.post("/games/", json=make_game_payload(analyzed_at="not-a-date"))
+        assert resp.status_code == 422
+
+    def test_create_game_rejects_oversized_analysis_entry(self, auth_client):
+        client, token, user = auth_client
+        resp = client.post("/games/", json=make_game_payload(
+            move_evals=[{f"k{i}": i for i in range(51)}],
+        ))
+        assert resp.status_code == 422
+
     def test_get_game(self, auth_client):
         client, token, user = auth_client
         create = client.post("/games/", json=make_game_payload())
@@ -197,5 +209,12 @@ class TestSyncStatus:
         client, token, user = auth_client
         resp = client.post("/games/sync-status", json={
             "games": [{"platform_game_id": f"sync_{i}"} for i in range(201)]
+        })
+        assert resp.status_code == 422
+
+    def test_sync_status_rejects_overlong_platform_game_id(self, auth_client):
+        client, token, user = auth_client
+        resp = client.post("/games/sync-status", json={
+            "games": [{"platform_game_id": "x" * 101}]
         })
         assert resp.status_code == 422

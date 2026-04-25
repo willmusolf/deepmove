@@ -1,7 +1,6 @@
 """main.py — FastAPI application entry point"""
 import asyncio
 import logging
-import platform
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -127,6 +126,19 @@ async def request_id_middleware(request: Request, call_next):
     finally:
         reset_request_id(token)
     response.headers["X-Request-ID"] = request_id
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    # Minimal CSP: pure JSON API, no scripts/styles/frames needed
+    response.headers.setdefault("Content-Security-Policy", "default-src 'none'")
+    # Hide server implementation details
+    response.headers["Server"] = "deepmove"
+    if settings.environment == "production":
+        response.headers.setdefault(
+            "Strict-Transport-Security",
+            "max-age=31536000; includeSubDomains; preload",
+        )
     return response
 
 # Routers
@@ -164,10 +176,9 @@ async def deep_health_check(request: Request):
 
 
 @app.get("/version")
-def version_check():
+@limiter.limit("30/minute")
+def version_check(request: Request):
     return {
         "commit_sha": settings.git_commit_sha,
         "build_time": settings.build_time,
-        "environment": settings.environment,
-        "python_version": platform.python_version(),
     }

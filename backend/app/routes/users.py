@@ -1,9 +1,10 @@
 """users.py — User profile endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
+from app.rate_limiting import limiter
 from app.routes.auth import _set_refresh_cookie, _validate_password
 from app.schemas.user import AuthResponse, PasswordChange, UserResponse, UserUpdate
 from app.utils.security import (
@@ -17,13 +18,16 @@ router = APIRouter()
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(user: User = Depends(get_current_user)):
+@limiter.limit("120/minute")
+async def get_me(request: Request, user: User = Depends(get_current_user)):
     """Return the authenticated user's profile."""
     return UserResponse.model_validate(user)
 
 
 @router.patch("/me", response_model=UserResponse)
+@limiter.limit("30/minute")
 async def update_me(
+    request: Request,
     body: UserUpdate,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -47,7 +51,9 @@ async def update_me(
 
 
 @router.delete("/me")
+@limiter.limit("5/minute")
 async def delete_me(
+    request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -58,7 +64,9 @@ async def delete_me(
 
 
 @router.get("/me/export")
+@limiter.limit("10/minute")
 async def export_me(
+    request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -128,7 +136,9 @@ async def export_me(
 
 
 @router.patch("/me/password")
+@limiter.limit("5/minute")
 async def change_password(
+    request: Request,
     body: PasswordChange,
     response: Response,
     user: User = Depends(get_current_user),
