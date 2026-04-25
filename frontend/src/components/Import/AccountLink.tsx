@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { getRecentGames, getNewGames, resolveChessComUsername, type ChessComGame, type ChessComLoadResult } from '../../api/chesscom'
 import { getUserGames, getNewLichessGames, type LichessGame, type LichessLoadResult } from '../../api/lichess'
 import { getMyUsername, setIdentity, isMe, isDismissed, dismiss } from '../../services/identity'
+import { useAuthStore } from '../../stores/authStore'
 
 type Platform = 'chesscom' | 'lichess'
 
@@ -267,7 +268,18 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
   )
 
   function handleYes() {
-    if (loadedUser) { setIdentity(platform, loadedUser); bump() }
+    if (!loadedUser) return
+    setIdentity(platform, loadedUser)
+    bump()
+    // If logged in, also persist the username to the backend profile so
+    // the avatar loads in the nav sidebar immediately.
+    const { user, updateProfile } = useAuthStore.getState()
+    if (user) {
+      const patch = platform === 'chesscom'
+        ? { chesscom_username: loadedUser }
+        : { lichess_username: loadedUser }
+      updateProfile(patch).catch(() => { /* best-effort */ })
+    }
   }
   function handleNo() {
     if (loadedUser) { dismiss(platform, loadedUser); bump() }
