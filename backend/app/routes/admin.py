@@ -12,6 +12,7 @@ from app.models.game import Game
 from app.models.lesson import Lesson
 from app.models.principle import UserPrinciple
 from app.models.user import User
+from app.rate_limiting import limiter
 from app.schemas.admin import (
     AdminActionResult,
     AdminAuditLogEntry,
@@ -52,7 +53,9 @@ def _record_admin_audit(
 
 
 @router.get("/ops/status", response_model=AdminOpsStatus)
+@limiter.limit("30/minute")
 def get_ops_status(
+    request: Request,
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -70,7 +73,9 @@ def get_ops_status(
 
 
 @router.get("/audit-log", response_model=AdminAuditLogResponse)
+@limiter.limit("30/minute")
 def get_audit_log(
+    request: Request,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     action: str | None = Query(default=None),
@@ -108,6 +113,7 @@ def get_audit_log(
 
 
 @router.post("/ops/coaching", response_model=AdminActionResult)
+@limiter.limit("10/minute")
 def set_coaching_enabled(
     request: Request,
     body: AdminToggleRequest,
@@ -140,6 +146,7 @@ def set_coaching_enabled(
 
 
 @router.post("/ops/cache/lessons/clear", response_model=AdminActionResult)
+@limiter.limit("10/minute")
 def clear_lesson_cache(
     request: Request,
     admin: User = Depends(require_admin),
@@ -170,9 +177,10 @@ def clear_lesson_cache(
 
 
 @router.delete("/game/{game_id}/lessons")
+@limiter.limit("10/minute")
 def delete_game_lessons(
-    game_id: int,
     request: Request,
+    game_id: int,
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -200,6 +208,7 @@ def delete_game_lessons(
 
 
 @router.delete("/games/lessons/all")
+@limiter.limit("3/minute")
 def delete_all_lessons(
     request: Request,
     confirm: bool = Query(default=False),

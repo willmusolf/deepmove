@@ -69,6 +69,18 @@ class TestUserProfile:
         assert resp.json()["chesscom_username"] == "player1"
         assert resp.json()["elo_estimate"] == 1500
 
+    def test_rejects_out_of_range_elo(self, auth_client):
+        client, token, user = auth_client
+        resp = client.patch("/users/me", json={"elo_estimate": 5000})
+        assert resp.status_code == 422
+
+    def test_rejects_overlong_preferences(self, auth_client):
+        client, token, user = auth_client
+        resp = client.patch("/users/me", json={
+            "preferences": {"theme": "x" * 1001},
+        })
+        assert resp.status_code == 422
+
 
 class TestGDPRDelete:
     def test_delete_user(self, auth_client):
