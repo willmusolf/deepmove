@@ -1222,6 +1222,10 @@ cg-board {
     width: 100%;
   }
 
+  .board-controls__nav {
+    justify-content: center;
+  }
+
   .board-controls__actions {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1248,8 +1252,9 @@ cg-board {
   }
 
   .nav-btn {
-    width: 30px;
-    height: 30px;
+    width: 40px;
+    height: 40px;
+    font-size: 1.3rem;
   }
 
   .move-counter {
@@ -1282,6 +1287,9 @@ cg-board {
   .player-rating { font-size: 0.75rem; }
   .player-flag { font-size: 0.85rem; }
   .captured-piece-img { width: 14px; height: 14px; }
+  .player-info-lines { gap: 0; }
+  .player-line-1 { min-height: 0; }
+  .player-line-2 { min-height: 0; }
   .clock-box { min-width: 52px; height: 30px; padding: 0 6px; }
   .clock-value { font-size: 1.1rem; }
 
@@ -5254,4 +5262,36 @@ cg-board {
 .coming-soon-sub {
   font-size: 0.8rem;
   opacity: 0.7;
+}
+
+/* ── Coming Soon overlay (Practice page) ──────────────────────────────── */
+.coming-soon-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 15, 20, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  pointer-events: all;
+}
+.coming-soon-badge {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 2rem 3.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.coming-soon-badge__title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: 0.02em;
+}
+.coming-soon-badge__sub {
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
 }
