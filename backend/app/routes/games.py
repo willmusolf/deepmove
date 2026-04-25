@@ -1,12 +1,13 @@
 """games.py — Game storage, retrieval, and sync endpoints."""
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
 from app.models.game import Game
 from app.models.user import User
+from app.rate_limiting import limiter
 from app.schemas.game import (
     BatchCreateResponse,
     GameCreate,
@@ -36,12 +37,14 @@ def _game_from_create(body: GameCreate, user_id: int) -> Game:
         end_time=body.end_time,
         move_evals=body.move_evals,
         critical_moments=body.critical_moments,
-        analyzed_at=datetime.fromisoformat(body.analyzed_at) if body.analyzed_at else None,
+        analyzed_at=body.analyzed_at,
     )
 
 
 @router.get("/", response_model=list[GameListResponse])
+@limiter.limit("120/minute")
 async def list_games(
+    request: Request,
     limit: int = Query(50, le=100),
     offset: int = Query(0, ge=0),
     platform: str | None = Query(None),
@@ -57,7 +60,9 @@ async def list_games(
 
 
 @router.get("/{game_id}", response_model=GameResponse)
+@limiter.limit("120/minute")
 async def get_game(
+    request: Request,
     game_id: int,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -70,7 +75,9 @@ async def get_game(
 
 
 @router.post("/", response_model=GameResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("60/minute")
 async def create_game(
+    request: Request,
     body: GameCreate,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -87,7 +94,7 @@ async def create_game(
             # Update existing game with new analysis
             existing.move_evals = body.move_evals
             existing.critical_moments = body.critical_moments
-            existing.analyzed_at = datetime.fromisoformat(body.analyzed_at) if body.analyzed_at else None
+            existing.analyzed_at = body.analyzed_at
             existing.synced_at = datetime.now(UTC)
             db.commit()
             db.refresh(existing)
@@ -101,7 +108,9 @@ async def create_game(
 
 
 @router.post("/batch", response_model=BatchCreateResponse)
+@limiter.limit("20/minute")
 async def batch_create(
+    request: Request,
     games: list[GameCreate],
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -130,9 +139,7 @@ async def batch_create(
                 if existing:
                     existing.move_evals = body.move_evals
                     existing.critical_moments = body.critical_moments
-                    existing.analyzed_at = (
-                        datetime.fromisoformat(body.analyzed_at) if body.analyzed_at else None
-                    )
+                    existing.analyzed_at = body.analyzed_at
                     existing.synced_at = datetime.now(UTC)
                     sync_results.append(GameSyncResult(platform_game_id=body.platform_game_id, db_id=existing.id))
                     updated += 1
@@ -155,7 +162,9 @@ async def batch_create(
 
 
 @router.post("/sync-status", response_model=SyncStatusResponse)
+@limiter.limit("60/minute")
 async def sync_status(
+    request: Request,
     body: SyncStatusRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -183,7 +192,9 @@ async def sync_status(
 
 
 @router.delete("/{game_id}")
+@limiter.limit("30/minute")
 async def delete_game(
+    request: Request,
     game_id: int,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
