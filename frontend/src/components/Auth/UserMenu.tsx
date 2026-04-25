@@ -17,13 +17,14 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
   const [showAuth, setShowAuth] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
-  // Fetch Chess.com avatar when username is available
+  // Fetch avatar when Chess.com username is linked. Lichess doesn't expose
+  // avatar URLs in their API, so Lichess-only users get the initial fallback.
   useEffect(() => {
     if (!user?.chesscom_username) { setAvatarUrl(null); return }
     getPlayerProfile(user.chesscom_username).then(p => {
       setAvatarUrl(p?.avatar ?? null)
     })
-  }, [user?.chesscom_username])
+  }, [user?.chesscom_username, user?.lichess_username])
 
   if (isLoading) return null
 
