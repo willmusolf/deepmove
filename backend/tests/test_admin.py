@@ -77,3 +77,25 @@ class TestAdminAuditLog:
         client, token, user = auth_client
         resp = client.get("/admin/audit-log")
         assert resp.status_code == 403
+
+
+# ── Access control regression tests ─────────────────────────────────────────
+
+class TestAdminAccessControl:
+    def test_unauthenticated_returns_401(self, client):
+        """No auth header → must be rejected before reaching admin logic."""
+        resp = client.get("/admin/ops/status")
+        assert resp.status_code == 401
+
+    def test_non_admin_user_returns_403(self, client):
+        """A normal (non-admin) authenticated user must be denied admin routes."""
+        reg = client.post("/auth/register", json={
+            "email": "normaluser_acl@deepmove.io",
+            "password": "password123",
+        })
+        assert reg.status_code == 200, reg.text
+        token = reg.json()["access_token"]
+        client.headers["Authorization"] = f"Bearer {token}"
+
+        resp = client.get("/admin/ops/status")
+        assert resp.status_code == 403
