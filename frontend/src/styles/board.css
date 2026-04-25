@@ -1306,9 +1306,6 @@ cg-board {
   .player-rating { font-size: 0.75rem; }
   .player-flag { font-size: 0.85rem; }
   .captured-piece-img { width: 14px; height: 14px; }
-  .player-info-lines { gap: 0; }
-  .player-line-1 { min-height: 0; }
-  .player-line-2 { min-height: 0; }
   .clock-box { min-width: 52px; height: 30px; padding: 0 6px; }
   .clock-value { font-size: 1.1rem; }
 
