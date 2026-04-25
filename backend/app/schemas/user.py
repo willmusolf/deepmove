@@ -9,7 +9,7 @@ MAX_PREFERENCE_STRING_BYTES = 1000
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=1, max_length=256)
+    password: str = Field(max_length=256)
 
 
 class UserUpdate(BaseModel):
