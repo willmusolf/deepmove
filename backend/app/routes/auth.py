@@ -2,7 +2,7 @@
 import logging
 import re
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -57,6 +57,9 @@ def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(
         key=settings.refresh_cookie_name,
         path="/auth",
+        secure=settings.environment == "production",
+        httponly=True,
+        samesite="lax",
     )
 
 
@@ -152,10 +155,11 @@ async def refresh(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
-    deepmove_refresh: str | None = Cookie(None),
 ):
     """Exchange a valid refresh token for a new access token."""
     ip = client_ip_from_request(request)
+    # Key must match settings.refresh_cookie_name — do not hard-code
+    deepmove_refresh = request.cookies.get(settings.refresh_cookie_name)
     if deepmove_refresh is None:
         log_event(logger, logging.WARNING, "auth.refresh_failed", ip=ip, reason="missing")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token")
@@ -188,6 +192,7 @@ async def refresh(
 
 
 @router.post("/logout")
+@limiter.limit("20/minute")
 async def logout(
     request: Request,
     response: Response,
@@ -206,6 +211,11 @@ async def logout(
 
 # ── OAuth routes ─────────────────────────────────────────────────────────────
 # These are stubs that will be completed when OAuth client IDs are configured.
+# SECURITY REQUIREMENTS when implementing:
+#   - Use PKCE (code_verifier + code_challenge S256) for all flows
+#   - Generate a random opaque  parameter; store in session; validate on callback
+#   - Perform the token exchange on the backend only — never expose client_secret to the frontend
+#   - Validate redirect_uri against an explicit allowlist before redirecting
 # The flow: GET /auth/{provider} → redirect to provider → callback → JWT pair.
 
 
