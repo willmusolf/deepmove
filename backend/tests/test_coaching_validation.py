@@ -70,3 +70,19 @@ class TestCoachingValidation:
             verified_facts=["x" * 501],
         ))
         assert resp.status_code == 422
+
+    def test_rejects_overlong_time_control(self, client, monkeypatch):
+        monkeypatch.setattr(settings, "coaching_enabled", True)
+
+        resp = client.post("/coaching/lesson", json=make_coaching_payload(
+            time_control="x" * 21,
+        ))
+        assert resp.status_code == 422
+
+    def test_rejects_out_of_range_confidence(self, client, monkeypatch):
+        monkeypatch.setattr(settings, "coaching_enabled", True)
+
+        resp = client.post("/coaching/lesson", json=make_coaching_payload(
+            confidence=101,
+        ))
+        assert resp.status_code == 422

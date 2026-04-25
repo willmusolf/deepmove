@@ -172,6 +172,19 @@ class TestRefresh:
         resp = client.post("/auth/refresh")
         assert resp.status_code == 401
 
+    def test_refresh_uses_configured_cookie_name(self, client, monkeypatch):
+        monkeypatch.setattr(settings, "refresh_cookie_name", "custom_refresh")
+        resp = client.post("/auth/register", json={
+            "email": "customcookie@deepmove.io",
+            "password": "password123",
+        })
+        assert resp.status_code == 200
+        assert "custom_refresh" in resp.cookies
+
+        resp2 = client.post("/auth/refresh")
+        assert resp2.status_code == 200
+        assert resp2.json()["user"]["email"] == "customcookie@deepmove.io"
+
 
 # ── Logout ───────────────────────────────────────────────────────────────────
 
@@ -247,3 +260,33 @@ class TestTokenValidation:
         client.headers["Authorization"] = f"Bearer {refresh}"
         resp = client.get("/users/me")
         assert resp.status_code == 401
+
+
+# ── Rate limiting ─────────────────────────────────────────────────────────────
+
+class TestRateLimiting:
+    def test_register_rate_limit_returns_429(self, client):
+        """Exceed the register rate limit (3/min) and get a 429.
+
+        The conftest autouse fixture disables rate limiting globally so other tests
+        are deterministic.  Re-enable it for this specific test only.
+        """
+        from app.rate_limiting import limiter
+
+        limiter.enabled = True
+        try:
+            # Exhaust the 3/minute window
+            for i in range(3):
+                client.post(
+                    "/auth/register",
+                    json={"email": f"rl{i}@deepmove.io", "password": "password123"},
+                )
+
+            # 4th request in the same minute must be rejected
+            resp = client.post(
+                "/auth/register",
+                json={"email": "rl_overflow@deepmove.io", "password": "password123"},
+            )
+            assert resp.status_code == 429
+        finally:
+            limiter.enabled = False

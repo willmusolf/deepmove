@@ -1,19 +1,34 @@
 """user.py — Pydantic schemas for user API"""
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+MAX_PREFERENCES_KEYS = 50
+MAX_PREFERENCE_STRING_BYTES = 1000
 
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(max_length=256)
 
 
 class UserUpdate(BaseModel):
-    chesscom_username: str | None = None
-    lichess_username: str | None = None
-    elo_estimate: int | None = None
-    preferences: dict | None = None
+    chesscom_username: str | None = Field(default=None, max_length=40)
+    lichess_username: str | None = Field(default=None, max_length=40)
+    elo_estimate: int | None = Field(default=None, ge=0, le=4000)
+    preferences: dict | None = Field(default=None, max_length=MAX_PREFERENCES_KEYS)
+
+    @field_validator("preferences")
+    @classmethod
+    def validate_preferences(cls, value: dict | None) -> dict | None:
+        if value is None:
+            return value
+        for key, pref_value in value.items():
+            if not isinstance(key, str) or len(key) > 100:
+                raise ValueError("Preference keys must be strings up to 100 characters")
+            if isinstance(pref_value, str) and len(pref_value.encode("utf-8")) > MAX_PREFERENCE_STRING_BYTES:
+                raise ValueError("Preference string values must be 1000 bytes or less")
+        return value
 
 
 class UserResponse(BaseModel):
@@ -41,5 +56,5 @@ class TokenResponse(BaseModel):
 
 
 class PasswordChange(BaseModel):
-    current_password: str
-    new_password: str
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=1, max_length=256)
