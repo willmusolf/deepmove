@@ -85,11 +85,49 @@ cg-board {
 .chess-board-container {
   --board-coord-inset: 0.75cqw;
   --board-file-offset: clamp(2px, 0.55cqw, 4px);
+  --board-move-dest-fill: radial-gradient(
+    rgba(20, 85, 30, 0.5) 22%,
+    #208530 0,
+    rgba(0, 0, 0, 0.3) 0,
+    rgba(0, 0, 0, 0) 0
+  );
+  --board-capture-dest-fill: radial-gradient(
+    transparent 0%,
+    transparent 80%,
+    rgba(20, 85, 0, 0.22) 80%
+  );
   width: 100%;
   aspect-ratio: 1;
   position: relative;
   flex-shrink: 0;
   container-type: inline-size;
+}
+
+.chess-board-container cg-board square.move-dest,
+.chess-board-container cg-board square.move-dest:hover {
+  background: var(--board-move-dest-fill);
+}
+
+.chess-board-container cg-board square.oc.move-dest,
+.chess-board-container cg-board square.oc.move-dest:hover {
+  background: var(--board-capture-dest-fill);
+}
+
+@media (min-width: 1024px) {
+  /* Only the active drag target gets an extra outline; click-to-select keeps the same marker colors. */
+  .chess-board-container cg-board square.desktop-drag-hover {
+    box-sizing: border-box;
+    border: 4px solid rgba(20, 85, 30, 0.72);
+    background: var(--board-move-dest-fill);
+    z-index: 9;
+  }
+
+  .chess-board-container cg-board square.oc.desktop-drag-hover {
+    box-sizing: border-box;
+    border: 4px solid rgba(20, 85, 30, 0.72);
+    background: var(--board-capture-dest-fill);
+    z-index: 9;
+  }
 }
 
 /* ── Main content area ────────────────────────────────────────────────── */
@@ -823,6 +861,11 @@ cg-board {
   justify-content: center;
 }
 
+.nav-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
 .nav-soon {
   font-size: 0.65rem;
   background: var(--color-surface-2);
@@ -1328,7 +1371,7 @@ cg-board {
   line-height: 1;
   pointer-events: none;
   letter-spacing: -0.03em;
-  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35), 0 2px 8px rgba(0,0,0,0.55);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35);
 }
 
 /* Multi-char board badges need smaller font to fit */
@@ -1348,7 +1391,7 @@ cg-board {
   border-radius: 50%;
   transform: translate(-75%, -25%);
   background: rgba(30, 30, 30, 0.75);
-  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.15), 0 2px 8px rgba(0,0,0,0.55);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.15);
   pointer-events: none;
 }
 .board-grade-badge-pending::after {
