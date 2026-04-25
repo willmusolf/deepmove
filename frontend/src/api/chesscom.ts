@@ -77,10 +77,11 @@ export async function getRecentGames(username: string): Promise<ChessComLoadResu
   // Fetch last 5 months sequentially (not parallel) to respect rate limits
   const recentArchives = archives.slice(-5)
   const games = await fetchArchives(recentArchives)
+  const canonicalUsername = resolveChessComUsername(username, games)
 
   return {
     games: games.sort((a, b) => b.end_time - a.end_time),
-    username: resolveChessComUsername(username, games),
+    username: canonicalUsername,
     fetchedArchives: recentArchives,
     allArchives: archives,
     hasMore: archives.length > recentArchives.length,
