@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { getPlayerProfile } from '../../api/chesscom'
+import { getIdentity } from '../../services/identity'
 import AuthModal from './AuthModal'
 import type { Page } from '../Layout/NavSidebar'
 
@@ -14,6 +15,7 @@ interface UserMenuProps {
 export default function UserMenu({ currentPage, onNavigate, collapsed = false }: UserMenuProps) {
   const user = useAuthStore(s => s.user)
   const isLoading = useAuthStore(s => s.isLoading)
+  const updateProfile = useAuthStore(s => s.updateProfile)
   const [showAuth, setShowAuth] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
@@ -30,6 +32,15 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
 
   function handleAuthSuccess() {
     setShowAuth(false)
+    // If the user confirmed their chess account before logging in, sync it to
+    // the backend now so the avatar loads immediately.
+    const currentUser = useAuthStore.getState().user
+    if (!currentUser) return
+    const identity = getIdentity()
+    const patch: { chesscom_username?: string; lichess_username?: string } = {}
+    if (identity.chesscom && !currentUser.chesscom_username) patch.chesscom_username = identity.chesscom
+    if (identity.lichess && !currentUser.lichess_username) patch.lichess_username = identity.lichess
+    if (Object.keys(patch).length > 0) updateProfile(patch).catch(() => {})
   }
 
   if (!user) {
