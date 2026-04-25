@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getRecentGames, getNewGames, type ChessComGame, type ChessComLoadResult } from '../../api/chesscom'
+import { getRecentGames, getNewGames, resolveChessComUsername, type ChessComGame, type ChessComLoadResult } from '../../api/chesscom'
 import { getUserGames, getNewLichessGames, type LichessGame, type LichessLoadResult } from '../../api/lichess'
 import { getMyUsername, setIdentity, isMe, isDismissed, dismiss } from '../../services/identity'
 
@@ -39,6 +39,13 @@ interface GameListCache {
   games: ChessComGame[] | LichessGame[]
   pagination: PaginationState
   fetchedAt: number
+}
+
+function getResolvedUsername(platform: Platform, username: string, games: ChessComGame[] | LichessGame[]): string {
+  if (platform === 'chesscom') {
+    return resolveChessComUsername(username, games as ChessComGame[])
+  }
+  return username
 }
 
 function gameListCacheKey(platform: Platform, username: string): string {
@@ -105,7 +112,7 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
     setError(null)
     try {
       // Delta reload: if we already have this user's games loaded, only fetch new ones
-      const isReload = loadedUser === trimmed && onGamesAppended && newestEndTime != null
+      const isReload = loadedUser?.toLowerCase() === trimmed.toLowerCase() && onGamesAppended && newestEndTime != null
       if (isReload && platform === 'chesscom') {
         const newGames = await getNewGames(trimmed, newestEndTime)
         if (newGames.length > 0) {
@@ -129,21 +136,24 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
 
       let games: ChessComGame[] | LichessGame[]
       let pagination: PaginationState
+      let resolvedUsername = trimmed
       if (platform === 'chesscom') {
         const result: ChessComLoadResult = await getRecentGames(trimmed)
         games = result.games
+        resolvedUsername = result.username ?? trimmed
         pagination = { platform, fetchedArchives: result.fetchedArchives, allArchives: result.allArchives, hasMore: result.hasMore }
       } else {
         const result: LichessLoadResult = await getUserGames(trimmed, 100)
         games = result.games
         pagination = { platform, hasMore: result.hasMore }
       }
-      localStorage.setItem(STORAGE_KEY[platform], trimmed)
-      addToHistory(platform, trimmed)
+      localStorage.setItem(STORAGE_KEY[platform], resolvedUsername)
+      setUsername(resolvedUsername)
+      addToHistory(platform, resolvedUsername)
       setHistory(getHistory(platform))
-      setLoadedUser(trimmed)
-      saveGameListCache(platform, trimmed, games, pagination)
-      onGamesLoaded(games, trimmed, pagination)
+      setLoadedUser(resolvedUsername)
+      saveGameListCache(platform, resolvedUsername, games, pagination)
+      onGamesLoaded(games, resolvedUsername, pagination)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
       setError(msg.includes('404') || msg.includes('403')
@@ -161,8 +171,11 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
     if (!savedUsername) return
     const cached = getGameListCache(platform, savedUsername)
     if (!cached) return
-    setLoadedUser(savedUsername)
-    onGamesLoaded(cached.games, savedUsername, cached.pagination)
+    const resolvedUsername = getResolvedUsername(platform, savedUsername, cached.games)
+    setUsername(resolvedUsername)
+    setLoadedUser(resolvedUsername)
+    localStorage.setItem(STORAGE_KEY[platform], resolvedUsername)
+    onGamesLoaded(cached.games, resolvedUsername, cached.pagination)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [platform])
 

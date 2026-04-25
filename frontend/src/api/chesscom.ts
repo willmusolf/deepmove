@@ -42,6 +42,8 @@ export async function getPlayerArchives(username: string): Promise<string[]> {
 
 export interface ChessComLoadResult {
   games: ChessComGame[]
+  /** Canonical username casing as returned by the Chess.com API when available */
+  username?: string
   /** Archive URLs that have already been fetched (pass back to loadMoreGames) */
   fetchedArchives: string[]
   /** All archive URLs for this user */
@@ -50,16 +52,36 @@ export interface ChessComLoadResult {
   hasMore: boolean
 }
 
+export function resolveChessComUsername(username: string, games: ChessComGame[]): string {
+  const lowerUser = username.toLowerCase()
+  for (const game of games) {
+    if (game.white.username.toLowerCase() === lowerUser) return game.white.username
+    if (game.black.username.toLowerCase() === lowerUser) return game.black.username
+  }
+  return username
+}
+
 export async function getRecentGames(username: string): Promise<ChessComLoadResult> {
   const archives = await getPlayerArchives(username)
-  if (archives.length === 0) return { games: [], fetchedArchives: [], allArchives: [], hasMore: false }
+  if (archives.length === 0) {
+    const profile = await getPlayerProfile(username)
+    return {
+      games: [],
+      username: profile?.username ?? username,
+      fetchedArchives: [],
+      allArchives: [],
+      hasMore: false,
+    }
+  }
 
   // Fetch last 5 months sequentially (not parallel) to respect rate limits
   const recentArchives = archives.slice(-5)
   const games = await fetchArchives(recentArchives)
+  const canonicalUsername = resolveChessComUsername(username, games)
 
   return {
     games: games.sort((a, b) => b.end_time - a.end_time),
+    username: canonicalUsername,
     fetchedArchives: recentArchives,
     allArchives: archives,
     hasMore: archives.length > recentArchives.length,

@@ -669,33 +669,35 @@ See above in "Next After Launch"
 
 ## 📝 RAW NOTES (keep these — source of truth for future tasks)
 
--the best lines things that we can click on are forever loading until both the analysis is finished AND we move to another move on the transcript. otherwise its those placeholders for a while. sometimes its forver while the anlaysis is going im sure its sometehing with lcicking on it or moving while the analysis is going in parallel interfering idk make it better and more consistent and good for move 0 too right awya for both games that have alrady been analyzed and new games etc
+-whats up with the tons of folders that we have for ecah deepmove thing? any way to clean that up or hav eit be better going forward from now?
 
 
 
 
-for ui, the chess board is sometimes smaller then the player box and theres a sliver of gray on the right side of the board only? how do we fix this? make player box slightly smaller or what?
--also mobile ui! when we load a game should go to chessboard? not down to transcript? give me a seires of things to test for mobile ui so we can flesh it out and make it perfect.
-any time we make a move it scrolls down too
-also the load and analysis button tabs are solid but the coach is below load so it looks weird af they can all fit next to each other right? also someof the buttons overlap like badges button only gets removed below the board other buttons are on top
-same resizing issue with the gray sliver on the right side of the board
-but pretty amazing start
+sometimes when the board is super big, the letters are too low? only an issue when the board is huge like when console is open
+badges could also be slightly bigger for that huge board
 
+major security audits
 
-
-
-
-
-
-re analyzing on alraeady analyzed games if we refresh? not storing graph and report etc properly?? something with cache on prod or something idk need to do a deep dive on this?
-
-we are analyzing up to depth 28 lets make sure it reflects that instead of saying / 25 have it go up!
+re analyzing on alraeady analyzed games if we refresh? not storing graph and report etc properly?? something with cache on prod or something idk need to do a deep dive on this? not sure if its just a mobile issue or what
 
 make practice page actually have the coming soon like the other ones? but dont get rid of progress fully on it i guess
 
+-change pawn symbol thing to match the others styles more gray and minimal than the black pawn emoji on the menu
+
+-have analyze with coach come later when we actually implement coach? for sandbox games i guess or just have it be how it is now and say coach is coming soon?
+
+-ads. how do we get the ball rolling ot acutally have them and make sure we can get money and have them be visual on resize? sometimes if we shrink it horziontally the ad placeholder disapperas too like it can have more space normally on a lot of screen sizes? what will we do for ads on mobile? pop up that can be lcicked away over buttons
 
 
--ads. how do we get the ball rolling ot acutally have them and make sure we can get money and have them be visual on resize? sometimes if we shrink it horziontally the ad placeholder disapperas too like it can have more space normally on a lot of screen sizes? what will we do for ads on mobile?
+
+
+-if i spell a username with incorrect cpaitlaizstioan (i believe that capitalization is set in chess.com usernames) then in the loaded games it still has the capitalizaiton wrong (but its correct in player box? so at the least change the laoded games part to use the correct capitalziation)
+
+for mobile have back and forth arrows centered and bigger above flip new game tc buttons?
+
+fix player boxes on mobile? the pieces captured and the users name have a lot of space between them
+and on dekstop theres a bunch of space between them as well
 
 
 

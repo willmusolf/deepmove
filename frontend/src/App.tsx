@@ -233,7 +233,6 @@ export default function App() {
   const lastEvalRef = useRef({ cp: 0, isMate: false, mateIn: null as number | null })
 
   // Trigger full-game analysis whenever a new game loads and the engine is ready
-  const setSkipNextAnalysis = useGameStore(s => s.setSkipNextAnalysis)
   useEffect(() => {
     if (pgn && isReady) {
       // Always clear the position cache when a new game loads — even for cached
@@ -244,7 +243,8 @@ export default function App() {
       setPendingBranchNodes(new Set())
       lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
       if (useGameStore.getState().skipNextAnalysis) {
-        setSkipNextAnalysis(false)
+        // Don't clear here — let it persist so page refresh also skips.
+        // The flag is reset by reset() in GameSelector.handleSelect when a new game loads.
         return
       }
       void runAnalysis(pgn)

@@ -150,9 +150,12 @@ function loadGameState(): typeof initialState {
 
   const moveEvals = sanitizeMoveEvals(parsed.moveEvals)
   const criticalMoments = sanitizeCriticalMoments(parsed.criticalMoments)
-  const resumeFromIndex = typeof parsed.resumeFromIndex === 'number'
-    ? parsed.resumeFromIndex
-    : moveEvals.length
+  const storedResume = typeof parsed.resumeFromIndex === 'number' ? parsed.resumeFromIndex : 0
+  // If analysis was interrupted (resumeFromIndex reset to 0 but partial evals exist),
+  // default to resuming from the last completed move rather than restarting from scratch.
+  const resumeFromIndex = storedResume === 0 && moveEvals.length > 0
+    ? moveEvals.length
+    : storedResume
 
   return {
     ...initialState,

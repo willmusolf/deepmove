@@ -56,6 +56,14 @@ function fileRankToKey(f: number, r: number): Key {
   return (String.fromCharCode(97 + f) + (8 - r)) as Key
 }
 
+function getEventClientPos(event: MouseEvent | TouchEvent): [number, number] | null {
+  if ('touches' in event) {
+    const touch = event.touches[0] ?? event.changedTouches[0]
+    return touch ? [touch.clientX, touch.clientY] : null
+  }
+  return [event.clientX, event.clientY]
+}
+
 /** Apply a premove without legality checks (pinned pieces, check, etc.).
  *  Uses chess.js put/remove rather than move(), so legality is not validated.
  *  The premove may become legal when it fires; if still illegal, drainPremoveQueue
@@ -216,6 +224,7 @@ export default function ChessBoard({
 
   const [pendingPromotion, setPendingPromotion] = useState<{ from: Key; to: Key; color: 'white' | 'black'; orientation: 'white' | 'black' } | null>(null)
   const [boardReady, setBoardReady] = useState(false)
+  const [dragHoverKey, setDragHoverKey] = useState<Key | null>(null)
 
   const orientationRef = useRef(orientation)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -417,6 +426,63 @@ export default function ChessBoard({
       draggable: { enabled: canInteract },
     })
   }, [fen, lastMove, orientation, interactive, pathKey, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective])
+
+  // Track the exact square currently under the dragged piece on desktop so capture
+  // targets get the same outline treatment as empty destination squares.
+  useEffect(() => {
+    const updateDragHover = (event: MouseEvent | TouchEvent) => {
+      const api = apiRef.current
+      if (!api || window.innerWidth < 1024) {
+        setDragHoverKey(null)
+        return
+      }
+
+      const dragCurrent = api.state.draggable.current
+      if (!dragCurrent?.started) {
+        setDragHoverKey(null)
+        return
+      }
+
+      const pos = getEventClientPos(event)
+      if (!pos) {
+        setDragHoverKey(null)
+        return
+      }
+
+      const hoveredKey = api.getKeyAtDomPos(pos)
+      const selectedKey = api.state.selected ?? dragCurrent.orig
+      const validDests = selectedKey ? api.state.movable.dests?.get(selectedKey) : undefined
+      setDragHoverKey(hoveredKey && validDests?.includes(hoveredKey) ? hoveredKey : null)
+    }
+
+    const clearDragHover = () => setDragHoverKey(null)
+
+    document.addEventListener('mousemove', updateDragHover)
+    document.addEventListener('touchmove', updateDragHover)
+    document.addEventListener('mouseup', clearDragHover)
+    document.addEventListener('touchend', clearDragHover)
+    window.addEventListener('resize', clearDragHover)
+
+    return () => {
+      document.removeEventListener('mousemove', updateDragHover)
+      document.removeEventListener('touchmove', updateDragHover)
+      document.removeEventListener('mouseup', clearDragHover)
+      document.removeEventListener('touchend', clearDragHover)
+      window.removeEventListener('resize', clearDragHover)
+    }
+  }, [])
+
+  // Apply a custom highlight class for the current desktop drag-over square.
+  useEffect(() => {
+    if (!apiRef.current) return
+
+    const customHighlights = new Map<Key, string>()
+    if (dragHoverKey) customHighlights.set(dragHoverKey, 'desktop-drag-hover')
+
+    apiRef.current.set({
+      highlight: { custom: customHighlights },
+    })
+  }, [dragHoverKey])
 
   // Sync engine arrow shapes — always re-pass movable so chessground's partial
   // set() can never accidentally clear movable.dests during an arrows update.

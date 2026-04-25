@@ -183,6 +183,16 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
       : normalizeLichess(g as LichessGame, username)
   ), [games, username])
 
+  const displayUsername = useMemo(() => {
+    if (platform !== 'chesscom') return username
+    const lowerUser = username.toLowerCase()
+    for (const game of games as ChessComGame[]) {
+      if (game.white.username.toLowerCase() === lowerUser) return game.white.username
+      if (game.black.username.toLowerCase() === lowerUser) return game.black.username
+    }
+    return username
+  }, [games, platform, username])
+
   // Keep oldestTimestampRef in sync with prop changes (initial load)
   useEffect(() => {
     if (normalized.length > 0) {
@@ -495,7 +505,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
                 <span className="game-row__analyzed-badge" title="Analysis cached">✓</span>
               )}
               <span className="game-row__color-dot" data-color={g.isWhite ? 'white' : 'black'} />
-              <span className="game-row__username" title={username}>{username}</span>
+              <span className="game-row__username" title={displayUsername}>{displayUsername}</span>
               <span className="game-row__vs">vs</span>
               <span className="game-row__color-dot" data-color={g.isWhite ? 'black' : 'white'} />
               <span className="game-row__opponent" title={g.opponent}>{g.opponent}</span>
