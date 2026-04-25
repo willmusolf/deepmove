@@ -684,7 +684,7 @@ export default function App() {
     reset()
     setStoredUserColor(null)
     setPgn(chess.pgn())
-    setPanelTab('coach')
+    setPanelTab('analysis')
   }
 
   // Called by GameSelector before loading a new game — stops any in-flight
@@ -1245,12 +1245,7 @@ export default function App() {
                   >
                     Analysis
                   </button>
-                  {isLoaded && <button
-                    className={`panel-tab${panelTab === 'coach' ? ' active' : ''}`}
-                    onClick={() => setPanelTab('coach')}
-                  >
-                    Coach
-                  </button>}
+                  {/* Coach tab hidden pre-launch */}
                 </div>
 
                 <div className="side-panel-content">

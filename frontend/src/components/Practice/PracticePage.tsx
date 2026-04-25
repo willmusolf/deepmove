@@ -235,7 +235,14 @@ export default function PracticePage() {
   }
 
   return (
-    <>
+    <div style={{ position: 'relative' }}>
+      <div className="coming-soon-overlay">
+        <div className="coming-soon-badge">
+          <div className="coming-soon-badge__title">Coming Soon</div>
+          <div className="coming-soon-badge__sub">Practice mode is under construction.</div>
+        </div>
+      </div>
+      <>
       <div className="board-col">
         <div className="board-with-eval">
           <EvalBar evalCentipawns={0} orientation={orientation} hidden />
@@ -660,6 +667,7 @@ export default function PracticePage() {
           )}
         </div>
       </div>
-    </>
+      </>
+    </div>
   )
 }
