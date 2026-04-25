@@ -181,4 +181,5 @@ def version_check(request: Request):
     return {
         "commit_sha": settings.git_commit_sha,
         "build_time": settings.build_time,
+        "environment": settings.environment,
     }
