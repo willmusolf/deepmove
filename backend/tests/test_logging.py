@@ -36,6 +36,8 @@ def test_version_does_not_disclose_runtime_details(client):
     body = response.json()
     assert "commit_sha" in body
     assert "build_time" in body
+    assert "python_version" not in body
+    assert "environment" not in body
 
 
 def test_get_optional_user_logs_degradation_when_db_unavailable(monkeypatch, caplog):
