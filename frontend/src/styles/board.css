@@ -2253,11 +2253,17 @@ cg-board {
 }
 
 .game-sort-select {
-  background: var(--color-bg-secondary, #1e1e1e);
+  /* Remove native OS styling (required for Safari — without this it shows a glossy OS dropdown) */
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--color-bg-secondary, #1e1e1e)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E")
+    no-repeat right 6px center;
+  background-size: 8px 5px;
   color: var(--color-text-muted, #888);
   border: 1px solid var(--color-border, #383838);
   border-radius: 5px;
-  padding: 3px 5px;
+  padding: 3px 20px 3px 5px;
   font-size: 0.72rem;
   cursor: pointer;
   margin-left: auto;
