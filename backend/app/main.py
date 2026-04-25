@@ -1,5 +1,4 @@
 """main.py — FastAPI application entry point"""
-import sys
 import asyncio
 import logging
 import sys
