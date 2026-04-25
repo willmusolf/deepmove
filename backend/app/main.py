@@ -1,6 +1,7 @@
 """main.py — FastAPI application entry point"""
 import asyncio
 import logging
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -168,6 +169,7 @@ async def deep_health_check(request: Request):
             "coaching_enabled": settings.coaching_enabled,
             "lesson_cache_size": coaching_service.lesson_cache_size(),
         },
+        "environment": settings.environment,
     }
     if db_ok:
         return payload
@@ -180,4 +182,6 @@ def version_check(request: Request):
     return {
         "commit_sha": settings.git_commit_sha,
         "build_time": settings.build_time,
+        "environment": settings.environment,
+        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
     }
