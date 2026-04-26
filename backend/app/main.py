@@ -161,13 +161,15 @@ def health_check():
 async def deep_health_check(request: Request):
     """Runtime health check for smoke tests and uptime monitoring."""
     db_ok = await _database_is_reachable()
+    cache_size = coaching_service.lesson_cache_size()
+    status = "ok" if db_ok else "degraded"
     payload = {
-        "status": "ok" if db_ok else "degraded",
+        "status": status,
         "service": "deepmove-api",
         "checks": {
             "database": "ok" if db_ok else "unreachable",
             "coaching_enabled": settings.coaching_enabled,
-            "lesson_cache_size": coaching_service.lesson_cache_size(),
+            "lesson_cache_size": cache_size,
         },
         "environment": settings.environment,
     }
