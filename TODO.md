@@ -683,7 +683,10 @@ re analyzing on alraeady analyzed games if we refresh? not storing graph and rep
 
 make practice page actually have the coming soon like the other ones? but dont get rid of progress fully on it i guess
 
--change pawn symbol thing to match the others styles more gray and minimal than the black pawn emoji on the menu
+-mae arrow suggestions on board start slightly away from the center / be just ever so slightly smaller
+
+(might be resolved) sometimes when we go back a move (aka to a move thats already been loaded usually) the badge goes to loading forever and as we go back its all loading then if we make a move it goes back to normal but why is this bug occuring? fix it too
+
 
 -have analyze with coach come later when we actually implement coach? for sandbox games i guess or just have it be how it is now and say coach is coming soon?
 

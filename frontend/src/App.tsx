@@ -16,7 +16,6 @@ import ResponsiveLayout from './components/Layout/ResponsiveLayout'
 import ProfilePage from './components/Profile/ProfilePage'
 import MoveCoachComment from './components/Coach/MoveCoachComment'
 import BotPlayPage from './components/Play/BotPlayPage'
-import PracticePage from './components/Practice/PracticePage'
 import { useGameReview } from './hooks/useGameReview'
 import { useAnalysisBoard } from './hooks/useAnalysisBoard'
 import BestLines from './components/Board/BestLines'
@@ -1620,7 +1619,7 @@ export default function App() {
                               style={{ marginTop: '0.75rem' }}
                               onClick={handleLoadSandboxAsGame}
                             >
-                              Analyse with Coach
+                              Go to Review
                             </button>
                           )}
                         </>
@@ -1638,7 +1637,24 @@ export default function App() {
           )}
 
           {currentPage === 'dashboard' && <div className="stub-page">Dashboard coming soon.</div>}
-          {currentPage === 'practice' && <PracticePage />}
+          {currentPage === 'practice' && (
+            <div className="practice-coming-soon-page">
+              <div className="practice-coming-soon-board">
+                <ChessBoard
+                  fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+                  orientation="white"
+                  interactive={false}
+                  pathKey={0}
+                />
+              </div>
+              <div className="coming-soon-overlay">
+                <div className="coming-soon-card">
+                  <h2>Coming Soon</h2>
+                  <p>Opening practice is under construction.<br />Check back soon!</p>
+                </div>
+              </div>
+            </div>
+          )}
           {currentPage === 'settings' && (
             <ProfilePage
               onUsernameLinked={(platform, username) => {
