@@ -1,6 +1,7 @@
 """main.py — FastAPI application entry point"""
 import asyncio
 import logging
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -16,8 +17,6 @@ from app.config import settings
 from app.database import engine
 from app.logging_utils import configure_logging, log_event, reset_request_id, set_request_id
 from app.rate_limiting import limiter
-import sys
-
 from app.routes import admin, auth, coaching, games, users
 from app.services import coaching as coaching_service
 
