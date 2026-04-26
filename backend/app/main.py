@@ -1,7 +1,6 @@
 """main.py — FastAPI application entry point"""
 import asyncio
 import logging
-import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -18,7 +17,6 @@ from app.database import engine
 from app.logging_utils import configure_logging, log_event, reset_request_id, set_request_id
 from app.rate_limiting import limiter
 from app.routes import admin, auth, coaching, games, users
-from app.services import coaching as coaching_service
 
 configure_logging(settings.environment)
 logger = logging.getLogger(__name__)
@@ -161,27 +159,22 @@ def health_check():
 async def deep_health_check(request: Request):
     """Runtime health check for smoke tests and uptime monitoring."""
     db_ok = await _database_is_reachable()
-    payload = {
-        "status": "ok" if db_ok else "degraded",
-        "service": "deepmove-api",
-        "checks": {
-            "database": "ok" if db_ok else "unreachable",
-            "coaching_enabled": settings.coaching_enabled,
-            "lesson_cache_size": coaching_service.lesson_cache_size(),
-        },
-        "environment": settings.environment,
-    }
     if db_ok:
-        return payload
-    return JSONResponse(status_code=503, content=payload)
+        return {
+            "status": "ok",
+            "db": "connected",
+            "commit": settings.git_commit_sha,
+        }
+    return JSONResponse(
+        status_code=503,
+        content={"status": "unhealthy", "db": "unreachable"},
+    )
 
 
 @app.get("/version")
 @limiter.limit("30/minute")
 def version_check(request: Request):
     return {
-        "commit_sha": settings.git_commit_sha,
-        "build_time": settings.build_time,
-        "environment": settings.environment,
-        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        "version": "0.1.0",
+        "commit": settings.git_commit_sha,
     }
