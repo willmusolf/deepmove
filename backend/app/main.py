@@ -17,7 +17,6 @@ from app.database import engine
 from app.logging_utils import configure_logging, log_event, reset_request_id, set_request_id
 from app.rate_limiting import limiter
 from app.routes import admin, auth, coaching, games, users
-from app.services import coaching as coaching_service
 
 configure_logging(settings.environment)
 logger = logging.getLogger(__name__)
