@@ -12,8 +12,8 @@
   --border: var(--color-border);
   --text-primary: var(--color-text);
   --text-secondary: var(--color-text-muted);
-  --board-move-dest-fill: radial-gradient(rgba(78, 84, 92, 0.96) 20%, transparent 21%);
-  --board-capture-dest-shadow: inset 0 0 0 6px rgba(78, 84, 92, 0.98);
+  --board-move-dest-fill: radial-gradient(rgba(78, 84, 92, 0.6) 20%, transparent 21%);
+  --board-capture-dest-shadow: inset 0 0 0 6px rgba(78, 84, 92, 0.65);
 }
 
 /* Dim chessground's default vivid check highlight */
@@ -153,7 +153,7 @@ coords coord {
 }
 
 .cg-wrap coords.ranks {
-  left: calc(var(--board-coord-inset) - 2px);
+  left: calc(var(--board-coord-inset) - 2px + max(0px, 2px - 0.8cqw));
 }
 
 .cg-wrap coords.ranks coord {
@@ -168,7 +168,7 @@ coords coord {
 .cg-wrap coords.files coord {
   box-sizing: border-box;
   padding-left: var(--board-coord-inset);
-  transform: translateY(clamp(-3px, calc(var(--board-file-offset) - 3px - max(0px, 2.0cqw - 14px)), 2px));
+  transform: translateY(clamp(-4px, calc(var(--board-file-offset) - 2px - max(0px, 3.0cqw - 21px)), 2px));
 }
 
 /* Coordinate colors — use !important to enforce correct alternation */
@@ -196,10 +196,10 @@ cg-board {
 
 .chess-board-container,
 .board-overlay-host {
-  --board-badge-size: clamp(22px, 6.25%, 36px);
-  --board-badge-font-size: clamp(0.58rem, 1.1rem, 1.0rem);
-  --board-badge-wide-font-size: clamp(0.48rem, 0.88rem, 0.78rem);
-  --board-badge-draw-font-size: clamp(0.48rem, 0.86rem, 0.76rem);
+  --board-badge-size: clamp(10px, 5%, 44px);
+  --board-badge-font-size: clamp(0.3rem, 2.5cqw, 1.0rem);
+  --board-badge-wide-font-size: clamp(0.25rem, 1.8cqw, 0.8rem);
+  --board-badge-draw-font-size: clamp(0.25rem, 1.3cqw, 0.8rem);
   --board-badge-inset-x: 1px;
   --board-badge-inset-y: 1px;
 }
@@ -207,6 +207,7 @@ cg-board {
 .chess-board-container {
   --board-coord-inset: 0.75cqw;
   --board-file-offset: clamp(2px, 0.55cqw, 4px);
+  --board-capture-dest-shadow: inset 0 0 0 clamp(2px, 0.9cqw, 8px) rgba(78, 84, 92, 0.65);
   width: 100%;
   aspect-ratio: 1;
   display: block;
