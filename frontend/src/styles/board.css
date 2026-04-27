@@ -157,7 +157,7 @@ coords coord {
 }
 
 .cg-wrap coords.ranks coord {
-  transform: translateY(24px);
+  transform: translateY(18px);
 }
 
 .cg-wrap coords.files {
