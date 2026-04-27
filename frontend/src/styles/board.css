@@ -157,7 +157,7 @@ coords coord {
 }
 
 .cg-wrap coords.ranks coord {
-  transform: translateY(calc(18px + var(--board-coord-inset)));
+  transform: translateY(18px);
 }
 
 .cg-wrap coords.files {
@@ -196,10 +196,10 @@ cg-board {
 
 .chess-board-container,
 .board-overlay-host {
-  --board-badge-size: clamp(22px, 6.25%, 28px);
-  --board-badge-font-size: clamp(0.58rem, 1.1rem, 0.84rem);
-  --board-badge-wide-font-size: clamp(0.48rem, 0.88rem, 0.66rem);
-  --board-badge-draw-font-size: clamp(0.48rem, 0.86rem, 0.66rem);
+  --board-badge-size: clamp(22px, 6.25%, 36px);
+  --board-badge-font-size: clamp(0.58rem, 1.1rem, 1.0rem);
+  --board-badge-wide-font-size: clamp(0.48rem, 0.88rem, 0.78rem);
+  --board-badge-draw-font-size: clamp(0.48rem, 0.86rem, 0.76rem);
   --board-badge-inset-x: 1px;
   --board-badge-inset-y: 1px;
 }
