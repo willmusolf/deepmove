@@ -1,6 +1,6 @@
 import UserMenu from '../Auth/UserMenu'
 
-export type Page = 'review' | 'practice' | 'play' | 'dashboard' | 'settings' | 'about'
+export type Page = 'review' | 'practice' | 'play' | 'dashboard' | 'settings' | 'about' | 'privacy'
 
 interface NavSidebarProps {
   currentPage: Page
