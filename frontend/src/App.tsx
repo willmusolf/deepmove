@@ -243,7 +243,17 @@ export default function App() {
       // games where skipNextAnalysis is true — so stale per-position multi-PV
       // results from the previous game never bleed into the new one.
       positionCache.current.clear()
-      setBranchGrades(new Map())
+      // Restore branch grades from session if this is the same game (refresh),
+      // otherwise clear for a new game load.
+      const bgGameId = useGameStore.getState().currentGameId
+      const storedBg = bgGameId
+        ? readSessionJson<Record<string, string>>(`deepmove_bg_${bgGameId}`)
+        : null
+      setBranchGrades(
+        storedBg && Object.keys(storedBg).length > 0
+          ? new Map(Object.entries(storedBg) as [string, MoveGrade][])
+          : new Map()
+      )
       setPendingBranchNodes(new Set())
       lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
       if (useGameStore.getState().skipNextAnalysis) {
@@ -465,6 +475,15 @@ export default function App() {
     void evaluateBranchMove(nodeId, parentFen, node.fen)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPath, isReady])
+
+  // Persist branch grades to sessionStorage whenever they change (keyed by game ID).
+  // On refresh, pgn+isReady effect reads them back to avoid re-evaluating via Stockfish.
+  useEffect(() => {
+    if (branchGrades.size === 0) return
+    const gameId = useGameStore.getState().currentGameId
+    if (!gameId) return
+    writeSessionJson(`deepmove_bg_${gameId}`, Object.fromEntries(branchGrades))
+  }, [branchGrades])
 
   // When game analysis finishes, auto-trigger position analysis so BestLines appear immediately.
   const wasAnalyzingRef = useRef(false)
