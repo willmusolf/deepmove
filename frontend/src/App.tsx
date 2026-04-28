@@ -817,11 +817,8 @@ export default function App() {
       const legalMoves = chess.moves({ verbose: true })
       const playedMove = legalMoves.find(m => m.after === newFen)
 
-      // Branch grades should only treat the engine's #1 move as "top suggested".
-      // Otherwise a second-best sacrifice can get mislabeled as brilliant.
-      const topUciMove = parentLines[0]?.pv?.[0] ?? null
       const playedUci = playedMove ? playedMove.from + playedMove.to + (playedMove.promotion ?? '') : null
-      const isTopSuggested = playedUci !== null && topUciMove === playedUci
+      const isTopSuggested = !playedUci || parentLines[0]?.pv?.[0] === playedUci
 
       // Sacrifice detection (requires the move + position after)
       const sacrifice = playedMove ? isSacrificeFn(playedMove, newFen) : false
