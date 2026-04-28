@@ -252,6 +252,15 @@ export function useStockfish() {
     return engine.analyzePosition(fen, depth)
   }
 
+  /** Multi-PV variant of analyzePositionSingleBg — returns top-N lines from the
+   *  background engine so branch evals can check whether the played move was one
+   *  of the engine's top suggestions. */
+  async function analyzePositionMultiPVBg(fen: string, depth = 14, numLines = 2): Promise<import('../engine/stockfish').TopLine[] | null> {
+    const engine = backgroundRef.current
+    if (!engine || !isReady) return null
+    return engine.analyzePositionMultiPV(fen, depth, numLines)
+  }
+
   return {
     isReady,
     engineStatus,
@@ -260,6 +269,7 @@ export function useStockfish() {
     analyzePositionLines,
     analyzePositionSingle,
     analyzePositionSingleBg,
+    analyzePositionMultiPVBg,
     stopPositionAnalysis,
   }
 }
