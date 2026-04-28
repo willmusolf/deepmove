@@ -1,7 +1,6 @@
 """main.py — FastAPI application entry point"""
 import asyncio
 import logging
-import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -184,6 +183,4 @@ def version_check(request: Request):
     return {
         "commit_sha": settings.git_commit_sha,
         "build_time": settings.build_time,
-        "environment": settings.environment,
-        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
     }
