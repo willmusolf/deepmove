@@ -116,44 +116,24 @@ Must ship before launch. Everything else can follow.
 
 ## 📝 RAW NOTES
 
--whats up with the tons of folders that we have for ecah deepmove thing? any way to clean that up or hav eit be better going forward from now?
-
-sometimes when the board is super big, the letters are too low? only an issue when the board is huge like when console (inspect element) is open
-badges could also be slightly bigger for that huge board
-
-major security audits
-
-re analyzing on alraeady analyzed games if we refresh? not storing graph and report etc properly?? something with cache on prod or something idk need to do a deep dive on this? not sure if its just a mobile issue or what
-
-make practice page actually have the coming soon like the other ones? but dont get rid of progress fully on it i guess
-
--mae arrow suggestions on board start slightly away from the center / be just ever so slightly smaller
-
-sometimes when we go back a move (aka to a move thats already been loaded usually) the badge goes to loading forever and as we go back its all loading then if we make a move it goes back to normal but why is this bug occuring? fix it too
-what i think is happening is like on a refresh the badges dont load in automatically but when i make a move the badges appear, but if i go back then its loading forver (because it didnt load originally)
-
--mae arrow suggestions on board start slightly away from the center / be just ever so slightly smaller
-
-(might be resolved) sometimes when we go back a move (aka to a move thats already been loaded usually) the badge goes to loading forever and as we go back its all loading then if we make a move it goes back to normal but why is this bug occuring? fix it too
-
--have analyze with coach come later when we actually implement coach? for sandbox games i guess or just have it be how it is now and say coach is coming soon?
-
--ads. how do we get the ball rolling ot acutally have them and make sure we can get money and have them be visual on resize? sometimes if we shrink it horziontally the ad placeholder disapperas too like it can have more space normally on a lot of screen sizes? what will we do for ads on mobile? pop up that can be lcicked away over buttons
-
--if i spell a username with incorrect cpaitlaizstioan (i believe that capitalization is set in chess.com usernames) then in the loaded games it still has the capitalizaiton wrong (but its correct in player box? so at the least change the laoded games part to use the correct capitalziation)
-
-for mobile have back and forth arrows centered and bigger above flip new game tc buttons?
-
-fix player boxes on mobile? the pieces captured and the users name have a lot of space between them
-and on dekstop theres a bunch of space between them as well
-
--deploy app before coaching? coming soon? or what just launch as chessigma competitor for now?
-
--make reels / videos with voiceover for it? plus slideshows idk
-
--coaching? we need more stats and anlaysis for each move and for everyhting with it to be much much much better
-
-EVENTUALLY
+-badges are inaccurate? get a star on a branching move that isnt one of the 2 suggested? should we show more lines like up to 3? and the actual further lines? and we could have a button for any missed tactics? all that stuff is in chess.com i believe
 -if you click on a miss symbol it shows you the line for the tactic that you missed? how are misses calculated and all of them for that matter? also add something for show line or something like that that chess.com has?
+
+
+-whats up with the tons of folders that we have for each deepmove thing? any way to clean that up or have it be better going forward from now?
+
+On mobile for transcript we could have a horizontally scrolling one like chess.com
+
+-make sure coach/llm calls are not happening when we originally launch the app, also have a scaling plan?
+
+-add something for useers to email / give bugs or anything about
+
+-make reels / videos with voiceover for it? plus slideshows idk. launch as chessigma competitor
+
+
+
+AFTER DEPLOYMENT / ADS / MARKETING
+-coaching? we need more stats and analysis for each move and for everything with it to be much much much better
+
 
 -make this into an ios app

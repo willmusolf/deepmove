@@ -243,14 +243,25 @@ export default function App() {
       // games where skipNextAnalysis is true — so stale per-position multi-PV
       // results from the previous game never bleed into the new one.
       positionCache.current.clear()
-      setBranchGrades(new Map())
+      // Restore branch grades from session if this is the same game (refresh),
+      // otherwise clear for a new game load.
+      const bgGameId = useGameStore.getState().currentGameId
+      const storedBg = bgGameId
+        ? readSessionJson<Record<string, string>>(`deepmove_bg_${bgGameId}`)
+        : null
+      setBranchGrades(
+        storedBg && Object.keys(storedBg).length > 0
+          ? new Map(Object.entries(storedBg) as [string, MoveGrade][])
+          : new Map()
+      )
       setPendingBranchNodes(new Set())
       lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
       if (useGameStore.getState().skipNextAnalysis) {
         setSkipNextAnalysis(false)
         return
       }
-      void runAnalysis(pgn)
+      const t = setTimeout(() => { void runAnalysis(pgn) }, 0)
+      return () => clearTimeout(t)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pgn, isReady])
@@ -442,6 +453,37 @@ export default function App() {
     void evaluateBranchMove(nodeId, parentFen, node.fen)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisPath, isReady])
+
+  // Safety net (game review): when navigating to an ungraded branch node, ensure
+  // evaluateBranchMove is dispatched. Covers goBack, goForward, and MoveList click
+  // (handleNavigateTo) — all of which may leave a branch node in pendingBranchNodes
+  // without ever calling evaluateBranchMove for it. Also fires on page refresh where
+  // branchGrades is cleared but the variation tree is restored from session storage.
+  useEffect(() => {
+    if (!isReady || !isLoaded || currentPath.length === 0) return
+    const nodeId = currentPath[currentPath.length - 1]
+    if (!nodeId) return
+    const node = moveTree[nodeId]
+    if (!node || node.isMainLine) return  // main-line grades come from moveEvals
+    if (branchGrades.has(nodeId)) return  // already graded
+    const STARTING = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+    const parentFen = node.parentId ? (moveTree[node.parentId]?.fen ?? STARTING) : STARTING
+    if (!pendingBranchNodes.has(nodeId)) {
+      setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nodeId); return s })
+    }
+    // evaluateBranchMove is idempotent via evalInFlightRef — safe to call even if already pending
+    void evaluateBranchMove(nodeId, parentFen, node.fen)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPath, isReady])
+
+  // Persist branch grades to sessionStorage whenever they change (keyed by game ID).
+  // On refresh, pgn+isReady effect reads them back to avoid re-evaluating via Stockfish.
+  useEffect(() => {
+    if (branchGrades.size === 0) return
+    const gameId = useGameStore.getState().currentGameId
+    if (!gameId) return
+    writeSessionJson(`deepmove_bg_${gameId}`, Object.fromEntries(branchGrades))
+  }, [branchGrades])
 
   // When game analysis finishes, auto-trigger position analysis so BestLines appear immediately.
   const wasAnalyzingRef = useRef(false)
