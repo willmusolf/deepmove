@@ -118,6 +118,7 @@ describe('analyzeGame', () => {
     const engine = {
       analyzePositionMultiPV: vi
         .fn()
+        .mockResolvedValueOnce(makeLines(35, false, null, ['e2e4']))
         .mockResolvedValueOnce(makeLines(120, true, 4, ['e7e5']))
         .mockResolvedValueOnce(makeLines(15, false, null, ['g1f3'])),
     } as any
@@ -131,5 +132,23 @@ describe('analyzeGame', () => {
     expect(results[1].color).toBe('black')
     expect(results[1].eval.score).toBe(15)
     expect(results[1].eval.mateIn).toBeNull()
+  })
+
+  it('does not auto-grade the first move as best when it was not the top suggestion', async () => {
+    const makeLines = (score: number, pv: string[]): TopLine[] => [
+      { rank: 1, score, isMate: false, mateIn: null, pv, san: pv[0] ?? '', depth: 16 },
+      { rank: 2, score: score - 10, isMate: false, mateIn: null, pv: ['d2d4'], san: 'd2d4', depth: 16 },
+    ]
+    const engine = {
+      analyzePositionMultiPV: vi
+        .fn()
+        .mockResolvedValueOnce(makeLines(30, ['e2e4']))
+        .mockResolvedValueOnce(makeLines(25, ['d7d5']))
+        .mockResolvedValueOnce(makeLines(20, ['g1f3'])),
+    } as any
+
+    const results = await analyzeGame('1. d4 d5', engine, 16)
+
+    expect(results[0].grade).toBe('excellent')
   })
 })
