@@ -17,6 +17,7 @@ const PAGE_LABELS: Record<Page, string> = {
   dashboard: 'Dashboard',
   settings: 'Settings',
   about: 'About',
+  privacy: 'Privacy Policy',
 }
 
 export default function ResponsiveLayout({ currentPage, onNavigate, children }: ResponsiveLayoutProps) {

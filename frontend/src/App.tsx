@@ -16,6 +16,7 @@ import ResponsiveLayout from './components/Layout/ResponsiveLayout'
 import ProfilePage from './components/Profile/ProfilePage'
 import MoveCoachComment from './components/Coach/MoveCoachComment'
 import BotPlayPage from './components/Play/BotPlayPage'
+import PrivacyPage from './components/PrivacyPage'
 import { useGameReview } from './hooks/useGameReview'
 import { useAnalysisBoard } from './hooks/useAnalysisBoard'
 import BestLines from './components/Board/BestLines'
@@ -78,6 +79,7 @@ function isPage(value: unknown): value is Page {
     || value === 'dashboard'
     || value === 'settings'
     || value === 'about'
+    || value === 'privacy'
 }
 
 function loadAppUiState(): AppUiState | null {
@@ -207,6 +209,7 @@ export default function App() {
   // Silent auth refresh on app load — non-blocking, app works without it
   const authRefresh = useAuthStore(s => s.refresh)
   const authUser = useAuthStore(s => s.user)
+  const isPremium = useAuthStore(s => s.isPremium)
   useEffect(() => { void authRefresh() }, [authRefresh])
 
   // Initialize userElo from cached detected ratings (instant — cached at import time, no analysis needed)
@@ -1672,9 +1675,9 @@ export default function App() {
                   )}
                 </div>
               </div>
-              <div className="ad-col">
-                <div className="ad-placeholder">Ad</div>
-              </div>
+              {!isPremium && (
+                <div className="ad-col" />
+              )}
             </>
           )}
 
@@ -1711,6 +1714,7 @@ export default function App() {
             />
           )}
           {currentPage === 'about' && <div className="stub-page">About coming soon.</div>}
+          {currentPage === 'privacy' && <PrivacyPage />}
           {currentPage === 'play' && (
             <BotPlayPage
               analyzePositionLines={analyzePositionLines}
@@ -1718,6 +1722,9 @@ export default function App() {
               onNavigateToReview={() => goToPage('review')}
             />
           )}
+          <footer className="app-footer">
+            <button className="app-footer__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
+          </footer>
       </div>
     </ResponsiveLayout>
   )
