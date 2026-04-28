@@ -1499,6 +1499,12 @@ cg-board {
   letter-spacing: -0.03em;
 }
 
+.move-grade__icon {
+  width: 0.78rem;
+  height: 0.78rem;
+  display: block;
+}
+
 /* Multi-character badges need smaller font to fit in circle */
 .grade-brilliant,
 .grade-blunder,
@@ -1511,11 +1517,11 @@ cg-board {
   flex-shrink: 0;
 }
 
-.grade-brilliant  { background: #22d3ee; }           /* cyan */
-.grade-great      { background: #16a34a; }           /* rich green */
+.grade-brilliant  { background: #93c5fd; }           /* light blue */
+.grade-great      { background: #3b82f6; }           /* blue */
 .grade-best       { background: #22c55e; }           /* medium green */
 .grade-excellent  { background: #4ade80; }           /* light green */
-.grade-good       { background: #60a5fa; }           /* soft blue — visible, distinct from greens */
+.grade-good       { background: #86efac; }
 .grade-forced     { background: #6b7280; }           /* dark gray */
 .grade-inaccuracy { background: #facc15; color: #1a1a1a; }
 .grade-mistake    { background: #fb923c; }
@@ -1574,6 +1580,12 @@ cg-board {
 .board-grade-badge[data-grade="blunder"],
 .board-grade-badge[data-grade="inaccuracy"] {
   font-size: var(--board-badge-wide-font-size);
+}
+
+.board-grade-badge__icon {
+  width: 62%;
+  height: 62%;
+  display: block;
 }
 
 /* Pending spinner for board badge while branch eval is in flight */
@@ -1881,6 +1893,12 @@ cg-board {
 
 .game-report-pill-sym {
   opacity: 0.85;
+}
+
+.game-report-pill__icon {
+  width: 0.72rem;
+  height: 0.72rem;
+  display: block;
 }
 
 .game-report-pill-count {

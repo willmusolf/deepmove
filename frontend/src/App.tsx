@@ -15,6 +15,7 @@ import type { Page } from './components/Layout/NavSidebar'
 import ResponsiveLayout from './components/Layout/ResponsiveLayout'
 import ProfilePage from './components/Profile/ProfilePage'
 import MoveCoachComment from './components/Coach/MoveCoachComment'
+import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './components/Board/gradeBadges'
 import BotPlayPage from './components/Play/BotPlayPage'
 import PrivacyPage from './components/PrivacyPage'
 import { useGameReview } from './hooks/useGameReview'
@@ -815,10 +816,8 @@ export default function App() {
       const legalMoves = chess.moves({ verbose: true })
       const playedMove = legalMoves.find(m => m.after === newFen)
 
-      // Check whether the played move matches one of the engine's top-2 suggestions
-      const topUciMoves = parentLines.slice(0, 2).map(l => l.pv?.[0]).filter(Boolean) as string[]
       const playedUci = playedMove ? playedMove.from + playedMove.to + (playedMove.promotion ?? '') : null
-      const isTopSuggested = !playedUci || topUciMoves.includes(playedUci)
+      const isTopSuggested = !playedUci || parentLines[0]?.pv?.[0] === playedUci
 
       // Sacrifice detection (requires the move + position after)
       const sacrifice = playedMove ? isSacrificeFn(playedMove, newFen) : false
@@ -1100,18 +1099,6 @@ export default function App() {
                       pathKey={pathKeyRef.current}
                     />
                     {(() => {
-                      const BOARD_GRADE: Record<string, { symbol: string; color: string }> = {
-                        brilliant:  { symbol: '!!', color: '#22d3ee' },
-                        great:      { symbol: '!',  color: '#16a34a' },
-                        best:       { symbol: '★',  color: '#22c55e' },
-                        excellent:  { symbol: '✓',  color: '#4ade80' },
-                        good:       { symbol: '·',  color: '#60a5fa' },
-                        inaccuracy: { symbol: '?!', color: '#facc15' },
-                        mistake:    { symbol: '?',  color: '#fb923c' },
-                        blunder:    { symbol: '??', color: '#ef4444' },
-                        miss:       { symbol: '✗',  color: '#a78bfa' },
-                        forced:     { symbol: '→',  color: '#6b7280' },
-                      }
                       // Determine current branch node for pending/grade lookup
                       const boardNodeId = isLoaded
                         ? (inBranch ? currentNodeId : null)
@@ -1121,7 +1108,7 @@ export default function App() {
                         : (analysisPath.length > 0
                           ? branchGrades.get(analysisPath[analysisPath.length - 1])
                           : undefined)
-                      const g = showGrades && grade ? BOARD_GRADE[grade] : null
+                      const badgeMeta = showGrades ? getGradeBadgeMeta(grade) : null
                       const destSquare = isLoaded
                         ? (inBranch && currentNodeId ? moveTree[currentNodeId]?.to : boardLastMove?.[1])
                         : (analysisPath.length > 0
@@ -1144,7 +1131,7 @@ export default function App() {
                           />
                         )
                       }
-                      if (!g || !destSquare) return null
+                      if (!badgeMeta || !destSquare) return null
                       return (
                         <div
                           key={destSquare}
@@ -1152,10 +1139,10 @@ export default function App() {
                           data-grade={grade ?? ''}
                           style={{
                             ...getSquareOverlayPosition(destSquare, orientation),
-                            background: g.color,
+                            background: badgeMeta.boardColor,
                           }}
                         >
-                          {g.symbol}
+                          {renderGradeBadgeGlyph(grade, 'board')}
                         </div>
                       )
                     })()}
