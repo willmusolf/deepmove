@@ -19,7 +19,7 @@ python-dotenv==1.2.2
 python-json-logger==2.0.7
 
 # Cache (in-memory LRU for MVP — no Redis needed yet)
-cachetools==5.5.0
+cachetools==7.0.6
 
 # Dev / testing
 pytest==9.0.3
