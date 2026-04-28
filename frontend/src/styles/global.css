@@ -243,3 +243,103 @@ html.theme-light body {
     --board-vw-offset: 724px;  /* nav(180)+padding(48)+eval+gap(24)+gap(16)+side(280)+gap(16)+ad(160) */
   }
 }
+
+/* ── Mobile ad banner (sticky bottom, free-tier only) ───────────────────── */
+.mobile-ad-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 36px 3px 0;
+  min-height: 56px;
+}
+
+.mobile-ad-banner__close {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.mobile-ad-banner__close:hover {
+  color: var(--color-text);
+}
+
+/* Hide on desktop — mobile only */
+@media (min-width: 768px) {
+  .mobile-ad-banner { display: none; }
+}
+
+/* Offset body content when banner is visible */
+@media (max-width: 767px) {
+  .app-content { padding-bottom: 56px; }
+}
+
+/* ── App footer (privacy link etc.) ────────────────────────────────────── */
+.app-footer {
+  padding: 0.75rem 1rem;
+  text-align: center;
+  border-top: 1px solid var(--color-border);
+  margin-top: auto;
+}
+
+.app-footer__link {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.app-footer__link:hover {
+  color: var(--color-text);
+}
+
+/* ── Privacy Policy page ────────────────────────────────────────────────── */
+.privacy-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.privacy-page h1 {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.privacy-page__updated {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  margin-bottom: 2rem;
+}
+
+.privacy-page h2 {
+  font-size: 1rem;
+  margin-top: 1.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.privacy-page p {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--color-text-secondary, var(--color-text-muted));
+}
+
+.privacy-page a {
+  color: var(--color-accent, #4a9eff);
+}

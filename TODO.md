@@ -116,8 +116,12 @@ Must ship before launch. Everything else can follow.
 
 ## 📝 RAW NOTES
 
--badges are inaccurate? get a star on a branching move that isnt one of the 2 suggested? should we show more lines like up to 3? and the actual further lines? and we could have a button for any missed tactics? all that stuff is in chess.com i believe
--if you click on a miss symbol it shows you the line for the tactic that you missed? how are misses calculated and all of them for that matter? also add something for show line or something like that that chess.com has?
+-badges are inaccurate? get a star on a branching move that isnt one of the 2 suggested? should we show more lines like up to 3? and the actual further lines? and we could have a button for any missed tactics? all that stuff is in chess.com i believe idk whats best for all that tho
+-if you click on a miss symbol it shows you the line for the tactic that you missed? how are misses calculated and all of them for that matter? also add something for show line or something like that that chess.com has? look for any other possible flaws in the badge logic. we could also add the book badges for theory moves? chess.com does that 
+
+
+
+-get rid of tiny emptyness in corners of hover outline on desktop.
 
 
 -whats up with the tons of folders that we have for each deepmove thing? any way to clean that up or have it be better going forward from now?
