@@ -1901,6 +1901,12 @@ cg-board {
   display: block;
 }
 
+.game-report-status {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
 .game-report-pill-count {
   font-variant-numeric: tabular-nums;
 }

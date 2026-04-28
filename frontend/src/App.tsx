@@ -3,6 +3,7 @@ import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
 import EvalGraph from './components/Board/EvalGraph'
+import GameReport from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
 import PlayerInfoBox from './components/Board/PlayerInfoBox'
 import ImportPanel from './components/Import/ImportPanel'
@@ -1377,6 +1378,14 @@ export default function App() {
                         onLineClick={handleAnalysisBestLineClick}
                       />
 
+                      {(moveEvals.length > 0 || showAnalyzingBar) && (
+                        <GameReport
+                          moveEvals={moveEvals}
+                          userColor={userColor}
+                          isAnalyzing={showAnalyzingBar}
+                        />
+                      )}
+
                       {/* Eval graph — hidden during analysis, shown after completion */}
                       {!showAnalyzingBar && moveEvals.length > 0 && (
                         <EvalGraph
@@ -1399,7 +1408,7 @@ export default function App() {
                         branchGrades={showGrades ? branchGrades : undefined}
                         pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
-                        isAnalyzing={showAnalyzingBar || !showGrades}
+                        isAnalyzing={!showGrades}
                         rootBranchIds={rootBranchIds}
                       />
                     </>
@@ -1479,7 +1488,7 @@ export default function App() {
                         branchGrades={showGrades ? branchGrades : undefined}
                         pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
-                        isAnalyzing={showAnalyzingBar || !showGrades}
+                        isAnalyzing={!showGrades}
                         rootBranchIds={rootBranchIds}
                       />
                     </>
