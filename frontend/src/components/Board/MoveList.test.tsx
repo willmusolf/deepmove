@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MoveList from './MoveList'
 import type { MoveTree } from '../../chess/types'
+import type { MoveGrade } from '../../engine/analysis'
 
 const tree: MoveTree = {
   m0: {
@@ -25,6 +26,18 @@ function renderMoveList(currentPath: string[]) {
       rootId="m0"
       currentPath={currentPath}
       moveGrades={[]}
+      onNodeClick={() => {}}
+    />
+  )
+}
+
+function renderMoveListWithGrades(moveGrades: (MoveGrade | undefined)[]) {
+  return render(
+    <MoveList
+      tree={tree}
+      rootId="m0"
+      currentPath={['m0']}
+      moveGrades={moveGrades}
       onNodeClick={() => {}}
     />
   )
@@ -123,5 +136,13 @@ describe('MoveList auto-follow', () => {
     )
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 32, behavior: 'smooth' })
+  })
+
+  it('renders the good badge as an icon, not an emoji glyph', () => {
+    const { container } = renderMoveListWithGrades(['good'])
+
+    const badge = screen.getByLabelText('Good move')
+    expect(badge.querySelector('svg')).not.toBeNull()
+    expect(container.textContent).not.toContain('👍')
   })
 })
