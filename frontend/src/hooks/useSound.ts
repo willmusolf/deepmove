@@ -24,10 +24,9 @@ export function classifySan(san: string): SoundEvent {
 }
 
 const SOUND_PATHS: Record<SoundEvent, string> = {
-  // A few of these files are tracked with uppercase names in git, which matters on Linux.
-  move: '/sounds/Move.mp3',
-  capture: '/sounds/Capture.mp3',
-  castle: '/sounds/Castle.mp3',
+  move: '/sounds/move.mp3',
+  capture: '/sounds/capture.mp3',
+  castle: '/sounds/castle.mp3',
   check: '/sounds/move-check.mp3',
   mate: '/sounds/checkmate.mp3',
   promote: '/sounds/confirmation.mp3',

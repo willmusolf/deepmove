@@ -11,9 +11,11 @@ function getAnalysisDepth(elo: number): number {
 }
 
 import { useEffect, useRef, useState } from 'react'
+import { Chess } from 'chess.js'
 import { StockfishEngine } from '../engine/stockfish'
 import type { TopLine } from '../engine/stockfish'
 import { analyzeGame } from '../engine/analysis'
+import { cleanPgn } from '../chess/pgn'
 
 import { detectCriticalMoments } from '../engine/criticalMoments'
 import { useGameStore } from '../stores/gameStore'
@@ -87,10 +89,6 @@ export function useStockfish() {
     const isCurrentRun = () =>
       analysisRunIdRef.current === runId && abortRef.current === controller
 
-    setAnalyzing(true)
-    setAnalyzedCount(0)
-    setTotalMovesCount(0)
-
     const color = userColor ?? 'white'
 
     // Resume support: read how many moves are already analyzed from the store
@@ -98,6 +96,23 @@ export function useStockfish() {
     const initialEvals = startFromIndex > 0 ? useGameStore.getState().moveEvals : []
     // Reset resumeFromIndex so a subsequent fresh analysis doesn't accidentally resume
     useGameStore.getState().setResumeFromIndex(0)
+
+    // Early exit: if startFromIndex covers all moves in the game, no analysis work remains.
+    // Without this guard, a 2nd+ page refresh calls runAnalysis, sets isAnalyzing=true
+    // (causing grade badges to flash blank then restore) on every other refresh.
+    // Also prevents wasAnalyzingRef from cancelling position analysis seeded by isReady effect.
+    try {
+      const tempChess = new Chess()
+      tempChess.loadPgn(cleanPgn(pgn))
+      if (startFromIndex >= tempChess.history().length && initialEvals.length > 0) {
+        useGameStore.getState().setSkipNextAnalysis(true)
+        return
+      }
+    } catch { /* invalid PGN — fall through to normal analysis path */ }
+
+    setAnalyzing(true)
+    setAnalyzedCount(0)
+    setTotalMovesCount(0)
 
     if (startFromIndex === 0) {
       setMoveEvals([])

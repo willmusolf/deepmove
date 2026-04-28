@@ -72,7 +72,7 @@ async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: null,
-  isLoading: true, // starts true — resolved by initial refresh attempt
+  isLoading: false, // starts false — sign-in button shows immediately; refresh updates state async
   isPremium: false,
 
   register: async (email, password) => {
@@ -116,7 +116,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   refresh: async () => {
-    set({ isLoading: true })
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 5000)
     try {
