@@ -4,6 +4,7 @@ import ChessBoard, { getLegalDests, getTurnColor } from './ChessBoard'
 
 const redrawAll = vi.fn()
 const cancelMove = vi.fn()
+const setApi = vi.fn()
 const draggableCurrent = { started: false, orig: 'e2' }
 
 Object.defineProperty(window, 'matchMedia', {
@@ -22,7 +23,7 @@ Object.defineProperty(window, 'matchMedia', {
 
 vi.mock('chessground', () => ({
   Chessground: vi.fn(() => ({
-    set: vi.fn(),
+    set: setApi,
     cancelMove,
     redrawAll,
     getKeyAtDomPos: vi.fn(() => 'e4'),
@@ -37,6 +38,56 @@ vi.mock('chessground', () => ({
 }))
 
 describe('ChessBoard component', () => {
+  it('defers drawable updates until drag ends when shapes change mid-drag', () => {
+    const originalRaf = window.requestAnimationFrame
+    window.requestAnimationFrame = vi.fn((cb: FrameRequestCallback) => {
+      cb(0)
+      return 1
+    })
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 320,
+      bottom: 320,
+      width: 320,
+      height: 320,
+      toJSON: () => ({}),
+    } as DOMRect)
+
+    draggableCurrent.started = false
+    setApi.mockClear()
+    const { rerender } = render(<ChessBoard shapes={[]} />)
+    setApi.mockClear()
+
+    draggableCurrent.started = true
+    const moveEvent = new Event('pointermove')
+    Object.defineProperty(moveEvent, 'clientX', { configurable: true, value: 40 })
+    Object.defineProperty(moveEvent, 'clientY', { configurable: true, value: 40 })
+
+    act(() => {
+      window.dispatchEvent(moveEvent)
+    })
+
+    rerender(<ChessBoard shapes={[{ orig: 'e2', dest: 'e4', brush: 'green' }]} />)
+
+    expect(setApi).not.toHaveBeenCalled()
+
+    const upEvent = new Event('pointerup')
+    act(() => {
+      window.dispatchEvent(upEvent)
+    })
+
+    expect(setApi).toHaveBeenCalledWith({
+      drawable: { autoShapes: [{ orig: 'e2', dest: 'e4', brush: 'green' }] },
+    })
+
+    draggableCurrent.started = false
+    rectSpy.mockRestore()
+    window.requestAnimationFrame = originalRaf
+  })
+
   it('defers board redraw until drag ends when resize fires mid-drag', () => {
     let resizeCallback: ResizeObserverCallback | null = null
     ;(globalThis as any).ResizeObserver = class ResizeObserver {
