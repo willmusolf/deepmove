@@ -12,19 +12,6 @@ const PHONE_MOVE_LIST_QUERY = '(max-width: 639px)'
 
 // ─── Grade badge ─────────────────────────────────────────────────────────────
 
-const GRADE_CONFIG: Record<NonNullable<MoveGrade>, { label: string; cls: string }> = {
-  brilliant:  { label: '!!', cls: 'grade-brilliant' },
-  great:      { label: '!',  cls: 'grade-great' },
-  best:       { label: '★',  cls: 'grade-best' },
-  excellent:  { label: '✓',  cls: 'grade-excellent' },
-  good:       { label: '👍', cls: 'grade-good' },
-  inaccuracy: { label: '?!', cls: 'grade-inaccuracy' },
-  mistake:    { label: '?',  cls: 'grade-mistake' },
-  blunder:    { label: '??', cls: 'grade-blunder' },
-  miss:       { label: '✗',  cls: 'grade-miss' },
-  forced:     { label: '→',  cls: 'grade-forced' },
-}
-
 function GradeBadge({ grade, pending }: { grade: MoveGrade | undefined; pending?: boolean }) {
   if (pending) return <span className="grade-pending" />
   const meta = getGradeBadgeMeta(grade)
