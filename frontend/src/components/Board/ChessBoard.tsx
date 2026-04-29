@@ -275,13 +275,9 @@ export default function ChessBoard({
   const prevPathKeyRef = useRef(pathKey)
   const sizeRef = useRef({ width: 0, height: 0 })
   const isPinchZoomingRef = useRef(false)
+  const isDraggingRef = useRef(false)
   const pendingResizeSyncRef = useRef(false)
-
-  const clearDragPreview = useCallback(() => {
-    setIsDragging(false)
-    setDragOriginSquare(null)
-    setDragPreviewSquare(null)
-  }, [])
+  const pendingAutoShapesRef = useRef<DrawShape[] | null>(null)
 
   const syncOverlayMetrics = useCallback(() => {
     const api = apiRef.current
@@ -322,6 +318,31 @@ export default function ChessBoard({
     })
   }, [syncOverlayMetrics])
 
+  const flushPendingDrawableShapes = useCallback(() => {
+    if (isPinchZoomingRef.current || isDraggingRef.current) return
+    if (!apiRef.current || !pendingAutoShapesRef.current) return
+    apiRef.current.set({
+      drawable: { autoShapes: pendingAutoShapesRef.current },
+    })
+    pendingAutoShapesRef.current = null
+  }, [])
+
+  const flushPendingLayoutSync = useCallback(() => {
+    if (isPinchZoomingRef.current || isDraggingRef.current) return
+    if (!pendingResizeSyncRef.current) return
+    pendingResizeSyncRef.current = false
+    flushBoardLayout()
+  }, [flushBoardLayout])
+
+  const clearDragPreview = useCallback(() => {
+    isDraggingRef.current = false
+    setIsDragging(false)
+    setDragOriginSquare(null)
+    setDragPreviewSquare(null)
+    flushPendingDrawableShapes()
+    flushPendingLayoutSync()
+  }, [flushPendingDrawableShapes, flushPendingLayoutSync])
+
   // Track when the board has a real layout size so shapes only sync after mount.
   // Avoid writing inline width/height here: that can leave the board "stuck" at a
   // stale pixel size after the window is resized down and then back up.
@@ -339,7 +360,7 @@ export default function ChessBoard({
 
       sizeRef.current = { width, height }
       setBoardReady(true)
-      if (isPinchZoomingRef.current) {
+      if (isPinchZoomingRef.current || isDraggingRef.current) {
         pendingResizeSyncRef.current = true
         return
       }
@@ -537,12 +558,8 @@ export default function ChessBoard({
       },
       draggable: { enabled: canInteract },
     })
-    if (isPinchZoomingRef.current) {
-      pendingResizeSyncRef.current = true
-      return
-    }
-    flushBoardLayout()
-  }, [fen, lastMove, orientation, interactive, pathKey, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective])
+    requestAnimationFrame(syncOverlayMetrics)
+  }, [fen, lastMove, orientation, interactive, pathKey, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective, syncOverlayMetrics])
 
   // Sync engine arrow shapes — always re-pass movable so chessground's partial
   // set() can never accidentally clear movable.dests during an arrows update.
@@ -587,8 +604,15 @@ export default function ChessBoard({
       }
     }
 
+    const autoShapes = [...premoveShapes, ...shapes]
+
+    if (isPinchZoomingRef.current || isDraggingRef.current) {
+      pendingAutoShapesRef.current = autoShapes
+      return
+    }
+
     apiRef.current.set({
-      drawable: { autoShapes: [...premoveShapes, ...shapes] },
+      drawable: { autoShapes },
     })
   }, [shapes, boardReady, premoveQueue])
 
@@ -607,6 +631,7 @@ export default function ChessBoard({
         return
       }
 
+      isDraggingRef.current = true
       setIsDragging(true)
       setDragOriginSquare(prev => (prev === currentDrag.orig ? prev : currentDrag.orig))
 
@@ -634,6 +659,8 @@ export default function ChessBoard({
   }, [clearDragPreview])
 
   useEffect(() => {
+    if (!isCoarsePointer) return
+
     const startPinchZoom = () => {
       if (isPinchZoomingRef.current) return
       isPinchZoomingRef.current = true
@@ -646,9 +673,7 @@ export default function ChessBoard({
       if (event.touches.length > 1) return
       if (!isPinchZoomingRef.current) return
       isPinchZoomingRef.current = false
-      if (!pendingResizeSyncRef.current) return
-      pendingResizeSyncRef.current = false
-      flushBoardLayout()
+      flushPendingLayoutSync()
     }
 
     const handleTouchStart = (event: TouchEvent) => {
@@ -670,7 +695,7 @@ export default function ChessBoard({
       window.removeEventListener('touchend', maybeFinishPinchZoom)
       window.removeEventListener('touchcancel', maybeFinishPinchZoom)
     }
-  }, [clearDragPreview, flushBoardLayout])
+  }, [clearDragPreview, flushPendingLayoutSync, isCoarsePointer])
 
   useEffect(() => {
     const wrapEl = containerRef.current
