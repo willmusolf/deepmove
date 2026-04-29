@@ -39,6 +39,7 @@ import { readSessionJson, writeSessionJson } from './utils/sessionStorage'
 import { Chess } from 'chess.js'
 import { getSquareOverlayPosition } from './chess/boardGeometry'
 import './styles/board.css'
+import './styles/badge-overrides.css'
 import { detectOpening } from './chess/openings'
 
 // Lichess-style thickness brushes — all green, varying weight
