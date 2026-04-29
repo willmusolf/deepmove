@@ -1513,11 +1513,11 @@ cg-board {
   flex-shrink: 0;
 }
 
-.grade-brilliant  { background: #93c5fd; }           /* light blue */
+.grade-brilliant  { background: #38bdf8; }           /* neon blue */
 .grade-great      { background: #3b82f6; }           /* blue */
 .grade-best       { background: #22c55e; }           /* medium green */
 .grade-excellent  { background: #4ade80; }           /* light green */
-.grade-good       { background: #86efac; }
+.grade-good       { background: #86efac; font-size: 0.65rem; } /* soft green */
 .grade-forced     { background: #6b7280; }           /* dark gray */
 .grade-inaccuracy { background: #facc15; color: #1a1a1a; }
 .grade-mistake    { background: #fb923c; }

@@ -188,7 +188,7 @@ export async function analyzeGame(
   // Seeded from the current starting position so even move 1 has a real
   // top-suggestion check instead of defaulting to "best".
   let prevTopLines: TopLine[] = []
-  if (!signal?.aborted) {
+  if (startFromIndex < history.length && !signal?.aborted) {
     try {
       prevTopLines = await engine.analyzePositionMultiPV(positions[startFromIndex], depth, 2)
     } catch {
