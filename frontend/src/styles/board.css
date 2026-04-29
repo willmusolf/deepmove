@@ -90,6 +90,10 @@ cg-board square.move-dest.oc:hover {
   cursor: pointer;
 }
 
+.cg-wrap.manipulable[data-cursor-color="both"] piece {
+  cursor: pointer;
+}
+
 .board-drag-target {
   position: absolute;
   z-index: 5;

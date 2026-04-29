@@ -25,7 +25,7 @@ import BestLines from './components/Board/BestLines'
 import { useCoaching } from './hooks/useCoaching'
 import { useStockfish } from './hooks/useStockfish'
 import { useSound } from './hooks/useSound'
-import { useAuthStore } from './stores/authStore'
+import { hasStoredAuthSessionHint, useAuthStore } from './stores/authStore'
 import { useGameStore } from './stores/gameStore'
 import { clearPlaySession, usePlayStore } from './stores/playStore'
 import type { TopLine } from './engine/stockfish'
@@ -214,7 +214,10 @@ export default function App() {
   const authRefresh = useAuthStore(s => s.refresh)
   const authUser = useAuthStore(s => s.user)
   const isPremium = useAuthStore(s => s.isPremium)
-  useEffect(() => { void authRefresh() }, [authRefresh])
+  useEffect(() => {
+    if (!hasStoredAuthSessionHint()) return
+    void authRefresh()
+  }, [authRefresh])
 
   // Initialize userElo from cached detected ratings (instant — cached at import time, no analysis needed)
   useEffect(() => {
@@ -1081,6 +1084,7 @@ export default function App() {
                       fen={displayFen}
                       orientation={orientation}
                       interactive={true}
+                      movableColorMode={isLoaded ? 'turn' : 'both'}
                       onMove={isLoaded
                         ? handleBoardMove
                         : (from, to, san, newFen) => {
