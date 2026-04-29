@@ -10,6 +10,8 @@ import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './gradeBadges'
 
 const PHONE_MOVE_LIST_QUERY = '(max-width: 639px)'
 
+// ─── Grade badge ─────────────────────────────────────────────────────────────
+
 function GradeBadge({ grade, pending }: { grade: MoveGrade | undefined; pending?: boolean }) {
   if (pending) return <span className="grade-pending" />
   const meta = getGradeBadgeMeta(grade)
