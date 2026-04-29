@@ -608,11 +608,28 @@ export function useBotPlay(onNavigateToReview: () => void) {
 
     const displayName = 'You'
     const pgn = generatePgn(state.tree, state.rootId, state.config, state.result, displayName)
+    const previousUserElo = gameStore.getState().userElo
+    const reviewResult = state.result === 'user-win'
+      ? 'W'
+      : state.result === 'user-loss'
+        ? 'L'
+        : 'D'
 
     const gs = gameStore.getState()
+    gs.reset()
+    gs.setRawPgn(pgn)
+    gs.setLoadedPgn(pgn)
     gs.setPgn(pgn)
     gs.setUserColor(state.config.userColor)
+    if (previousUserElo > 0) gs.setUserElo(previousUserElo)
     gs.setPlatform(null)
+    gs.setCurrentGameMeta({
+      opponent: `Stockfish (${state.config.botElo})`,
+      opponentRating: state.config.botElo,
+      result: reviewResult,
+      timeControl: state.config.timeControl,
+      endTime: Date.now(),
+    })
 
     onNavigateToReview()
   }, [gameStore, onNavigateToReview, store])
