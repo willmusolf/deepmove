@@ -1,0 +1,46 @@
+name: Realign Staging
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fast-forward-staging:
+    name: Fast-forward staging when safe
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch staging
+        run: git fetch origin staging
+
+      - name: Fast-forward staging to main when histories already line up
+        env:
+          MAIN_SHA: ${{ github.sha }}
+        run: |
+          STAGING_SHA="$(git rev-parse origin/staging)"
+
+          if [[ "$MAIN_SHA" == "$STAGING_SHA" ]]; then
+            echo "staging already matches main."
+            exit 0
+          fi
+
+          if git merge-base --is-ancestor "$STAGING_SHA" "$MAIN_SHA"; then
+            git push origin "$MAIN_SHA:refs/heads/staging"
+            echo "Fast-forwarded staging to $MAIN_SHA."
+            exit 0
+          fi
+
+          echo "staging is not an ancestor of main; leaving staging unchanged."

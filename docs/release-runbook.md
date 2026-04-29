@@ -54,6 +54,17 @@ Merge the PR. This triggers:
 - GitHub Actions CI
 - Render backend deploy hook when backend files changed
 - Vercel production deploy from `main`
+- a `staging` fast-forward back to the merged `main` commit when that update is ancestry-safe
+
+Confirm the automatic `staging` realignment finished:
+
+```bash
+gh run list --branch staging --limit 1
+git fetch origin
+git rev-parse origin/main origin/staging
+```
+
+Expect `origin/main` and `origin/staging` to match immediately after a standard `staging -> main` release merge.
 
 ### 3. Post-Deploy Verification
 
