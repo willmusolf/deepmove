@@ -1103,18 +1103,6 @@ export default function App() {
                       pathKey={pathKeyRef.current}
                     />
                     {(() => {
-                      const BOARD_GRADE: Record<string, { symbol: string; color: string }> = {
-                        brilliant:  { symbol: '!!', color: '#38bdf8' },
-                        great:      { symbol: '!',  color: '#3b82f6' },
-                        best:       { symbol: '★',  color: '#22c55e' },
-                        excellent:  { symbol: '✓',  color: '#4ade80' },
-                        good:       { symbol: '👍', color: '#86efac' },
-                        inaccuracy: { symbol: '?!', color: '#facc15' },
-                        mistake:    { symbol: '?',  color: '#fb923c' },
-                        blunder:    { symbol: '??', color: '#ef4444' },
-                        miss:       { symbol: '✗',  color: '#a78bfa' },
-                        forced:     { symbol: '→',  color: '#6b7280' },
-                      }
                       // Determine current branch node for pending/grade lookup
                       const boardNodeId = isLoaded
                         ? (inBranch ? currentNodeId : null)
