@@ -1334,7 +1334,7 @@ cg-board {
 
   .board-drag-target {
     display: block;
-    transform: scale(1.64);
+    transform: scale(1.9);
     background: rgba(68, 74, 82, 0.36);
     box-shadow: 0 4px 12px rgba(28, 32, 38, 0.1);
   }
@@ -1513,11 +1513,11 @@ cg-board {
   flex-shrink: 0;
 }
 
-.grade-brilliant  { background: #38bdf8; }           /* neon blue */
+.grade-brilliant  { background: #93c5fd; }           /* light blue */
 .grade-great      { background: #3b82f6; }           /* blue */
 .grade-best       { background: #22c55e; }           /* medium green */
 .grade-excellent  { background: #4ade80; }           /* light green */
-.grade-good       { background: #86efac; font-size: 0.65rem; } /* soft green */
+.grade-good       { background: #86efac; }
 .grade-forced     { background: #6b7280; }           /* dark gray */
 .grade-inaccuracy { background: #facc15; color: #1a1a1a; }
 .grade-mistake    { background: #fb923c; }
