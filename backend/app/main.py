@@ -123,6 +123,17 @@ async def request_id_middleware(request: Request, call_next):
     request.state.request_id = request_id
     try:
         response = await call_next(request)
+    except Exception:
+        logger.exception(
+            "request.unhandled_exception",
+            extra={
+                "event": "request.unhandled_exception",
+                "method": request.method,
+                "path": request.url.path,
+                "request_id": request_id,
+            },
+        )
+        raise
     finally:
         reset_request_id(token)
     response.headers["X-Request-ID"] = request_id
