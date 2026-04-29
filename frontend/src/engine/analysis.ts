@@ -5,7 +5,7 @@ import { Chess } from 'chess.js'
 import { StockfishEngine } from './stockfish'
 import { cleanPgn } from '../chess/pgn'
 import { STARTING_FEN } from '../chess/constants'
-import type { EvalResult } from './stockfish'
+import type { EvalResult, TopLine } from './stockfish'
 
 export type MoveGrade =
   | 'brilliant'
@@ -29,7 +29,17 @@ export interface MoveEval {
   grade: MoveGrade
 }
 
+// ── Win-probability grade thresholds ─────────────────────────────────────────
+// All values are % win-probability loss from the player's perspective.
+// Using win% instead of raw centipawns means a move in an already-won position
+// doesn't get over-penalised (the curve flattens at the extremes).
+const WINPCT_EXCELLENT  = 2.0   // ≤ 2%  → excellent (or better)
+const WINPCT_GOOD       = 5.0   // ≤ 5%  → good
+const WINPCT_INACCURACY = 10.0  // ≤ 10% → inaccuracy
+const WINPCT_MISTAKE    = 22.0  // ≤ 22% → mistake  (> 22% → blunder)
 
+// Min win-% gap between engine's #1 and #2 lines for a move to qualify as "great"
+const WINPCT_GREAT_GAP = 10.0
 
 const PIECE_VALUES: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 }
 
@@ -48,23 +58,31 @@ export function isSacrificeFn(move: { piece: string; captured?: string; to: stri
   )
 }
 
-// Cap mate scores so ±30000 doesn't distort cpLoss calculations
+// Cap mate scores so ±30000 doesn't distort win% calculations
 const SCORE_CAP = 1000
 function capScore(s: number): number {
   return Math.max(-SCORE_CAP, Math.min(SCORE_CAP, s))
 }
 
 /**
- * Classify a move based on centipawn loss from the player's perspective.
- * Thresholds aligned with Lichess (inaccuracy≥50, mistake≥100, blunder≥300)
- * but with finer top-end buckets to distinguish excellent/good play.
- * Scores are treated as white-perspective (positive = white advantage).
- * Mate scores are capped at ±1000cp before computing loss.
- * cpLoss: positive = player's position worsened.
+ * Convert centipawns (white-perspective) to win probability %.
+ * Uses Lichess's published formula. Exported so branch eval can reuse it.
+ */
+export function cpToWinPct(cp: number): number {
+  return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1)
+}
+
+/**
+ * Classify a move using win-probability loss thresholds (Chess.com / Lichess approach).
  *
- * Also detects chess.com-style "Great" and "Miss":
- *   Great: player was losing (≤-200cp) but this move saves the game (now ≥-50cp)
- *   Miss:  opponent's previous move was a blunder AND this move fails to capitalize (cpLoss > 60)
+ * Grade priority:
+ *   forced > brilliant > great > best > miss > excellent > good > inaccuracy > mistake > blunder
+ *
+ * "Great" (!) — the only good move in the position: top engine move AND it's significantly
+ *   better than the 2nd-best option (gap ≥ WINPCT_GREAT_GAP). Recaptures are excluded
+ *   because it's obvious you recapture after a trade.
+ *
+ * "Miss" (✗) — opponent just blundered but player fails to capitalise (winPctLoss > WINPCT_GOOD).
  */
 export function classifyMove(
   evalBefore: number,
@@ -73,48 +91,38 @@ export function classifyMove(
   legalMoveCount: number,
   sacrifice = false,
   prevOpponentGrade: MoveGrade = null,
+  isTopSuggested = true,
+  isOnlyGoodMove = false,
 ): MoveGrade {
   // Forced: only one legal move, no agency
   if (legalMoveCount === 1) return 'forced'
 
-  // Cap to avoid mate scores (±30000) producing garbage cpLoss values
-  const before = capScore(evalBefore)
-  const after = capScore(evalAfter)
+  const playerBefore = color === 'white' ? capScore(evalBefore) : -capScore(evalBefore)
+  const playerAfter  = color === 'white' ? capScore(evalAfter)  : -capScore(evalAfter)
 
-  // Player's eval before/after from their own perspective (positive = they're winning)
-  const playerBefore = color === 'white' ? before : -before
-  const playerAfter  = color === 'white' ? after  : -after
+  // Win-probability loss from the player's perspective (positive = they lost winning chance)
+  const winPctLoss = cpToWinPct(playerBefore) - cpToWinPct(playerAfter)
 
-  // cpLoss from the player's perspective (positive = worsened)
-  const cpLoss = playerBefore - playerAfter
+  // Brilliant: sacrifice + top-suggested + no meaningful win% loss
+  if (sacrifice && isTopSuggested && winPctLoss <= WINPCT_EXCELLENT) return 'brilliant'
 
-  // Great: player was losing, this move saves the position
-  if (playerBefore <= -200 && playerAfter >= -50 && cpLoss <= 25) return 'great'
+  // Great: only good move in position (top-suggested + big gap from #2, not a recapture)
+  if (isTopSuggested && isOnlyGoodMove && winPctLoss <= WINPCT_EXCELLENT) return 'great'
 
-  // Miss: opponent just blundered AND player fails to capitalize
-  if (prevOpponentGrade === 'blunder' && cpLoss > 60) return 'miss'
+  // Best: top-suggested move with no meaningful win% loss
+  if (isTopSuggested && winPctLoss <= WINPCT_EXCELLENT) return 'best'
 
-  if (cpLoss <= 10 && sacrifice) return 'brilliant'
-  if (cpLoss <= 10)  return 'best'
-  if (cpLoss <= 25)  return 'excellent'
-  if (cpLoss <= 60)  return 'good'
+  // Miss: opponent just blundered AND player fails to capitalise
+  if (prevOpponentGrade === 'blunder' && winPctLoss > WINPCT_GOOD) return 'miss'
 
-  // In clearly losing positions, ease the inaccuracy/mistake/blunder thresholds proportionally.
-  // A player down 600cp choosing the least-bad move shouldn't be labelled a blunder.
-  // Factor rises from 1.0 at -200cp to ~1.67 at -1000cp (the score cap).
-  const lossContext = Math.max(0, -playerBefore - 200)
-  const factor = 1 + lossContext / 1200
-
-  if (cpLoss <= 120 * factor) return 'inaccuracy'
-  if (cpLoss <= 300 * factor) return 'mistake'
+  if (winPctLoss <= WINPCT_EXCELLENT)  return 'excellent'
+  if (winPctLoss <= WINPCT_GOOD)       return 'good'
+  if (winPctLoss <= WINPCT_INACCURACY) return 'inaccuracy'
+  if (winPctLoss <= WINPCT_MISTAKE)    return 'mistake'
   return 'blunder'
 }
 
 // ── Accuracy % (Lichess open formula) ────────────────────────────────────────
-
-function cpToWinPct(cp: number): number {
-  return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1)
-}
 
 function moveAccuracy(winBefore: number, winAfter: number): number {
   const loss = Math.max(0, winBefore - winAfter)
@@ -148,7 +156,7 @@ export async function analyzeGame(
   depth = 18,
   onProgress?: (completed: number, total: number) => void,
   signal?: AbortSignal,
-  movetime?: number,
+  _movetime?: number,  // unused — multi-PV doesn't support movetime; kept for API compat
   onMoveComplete?: (eval_: MoveEval, index: number) => void,
   startFromIndex = 0,
   initialEvals: MoveEval[] = [],
@@ -174,25 +182,76 @@ export async function analyzeGame(
   let prevScore = results.length > 0 ? results[results.length - 1].eval.score : 0
   let prevOpponentGrade: MoveGrade = results.length > 0 ? results[results.length - 1].grade : null
 
+  // prevTopLines: multi-PV results from the position BEFORE the current move.
+  // Used to check whether the played move was the engine's top suggestion ("best")
+  // and whether it was the ONLY good move ("great").
+  // Seeded from the current starting position so even move 1 has a real
+  // top-suggestion check instead of defaulting to "best".
+  let prevTopLines: TopLine[] = []
+  if (startFromIndex < history.length && !signal?.aborted) {
+    try {
+      prevTopLines = await engine.analyzePositionMultiPV(positions[startFromIndex], depth, 2)
+    } catch {
+      prevTopLines = []
+    }
+  }
+
   for (let i = startFromIndex; i < history.length; i++) {
     if (signal?.aborted) break
     const move = history[i]
     const fen = positions[i + 1]
     const color: 'white' | 'black' = i % 2 === 0 ? 'white' : 'black'
-    const evalResult = await engine.analyzePosition(fen, depth, movetime)
 
-    const scoreWhite = evalResult.score
-    const mateInWhite = evalResult.mateIn
+    // Multi-PV(2): gives us the eval AND top-2 lines for the next move's "great" check
+    const topLines = await engine.analyzePositionMultiPV(fen, depth, 2)
+    if (topLines.length === 0) {
+      // Shouldn't happen, but guard against empty results
+      prevTopLines = topLines
+      continue
+    }
+
+    const scoreWhite = topLines[0].score
+    const mateInWhite = topLines[0].mateIn
 
     const sacrifice = isSacrificeFn(history[i], positions[i + 1])
-    const grade = classifyMove(prevScore, scoreWhite, color, legalMoveCounts[i], sacrifice, prevOpponentGrade)
+
+    // Determine if the played move was the engine's top suggestion at this position
+    const playedUci = move.from + move.to + (move.promotion ?? '')
+    const isTopSuggested = prevTopLines.length === 0 || prevTopLines[0]?.pv?.[0] === playedUci
+
+    // Determine if it was the "only good move" (qualifies for "great")
+    let isOnlyGoodMove = false
+    if (isTopSuggested && prevTopLines.length >= 2 && prevTopLines[1]?.pv?.[0]) {
+      const prevMove = i > 0 ? history[i - 1] : null
+      // Exclude obvious recaptures: previous move was a capture, current move captures same square
+      const isRecapture = !!(prevMove?.captured && move.to === prevMove.to)
+      if (!isRecapture) {
+        // Win% gap between top move and second-best, from the player's perspective
+        const topWin    = color === 'white' ? cpToWinPct(prevTopLines[0].score) : cpToWinPct(-prevTopLines[0].score)
+        const secondWin = color === 'white' ? cpToWinPct(prevTopLines[1].score) : cpToWinPct(-prevTopLines[1].score)
+        isOnlyGoodMove = (topWin - secondWin) >= WINPCT_GREAT_GAP
+      }
+    }
+
+    const grade = classifyMove(
+      prevScore, scoreWhite, color, legalMoveCounts[i],
+      sacrifice, prevOpponentGrade, isTopSuggested, isOnlyGoodMove,
+    )
 
     const moveEval: MoveEval = {
       moveNumber: Math.floor(i / 2) + 1,
       color,
       san: move.san,
       fen,
-      eval: { ...evalResult, score: scoreWhite, mateIn: mateInWhite },
+      eval: {
+        fen,
+        score: scoreWhite,
+        isMate: topLines[0].isMate,
+        mateIn: mateInWhite,
+        bestMove: topLines[0].pv[0] ?? '',
+        pv: topLines[0].pv,
+        depth: topLines[0].depth,
+      },
       grade,
     }
     results.push(moveEval)
@@ -200,6 +259,7 @@ export async function analyzeGame(
     onProgress?.(results.length, history.length)
     prevScore = scoreWhite
     prevOpponentGrade = grade  // this move's grade becomes next move's prevOpponentGrade
+    prevTopLines = topLines   // store for next iteration's "great" / "best" check
   }
 
   return results

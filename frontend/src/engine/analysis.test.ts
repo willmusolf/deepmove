@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { analyzeGame, classifyMove, isSacrificeFn } from './analysis'
+import type { TopLine } from './stockfish'
 
 describe('classifyMove', () => {
   it('returns forced when only one legal move', () => {
@@ -10,6 +11,10 @@ describe('classifyMove', () => {
     expect(classifyMove(100, 96, 'white', 20, true)).toBe('brilliant')
   })
 
+  it('does not return brilliant for a sacrifice that is not top-suggested', () => {
+    expect(classifyMove(100, 96, 'white', 20, true, null, false)).toBe('excellent')
+  })
+
   it('returns best on 0 cp loss', () => {
     expect(classifyMove(50, 50, 'white', 20)).toBe('best')
   })
@@ -18,16 +23,18 @@ describe('classifyMove', () => {
     expect(classifyMove(50, 45, 'white', 20)).toBe('best')
   })
 
-  it('returns excellent on <=15 cp loss', () => {
-    expect(classifyMove(50, 36, 'white', 20)).toBe('excellent')
+  it('returns excellent when small loss but not top-suggested', () => {
+    // 14cp from +50cp ≈ 1.28% win-probability loss; ≤2% but NOT top-suggested → excellent
+    expect(classifyMove(50, 36, 'white', 20, false, null, false)).toBe('excellent')
   })
 
   it('returns good on <=50 cp loss', () => {
     expect(classifyMove(100, 60, 'white', 20)).toBe('good')
   })
 
-  it('returns inaccuracy on <=150 cp loss', () => {
-    expect(classifyMove(200, 80, 'white', 20)).toBe('inaccuracy')
+  it('returns inaccuracy on ~9% win-probability loss', () => {
+    // 100cp loss from +200cp ≈ 9% win-probability loss; ≤10% → inaccuracy
+    expect(classifyMove(200, 100, 'white', 20)).toBe('inaccuracy')
   })
 
   it('returns mistake on <=300 cp loss', () => {
@@ -44,9 +51,9 @@ describe('classifyMove', () => {
       expect(classifyMove(-50, -50, 'black', 20)).toBe('best')
     })
 
-    it('returns mistake when black worsens by 300', () => {
-      // black: cpLoss = evalAfter - evalBefore = 200 - (-100) = 300
-      expect(classifyMove(-100, 200, 'black', 20)).toBe('mistake')
+    it('returns blunder when black worsens by large win-probability swing', () => {
+      // black: +100cp → -200cp = 26.7% win-probability loss → blunder
+      expect(classifyMove(-100, 200, 'black', 20)).toBe('blunder')
     })
 
     it('returns blunder when black worsens by >300', () => {
@@ -108,27 +115,16 @@ describe('isSacrificeFn', () => {
 
 describe('analyzeGame', () => {
   it('preserves white-perspective engine scores and mate distances', async () => {
+    // analyzeGame now uses analyzePositionMultiPV (multi-PV for top-suggestion tracking)
+    const makeLines = (score: number, isMate: boolean, mateIn: number | null, pv: string[]): TopLine[] => [
+      { rank: 1, score, isMate, mateIn, pv, san: pv[0] ?? '', depth: 16 },
+    ]
     const engine = {
-      analyzePosition: vi
+      analyzePositionMultiPV: vi
         .fn()
-        .mockResolvedValueOnce({
-          fen: '',
-          depth: 16,
-          score: 120,
-          isMate: true,
-          mateIn: 4,
-          bestMove: 'e7e5',
-          pv: ['e7e5'],
-        })
-        .mockResolvedValueOnce({
-          fen: '',
-          depth: 16,
-          score: 15,
-          isMate: false,
-          mateIn: null,
-          bestMove: 'g1f3',
-          pv: ['g1f3'],
-        }),
+        .mockResolvedValueOnce(makeLines(0, false, null, ['e2e4']))
+        .mockResolvedValueOnce(makeLines(120, true, 4, ['e7e5']))
+        .mockResolvedValueOnce(makeLines(15, false, null, ['g1f3'])),
     } as any
 
     const results = await analyzeGame('1. e4 e5', engine, 16)
@@ -140,5 +136,23 @@ describe('analyzeGame', () => {
     expect(results[1].color).toBe('black')
     expect(results[1].eval.score).toBe(15)
     expect(results[1].eval.mateIn).toBeNull()
+  })
+
+  it('checks the opening move against the initial position top line', async () => {
+    const makeLines = (score: number, pv: string[]): TopLine[] => [
+      { rank: 1, score, isMate: false, mateIn: null, pv, san: pv[0] ?? '', depth: 16 },
+    ]
+    const engine = {
+      analyzePositionMultiPV: vi
+        .fn()
+        .mockResolvedValueOnce(makeLines(0, ['d2d4']))
+        .mockResolvedValueOnce(makeLines(4, ['e7e5']))
+        .mockResolvedValueOnce(makeLines(0, ['g1f3'])),
+    } as any
+
+    const results = await analyzeGame('1. e4 e5', engine, 16)
+
+    expect(results[0].san).toBe('e4')
+    expect(results[0].grade).toBe('excellent')
   })
 })

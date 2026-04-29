@@ -16,7 +16,7 @@ const GRADE_CONFIG: Record<NonNullable<MoveGrade>, { label: string; cls: string 
   great:      { label: '!',  cls: 'grade-great' },
   best:       { label: '★',  cls: 'grade-best' },
   excellent:  { label: '✓',  cls: 'grade-excellent' },
-  good:       { label: '·',  cls: 'grade-good' },
+  good:       { label: '👍', cls: 'grade-good' },
   inaccuracy: { label: '?!', cls: 'grade-inaccuracy' },
   mistake:    { label: '?',  cls: 'grade-mistake' },
   blunder:    { label: '??', cls: 'grade-blunder' },

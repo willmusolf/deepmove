@@ -121,7 +121,7 @@ export function useSound() {
   }, [])
 
   const playEvent = useCallback((event: SoundEvent) => {
-    if (!enabledRef.current) return
+    if (!getStoredSoundEnabled()) return
 
     void playBufferedSound(event)
       .then(played => {

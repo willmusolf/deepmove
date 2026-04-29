@@ -27,7 +27,7 @@ import { useAuthStore } from './stores/authStore'
 import { useGameStore } from './stores/gameStore'
 import { clearPlaySession, usePlayStore } from './stores/playStore'
 import type { TopLine } from './engine/stockfish'
-import { classifyMove } from './engine/analysis'
+import { classifyMove, isSacrificeFn } from './engine/analysis'
 import type { MoveGrade } from './engine/analysis'
 import type { Key } from 'chessground/types'
 import { cacheRatingsFromGameList, readCachedRatings } from './components/Import/normalizeGame'
@@ -187,6 +187,7 @@ export default function App() {
     cancelGameAnalysis,
     analyzePositionLines,
     analyzePositionSingleBg,
+    analyzePositionMultiPVBg,
     stopPositionAnalysis,
   } = useStockfish()
   const { enabled: soundEnabled, toggle: toggleSound, playMoveSound } = useSound()
@@ -224,6 +225,9 @@ export default function App() {
 
   const [currentAnalysisDepth, setCurrentAnalysisDepth] = useState(0)
   const [branchGrades, setBranchGrades] = useState<Map<string, MoveGrade>>(new Map())
+  // Tracks which game the current branchGrades belong to — used by the write effect so it
+  // always writes to the correct sessionStorage key even if currentGameId changes async.
+  const branchGradesKeyRef = useRef<string | null>(useGameStore.getState().currentGameId)
   const [pendingBranchNodes, setPendingBranchNodes] = useState<Set<string>>(new Set())
   // Tracks nodes with an eval already dispatched — prevents duplicate Stockfish calls
   // when nav handlers eagerly add to pendingBranchNodes before the safety-net effect fires.
@@ -249,6 +253,7 @@ export default function App() {
       // Restore branch grades from session if this is the same game (refresh),
       // otherwise clear for a new game load.
       const bgGameId = useGameStore.getState().currentGameId
+      branchGradesKeyRef.current = bgGameId  // capture so write effect uses the right key
       const storedBg = bgGameId
         ? readSessionJson<Record<string, string>>(`deepmove_bg_${bgGameId}`)
         : null
@@ -481,12 +486,29 @@ export default function App() {
 
   // Persist branch grades to sessionStorage whenever they change (keyed by game ID).
   // On refresh, pgn+isReady effect reads them back to avoid re-evaluating via Stockfish.
+  // We use branchGradesKeyRef (set when grades are initialized) rather than reading
+  // currentGameId from the store, to avoid writing old grades to a newly-loaded game's key
+  // in the event that currentGameId updates before branchGrades is cleared.
   useEffect(() => {
     if (branchGrades.size === 0) return
-    const gameId = useGameStore.getState().currentGameId
+    const gameId = branchGradesKeyRef.current
     if (!gameId) return
     writeSessionJson(`deepmove_bg_${gameId}`, Object.fromEntries(branchGrades))
   }, [branchGrades])
+
+  // Recovery effect: on refresh, currentGameId may be restored by Zustand after pgn+isReady
+  // fires. If branchGradesKeyRef was null at that point, the restore was skipped. Retry here.
+  useEffect(() => {
+    if (!currentGameId || !pgn || !isReady) return
+    if (branchGradesKeyRef.current === currentGameId) return  // already set correctly
+    branchGradesKeyRef.current = currentGameId
+    if (branchGrades.size > 0) return  // grades already present, don't overwrite
+    const storedBg = readSessionJson<Record<string, string>>(`deepmove_bg_${currentGameId}`)
+    if (storedBg && Object.keys(storedBg).length > 0) {
+      setBranchGrades(new Map(Object.entries(storedBg) as [string, MoveGrade][]))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentGameId])
 
   // When game analysis finishes, auto-trigger position analysis so BestLines appear immediately.
   const wasAnalyzingRef = useRef(false)
@@ -765,24 +787,44 @@ export default function App() {
   async function evaluateBranchMove(nodeId: string, parentFen: string, newFen: string) {
     if (!isReady || evalInFlightRef.current.has(nodeId) || branchGrades.has(nodeId)) return
     evalInFlightRef.current.add(nodeId)
+    // Capture gameId at start — discard result if user switches games mid-eval
+    const gameIdAtStart = branchGradesKeyRef.current
     try {
       const chess = new Chess(parentFen)
       const legalCount = chess.moves().length
       const color: 'white' | 'black' = parentFen.split(' ')[1] === 'w' ? 'white' : 'black'
 
-      const beforeResult = await analyzePositionSingleBg(parentFen, 10)
-      const afterResult = await analyzePositionSingleBg(newFen, 10)
+      // Multi-PV on parent: gives evalBefore + top-2 engine suggestions in one call
+      const parentLines = await analyzePositionMultiPVBg(parentFen, 14, 2)
+      // Single-PV on position after the branch move
+      const afterResult = await analyzePositionSingleBg(newFen, 14)
 
-      if (!beforeResult || !afterResult) {
+      if (!parentLines || parentLines.length === 0 || !afterResult) {
         console.warn('[branch eval] Stockfish returned null for', nodeId)
         setBranchGrades(prev => new Map(prev).set(nodeId, 'unknown' as MoveGrade))
         return  // finally still clears pendingBranchNodes
       }
 
-      const evalBefore = beforeResult.score
+      // Discard result if the user already switched to a different game
+      if (branchGradesKeyRef.current !== gameIdAtStart) return
+
+      const evalBefore = parentLines[0].score
       const evalAfter = afterResult.score
 
-      const grade = classifyMove(evalBefore, evalAfter, color, legalCount)
+      // Derive the played move (needed for sacrifice detection + top-suggestion check)
+      const legalMoves = chess.moves({ verbose: true })
+      const playedMove = legalMoves.find(m => m.after === newFen)
+
+      // Branch grades should only treat the engine's #1 move as "top suggested".
+      // Otherwise a second-best sacrifice can get mislabeled as brilliant.
+      const topUciMove = parentLines[0]?.pv?.[0] ?? null
+      const playedUci = playedMove ? playedMove.from + playedMove.to + (playedMove.promotion ?? '') : null
+      const isTopSuggested = playedUci !== null && topUciMove === playedUci
+
+      // Sacrifice detection (requires the move + position after)
+      const sacrifice = playedMove ? isSacrificeFn(playedMove, newFen) : false
+
+      const grade = classifyMove(evalBefore, evalAfter, color, legalCount, sacrifice, null, isTopSuggested)
       setBranchGrades(prev => new Map(prev).set(nodeId, grade))
     } catch (err) {
       console.warn('[branch eval] failed:', err)
@@ -1060,11 +1102,11 @@ export default function App() {
                     />
                     {(() => {
                       const BOARD_GRADE: Record<string, { symbol: string; color: string }> = {
-                        brilliant:  { symbol: '!!', color: '#22d3ee' },
-                        great:      { symbol: '!',  color: '#16a34a' },
+                        brilliant:  { symbol: '!!', color: '#38bdf8' },
+                        great:      { symbol: '!',  color: '#3b82f6' },
                         best:       { symbol: '★',  color: '#22c55e' },
                         excellent:  { symbol: '✓',  color: '#4ade80' },
-                        good:       { symbol: '·',  color: '#60a5fa' },
+                        good:       { symbol: '👍', color: '#86efac' },
                         inaccuracy: { symbol: '?!', color: '#facc15' },
                         mistake:    { symbol: '?',  color: '#fb923c' },
                         blunder:    { symbol: '??', color: '#ef4444' },
