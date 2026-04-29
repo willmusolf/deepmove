@@ -118,7 +118,7 @@ class Settings(BaseSettings):
             return self.auth_cookie_secure_override
         if self.resolved_auth_cookie_samesite == "none":
             return True
-        return self.environment != "development"
+        return self.environment in {"production", "staging"}
 
     # LLM model selection
     lesson_model: str = "claude-haiku-4-5-20251001"      # Full lessons
