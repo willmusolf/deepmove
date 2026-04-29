@@ -52,11 +52,11 @@ export function renderGradeBadgeGlyph(
   if (!meta) return null
   if (meta.icon !== 'thumb') {
     const className =
-      variant === 'board' || variant === 'move-list'
+      variant === 'board'
         ? 'board-grade-badge__glyph'
-        : variant === 'report'
+      : variant === 'report'
           ? 'game-report-pill__glyph'
-          : 'board-grade-badge__glyph'
+          : 'move-grade__glyph'
 
     return (
       <span aria-hidden="true" className={className} data-grade={grade ?? ''}>
