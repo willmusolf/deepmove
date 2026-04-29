@@ -3,11 +3,12 @@ import { describe, expect, it, vi } from 'vitest'
 import ChessBoard, { getLegalDests, getTurnColor } from './ChessBoard'
 
 const redrawAll = vi.fn()
+const cancelMove = vi.fn()
 
 vi.mock('chessground', () => ({
   Chessground: vi.fn(() => ({
     set: vi.fn(),
-    cancelMove: vi.fn(),
+    cancelMove,
     redrawAll,
     destroy: vi.fn(),
   })),
@@ -46,6 +47,23 @@ describe('ChessBoard component', () => {
 
     expect(redrawAll).toHaveBeenCalled()
     window.requestAnimationFrame = originalRaf
+  })
+
+  it('cancels board drag state when a pinch gesture starts', () => {
+    cancelMove.mockClear()
+    render(<ChessBoard />)
+
+    const event = new Event('touchstart')
+    Object.defineProperty(event, 'touches', {
+      configurable: true,
+      value: [{ clientX: 20, clientY: 20 }, { clientX: 80, clientY: 80 }],
+    })
+
+    act(() => {
+      window.dispatchEvent(event)
+    })
+
+    expect(cancelMove).toHaveBeenCalled()
   })
 })
 
