@@ -19,6 +19,7 @@ export interface ChessBoardProps {
   fen?: string
   orientation?: 'white' | 'black'
   interactive?: boolean
+  movableColorMode?: 'turn' | 'both' // Sandbox boards can allow either side to move.
   onMove?: (from: string, to: string, san: string, fen: string) => void
   onIllegalMove?: () => void
   shapes?: DrawShape[]
@@ -48,6 +49,60 @@ export function getLegalDests(fen: string): Map<Key, Key[]> {
 /** Get which color's turn it is from a FEN */
 export function getTurnColor(fen: string): 'white' | 'black' {
   return fen.split(' ')[1] === 'w' ? 'white' : 'black'
+}
+
+function forceFenTurnColor(fen: string, color: 'white' | 'black'): string {
+  const parts = fen.split(' ')
+  parts[1] = color === 'white' ? 'w' : 'b'
+  parts[3] = '-'
+  return parts.join(' ')
+}
+
+export function getLegalDestsForColor(fen: string, color: 'white' | 'black'): Map<Key, Key[]> {
+  return getLegalDests(forceFenTurnColor(fen, color))
+}
+
+function mergeLegalDests(...maps: Array<Map<Key, Key[]>>): Map<Key, Key[]> {
+  const merged = new Map<Key, Key[]>()
+
+  for (const map of maps) {
+    map.forEach((dests, from) => {
+      const next = merged.get(from) ?? []
+      for (const dest of dests) {
+        if (!next.includes(dest)) next.push(dest)
+      }
+      merged.set(from, next)
+    })
+  }
+
+  return merged
+}
+
+function getValidationChess(
+  fen: string,
+  from: string,
+  movableColorMode: 'turn' | 'both',
+): { chess: Chess; turnColor: 'white' | 'black' } {
+  const chess = new Chess(fen)
+  if (movableColorMode !== 'both') {
+    return { chess, turnColor: chess.turn() === 'w' ? 'white' : 'black' }
+  }
+
+  const piece = chess.get(from as any)
+  if (!piece) {
+    return { chess, turnColor: chess.turn() === 'w' ? 'white' : 'black' }
+  }
+
+  const pieceColor = piece.color === 'w' ? 'white' : 'black'
+  const turnColor = chess.turn() === 'w' ? 'white' : 'black'
+  if (pieceColor === turnColor) {
+    return { chess, turnColor }
+  }
+
+  return {
+    chess: new Chess(forceFenTurnColor(fen, pieceColor)),
+    turnColor: pieceColor,
+  }
 }
 
 /** Convert board array coordinates to chessground Key.
@@ -209,6 +264,7 @@ export default function ChessBoard({
   fen = STARTING_FEN,
   orientation = 'white',
   interactive = true,
+  movableColorMode = 'turn',
   onMove,
   shapes = [],
   lastMove,
@@ -235,13 +291,13 @@ export default function ChessBoard({
     try {
       const chess = new Chess(fen)
       const inCheck = chess.inCheck()
-      const dests = new Map<Key, Key[]>()
-      chess.moves({ verbose: true }).forEach(m => {
-        const from = m.from as Key
-        if (!dests.has(from)) dests.set(from, [])
-        dests.get(from)!.push(m.to as Key)
-      })
       const turn = chess.turn() === 'w' ? 'white' : 'black'
+      const dests = movableColorMode === 'both'
+        ? mergeLegalDests(
+            getLegalDestsForColor(fen, 'white'),
+            getLegalDestsForColor(fen, 'black'),
+          )
+        : getLegalDests(fen)
       return {
         checkColor: inCheck ? turn as 'white' | 'black' | false : false as 'white' | 'black' | false,
         legalDests: dests,
@@ -254,7 +310,13 @@ export default function ChessBoard({
         turnColor: (fen.split(' ')[1] === 'w' ? 'white' : 'black') as 'white' | 'black',
       }
     }
-  }, [fen, userPerspective, interactive])
+  }, [fen, userPerspective, interactive, movableColorMode])
+
+  const movableColor = useMemo(() => {
+    if (userPerspective && !interactive) return userPerspective
+    if (!interactive) return undefined
+    return movableColorMode === 'both' ? 'both' : fenTurnColor
+  }, [fenTurnColor, interactive, movableColorMode, userPerspective])
 
   const [pendingPromotion, setPendingPromotion] = useState<{ from: Key; to: Key; color: 'white' | 'black'; orientation: 'white' | 'black' } | null>(null)
   const [boardReady, setBoardReady] = useState(false)
@@ -271,6 +333,7 @@ export default function ChessBoard({
   const fenRef = useRef(fen)
   const onMoveRef = useRef(onMove)
   const interactiveRef = useRef(interactive)
+  const movableColorModeRef = useRef(movableColorMode)
   const userPerspectiveRef = useRef(userPerspective)
   const prevPathKeyRef = useRef(pathKey)
   const sizeRef = useRef({ width: 0, height: 0 })
@@ -385,6 +448,7 @@ export default function ChessBoard({
   fenRef.current = fen
   onMoveRef.current = onMove
   interactiveRef.current = interactive
+  movableColorModeRef.current = movableColorMode
   userPerspectiveRef.current = userPerspective
   orientationRef.current = orientation
 
@@ -397,14 +461,28 @@ export default function ChessBoard({
       orientation,
       turnColor: getTurnColor(fen),
       movable: {
-        color: interactive ? getTurnColor(fen) : undefined,
+        color: userPerspective && !interactive
+          ? userPerspective
+          : interactive
+            ? movableColorMode === 'both'
+              ? 'both'
+              : getTurnColor(fen)
+            : undefined,
         free: false,
-        dests: interactive ? getLegalDests(fen) : undefined,
+        dests: interactive
+          ? movableColorMode === 'both'
+            ? mergeLegalDests(
+                getLegalDestsForColor(fen, 'white'),
+                getLegalDestsForColor(fen, 'black'),
+              )
+            : getLegalDests(fen)
+          : undefined,
         showDests: true,
         events: {
           after: (from: Key, to: Key) => {
             const currentFen = fenRef.current
             const isInteractive = interactiveRef.current
+            const currentMovableColorMode = movableColorModeRef.current
             const perspective = userPerspectiveRef.current
 
             // Non-interactive but userPerspective set: user is queuing a premove.
@@ -453,7 +531,7 @@ export default function ChessBoard({
             }
 
             // Interactive (real move): validate with chess.js
-            const chess = new Chess(currentFen)
+            const { chess } = getValidationChess(currentFen, from, currentMovableColorMode)
             const piece = chess.get(from as any)
             const toRank = to[1]
 
@@ -474,8 +552,19 @@ export default function ChessBoard({
                 fen: currentFen,
                 turnColor: getTurnColor(currentFen),
                 movable: {
-                  color: interactiveRef.current ? getTurnColor(currentFen) : undefined,
-                  dests: interactiveRef.current ? getLegalDests(currentFen) : undefined,
+                  color: interactiveRef.current
+                    ? currentMovableColorMode === 'both'
+                      ? 'both'
+                      : getTurnColor(currentFen)
+                    : undefined,
+                  dests: interactiveRef.current
+                    ? currentMovableColorMode === 'both'
+                      ? mergeLegalDests(
+                          getLegalDestsForColor(currentFen, 'white'),
+                          getLegalDestsForColor(currentFen, 'black'),
+                        )
+                      : getLegalDests(currentFen)
+                    : undefined,
                 },
               })
             }
@@ -553,7 +642,7 @@ export default function ChessBoard({
       check: forceCheck ?? checkColor,
       turnColor: fenTurnColor,
       movable: {
-        color: canInteract ? fenTurnColor : undefined,
+        color: canInteract ? movableColor : undefined,
         dests: canInteract ? legalDests : undefined,
       },
       draggable: { enabled: canInteract },
@@ -563,7 +652,7 @@ export default function ChessBoard({
       return
     }
     flushBoardLayout()
-  }, [fen, lastMove, orientation, interactive, pathKey, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective])
+  }, [fen, lastMove, orientation, interactive, pathKey, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective, movableColor])
 
   // Sync engine arrow shapes — always re-pass movable so chessground's partial
   // set() can never accidentally clear movable.dests during an arrows update.
@@ -705,13 +794,13 @@ export default function ChessBoard({
     const wrapEl = containerRef.current
     if (!wrapEl) return
     const canShowPieceCursor = (interactive || !!userPerspective) && !isDragging
-    if (canShowPieceCursor) {
-      wrapEl.setAttribute('data-cursor-color', fenTurnColor)
+    if (canShowPieceCursor && movableColor) {
+      wrapEl.setAttribute('data-cursor-color', movableColor)
     } else {
       wrapEl.removeAttribute('data-cursor-color')
     }
     return () => wrapEl.removeAttribute('data-cursor-color')
-  }, [interactive, userPerspective, isDragging, fenTurnColor, fen, orientation, pathKey])
+  }, [interactive, userPerspective, isDragging, movableColor, fen, orientation, pathKey])
 
   useEffect(() => {
     setIsDragging(false)
@@ -723,7 +812,7 @@ export default function ChessBoard({
     if (!pendingPromotion) return
     const { from, to } = pendingPromotion
     const currentFen = fenRef.current
-    const chess = new Chess(currentFen)
+    const { chess } = getValidationChess(currentFen, from, movableColorModeRef.current)
     const move = chess.move({ from, to, promotion: piece })
     setPendingPromotion(null)
     if (move && onMoveRef.current) {
@@ -734,8 +823,19 @@ export default function ChessBoard({
         fen: currentFen,
         turnColor: getTurnColor(currentFen),
         movable: {
-          color: interactiveRef.current ? getTurnColor(currentFen) : undefined,
-          dests: interactiveRef.current ? getLegalDests(currentFen) : undefined,
+          color: interactiveRef.current
+            ? movableColorModeRef.current === 'both'
+              ? 'both'
+              : getTurnColor(currentFen)
+            : undefined,
+          dests: interactiveRef.current
+            ? movableColorModeRef.current === 'both'
+              ? mergeLegalDests(
+                  getLegalDestsForColor(currentFen, 'white'),
+                  getLegalDestsForColor(currentFen, 'black'),
+                )
+              : getLegalDests(currentFen)
+            : undefined,
         },
       })
     }

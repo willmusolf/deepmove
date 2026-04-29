@@ -3,6 +3,26 @@ import { create } from 'zustand'
 import { usePrefsStore } from './prefsStore'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const AUTH_SESSION_HINT_KEY = 'deepmove_auth_session_hint'
+
+function persistAuthSessionHint(hasSession: boolean) {
+  if (typeof window === 'undefined') return
+  try {
+    if (hasSession) window.localStorage.setItem(AUTH_SESSION_HINT_KEY, '1')
+    else window.localStorage.removeItem(AUTH_SESSION_HINT_KEY)
+  } catch {
+    // Ignore storage failures; auth still works without the hint.
+  }
+}
+
+export function hasStoredAuthSessionHint(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(AUTH_SESSION_HINT_KEY) === '1'
+  } catch {
+    return false
+  }
+}
 
 export interface UserResponse {
   id: number
@@ -85,6 +105,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accessToken: data.access_token,
       isPremium: data.user.is_premium,
     })
+    persistAuthSessionHint(true)
     usePrefsStore.getState().loadFromUser(data.user.preferences)
   },
 
@@ -98,6 +119,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accessToken: data.access_token,
       isPremium: data.user.is_premium,
     })
+    persistAuthSessionHint(true)
     usePrefsStore.getState().loadFromUser(data.user.preferences)
   },
 
@@ -112,6 +134,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // Logout is best-effort
     }
+    persistAuthSessionHint(false)
     set({ user: null, accessToken: null, isPremium: false })
   },
 
@@ -130,10 +153,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isPremium: data.user.is_premium,
         isLoading: false,
       })
+      persistAuthSessionHint(true)
       usePrefsStore.getState().loadFromUser(data.user.preferences)
     } catch {
       clearTimeout(timer)
       // No valid refresh token or backend unreachable — user is anonymous (that's fine)
+      persistAuthSessionHint(false)
       set({ user: null, accessToken: null, isPremium: false, isLoading: false })
     }
   },
@@ -169,6 +194,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accessToken: data.access_token,
       isPremium: data.user.is_premium,
     })
+    persistAuthSessionHint(true)
   },
-  clearAuth: () => set({ user: null, accessToken: null, isPremium: false }),
+  clearAuth: () => {
+    persistAuthSessionHint(false)
+    set({ user: null, accessToken: null, isPremium: false })
+  },
 }))

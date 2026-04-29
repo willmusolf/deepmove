@@ -1,11 +1,12 @@
 import { act, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import ChessBoard, { getLegalDests, getTurnColor } from './ChessBoard'
+import ChessBoard, { getLegalDests, getLegalDestsForColor, getTurnColor } from './ChessBoard'
 
 const redrawAll = vi.fn()
 const cancelMove = vi.fn()
 const setApi = vi.fn()
 const draggableCurrent = { started: false, orig: 'e2' }
+let latestConfig: any = null
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -22,19 +23,22 @@ Object.defineProperty(window, 'matchMedia', {
 })
 
 vi.mock('chessground', () => ({
-  Chessground: vi.fn(() => ({
-    set: setApi,
-    cancelMove,
-    redrawAll,
-    getKeyAtDomPos: vi.fn(() => 'e4'),
-    state: {
-      draggable: { current: draggableCurrent },
-      dom: {
-        bounds: () => ({ left: 0, top: 0, width: 320, height: 320 }),
+  Chessground: vi.fn((_el, config) => {
+    latestConfig = config
+    return {
+      set: setApi,
+      cancelMove,
+      redrawAll,
+      getKeyAtDomPos: vi.fn(() => 'e4'),
+      state: {
+        draggable: { current: draggableCurrent },
+        dom: {
+          bounds: () => ({ left: 0, top: 0, width: 320, height: 320 }),
+        },
       },
-    },
-    destroy: vi.fn(),
-  })),
+      destroy: vi.fn(),
+    }
+  }),
 }))
 
 describe('ChessBoard component', () => {
@@ -214,6 +218,27 @@ describe('ChessBoard component', () => {
 
     expect(cancelMove).not.toHaveBeenCalled()
   })
+
+  it('allows sandbox boards to play the same side twice in a row', () => {
+    const onMove = vi.fn()
+    render(
+      <ChessBoard
+        fen="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
+        interactive={true}
+        movableColorMode="both"
+        onMove={onMove}
+      />
+    )
+
+    latestConfig.movable.events.after('g1', 'f3')
+
+    expect(onMove).toHaveBeenCalledWith(
+      'g1',
+      'f3',
+      'Nf3',
+      'rnbqkbnr/pppppppp/8/8/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 1',
+    )
+  })
 })
 
 describe('chess helpers', () => {
@@ -226,5 +251,14 @@ describe('chess helpers', () => {
     const dests = getLegalDests('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
     // Pawn moves from the initial position should include forward one and two squares.
     expect(dests.get('e2')).toEqual(expect.arrayContaining(['e3', 'e4']))
+  })
+
+  it('computes legal destinations for a forced color in sandbox mode', () => {
+    const dests = getLegalDestsForColor(
+      'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      'white',
+    )
+
+    expect(dests.get('g1')).toEqual(expect.arrayContaining(['f3', 'h3', 'e2']))
   })
 })
