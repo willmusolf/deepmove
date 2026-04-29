@@ -315,9 +315,15 @@ export default function ChessBoard({
     })
   }, [])
 
-  const flushBoardLayout = useCallback(() => {
+  const redrawBoardLayout = useCallback(() => {
     requestAnimationFrame(() => {
       apiRef.current?.redrawAll()
+      syncOverlayMetrics()
+    })
+  }, [syncOverlayMetrics])
+
+  const scheduleOverlaySync = useCallback(() => {
+    requestAnimationFrame(() => {
       syncOverlayMetrics()
     })
   }, [syncOverlayMetrics])
@@ -343,11 +349,11 @@ export default function ChessBoard({
         pendingResizeSyncRef.current = true
         return
       }
-      flushBoardLayout()
+      redrawBoardLayout()
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [flushBoardLayout])
+  }, [redrawBoardLayout])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return
@@ -467,7 +473,7 @@ export default function ChessBoard({
       },
       animation: {
         enabled: true,
-        duration: 220,
+        duration: 180,
       },
       draggable: {
         enabled: interactive || !!userPerspective,
@@ -500,13 +506,13 @@ export default function ChessBoard({
     }
 
     apiRef.current = Chessground(containerRef.current, config)
-    flushBoardLayout()
+    scheduleOverlaySync()
 
     return () => {
       apiRef.current?.destroy()
       apiRef.current = null
     }
-  }, [flushBoardLayout]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scheduleOverlaySync]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync FEN, orientation, and last-move highlight after init.
   // Explicitly passing lastMove on every navigation ensures the highlight
@@ -541,7 +547,7 @@ export default function ChessBoard({
       pendingResizeSyncRef.current = true
       return
     }
-    flushBoardLayout()
+    scheduleOverlaySync()
   }, [fen, lastMove, orientation, interactive, pathKey, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective])
 
   // Sync engine arrow shapes — always re-pass movable so chessground's partial
@@ -648,7 +654,7 @@ export default function ChessBoard({
       isPinchZoomingRef.current = false
       if (!pendingResizeSyncRef.current) return
       pendingResizeSyncRef.current = false
-      flushBoardLayout()
+      redrawBoardLayout()
     }
 
     const handleTouchStart = (event: TouchEvent) => {
@@ -670,7 +676,7 @@ export default function ChessBoard({
       window.removeEventListener('touchend', maybeFinishPinchZoom)
       window.removeEventListener('touchcancel', maybeFinishPinchZoom)
     }
-  }, [clearDragPreview, flushBoardLayout])
+  }, [clearDragPreview, redrawBoardLayout])
 
   useEffect(() => {
     const wrapEl = containerRef.current
