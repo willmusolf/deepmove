@@ -77,6 +77,7 @@ Must ship before launch. Everything else can follow.
 ### Marketing / Launch
 - See docs/marketing.md for full launch sequence, SEO, video strategy, community
 - Ads: Carbon Ads / EthicalAds setup; ensure ad placeholder visible at all responsive sizes
+- AdSense: mount real desktop/mobile ad slots, use real slot IDs, then re-add script + CSP allowances once placements are finalized
 
 ### iOS App (Post-Launch)
 - Responsive web comes first: don't start until website feels excellent on iPhone
@@ -116,13 +117,8 @@ Must ship before launch. Everything else can follow.
 
 ## 📝 RAW NOTES
 
--badges are inaccurate? get a star on a branching move that isnt one of the 2 suggested? should we show more lines like up to 3? and the actual further lines? and we could have a button for any missed tactics? all that stuff is in chess.com i believe idk whats best for all that tho
--if you click on a miss symbol it shows you the line for the tactic that you missed? how are misses calculated and all of them for that matter? also add something for show line or something like that that chess.com has? look for any other possible flaws in the badge logic. we could also add the book badges for theory moves? chess.com does that 
 
-
-
--get rid of tiny emptyness in corners of hover outline on desktop.
-
+center the thumb icon in the badge its a little too left. also the green is diff from the check and star? shouldnt the check be lighter than the star and thumbs up? thats how it is on chess.com
 
 -whats up with the tons of folders that we have for each deepmove thing? any way to clean that up or have it be better going forward from now?
 

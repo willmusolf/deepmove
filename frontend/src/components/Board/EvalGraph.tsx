@@ -67,7 +67,7 @@ const GRADE_CIRCLE_COLOR: Partial<Record<string, string>> = {
   blunder:    '#ef4444',
   mistake:    '#fb923c',
   inaccuracy: '#facc15',
-  brilliant:  '#22d3ee',
+  brilliant:  '#38bdf8',
   great:      '#22c55e',
   miss:       '#a78bfa',
 }
