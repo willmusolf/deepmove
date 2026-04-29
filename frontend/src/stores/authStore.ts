@@ -64,7 +64,16 @@ async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: `Error ${res.status}` }))
-    throw new Error(body.detail ?? `Error ${res.status}`)
+    const detail = body.detail
+    if (typeof detail === 'string') throw new Error(detail)
+    if (Array.isArray(detail)) {
+      const first = detail[0]
+      if (first && typeof first === 'object' && 'msg' in first && typeof first.msg === 'string') {
+        throw new Error(first.msg)
+      }
+      throw new Error(`Error ${res.status}`)
+    }
+    throw new Error(`Error ${res.status}`)
   }
   return res.json() as Promise<T>
 }
