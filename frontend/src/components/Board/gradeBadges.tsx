@@ -54,7 +54,7 @@ export function renderGradeBadgeGlyph(
     const className =
       variant === 'board'
         ? 'board-grade-badge__glyph'
-        : variant === 'report'
+      : variant === 'report'
           ? 'game-report-pill__glyph'
           : 'move-grade__glyph'
 
@@ -66,11 +66,11 @@ export function renderGradeBadgeGlyph(
   }
 
   const className =
-    variant === 'board'
+    variant === 'board' || variant === 'move-list'
       ? 'board-grade-badge__icon'
       : variant === 'report'
         ? 'game-report-pill__icon'
-        : 'move-grade__icon'
+        : 'board-grade-badge__icon'
 
   return <ThumbsUpIcon className={className} />
 }
