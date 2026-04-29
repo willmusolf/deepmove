@@ -1,7 +1,7 @@
 // useSound.ts — Chess sound effects hook
 // Uses Lichess standard sound set. Preference persisted in localStorage.
 
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 
 type SoundEvent = 'move' | 'capture' | 'castle' | 'check' | 'mate' | 'promote' | 'illegal'
 
@@ -34,6 +34,32 @@ function getStoredSoundEnabled(): boolean {
 export function useSound() {
   const [enabled, setEnabled] = useState(getStoredSoundEnabled)
   const audioRefs = useRef<Partial<Record<SoundEvent, HTMLAudioElement>>>({})
+  const unlockedRef = useRef(false)
+
+  // Unlock audio on first click or keydown — required for browsers that block
+  // HTMLMediaElement.play() until a user interaction has occurred on the page.
+  useEffect(() => {
+    function unlock() {
+      if (unlockedRef.current) return
+      unlockedRef.current = true
+      ;(Object.keys(SOUND_PATHS) as SoundEvent[]).forEach(event => {
+        const audio = new Audio(SOUND_PATHS[event])
+        audio.volume = 0
+        void audio.play()
+          .then(() => { audio.pause(); audio.currentTime = 0 })
+          .catch(() => {})
+        audioRefs.current[event] = audio
+      })
+      document.removeEventListener('click', unlock, true)
+      document.removeEventListener('keydown', unlock, true)
+    }
+    document.addEventListener('click', unlock, true)
+    document.addEventListener('keydown', unlock, true)
+    return () => {
+      document.removeEventListener('click', unlock, true)
+      document.removeEventListener('keydown', unlock, true)
+    }
+  }, [])
 
   const playEvent = useCallback((event: SoundEvent) => {
     if (!getStoredSoundEnabled()) return
@@ -44,7 +70,7 @@ export function useSound() {
       audioRefs.current[event] = audio
     }
     audio.currentTime = 0
-    void audio.play().catch(() => {})
+    void audio.play().catch(err => console.warn('[sound] play failed:', (err as Error).name, (err as Error).message))
   }, [])
 
   /** Play the appropriate sound for a SAN string */
