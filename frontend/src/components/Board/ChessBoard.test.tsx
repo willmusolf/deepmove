@@ -88,6 +88,45 @@ describe('ChessBoard component', () => {
     window.requestAnimationFrame = originalRaf
   })
 
+  it('does not call redrawAll when fen prop changes while a drag is active', () => {
+    const originalRaf = window.requestAnimationFrame
+    window.requestAnimationFrame = vi.fn((cb: FrameRequestCallback) => {
+      cb(0)
+      return 1
+    })
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, right: 320, bottom: 320,
+      width: 320, height: 320, toJSON: () => ({}),
+    } as DOMRect)
+
+    draggableCurrent.started = false
+    redrawAll.mockClear()
+    const { rerender } = render(
+      <ChessBoard fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" />,
+    )
+    redrawAll.mockClear() // ignore mount-time redrawAll
+
+    // Simulate drag in progress
+    draggableCurrent.started = true
+    const moveEvent = new Event('pointermove')
+    Object.defineProperty(moveEvent, 'clientX', { configurable: true, value: 40 })
+    Object.defineProperty(moveEvent, 'clientY', { configurable: true, value: 40 })
+    act(() => { window.dispatchEvent(moveEvent) })
+
+    // FEN prop changes (opponent/bot plays a move)
+    rerender(
+      <ChessBoard fen="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1" />,
+    )
+
+    // redrawAll must NOT fire while drag is still held — it wipes element.innerHTML
+    // and orphans the dragged piece element, causing the visible snap-back
+    expect(redrawAll).not.toHaveBeenCalled()
+
+    draggableCurrent.started = false
+    rectSpy.mockRestore()
+    window.requestAnimationFrame = originalRaf
+  })
+
   it('defers board redraw until drag ends when resize fires mid-drag', () => {
     let resizeCallback: ResizeObserverCallback | null = null
     ;(globalThis as any).ResizeObserver = class ResizeObserver {
