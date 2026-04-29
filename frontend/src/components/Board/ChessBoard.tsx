@@ -558,12 +558,8 @@ export default function ChessBoard({
       },
       draggable: { enabled: canInteract },
     })
-    if (isPinchZoomingRef.current) {
-      pendingResizeSyncRef.current = true
-      return
-    }
-    flushBoardLayout()
-  }, [fen, lastMove, orientation, interactive, pathKey, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective])
+    requestAnimationFrame(syncOverlayMetrics)
+  }, [fen, lastMove, orientation, interactive, pathKey, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective, syncOverlayMetrics])
 
   // Sync engine arrow shapes — always re-pass movable so chessground's partial
   // set() can never accidentally clear movable.dests during an arrows update.
