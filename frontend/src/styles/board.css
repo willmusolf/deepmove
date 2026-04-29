@@ -1499,6 +1499,7 @@ cg-board {
   width: 0.78rem;
   height: 0.78rem;
   display: block;
+  transform: translateX(0.7px);
 }
 
 /* Multi-character badges need smaller font to fit in circle */
@@ -1582,6 +1583,7 @@ cg-board {
   width: 62%;
   height: 62%;
   display: block;
+  transform: translateX(0.7px);
 }
 
 /* Pending spinner for board badge while branch eval is in flight */
