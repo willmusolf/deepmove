@@ -1334,7 +1334,7 @@ cg-board {
 
   .board-drag-target {
     display: block;
-    transform: scale(1.64);
+    transform: scale(1.9);
     background: rgba(68, 74, 82, 0.36);
     box-shadow: 0 4px 12px rgba(28, 32, 38, 0.1);
   }
@@ -1495,6 +1495,12 @@ cg-board {
   letter-spacing: -0.03em;
 }
 
+.move-grade__icon {
+  width: 0.78rem;
+  height: 0.78rem;
+  display: block;
+}
+
 /* Multi-character badges need smaller font to fit in circle */
 .grade-brilliant,
 .grade-blunder,
@@ -1570,6 +1576,12 @@ cg-board {
 .board-grade-badge[data-grade="blunder"],
 .board-grade-badge[data-grade="inaccuracy"] {
   font-size: var(--board-badge-wide-font-size);
+}
+
+.board-grade-badge__icon {
+  width: 62%;
+  height: 62%;
+  display: block;
 }
 
 /* Pending spinner for board badge while branch eval is in flight */
@@ -1877,6 +1889,18 @@ cg-board {
 
 .game-report-pill-sym {
   opacity: 0.85;
+}
+
+.game-report-pill__icon {
+  width: 0.72rem;
+  height: 0.72rem;
+  display: block;
+}
+
+.game-report-status {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
 }
 
 .game-report-pill-count {
