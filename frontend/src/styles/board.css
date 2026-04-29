@@ -1334,7 +1334,7 @@ cg-board {
 
   .board-drag-target {
     display: block;
-    transform: scale(1.64);
+    transform: scale(1.9);
     background: rgba(68, 74, 82, 0.36);
     box-shadow: 0 4px 12px rgba(28, 32, 38, 0.1);
   }
