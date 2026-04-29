@@ -85,6 +85,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accessToken: data.access_token,
       isPremium: data.user.is_premium,
     })
+    localStorage.setItem('dm_has_session', '1')
     usePrefsStore.getState().loadFromUser(data.user.preferences)
   },
 
@@ -98,6 +99,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accessToken: data.access_token,
       isPremium: data.user.is_premium,
     })
+    localStorage.setItem('dm_has_session', '1')
     usePrefsStore.getState().loadFromUser(data.user.preferences)
   },
 
@@ -112,10 +114,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // Logout is best-effort
     }
+    localStorage.removeItem('dm_has_session')
     set({ user: null, accessToken: null, isPremium: false })
   },
 
   refresh: async () => {
+    // Skip network call when there is no hint of an existing session.
+    // The browser always logs a red 401 "Failed to load resource" for any
+    // non-2xx fetch, even when the error is caught in JS — the only way to
+    // suppress it for anonymous visitors is to not make the request at all.
+    if (!localStorage.getItem('dm_has_session')) {
+      set({ user: null, accessToken: null, isPremium: false, isLoading: false })
+      return
+    }
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 5000)
     try {
@@ -133,7 +144,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       usePrefsStore.getState().loadFromUser(data.user.preferences)
     } catch {
       clearTimeout(timer)
-      // No valid refresh token or backend unreachable — user is anonymous (that's fine)
+      // Refresh token expired or invalid — clear the session hint so future
+      // page loads don't hit the endpoint again until the user logs in.
+      localStorage.removeItem('dm_has_session')
       set({ user: null, accessToken: null, isPremium: false, isLoading: false })
     }
   },
