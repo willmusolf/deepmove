@@ -73,10 +73,9 @@ def test_health_deep_degraded_when_database_unreachable(client, monkeypatch):
     }
 
 
-def test_version_endpoint_exposes_runtime_metadata(client, monkeypatch):
+def test_version_endpoint_returns_build_metadata_only(client, monkeypatch):
     monkeypatch.setattr(settings, "git_commit_sha", "abc123")
     monkeypatch.setattr(settings, "build_time", "2026-04-22T01:23:45Z")
-    monkeypatch.setattr(settings, "environment", "production")
 
     response = client.get("/version")
 
@@ -84,6 +83,5 @@ def test_version_endpoint_exposes_runtime_metadata(client, monkeypatch):
     payload = response.json()
     assert payload["commit_sha"] == "abc123"
     assert payload["build_time"] == "2026-04-22T01:23:45Z"
-    assert payload["environment"] == "production"
-    assert isinstance(payload["python_version"], str)
-    assert payload["python_version"]
+    assert "environment" not in payload
+    assert "python_version" not in payload

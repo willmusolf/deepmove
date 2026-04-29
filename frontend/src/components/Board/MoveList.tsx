@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react'
 import type { MoveGrade } from '../../engine/analysis'
 import type { MoveNode, MoveTree } from '../../chess/types'
 import { getPathToNode } from '../../hooks/useGameReview'
+import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './gradeBadges'
 
 const PHONE_MOVE_LIST_QUERY = '(max-width: 639px)'
 
@@ -26,9 +27,13 @@ const GRADE_CONFIG: Record<NonNullable<MoveGrade>, { label: string; cls: string 
 
 function GradeBadge({ grade, pending }: { grade: MoveGrade | undefined; pending?: boolean }) {
   if (pending) return <span className="grade-pending" />
-  if (!grade) return <span className="grade-placeholder" />
-  const cfg = GRADE_CONFIG[grade]
-  return <span className={`move-grade ${cfg.cls}`}>{cfg.label}</span>
+  const meta = getGradeBadgeMeta(grade)
+  if (!meta) return <span className="grade-placeholder" />
+  return (
+    <span className={`move-grade ${meta.moveListClass}`} title={meta.ariaLabel} aria-label={meta.ariaLabel}>
+      {renderGradeBadgeGlyph(grade, 'move-list')}
+    </span>
+  )
 }
 
 // ─── Eval delta formatter ─────────────────────────────────────────────────────
