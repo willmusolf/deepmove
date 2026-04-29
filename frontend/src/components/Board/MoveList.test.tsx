@@ -145,4 +145,12 @@ describe('MoveList auto-follow', () => {
     expect(badge.querySelector('svg')).not.toBeNull()
     expect(container.textContent).not.toContain('👍')
   })
+
+  it('renders the best badge as an svg icon, not a text star glyph', () => {
+    const { container } = renderMoveListWithGrades(['best'])
+
+    const badge = screen.getByLabelText('Best move')
+    expect(badge.querySelector('svg')).not.toBeNull()
+    expect(container.textContent).not.toContain('★')
+  })
 })
