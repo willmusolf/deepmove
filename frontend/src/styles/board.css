@@ -106,7 +106,6 @@ cg-board square.move-dest.oc:hover {
   position: absolute;
   z-index: 7;
   box-sizing: border-box;
-  border-radius: 3px;
   box-shadow: inset 0 0 0 4px rgba(184, 191, 200, 0.94);
   pointer-events: none;
 }
@@ -678,7 +677,6 @@ cg-board {
 .move-san {
   cursor: pointer;
   padding: 2px 6px;
-  border-radius: 3px;
   min-width: 66px;
   transition: background 0.1s, color 0.1s;
   display: inline-block;
@@ -976,7 +974,6 @@ cg-board {
 .nav-soon {
   font-size: 0.65rem;
   background: var(--color-surface-2);
-  border-radius: 3px;
   padding: 0 4px;
   color: var(--color-text-muted);
   margin-left: auto;
@@ -1063,7 +1060,6 @@ cg-board {
   background: rgba(15, 18, 32, 0.85);
   color: #e2e8f0;
   padding: 2px 4px;
-  border-radius: 3px;
   pointer-events: none;
   white-space: nowrap;
   z-index: 10;
@@ -1511,11 +1507,11 @@ cg-board {
   flex-shrink: 0;
 }
 
-.grade-brilliant  { background: #22d3ee; }           /* cyan */
-.grade-great      { background: #16a34a; }           /* rich green */
+.grade-brilliant  { background: #38bdf8; }           /* neon blue */
+.grade-great      { background: #3b82f6; }           /* blue */
 .grade-best       { background: #22c55e; }           /* medium green */
 .grade-excellent  { background: #4ade80; }           /* light green */
-.grade-good       { background: #60a5fa; }           /* soft blue — visible, distinct from greens */
+.grade-good       { background: #86efac; font-size: 0.65rem; } /* soft green */
 .grade-forced     { background: #6b7280; }           /* dark gray */
 .grade-inaccuracy { background: #facc15; color: #1a1a1a; }
 .grade-mistake    { background: #fb923c; }
@@ -1887,7 +1883,7 @@ cg-board {
   font-variant-numeric: tabular-nums;
 }
 
-.gr-brilliant  { background: rgba(34, 211, 238, 0.22); color: #22d3ee; }
+.gr-brilliant  { background: rgba(56, 189, 248, 0.22); color: #38bdf8; }
 .gr-great      { background: rgba(34, 197, 94, 0.22);  color: #22c55e; }
 .gr-best       { background: rgba(34, 197, 94, 0.18);  color: #4ade80; }
 .gr-excellent  { background: rgba(74, 222, 128, 0.15); color: #86efac; }
@@ -2063,7 +2059,6 @@ cg-board {
   width: 1.4rem;
   text-align: center;
   flex-shrink: 0;
-  border-radius: 3px;
   padding: 0.1rem 0.2rem;
   margin-left: auto;
 }
@@ -2271,7 +2266,6 @@ cg-board {
   background: transparent;
   color: var(--color-text-muted, #666);
   border: none;
-  border-radius: 3px;
   padding: 2px 7px;
   font-size: 0.72rem;
   cursor: pointer;
@@ -3608,7 +3602,6 @@ cg-board {
 
 .transcript-san {
   padding: 0.1rem 0.35rem;
-  border-radius: 3px;
   cursor: pointer;
   color: var(--color-text);
   min-width: 3.2rem;
@@ -4051,7 +4044,7 @@ cg-board {
   font-weight: 700;
   line-height: 1;
 }
-.coach-narrative__grade--brilliant { color: #c084fc; }
+.coach-narrative__grade--brilliant { color: #38bdf8; }
 .coach-narrative__grade--great     { color: #34d399; }
 .coach-narrative__grade--best      { color: #34d399; }
 .coach-narrative__grade--excellent { color: #6ee7b7; }
@@ -4136,7 +4129,6 @@ cg-board {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 0.1rem 0.35rem;
-  border-radius: 3px;
   border: 1px solid currentColor;
   white-space: nowrap;
   flex-shrink: 0;
@@ -4322,7 +4314,6 @@ cg-board {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 0.1rem 0.35rem;
-  border-radius: 3px;
   border: 1px solid currentColor;
   margin-bottom: 0.35rem;
 }
@@ -5136,7 +5127,6 @@ cg-board {
 }
 .practice-notation-san {
   padding: 0.05rem 0.28rem;
-  border-radius: 3px;
   color: var(--color-text-muted);
   line-height: 1.8;
 }

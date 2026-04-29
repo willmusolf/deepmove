@@ -185,9 +185,10 @@ export async function analyzeGame(
   // prevTopLines: multi-PV results from the position BEFORE the current move.
   // Used to check whether the played move was the engine's top suggestion ("best")
   // and whether it was the ONLY good move ("great").
-  // Seeded by analysing positions[startFromIndex] when resuming mid-game.
+  // Seeded from the current starting position so even move 1 has a real
+  // top-suggestion check instead of defaulting to "best".
   let prevTopLines: TopLine[] = []
-  if (startFromIndex > 0 && !signal?.aborted) {
+  if (startFromIndex < history.length && !signal?.aborted) {
     try {
       prevTopLines = await engine.analyzePositionMultiPV(positions[startFromIndex], depth, 2)
     } catch {
