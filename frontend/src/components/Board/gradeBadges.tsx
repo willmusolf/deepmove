@@ -52,11 +52,11 @@ export function renderGradeBadgeGlyph(
   if (!meta) return null
   if (meta.icon !== 'thumb') {
     const className =
-      variant === 'board'
+      variant === 'board' || variant === 'move-list'
         ? 'board-grade-badge__glyph'
         : variant === 'report'
           ? 'game-report-pill__glyph'
-          : 'move-grade__glyph'
+          : 'board-grade-badge__glyph'
 
     return (
       <span aria-hidden="true" className={className} data-grade={grade ?? ''}>
@@ -66,11 +66,11 @@ export function renderGradeBadgeGlyph(
   }
 
   const className =
-    variant === 'board'
+    variant === 'board' || variant === 'move-list'
       ? 'board-grade-badge__icon'
       : variant === 'report'
         ? 'game-report-pill__icon'
-        : 'move-grade__icon'
+        : 'board-grade-badge__icon'
 
   return <ThumbsUpIcon className={className} />
 }
