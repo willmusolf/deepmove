@@ -3,6 +3,7 @@ import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
 import EvalGraph from './components/Board/EvalGraph'
+import GameReport from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
 import PlayerInfoBox from './components/Board/PlayerInfoBox'
 import ImportPanel from './components/Import/ImportPanel'
@@ -15,6 +16,7 @@ import type { Page } from './components/Layout/NavSidebar'
 import ResponsiveLayout from './components/Layout/ResponsiveLayout'
 import ProfilePage from './components/Profile/ProfilePage'
 import MoveCoachComment from './components/Coach/MoveCoachComment'
+import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './components/Board/gradeBadges'
 import BotPlayPage from './components/Play/BotPlayPage'
 import PrivacyPage from './components/PrivacyPage'
 import { useGameReview } from './hooks/useGameReview'
@@ -1122,7 +1124,7 @@ export default function App() {
                         : (analysisPath.length > 0
                           ? branchGrades.get(analysisPath[analysisPath.length - 1])
                           : undefined)
-                      const g = showGrades && grade ? BOARD_GRADE[grade] : null
+                      const badgeMeta = showGrades ? getGradeBadgeMeta(grade) : null
                       const destSquare = isLoaded
                         ? (inBranch && currentNodeId ? moveTree[currentNodeId]?.to : boardLastMove?.[1])
                         : (analysisPath.length > 0
@@ -1145,7 +1147,7 @@ export default function App() {
                           />
                         )
                       }
-                      if (!g || !destSquare) return null
+                      if (!badgeMeta || !destSquare) return null
                       return (
                         <div
                           key={destSquare}
@@ -1153,10 +1155,10 @@ export default function App() {
                           data-grade={grade ?? ''}
                           style={{
                             ...getSquareOverlayPosition(destSquare, orientation),
-                            background: g.color,
+                            background: badgeMeta.boardColor,
                           }}
                         >
-                          {g.symbol}
+                          {renderGradeBadgeGlyph(grade, 'board')}
                         </div>
                       )
                     })()}
@@ -1391,6 +1393,14 @@ export default function App() {
                         onLineClick={handleAnalysisBestLineClick}
                       />
 
+                      {(moveEvals.length > 0 || showAnalyzingBar) && (
+                        <GameReport
+                          moveEvals={moveEvals}
+                          userColor={userColor}
+                          isAnalyzing={showAnalyzingBar}
+                        />
+                      )}
+
                       {/* Eval graph — hidden during analysis, shown after completion */}
                       {!showAnalyzingBar && moveEvals.length > 0 && (
                         <EvalGraph
@@ -1413,7 +1423,7 @@ export default function App() {
                         branchGrades={showGrades ? branchGrades : undefined}
                         pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
-                        isAnalyzing={showAnalyzingBar || !showGrades}
+                        isAnalyzing={!showGrades}
                         rootBranchIds={rootBranchIds}
                       />
                     </>
@@ -1493,7 +1503,7 @@ export default function App() {
                         branchGrades={showGrades ? branchGrades : undefined}
                         pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
-                        isAnalyzing={showAnalyzingBar || !showGrades}
+                        isAnalyzing={!showGrades}
                         rootBranchIds={rootBranchIds}
                       />
                     </>
