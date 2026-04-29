@@ -188,9 +188,9 @@ export default function App() {
     runAnalysis,
     cancelGameAnalysis,
     analyzePositionLines,
-    analyzePositionSingleBg,
-    analyzePositionMultiPVBg,
+    analyzePositionSingleBranch,
     stopPositionAnalysis,
+    stopBranchAnalysis,
   } = useStockfish()
   const { enabled: soundEnabled, toggle: toggleSound, playMoveSound } = useSound()
 
@@ -759,6 +759,7 @@ export default function App() {
   // position analysis so stale arrows can't flash on the new game's position.
   function handleBeforeGameLoad() {
     cancelGameAnalysis()
+    stopBranchAnalysis()
     positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
     stopPositionAnalysis()
     positionTokenRef.current++
@@ -786,6 +787,10 @@ export default function App() {
     }
   }
 
+  function isStockfishCancelledError(err: unknown): boolean {
+    return err instanceof Error && err.message === 'Stockfish analysis cancelled'
+  }
+
   async function evaluateBranchMove(nodeId: string, parentFen: string, newFen: string) {
     if (!isReady || evalInFlightRef.current.has(nodeId) || branchGrades.has(nodeId)) return
     evalInFlightRef.current.add(nodeId)
@@ -796,12 +801,14 @@ export default function App() {
       const legalCount = chess.moves().length
       const color: 'white' | 'black' = parentFen.split(' ')[1] === 'w' ? 'white' : 'black'
 
-      // Multi-PV on parent: gives evalBefore + top-2 engine suggestions in one call
-      const parentLines = await analyzePositionMultiPVBg(parentFen, 14, 2)
+      const cachedParentTopLine = positionCache.current.get(parentFen)?.[0] ?? null
+      const parentResult = cachedParentTopLine
+        ? { score: cachedParentTopLine.score, pv: cachedParentTopLine.pv }
+        : await analyzePositionSingleBranch(parentFen, 14)
       // Single-PV on position after the branch move
-      const afterResult = await analyzePositionSingleBg(newFen, 14)
+      const afterResult = await analyzePositionSingleBranch(newFen, 14)
 
-      if (!parentLines || parentLines.length === 0 || !afterResult) {
+      if (!parentResult || !afterResult) {
         console.warn('[branch eval] Stockfish returned null for', nodeId)
         setBranchGrades(prev => new Map(prev).set(nodeId, 'unknown' as MoveGrade))
         return  // finally still clears pendingBranchNodes
@@ -810,7 +817,7 @@ export default function App() {
       // Discard result if the user already switched to a different game
       if (branchGradesKeyRef.current !== gameIdAtStart) return
 
-      const evalBefore = parentLines[0].score
+      const evalBefore = parentResult.score
       const evalAfter = afterResult.score
 
       // Derive the played move (needed for sacrifice detection + top-suggestion check)
@@ -819,7 +826,7 @@ export default function App() {
 
       // Branch grades should only treat the engine's #1 move as "top suggested".
       // Otherwise a second-best sacrifice can get mislabeled as brilliant.
-      const topUciMove = parentLines[0]?.pv?.[0] ?? null
+      const topUciMove = parentResult.pv?.[0] ?? null
       const playedUci = playedMove ? playedMove.from + playedMove.to + (playedMove.promotion ?? '') : null
       const isTopSuggested = playedUci !== null && topUciMove === playedUci
 
@@ -829,6 +836,7 @@ export default function App() {
       const grade = classifyMove(evalBefore, evalAfter, color, legalCount, sacrifice, null, isTopSuggested)
       setBranchGrades(prev => new Map(prev).set(nodeId, grade))
     } catch (err) {
+      if (isStockfishCancelledError(err)) return
       console.warn('[branch eval] failed:', err)
     } finally {
       evalInFlightRef.current.delete(nodeId)
