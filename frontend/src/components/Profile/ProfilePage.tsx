@@ -288,11 +288,11 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
         <section className="profile-section">
           <h3 className="profile-section-title">Security</h3>
           <form className="profile-field-group" onSubmit={handleChangePassword}>
-            {/* Hidden username field: required for password-manager autofill and browser accessibility */}
-            <input type="email" autoComplete="username" value={user?.email ?? ''} readOnly aria-hidden="true" style={{ display: 'none' }} />
+            <input type="email" name="email" autoComplete="username" value={user.email} readOnly hidden />
             <div className="profile-field">
-              <label className="profile-field-label">Current password</label>
+              <label className="profile-field-label" htmlFor="profile-current-password">Current password</label>
               <input
+                id="profile-current-password"
                 className="profile-input"
                 type="password"
                 name="current_password"
@@ -302,8 +302,9 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
               />
             </div>
             <div className="profile-field">
-              <label className="profile-field-label">New password</label>
+              <label className="profile-field-label" htmlFor="profile-new-password">New password</label>
               <input
+                id="profile-new-password"
                 className="profile-input"
                 type="password"
                 name="new_password"
@@ -313,8 +314,9 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
               />
             </div>
             <div className="profile-field">
-              <label className="profile-field-label">Confirm new password</label>
+              <label className="profile-field-label" htmlFor="profile-confirm-password">Confirm new password</label>
               <input
+                id="profile-confirm-password"
                 className="profile-input"
                 type="password"
                 name="confirm_new_password"
@@ -347,8 +349,9 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
         <p className="profile-section-desc">Link your accounts to auto-load your games in the Review tab.</p>
         <form className="profile-field-group" onSubmit={handleSaveAccounts} autoComplete="off">
           <div className="profile-field">
-            <label className="profile-field-label">Chess.com username</label>
+            <label className="profile-field-label" htmlFor="profile-chesscom-username">Chess.com username</label>
             <input
+              id="profile-chesscom-username"
               className="profile-input"
               type="text"
               name="chesscom_username"
@@ -364,8 +367,9 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
             />
           </div>
           <div className="profile-field">
-            <label className="profile-field-label">Lichess username</label>
+            <label className="profile-field-label" htmlFor="profile-lichess-username">Lichess username</label>
             <input
+              id="profile-lichess-username"
               className="profile-input"
               type="text"
               name="lichess_username"

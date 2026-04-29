@@ -1,5 +1,6 @@
 """config.py — Application settings loaded from environment variables."""
 from datetime import UTC, datetime
+from typing import Literal
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -35,6 +36,14 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
     refresh_cookie_name: str = "deepmove_refresh"
+    auth_cookie_samesite: str = Field(
+        default="",
+        validation_alias=AliasChoices("AUTH_COOKIE_SAMESITE", "COOKIE_SAMESITE"),
+    )
+    auth_cookie_secure_override: bool | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AUTH_COOKIE_SECURE", "COOKIE_SECURE"),
+    )
 
     # OAuth — Lichess
     lichess_client_id: str = ""
@@ -92,6 +101,25 @@ class Settings(BaseSettings):
             return None
         return self.allowed_origin_regex.replace("\\\\.", "\\.")
 
+    @property
+    def resolved_auth_cookie_samesite(self) -> Literal["lax", "none", "strict"]:
+        value = self.auth_cookie_samesite.strip().lower()
+        if value:
+            return value  # type: ignore[return-value]
+        if self.cors_origin_regex:
+            return "none"
+        if self.environment == "development":
+            return "lax"
+        return "lax"
+
+    @property
+    def resolved_auth_cookie_secure(self) -> bool:
+        if self.auth_cookie_secure_override is not None:
+            return self.auth_cookie_secure_override
+        if self.resolved_auth_cookie_samesite == "none":
+            return True
+        return self.environment != "development"
+
     # LLM model selection
     lesson_model: str = "claude-haiku-4-5-20251001"      # Full lessons
     classify_model: str = "claude-haiku-4-5-20251001"  # Quick classification checks
@@ -99,6 +127,8 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _check_production_secrets(self) -> "Settings":
         """Fail fast if production is deployed with default/empty secrets."""
+        if self.resolved_auth_cookie_samesite == "none" and not self.resolved_auth_cookie_secure:
+            raise ValueError("AUTH_COOKIE_SAMESITE=none requires AUTH_COOKIE_SECURE=true")
         if self.environment == "production":
             if not self.secret_key or self.secret_key == "change-me-in-production":
                 raise ValueError(
