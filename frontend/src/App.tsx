@@ -815,10 +815,11 @@ export default function App() {
       const legalMoves = chess.moves({ verbose: true })
       const playedMove = legalMoves.find(m => m.after === newFen)
 
-      // Check whether the played move matches one of the engine's top-2 suggestions
-      const topUciMoves = parentLines.slice(0, 2).map(l => l.pv?.[0]).filter(Boolean) as string[]
+      // Branch grades should only treat the engine's #1 move as "top suggested".
+      // Otherwise a second-best sacrifice can get mislabeled as brilliant.
+      const topUciMove = parentLines[0]?.pv?.[0] ?? null
       const playedUci = playedMove ? playedMove.from + playedMove.to + (playedMove.promotion ?? '') : null
-      const isTopSuggested = !playedUci || topUciMoves.includes(playedUci)
+      const isTopSuggested = playedUci !== null && topUciMove === playedUci
 
       // Sacrifice detection (requires the move + position after)
       const sacrifice = playedMove ? isSacrificeFn(playedMove, newFen) : false
@@ -1101,11 +1102,11 @@ export default function App() {
                     />
                     {(() => {
                       const BOARD_GRADE: Record<string, { symbol: string; color: string }> = {
-                        brilliant:  { symbol: '!!', color: '#22d3ee' },
-                        great:      { symbol: '!',  color: '#16a34a' },
+                        brilliant:  { symbol: '!!', color: '#38bdf8' },
+                        great:      { symbol: '!',  color: '#3b82f6' },
                         best:       { symbol: '★',  color: '#22c55e' },
                         excellent:  { symbol: '✓',  color: '#4ade80' },
-                        good:       { symbol: '·',  color: '#60a5fa' },
+                        good:       { symbol: '👍', color: '#86efac' },
                         inaccuracy: { symbol: '?!', color: '#facc15' },
                         mistake:    { symbol: '?',  color: '#fb923c' },
                         blunder:    { symbol: '??', color: '#ef4444' },
