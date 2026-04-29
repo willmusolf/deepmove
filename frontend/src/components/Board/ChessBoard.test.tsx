@@ -5,6 +5,20 @@ import ChessBoard, { getLegalDests, getTurnColor } from './ChessBoard'
 const redrawAll = vi.fn()
 const cancelMove = vi.fn()
 
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn((query: string) => ({
+    matches: query === '(pointer: coarse)',
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+})
+
 vi.mock('chessground', () => ({
   Chessground: vi.fn(() => ({
     set: vi.fn(),
@@ -64,6 +78,35 @@ describe('ChessBoard component', () => {
     })
 
     expect(cancelMove).toHaveBeenCalled()
+  })
+
+  it('does not enable pinch-cancel handling for fine pointers', () => {
+    const matchMediaMock = vi.mocked(window.matchMedia)
+    matchMediaMock.mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+
+    cancelMove.mockClear()
+    render(<ChessBoard />)
+
+    const event = new Event('touchstart')
+    Object.defineProperty(event, 'touches', {
+      configurable: true,
+      value: [{ clientX: 20, clientY: 20 }, { clientX: 80, clientY: 80 }],
+    })
+
+    act(() => {
+      window.dispatchEvent(event)
+    })
+
+    expect(cancelMove).not.toHaveBeenCalled()
   })
 })
 

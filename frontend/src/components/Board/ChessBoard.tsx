@@ -634,6 +634,8 @@ export default function ChessBoard({
   }, [clearDragPreview])
 
   useEffect(() => {
+    if (!isCoarsePointer) return
+
     const startPinchZoom = () => {
       if (isPinchZoomingRef.current) return
       isPinchZoomingRef.current = true
@@ -670,7 +672,7 @@ export default function ChessBoard({
       window.removeEventListener('touchend', maybeFinishPinchZoom)
       window.removeEventListener('touchcancel', maybeFinishPinchZoom)
     }
-  }, [clearDragPreview, flushBoardLayout])
+  }, [clearDragPreview, flushBoardLayout, isCoarsePointer])
 
   useEffect(() => {
     const wrapEl = containerRef.current
