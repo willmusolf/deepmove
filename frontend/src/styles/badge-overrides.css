@@ -12,17 +12,43 @@
 }
 
 .move-grade__icon {
-  transform: none;
+  transform: translate(0.9px, -0.45px);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.move-grade__glyph {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translate(-0.4px, -0.2px);
 }
 
 .board-grade-badge__icon {
-  transform: none;
+  transform: translate(0.95px, -0.55px);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.board-grade-badge__glyph {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translate(-0.4px, -0.3px);
 }
 
 .game-report-pill__icon {
   width: 100%;
   height: 100%;
-  transform: none;
+  transform: translate(0.45px, -0.2px);
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .game-report-pill-sym {
@@ -31,4 +57,14 @@
   flex: 0 0 0.72rem;
   display: grid;
   place-items: center;
+}
+
+.game-report-pill__glyph {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translate(-0.25px, -0.1px);
 }
