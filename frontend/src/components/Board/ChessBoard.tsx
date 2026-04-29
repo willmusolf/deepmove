@@ -277,6 +277,7 @@ export default function ChessBoard({
   const isPinchZoomingRef = useRef(false)
   const isDraggingRef = useRef(false)
   const pendingResizeSyncRef = useRef(false)
+  const pendingAutoShapesRef = useRef<DrawShape[] | null>(null)
 
   const syncOverlayMetrics = useCallback(() => {
     const api = apiRef.current
@@ -317,6 +318,15 @@ export default function ChessBoard({
     })
   }, [syncOverlayMetrics])
 
+  const flushPendingDrawableShapes = useCallback(() => {
+    if (isPinchZoomingRef.current || isDraggingRef.current) return
+    if (!apiRef.current || !pendingAutoShapesRef.current) return
+    apiRef.current.set({
+      drawable: { autoShapes: pendingAutoShapesRef.current },
+    })
+    pendingAutoShapesRef.current = null
+  }, [])
+
   const flushPendingLayoutSync = useCallback(() => {
     if (isPinchZoomingRef.current || isDraggingRef.current) return
     if (!pendingResizeSyncRef.current) return
@@ -329,8 +339,9 @@ export default function ChessBoard({
     setIsDragging(false)
     setDragOriginSquare(null)
     setDragPreviewSquare(null)
+    flushPendingDrawableShapes()
     flushPendingLayoutSync()
-  }, [flushPendingLayoutSync])
+  }, [flushPendingDrawableShapes, flushPendingLayoutSync])
 
   // Track when the board has a real layout size so shapes only sync after mount.
   // Avoid writing inline width/height here: that can leave the board "stuck" at a
@@ -597,8 +608,15 @@ export default function ChessBoard({
       }
     }
 
+    const autoShapes = [...premoveShapes, ...shapes]
+
+    if (isPinchZoomingRef.current || isDraggingRef.current) {
+      pendingAutoShapesRef.current = autoShapes
+      return
+    }
+
     apiRef.current.set({
-      drawable: { autoShapes: [...premoveShapes, ...shapes] },
+      drawable: { autoShapes },
     })
   }, [shapes, boardReady, premoveQueue])
 
