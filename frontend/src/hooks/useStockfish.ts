@@ -1,8 +1,9 @@
 // useStockfish.ts — React hook for Stockfish engine lifecycle + game analysis
 //
-// TWO-WORKER ARCHITECTURE:
+// THREE-WORKER ARCHITECTURE:
 //   backgroundEngine  — full-game sequential analysis (elo-adaptive depth)
 //   interactiveEngine  — per-position multi-PV analysis (depth 22), always available
+//   branchEngine      — branch badge grading so variation evals stay responsive
 
 function getAnalysisDepth(elo: number): number {
   if (!elo || elo < 1200) return elo ? 10 : 14
@@ -28,6 +29,7 @@ export type EngineStatus = 'loading' | 'ready' | 'error'
 export function useStockfish() {
   const backgroundRef = useRef<StockfishEngine | null>(null)
   const interactiveRef = useRef<StockfishEngine | null>(null)
+  const branchRef = useRef<StockfishEngine | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const analysisRunIdRef = useRef(0)
   const [isReady, setIsReady] = useState(false)
@@ -44,10 +46,12 @@ export function useStockfish() {
   useEffect(() => {
     const bg = new StockfishEngine()
     const ia = new StockfishEngine()
+    const br = new StockfishEngine()
     backgroundRef.current = bg
     interactiveRef.current = ia
+    branchRef.current = br
 
-    Promise.all([bg.initialize(), ia.initialize()])
+    Promise.all([bg.initialize(), ia.initialize(), br.initialize()])
       .then(() => {
         setIsReady(true)
         setEngineStatus('ready')
@@ -60,8 +64,10 @@ export function useStockfish() {
     return () => {
       bg.terminate()
       ia.terminate()
+      br.terminate()
       backgroundRef.current = null
       interactiveRef.current = null
+      branchRef.current = null
     }
   }, [])
 
@@ -238,27 +244,22 @@ export function useStockfish() {
     interactiveRef.current?.stopPositionAnalysis()
   }
 
+  function stopBranchAnalysis() {
+    branchRef.current?.stop()
+  }
+
   async function analyzePositionSingle(fen: string, depth = 14): Promise<import('../engine/stockfish').EvalResult | null> {
     const engine = interactiveRef.current
     if (!engine || !isReady) return null
     return engine.analyzePosition(fen, depth)
   }
 
-  /** Like analyzePositionSingle but uses the background engine so branch evals
-   *  don't queue behind in-flight multi-PV analysis on the interactive engine. */
-  async function analyzePositionSingleBg(fen: string, depth = 14): Promise<import('../engine/stockfish').EvalResult | null> {
-    const engine = backgroundRef.current
+  /** Dedicated branch-analysis lane so branch badge grading does not queue
+   *  behind full-game analysis or live per-position arrows. */
+  async function analyzePositionSingleBranch(fen: string, depth = 14): Promise<import('../engine/stockfish').EvalResult | null> {
+    const engine = branchRef.current
     if (!engine || !isReady) return null
     return engine.analyzePosition(fen, depth)
-  }
-
-  /** Multi-PV variant of analyzePositionSingleBg — returns top-N lines from the
-   *  background engine so branch evals can check whether the played move was one
-   *  of the engine's top suggestions. */
-  async function analyzePositionMultiPVBg(fen: string, depth = 14, numLines = 2): Promise<import('../engine/stockfish').TopLine[] | null> {
-    const engine = backgroundRef.current
-    if (!engine || !isReady) return null
-    return engine.analyzePositionMultiPV(fen, depth, numLines)
   }
 
   return {
@@ -268,8 +269,8 @@ export function useStockfish() {
     cancelGameAnalysis,
     analyzePositionLines,
     analyzePositionSingle,
-    analyzePositionSingleBg,
-    analyzePositionMultiPVBg,
+    analyzePositionSingleBranch,
     stopPositionAnalysis,
+    stopBranchAnalysis,
   }
 }
