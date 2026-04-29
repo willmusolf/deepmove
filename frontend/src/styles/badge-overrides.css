@@ -7,6 +7,10 @@
   color: #22c55e;
 }
 
+.grade-inaccuracy {
+  color: #fff;
+}
+
 .move-grade__icon {
   transform: translate(0.9px, -0.45px);
   transform-box: fill-box;
@@ -20,7 +24,7 @@
   place-items: center;
   line-height: 1;
   white-space: nowrap;
-  transform: translate(-0.45px, -0.2px);
+  transform: translate(-0.4px, -0.2px);
 }
 
 .board-grade-badge__icon {
