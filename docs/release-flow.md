@@ -18,6 +18,7 @@ DeepMove uses:
    - Vercel should auto-deploy the frontend from `main`
    - GitHub Actions should trigger the Render backend deploy hook, but only when backend files changed
    - GitHub Actions should run a small production smoke check against `deepmove.io` and `api.deepmove.io/health`
+   - GitHub Actions should fast-forward `staging` to the merged `main` commit when `staging` is already an ancestor of that commit
 6. For staging:
    - merge or push to `staging`
    - GitHub Actions should trigger the staging Render deploy hook, but only when backend files changed
@@ -101,6 +102,7 @@ After merges to `main`, GitHub Actions:
 - requests `https://www.deepmove.io`
 - waits for `https://api.deepmove.io/health/deep`
 - if backend files changed, verifies `https://api.deepmove.io/version` matches the pushed commit SHA
+- fast-forwards `staging` to the same commit when the `staging` tip is already contained in `main`
 
 This is now a deployment check, not just a shallow uptime check.
 It helps catch both obvious production incidents and stale backend deploys.
