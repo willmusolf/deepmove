@@ -16,17 +16,13 @@ index b38c6a0..c26984b 100644
      });
  }
 +function renderSquare(brush, at, current) {
-+    const inset = current ? 0.04 : 0.06;
 +    return setAttributes(createElement('rect'), {
-+        x: at[0] - 0.5 + inset,
-+        y: at[1] - 0.5 + inset,
-+        width: 1 - inset * 2,
-+        height: 1 - inset * 2,
++        x: at[0] - 0.5,
++        y: at[1] - 0.5,
++        width: 1,
++        height: 1,
 +        fill: brush.color,
-+        'fill-opacity': current ? 0.42 : 0.26,
-+        stroke: brush.color,
-+        'stroke-width': current ? 0.045 : 0.035,
-+        'stroke-opacity': current ? 0.96 : 0.86,
++        'fill-opacity': 0.4,
 +    });
 +}
  function hilite(brush) {
