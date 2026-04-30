@@ -278,13 +278,13 @@ export default function ChessBoard({
   const isDraggingRef = useRef(false)
   const pendingResizeSyncRef = useRef(false)
   const pendingAutoShapesRef = useRef<DrawShape[] | null>(null)
-  const userArrowShapesRef = useRef<DrawShape[]>([])
+  const userDrawableShapesRef = useRef<DrawShape[]>([])
   const userSquareHighlightsRef = useRef<Map<Key, string>>(new Map())
   const annotationPositionRef = useRef({ fen, pathKey })
 
   const syncManualAnnotations = useCallback(() => {
     apiRef.current?.set({
-      drawable: { shapes: userArrowShapesRef.current },
+      drawable: { shapes: userDrawableShapesRef.current },
       highlight: { custom: userSquareHighlightsRef.current },
     })
   }, [])
@@ -517,7 +517,7 @@ export default function ChessBoard({
         enabled: true,
         visible: true,
         defaultSnapToValidMove: true,
-        eraseOnClick: false,
+        eraseOnClick: true,
         shapes: [],
         autoShapes: [],
         brushes: {
@@ -533,14 +533,12 @@ export default function ChessBoard({
         },
         onChange: nextShapes => {
           const nextSquareHighlights = new Map<Key, string>()
-          const nextArrowShapes = nextShapes.filter(shape => {
+          nextShapes.forEach(shape => {
             if (!shape.dest) {
               nextSquareHighlights.set(shape.orig as Key, 'manual-red')
-              return false
             }
-            return true
           })
-          userArrowShapesRef.current = nextArrowShapes
+          userDrawableShapesRef.current = nextShapes
           userSquareHighlightsRef.current = nextSquareHighlights
           syncManualAnnotations()
         },
@@ -571,7 +569,7 @@ export default function ChessBoard({
     annotationPositionRef.current = { fen, pathKey }
 
     if (positionChanged) {
-      userArrowShapesRef.current = []
+      userDrawableShapesRef.current = []
       userSquareHighlightsRef.current = new Map()
     }
 
@@ -585,7 +583,7 @@ export default function ChessBoard({
     const canInteract = interactive || !!userPerspective
     apiRef.current.set({
       fen,
-      drawable: { shapes: userArrowShapesRef.current },
+      drawable: { shapes: userDrawableShapesRef.current },
       highlight: { custom: userSquareHighlightsRef.current },
       lastMove: lastMove ?? [],
       orientation,
