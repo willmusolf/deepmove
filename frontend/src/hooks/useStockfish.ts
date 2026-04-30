@@ -6,9 +6,9 @@
 //   branchEngine      — branch badge grading so variation evals stay responsive
 
 function getAnalysisDepth(elo: number): number {
-  if (!elo || elo < 1200) return elo ? 10 : 14
-  if (elo < 1600) return 14
-  return 18
+  if (!elo || elo < 1200) return elo ? 9 : 13
+  if (elo < 1600) return 13
+  return 17
 }
 
 import { useEffect, useRef, useState } from 'react'
@@ -173,9 +173,9 @@ export function useStockfish() {
 
     try {
       const depth = getAnalysisDepth(userElo)
-      // Depth 18 (1600+ Elo): no movetime cap — let depth constraint alone determine completion.
-      // Depth ≤14: 200ms cap keeps per-move analysis fast enough for lower-Elo players.
-      const movetime = depth <= 14 ? 200 : undefined
+      // Highest tier: no movetime cap — let depth constraint alone determine completion.
+      // Depth ≤13: 200ms cap keeps per-move analysis fast enough for lower-Elo players.
+      const movetime = depth <= 13 ? 200 : undefined
       const results = await analyzeGame(
         pgn, engine, depth,
         (_done, total) => {
