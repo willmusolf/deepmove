@@ -1,8 +1,21 @@
 diff --git a/node_modules/chessground/dist/svg.js b/node_modules/chessground/dist/svg.js
-index b38c6a0..c03ebdf 100644
+index b38c6a0..43cf8a2 100644
 --- a/node_modules/chessground/dist/svg.js
 +++ b/node_modules/chessground/dist/svg.js
-@@ -188,15 +188,15 @@ function renderArrow(s, brush, from, to, current, shorten) {
+@@ -28,12 +28,6 @@ export function renderSvg(state, shapesEl, customsEl) {
+             hash: shapeHash(s, isShort(s.dest, dests), false, bounds),
+         };
+     });
+-    if (cur)
+-        shapes.push({
+-            shape: cur,
+-            current: true,
+-            hash: shapeHash(cur, isShort(cur.dest, dests), true, bounds),
+-        });
+     const fullHash = shapes.map(sc => sc.hash).join(';');
+     if (fullHash === state.drawable.prevSvgHash)
+         return;
+@@ -188,15 +182,15 @@ function renderArrow(s, brush, from, to, current, shorten) {
      var _a;
      function renderLine(isHilite) {
          var _a;
