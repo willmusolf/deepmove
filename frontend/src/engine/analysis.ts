@@ -150,6 +150,39 @@ export function computeAccuracy(moveEvals: MoveEval[], color: 'white' | 'black')
   return Math.round(harmonic * 10) / 10
 }
 
+function terminalEvalFromFen(fen: string): EvalResult | null {
+  try {
+    const chess = new Chess(fen)
+    if (chess.isCheckmate()) {
+      const score = chess.turn() === 'w' ? -30000 : 30000
+      return {
+        fen,
+        score,
+        isMate: true,
+        mateIn: 0,
+        bestMove: '',
+        pv: [],
+        depth: 0,
+      }
+    }
+    if (chess.isDraw()) {
+      return {
+        fen,
+        score: 0,
+        isMate: false,
+        mateIn: null,
+        bestMove: '',
+        pv: [],
+        depth: 0,
+      }
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
 export async function analyzeGame(
   pgn: string,
   engine: StockfishEngine,
@@ -204,14 +237,24 @@ export async function analyzeGame(
 
     // Multi-PV(2): gives us the eval AND top-2 lines for the next move's "great" check
     const topLines = await engine.analyzePositionMultiPV(fen, depth, 2)
-    if (topLines.length === 0) {
-      // Shouldn't happen, but guard against empty results
+    const terminalEval = topLines.length === 0 ? terminalEvalFromFen(fen) : null
+    if (topLines.length === 0 && !terminalEval) {
+      // Unexpected empty engine result in a non-terminal position — preserve resumeability
       prevTopLines = topLines
       continue
     }
 
-    const scoreWhite = topLines[0].score
-    const mateInWhite = topLines[0].mateIn
+    const primaryEval = terminalEval ?? {
+      fen,
+      score: topLines[0].score,
+      isMate: topLines[0].isMate,
+      mateIn: topLines[0].mateIn,
+      bestMove: topLines[0].pv[0] ?? '',
+      pv: topLines[0].pv,
+      depth: topLines[0].depth,
+    }
+
+    const scoreWhite = primaryEval.score
 
     const sacrifice = isSacrificeFn(history[i], positions[i + 1])
 
@@ -243,15 +286,7 @@ export async function analyzeGame(
       color,
       san: move.san,
       fen,
-      eval: {
-        fen,
-        score: scoreWhite,
-        isMate: topLines[0].isMate,
-        mateIn: mateInWhite,
-        bestMove: topLines[0].pv[0] ?? '',
-        pv: topLines[0].pv,
-        depth: topLines[0].depth,
-      },
+      eval: primaryEval,
       grade,
     }
     results.push(moveEval)
