@@ -3,7 +3,6 @@ import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
 import EvalGraph from './components/Board/EvalGraph'
-import GameReport from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
 import PlayerInfoBox from './components/Board/PlayerInfoBox'
 import ImportPanel from './components/Import/ImportPanel'
@@ -47,7 +46,7 @@ const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
 // Max depth for per-position multi-PV analysis. Analysis runs continuously to this
 // depth and caches partial results at each depth — so interrupting and returning
 // resumes visually from the last reached depth.
-const POSITION_MAX_DEPTH = 28
+const POSITION_MAX_DEPTH = 27
 
 type PanelTab = "analysis" | "load" | "coach"
 
@@ -345,6 +344,8 @@ export default function App() {
       })
   }
 
+  const showAnalyzingBar = isAnalyzing || (analyzedCount < totalMovesCount && totalMovesCount > 0)
+
   useEffect(() => {
     // Always cancel in-flight analysis and pending timers first — even if the new
     // position is cached.  Without this, a deferred 180ms timer for position A can
@@ -354,6 +355,16 @@ export default function App() {
     positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
     stopPositionAnalysis()
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
+
+    // Let full-game review finish cleanly before spinning up extra per-position work.
+    // The review UI stays on the main "Analyzing..." state, then best lines resume once
+    // the background pass is done.
+    if (isLoaded && showAnalyzingBar) {
+      setCurrentPositionLines([])
+      setCurrentAnalysisDepth(0)
+      setAnalyzingPosition(false)
+      return
+    }
 
     const cached = positionCache.current.get(displayFen)
 
@@ -416,7 +427,7 @@ export default function App() {
       if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayFen])
+  }, [displayFen, isLoaded, showAnalyzingBar])
 
   // When engine becomes ready, analyze whatever position is currently displayed.
   // This is the main seed — displayFen effect skips analysis until engine is ready.
@@ -1033,7 +1044,7 @@ export default function App() {
   // ── Misc ───────────────────────────────────────────────────────────────────
 
 
-  const showAnalyzingBar = isAnalyzing || (analyzedCount < totalMovesCount && totalMovesCount > 0)
+  const hideMainLineReviewArtifacts = isLoaded && showAnalyzingBar && !inBranch
 
 
 
@@ -1117,7 +1128,9 @@ export default function App() {
                         ? (inBranch ? currentNodeId : null)
                         : (analysisPath.length > 0 ? analysisPath[analysisPath.length - 1] : null)
                       const grade = isLoaded
-                        ? (inBranch && currentNodeId ? branchGrades.get(currentNodeId) : mainEval?.grade)
+                        ? (hideMainLineReviewArtifacts
+                            ? undefined
+                            : (inBranch && currentNodeId ? branchGrades.get(currentNodeId) : mainEval?.grade))
                         : (analysisPath.length > 0
                           ? branchGrades.get(analysisPath[analysisPath.length - 1])
                           : undefined)
@@ -1130,7 +1143,7 @@ export default function App() {
                       // Show pending spinner while branch eval is in flight.
                       // Also show for main-line moves while full-game analysis is still running
                       // (mainEval?.grade not yet populated for this move index).
-                      const isMainLinePending = isLoaded && !inBranch && isAnalyzing && !mainEval?.grade && !!boardLastMove
+                      const isMainLinePending = isLoaded && !inBranch && !hideMainLineReviewArtifacts && isAnalyzing && !mainEval?.grade && !!boardLastMove
                       const isPendingOnBoard = showGrades && (
                         (boardNodeId !== null && pendingBranchNodes.has(boardNodeId)) ||
                         isMainLinePending
@@ -1390,14 +1403,6 @@ export default function App() {
                         onLineClick={handleAnalysisBestLineClick}
                       />
 
-                      {(moveEvals.length > 0 || showAnalyzingBar) && (
-                        <GameReport
-                          moveEvals={moveEvals}
-                          userColor={userColor}
-                          isAnalyzing={showAnalyzingBar}
-                        />
-                      )}
-
                       {/* Eval graph — hidden during analysis, shown after completion */}
                       {!showAnalyzingBar && moveEvals.length > 0 && (
                         <EvalGraph
@@ -1420,7 +1425,7 @@ export default function App() {
                         branchGrades={showGrades ? branchGrades : undefined}
                         pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
-                        isAnalyzing={!showGrades}
+                        isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
                       />
                     </>
@@ -1500,7 +1505,7 @@ export default function App() {
                         branchGrades={showGrades ? branchGrades : undefined}
                         pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
-                        isAnalyzing={!showGrades}
+                        isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
                       />
                     </>

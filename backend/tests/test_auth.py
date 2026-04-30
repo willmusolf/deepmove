@@ -31,6 +31,7 @@ class TestRegister:
         })
         assert resp.status_code == 200
         assert settings.refresh_cookie_name in resp.cookies
+        assert "samesite=lax" in resp.headers["set-cookie"].lower()
 
     def test_register_duplicate_email_409(self, client):
         payload = {"email": "dup@deepmove.io", "password": "password123"}
@@ -72,6 +73,20 @@ class TestRegister:
         })
         assert resp.status_code == 422
         assert "at least 8 characters" in resp.json()["detail"]
+
+    def test_register_uses_cross_site_cookie_policy_for_preview_origins(self, client, monkeypatch):
+        monkeypatch.setattr(settings, "environment", "staging")
+        monkeypatch.setattr(settings, "allowed_origin_regex", r"^https://.*-willmusolfs-projects\.vercel\.app$")
+        monkeypatch.setattr(settings, "auth_cookie_samesite", "")
+        monkeypatch.setattr(settings, "auth_cookie_secure_override", None)
+        resp = client.post("/auth/register", json={
+            "email": "previewcookie@deepmove.io",
+            "password": "password123",
+        })
+        assert resp.status_code == 200
+        set_cookie = resp.headers["set-cookie"].lower()
+        assert "samesite=none" in set_cookie
+        assert "secure" in set_cookie
 
 
 # ── Login ────────────────────────────────────────────────────────────────────

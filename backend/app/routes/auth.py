@@ -45,8 +45,8 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
         key=settings.refresh_cookie_name,
         value=token,
         httponly=True,
-        secure=settings.environment == "production",  # HTTPS only in prod
-        samesite="lax",
+        secure=settings.resolved_auth_cookie_secure,
+        samesite=settings.resolved_auth_cookie_samesite,
         max_age=settings.refresh_token_expire_days * 86400,
         path="/auth",  # Only sent to /auth/* endpoints
     )
@@ -57,9 +57,9 @@ def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(
         key=settings.refresh_cookie_name,
         path="/auth",
-        secure=settings.environment == "production",
+        secure=settings.resolved_auth_cookie_secure,
         httponly=True,
-        samesite="lax",
+        samesite=settings.resolved_auth_cookie_samesite,
     )
 
 

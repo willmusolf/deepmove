@@ -82,7 +82,10 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
+          <label className="sr-only" htmlFor="auth-email">Email</label>
           <input
+            id="auth-email"
+            name="email"
             type="email"
             placeholder="Email"
             value={email}
@@ -93,7 +96,10 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
             className="auth-input"
           />
           <div className="auth-input-wrap">
+            <label className="sr-only" htmlFor="auth-password">Password</label>
             <input
+              id="auth-password"
+              name="password"
               type={showPassword ? 'text' : 'password'}
               placeholder="Password"
               value={password}

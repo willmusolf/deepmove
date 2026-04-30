@@ -39,8 +39,10 @@ export default function ImportPanel({ onFenLoad }: ImportPanelProps) {
 
   return (
     <div className="import-panel">
-      <label className="import-label">Paste PGN</label>
+      <label className="import-label" htmlFor="import-pgn">Paste PGN</label>
       <textarea
+        id="import-pgn"
+        name="pgn"
         className="import-textarea"
         placeholder="Paste PGN here... (Enter to load)"
         value={pgnInput}
@@ -53,9 +55,11 @@ export default function ImportPanel({ onFenLoad }: ImportPanelProps) {
         Load Game
       </button>
 
-      <label className="import-label" style={{ marginTop: '0.5rem' }}>Load Position (FEN)</label>
+      <label className="import-label" htmlFor="import-fen" style={{ marginTop: '0.5rem' }}>Load Position (FEN)</label>
       <div className="fen-row">
         <input
+          id="import-fen"
+          name="fen"
           className="fen-input"
           type="text"
           placeholder="Paste FEN string..."
