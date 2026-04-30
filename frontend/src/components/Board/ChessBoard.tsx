@@ -278,7 +278,16 @@ export default function ChessBoard({
   const isDraggingRef = useRef(false)
   const pendingResizeSyncRef = useRef(false)
   const pendingAutoShapesRef = useRef<DrawShape[] | null>(null)
-  const userDrawableShapesRef = useRef<DrawShape[]>([])
+  const userArrowShapesRef = useRef<DrawShape[]>([])
+  const userSquareHighlightsRef = useRef<Map<Key, string>>(new Map())
+  const annotationPositionRef = useRef({ fen, pathKey })
+
+  const syncManualAnnotations = useCallback(() => {
+    apiRef.current?.set({
+      drawable: { shapes: userArrowShapesRef.current },
+      highlight: { custom: userSquareHighlightsRef.current },
+    })
+  }, [])
 
   const syncOverlayMetrics = useCallback(() => {
     const api = apiRef.current
@@ -473,7 +482,8 @@ export default function ChessBoard({
               onIllegalMove?.()
               apiRef.current?.set({
                 fen: currentFen,
-                drawable: { shapes: userDrawableShapesRef.current },
+                drawable: { shapes: [] },
+                highlight: { custom: new Map() },
                 turnColor: getTurnColor(currentFen),
                 movable: {
                   color: interactiveRef.current ? getTurnColor(currentFen) : undefined,
@@ -522,7 +532,17 @@ export default function ChessBoard({
           okMove:   { key: 'okMove',   color: '#15781B', opacity: 0.50, lineWidth: 3.5 },
         },
         onChange: nextShapes => {
-          userDrawableShapesRef.current = nextShapes
+          const nextSquareHighlights = new Map<Key, string>()
+          const nextArrowShapes = nextShapes.filter(shape => {
+            if (!shape.dest) {
+              nextSquareHighlights.set(shape.orig as Key, 'manual-red')
+              return false
+            }
+            return true
+          })
+          userArrowShapesRef.current = nextArrowShapes
+          userSquareHighlightsRef.current = nextSquareHighlights
+          syncManualAnnotations()
         },
       },
     }
@@ -545,6 +565,16 @@ export default function ChessBoard({
     fenRef.current = fen
     if (!apiRef.current) return
 
+    const positionChanged =
+      annotationPositionRef.current.fen !== fen ||
+      annotationPositionRef.current.pathKey !== pathKey
+    annotationPositionRef.current = { fen, pathKey }
+
+    if (positionChanged) {
+      userArrowShapesRef.current = []
+      userSquareHighlightsRef.current = new Map()
+    }
+
     const pathKeyChanged = prevPathKeyRef.current !== pathKey
     prevPathKeyRef.current = pathKey
 
@@ -555,7 +585,8 @@ export default function ChessBoard({
     const canInteract = interactive || !!userPerspective
     apiRef.current.set({
       fen,
-      drawable: { shapes: userDrawableShapesRef.current },
+      drawable: { shapes: userArrowShapesRef.current },
+      highlight: { custom: userSquareHighlightsRef.current },
       lastMove: lastMove ?? [],
       orientation,
       check: forceCheck ?? checkColor,
@@ -736,7 +767,8 @@ export default function ChessBoard({
       // Snap back on failure
       apiRef.current?.set({
         fen: currentFen,
-        drawable: { shapes: userDrawableShapesRef.current },
+        drawable: { shapes: [] },
+        highlight: { custom: new Map() },
         turnColor: getTurnColor(currentFen),
         movable: {
           color: interactiveRef.current ? getTurnColor(currentFen) : undefined,
