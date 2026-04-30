@@ -509,10 +509,12 @@ export default function ChessBoard({
         shapes: [],
         autoShapes: [],
         brushes: {
-          green:    { key: 'green',    color: '#15781B', opacity: 0.8,  lineWidth: 10 },
-          red:      { key: 'red',      color: '#882020', opacity: 0.8,  lineWidth: 10 },
+          // Chessground's default right-drag brush is "green"; tint it yellow so
+          // user-drawn arrows are distinct from the green engine suggestion arrows.
+          green:    { key: 'green',    color: '#f1c232', opacity: 0.86, lineWidth: 10 },
+          red:      { key: 'red',      color: '#d64545', opacity: 0.84, lineWidth: 10 },
           blue:     { key: 'blue',     color: '#003088', opacity: 0.8,  lineWidth: 10 },
-          yellow:   { key: 'yellow',   color: '#e68f00', opacity: 0.8,  lineWidth: 10 },
+          yellow:   { key: 'yellow',   color: '#f1c232', opacity: 0.86, lineWidth: 10 },
           bestMove: { key: 'bestMove', color: '#15781B', opacity: 0.95, lineWidth: 10 },
           goodMove: { key: 'goodMove', color: '#15781B', opacity: 0.70, lineWidth: 6 },
           okMove:   { key: 'okMove',   color: '#15781B', opacity: 0.50, lineWidth: 3.5 },
