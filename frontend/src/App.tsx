@@ -291,6 +291,7 @@ export default function App() {
   // Also runs in free-play mode when pieces are pushed on the board.
   // Results cached by FEN so revisiting a position is instant.
   const positionTokenRef = useRef(0)
+  const activePositionFenRef = useRef<string | null>(null)
   // Key-hold detection: track timestamp of last nav event (arrow key only — not piece moves)
   const lastNavTimeRef = useRef(0)
   const navHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -302,6 +303,11 @@ export default function App() {
     // Do NOT call stopPositionAnalysis() here — it would send a second 'stop' command
     // to the worker, which races with the new analysis dispatch and kills it at low depth.
 
+    // Ignore duplicate requests for the exact same position while it is already
+    // being analyzed. This keeps the visible depth climbing instead of resetting
+    // when unrelated UI state changes re-trigger the seed path.
+    if (activePositionFenRef.current === fen && isAnalyzingPosition) return
+
     // Cap multi-PV to legal move count (avoids duplicate arrows on forced moves)
     let numLines = 2
     try {
@@ -309,6 +315,7 @@ export default function App() {
       const legalMoveCount = chess.moves().length
       if (legalMoveCount === 0) {
         // Terminal position (checkmate/stalemate) — nothing to analyze
+        activePositionFenRef.current = null
         setCurrentPositionLines([])
         setAnalyzingPosition(false)
         return
@@ -317,6 +324,7 @@ export default function App() {
     } catch { /* invalid FEN — fall through with default 2 */ }
 
     const token = ++positionTokenRef.current
+    activePositionFenRef.current = fen
     setAnalyzingPosition(true)
     // Snapshot cached depth at the start of this analysis run.
     // onUpdate skips any depth ≤ resumeFromDepth so the counter never goes backward:
@@ -336,10 +344,12 @@ export default function App() {
         if (lines.length > 0) positionCache.current.set(fen, lines)
         setCurrentPositionLines(lines)
         setCurrentAnalysisDepth(lines[0]?.depth ?? 0)
+        activePositionFenRef.current = null
         setAnalyzingPosition(false)
       })
       .catch(() => {
         if (positionTokenRef.current !== token) return
+        activePositionFenRef.current = null
         setAnalyzingPosition(false)
       })
   }
@@ -353,6 +363,7 @@ export default function App() {
     // triggerPositionAnalysis(fenA) which then hits the cache and sets stale arrows
     // without any token check.
     positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
+    activePositionFenRef.current = null
     stopPositionAnalysis()
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
 
@@ -417,7 +428,7 @@ export default function App() {
       if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayFen, isLoaded, showAnalyzingBar])
+  }, [displayFen, isLoaded, isReady])
 
   // When engine becomes ready, analyze whatever position is currently displayed.
   // This is the main seed — displayFen effect skips analysis until engine is ready.
@@ -513,16 +524,6 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentGameId])
-
-  // When game analysis finishes, auto-trigger position analysis so BestLines appear immediately.
-  const wasAnalyzingRef = useRef(false)
-  useEffect(() => {
-    if (wasAnalyzingRef.current && !isAnalyzing && isLoaded && isReady) {
-      triggerPositionAnalysis(displayFen)
-    }
-    wasAnalyzingRef.current = isAnalyzing
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAnalyzing])
 
   const [orientation, setOrientation] = useState<'white' | 'black'>(
     savedUiState?.orientation ?? savedReviewColor ?? 'white'
@@ -737,6 +738,7 @@ export default function App() {
   function handleNewGame() {
     cancelGameAnalysis()
     positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
+    activePositionFenRef.current = null
     stopPositionAnalysis()
     positionTokenRef.current++
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
@@ -767,6 +769,7 @@ export default function App() {
     cancelGameAnalysis()
     stopBranchAnalysis()
     positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
+    activePositionFenRef.current = null
     stopPositionAnalysis()
     positionTokenRef.current++
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
