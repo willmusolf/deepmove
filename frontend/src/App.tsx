@@ -356,17 +356,17 @@ export default function App() {
     stopPositionAnalysis()
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
 
+    const cached = positionCache.current.get(displayFen)
+
     // Let full-game review finish cleanly before spinning up extra per-position work.
-    // The review UI stays on the main "Analyzing..." state, then best lines resume once
-    // the background pass is done.
+    // Keep the best-lines panel present during analysis: show cached lines if we have
+    // them, otherwise fall back to the skeleton state instead of collapsing the panel.
     if (isLoaded && showAnalyzingBar) {
-      setCurrentPositionLines([])
-      setCurrentAnalysisDepth(0)
-      setAnalyzingPosition(false)
+      setCurrentPositionLines(cached ?? [])
+      setCurrentAnalysisDepth(cached?.[0]?.depth ?? 0)
+      setAnalyzingPosition(true)
       return
     }
-
-    const cached = positionCache.current.get(displayFen)
 
     // Always show any cached result immediately (partial or full depth)
     if (cached && cached.length > 0) {
