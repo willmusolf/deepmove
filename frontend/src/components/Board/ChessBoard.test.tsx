@@ -228,6 +228,7 @@ describe('ChessBoard component', () => {
     act(() => {
       latestConfig?.drawable?.onChange?.([
         { orig: 'e4', brush: 'green' },
+        { orig: 'd5', brush: 'green' },
         { orig: 'c3', dest: 'g7', brush: 'green' },
       ])
     })
@@ -242,8 +243,8 @@ describe('ChessBoard component', () => {
 
     expect(setApi).toHaveBeenCalledWith(expect.objectContaining({
       fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-      drawable: { shapes: [{ orig: 'c3', dest: 'g7', brush: 'green' }] },
-      highlight: { custom: new Map([['e4', 'manual-red']]) },
+      drawable: { shapes: [{ orig: 'e4', brush: 'green' }, { orig: 'd5', brush: 'green' }, { orig: 'c3', dest: 'g7', brush: 'green' }] },
+      highlight: { custom: new Map([['e4', 'manual-red'], ['d5', 'manual-red']]) },
     }))
 
     window.requestAnimationFrame = originalRaf
@@ -264,6 +265,7 @@ describe('ChessBoard component', () => {
     act(() => {
       latestConfig?.drawable?.onChange?.([
         { orig: 'e4', brush: 'green' },
+        { orig: 'd5', brush: 'green' },
         { orig: 'c3', dest: 'g7', brush: 'green' },
       ])
     })
@@ -278,6 +280,35 @@ describe('ChessBoard component', () => {
       drawable: { shapes: [] },
       highlight: { custom: new Map() },
     }))
+
+    window.requestAnimationFrame = originalRaf
+  })
+
+  it('lets individual red squares toggle off without clearing the others', () => {
+    const originalRaf = window.requestAnimationFrame
+    window.requestAnimationFrame = vi.fn((cb: FrameRequestCallback) => {
+      cb(0)
+      return 1
+    })
+
+    render(<ChessBoard />)
+
+    act(() => {
+      latestConfig?.drawable?.onChange?.([
+        { orig: 'e4', brush: 'green' },
+        { orig: 'd5', brush: 'green' },
+      ])
+    })
+
+    setApi.mockClear()
+    act(() => {
+      latestConfig?.drawable?.onChange?.([{ orig: 'd5', brush: 'green' }])
+    })
+
+    expect(setApi).toHaveBeenCalledWith({
+      drawable: { shapes: [{ orig: 'd5', brush: 'green' }] },
+      highlight: { custom: new Map([['d5', 'manual-red']]) },
+    })
 
     window.requestAnimationFrame = originalRaf
   })
