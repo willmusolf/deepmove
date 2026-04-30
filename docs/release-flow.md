@@ -58,9 +58,12 @@ Suggested staging values:
 
 - `ALLOWED_ORIGINS=https://staging.deepmove.io`
 - `ALLOWED_ORIGIN_REGEX=^https://.*-willmusolfs-projects\.vercel\.app$`
+- `AUTH_COOKIE_SAMESITE=none`
+- `AUTH_COOKIE_SECURE=true`
 
 Adjust the regex if your Vercel preview host pattern changes.
 In dashboard text fields, use single backslashes as shown above. Do not paste doubled source-code escapes like `\\.`.
+Those cookie settings matter because preview frontends on `*.vercel.app` are cross-site to `staging-api.deepmove.io`, while production `deepmove.io` and `api.deepmove.io` are same-site.
 
 For production, keep using exact origins only.
 

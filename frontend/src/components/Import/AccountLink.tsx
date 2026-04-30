@@ -218,7 +218,12 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
           className={`account-link-input-wrap${confirmed ? ' account-link-input-wrap--crowned' : ''}`}
           ref={wrapRef}
         >
+          <label className="sr-only" htmlFor={`${platform}-account-link-input`}>
+            {platform === 'chesscom' ? 'Chess.com username' : 'Lichess username'}
+          </label>
           <input
+            id={`${platform}-account-link-input`}
+            name={`${platform}_username`}
             className="account-link-input"
             type="text"
             placeholder={placeholder}

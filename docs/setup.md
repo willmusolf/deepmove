@@ -129,6 +129,17 @@ Frontend (`Vercel` preview):
 
 - `VITE_API_URL=https://staging-api.deepmove.io`
 
+Backend (`Render` staging):
+
+- `ENVIRONMENT=staging`
+- `DATABASE_URL=<staging Neon pooled URL>`
+- `SECRET_KEY=<32+ random bytes hex>`
+- `ANTHROPIC_API_KEY=<Anthropic key>`
+- `ALLOWED_ORIGINS=https://staging.deepmove.io`
+- `ALLOWED_ORIGIN_REGEX=^https://.*-willmusolfs-projects\.vercel\.app$`
+- `AUTH_COOKIE_SAMESITE=none`
+- `AUTH_COOKIE_SECURE=true`
+
 ### Release flow
 
 Use the documented staging → production process in [docs/release-runbook.md](./release-runbook.md).

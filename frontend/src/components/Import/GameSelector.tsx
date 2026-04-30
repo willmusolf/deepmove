@@ -401,7 +401,10 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
         </button>
       )}
 
+        <label className="sr-only" htmlFor="game-sort-select">Sort games</label>
         <select
+          id="game-sort-select"
+          name="sort_games"
           className="game-sort-select"
           value={sortKey}
           onChange={e => setSortKey(e.target.value as SortKey)}
@@ -417,7 +420,10 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
 
     <div className="game-filter-bar">
       <div className="game-opponent-row">
+        <label className="sr-only" htmlFor="game-opponent-search">Filter by opponent</label>
         <input
+          id="game-opponent-search"
+          name="opponent_search"
           className="game-opponent-search"
           type="text"
           placeholder="vs opponent…"

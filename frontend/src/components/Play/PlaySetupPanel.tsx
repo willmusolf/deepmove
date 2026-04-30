@@ -54,12 +54,14 @@ export default function PlaySetupPanel({ initialOrientation, onStart, engineRead
       <h2 className="play-setup-title">Play vs Bot</h2>
 
       <div className="play-setup-section">
-        <label className="play-setup-label">Bot Strength</label>
+        <label className="play-setup-label" htmlFor="play-bot-strength">Bot Strength</label>
         <div className="play-setup-elo-display">
           <span className="play-setup-elo-number">{botElo}</span>
           <span className="play-setup-elo-label">— {getEloLabel(botElo)}</span>
         </div>
         <input
+          id="play-bot-strength"
+          name="bot_strength"
           type="range"
           min={500}
           max={3000}
