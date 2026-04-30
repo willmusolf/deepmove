@@ -213,7 +213,7 @@ describe('ChessBoard component', () => {
     window.requestAnimationFrame = originalRaf
   })
 
-  it('preserves right-click drawable shapes across fen updates', () => {
+  it('preserves right-click annotations across non-positional rerenders', () => {
     const originalRaf = window.requestAnimationFrame
     window.requestAnimationFrame = vi.fn((cb: FrameRequestCallback) => {
       cb(0)
@@ -226,7 +226,46 @@ describe('ChessBoard component', () => {
     )
 
     act(() => {
-      latestConfig?.drawable?.onChange?.([{ orig: 'e4', brush: 'green' }])
+      latestConfig?.drawable?.onChange?.([
+        { orig: 'e4', brush: 'green' },
+        { orig: 'c3', dest: 'g7', brush: 'green' },
+      ])
+    })
+
+    setApi.mockClear()
+    rerender(
+      <ChessBoard
+        fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        shapes={[{ orig: 'e2', dest: 'e4', brush: 'bestMove' }]}
+      />,
+    )
+
+    expect(setApi).toHaveBeenCalledWith(expect.objectContaining({
+      fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      drawable: { shapes: [{ orig: 'c3', dest: 'g7', brush: 'green' }] },
+      highlight: { custom: new Map([['e4', 'manual-red']]) },
+    }))
+
+    window.requestAnimationFrame = originalRaf
+  })
+
+  it('clears right-click annotations when the position changes', () => {
+    const originalRaf = window.requestAnimationFrame
+    window.requestAnimationFrame = vi.fn((cb: FrameRequestCallback) => {
+      cb(0)
+      return 1
+    })
+
+    setApi.mockClear()
+    const { rerender } = render(
+      <ChessBoard fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" />,
+    )
+
+    act(() => {
+      latestConfig?.drawable?.onChange?.([
+        { orig: 'e4', brush: 'green' },
+        { orig: 'c3', dest: 'g7', brush: 'green' },
+      ])
     })
 
     setApi.mockClear()
@@ -236,7 +275,8 @@ describe('ChessBoard component', () => {
 
     expect(setApi).toHaveBeenCalledWith(expect.objectContaining({
       fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1',
-      drawable: { shapes: [{ orig: 'e4', brush: 'green' }] },
+      drawable: { shapes: [] },
+      highlight: { custom: new Map() },
     }))
 
     window.requestAnimationFrame = originalRaf

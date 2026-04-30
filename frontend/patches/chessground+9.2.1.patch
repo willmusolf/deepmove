@@ -1,34 +1,8 @@
 diff --git a/node_modules/chessground/dist/svg.js b/node_modules/chessground/dist/svg.js
-index b38c6a0..37158d3 100644
+index b38c6a0..c03ebdf 100644
 --- a/node_modules/chessground/dist/svg.js
 +++ b/node_modules/chessground/dist/svg.js
-@@ -149,6 +149,8 @@ function renderShape(state, { shape, current, hash }, brushes, dests, bounds) {
-         svgs.push({ el });
-         if (from[0] !== to[0] || from[1] !== to[1])
-             el.appendChild(renderArrow(shape, brush, from, to, current, isShort(shape.dest, dests)));
-+        else if (shape.brush === 'green')
-+            el.appendChild(renderSquare(brushes.red, from, current));
-         else
-             el.appendChild(renderCircle(brushes[shape.brush], from, current, bounds));
-     }
-@@ -179,6 +181,16 @@ function renderCircle(brush, at, current, bounds) {
-         r: radius - widths[1] / 2,
-     });
- }
-+function renderSquare(brush, at, current) {
-+    return setAttributes(createElement('rect'), {
-+        x: at[0] - 0.5,
-+        y: at[1] - 0.5,
-+        width: 1,
-+        height: 1,
-+        fill: brush.color,
-+        'fill-opacity': 0.48,
-+    });
-+}
- function hilite(brush) {
-     return ['#ffffff', '#fff', 'white'].includes(brush.color)
-         ? hilites['hilitePrimary']
-@@ -188,15 +200,15 @@ function renderArrow(s, brush, from, to, current, shorten) {
+@@ -188,15 +188,15 @@ function renderArrow(s, brush, from, to, current, shorten) {
      var _a;
      function renderLine(isHilite) {
          var _a;
