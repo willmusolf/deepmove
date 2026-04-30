@@ -224,6 +224,17 @@ describe('ChessBoard component', () => {
       cb(0)
       return 1
     })
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 320,
+      bottom: 320,
+      width: 320,
+      height: 320,
+      toJSON: () => ({}),
+    } as DOMRect)
 
     setApi.mockClear()
     const { rerender } = render(
@@ -246,12 +257,15 @@ describe('ChessBoard component', () => {
       />,
     )
 
-    expect(setApi).toHaveBeenCalledWith(expect.objectContaining({
-      fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-      drawable: { shapes: [{ orig: 'e4', brush: 'green' }, { orig: 'd5', brush: 'green' }, { orig: 'c3', dest: 'g7', brush: 'green' }] },
-      highlight: { custom: new Map([['e4', 'manual-red'], ['d5', 'manual-red']]) },
+    expect(setApi).toHaveBeenCalledWith({
+      drawable: { autoShapes: [{ orig: 'e2', dest: 'e4', brush: 'bestMove' }] },
+    })
+    expect(setApi).not.toHaveBeenCalledWith(expect.objectContaining({
+      drawable: { shapes: [] },
+      highlight: { custom: new Map() },
     }))
 
+    rectSpy.mockRestore()
     window.requestAnimationFrame = originalRaf
   })
 
