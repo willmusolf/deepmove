@@ -102,6 +102,7 @@ export function useStockfish() {
     const initialEvals = startFromIndex > 0 ? useGameStore.getState().moveEvals : []
     // Reset resumeFromIndex so a subsequent fresh analysis doesn't accidentally resume
     useGameStore.getState().setResumeFromIndex(0)
+    let parsedTotalMoves = 0
 
     // Early exit: if startFromIndex covers all moves in the game, no analysis work remains.
     // Without this guard, a 2nd+ page refresh calls runAnalysis, sets isAnalyzing=true
@@ -110,15 +111,16 @@ export function useStockfish() {
     try {
       const tempChess = new Chess()
       tempChess.loadPgn(cleanPgn(pgn))
-      if (startFromIndex >= tempChess.history().length && initialEvals.length > 0) {
+      parsedTotalMoves = tempChess.history().length
+      if (startFromIndex >= parsedTotalMoves && initialEvals.length > 0) {
         useGameStore.getState().setSkipNextAnalysis(true)
         return
       }
     } catch { /* invalid PGN — fall through to normal analysis path */ }
 
     setAnalyzing(true)
-    setAnalyzedCount(0)
-    setTotalMovesCount(0)
+    setAnalyzedCount(startFromIndex)
+    setTotalMovesCount(parsedTotalMoves)
 
     if (startFromIndex === 0) {
       setMoveEvals([])
@@ -180,7 +182,7 @@ export function useStockfish() {
         pgn, engine, depth,
         (_done, total) => {
           if (!isCurrentRun()) return
-          if (accumulatedEvals.length === startFromIndex) setTotalMovesCount(total)
+          setTotalMovesCount(total)
         },
         controller.signal, movetime,
         onMoveComplete,

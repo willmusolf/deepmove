@@ -1,4 +1,5 @@
 import { useEffect, useRef, useMemo, useState, useCallback } from 'react'
+import { Chess } from 'chess.js'
 import { loadMoreGames, type ChessComGame } from '../../api/chesscom'
 import { loadMoreLichessGames, searchGamesByOpponent, type LichessGame } from '../../api/lichess'
 import type { PaginationState } from './AccountLink'
@@ -56,6 +57,16 @@ function normalizeFromCache(record: AnalyzedGameRecord): NormalizedGame {
     gameId: record.id,
     endTime: record.endTime,
     isCachedOnly: true,
+  }
+}
+
+function getPgnMoveCount(pgn: string): number {
+  try {
+    const chess = new Chess()
+    chess.loadPgn(cleanPgn(pgn))
+    return chess.history().length
+  } catch {
+    return 0
   }
 }
 
@@ -262,18 +273,23 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     setPlatform(platform)
 
     if (cached) {
+      const totalMoves = getPgnMoveCount(cached.cleanedPgn || cached.rawPgn)
+      const isComplete = totalMoves > 0
+        ? cached.moveEvals.length >= totalMoves
+        : cached.partial !== true
+
       setBackendGameId(cached.backendGameId ?? null)
       setRawPgn(cached.rawPgn)
       setLoadedPgn(cached.rawPgn)
       setPgn(cached.cleanedPgn)
       setMoveEvals(cached.moveEvals)
-      if (cached.partial) {
+      setCriticalMoments(cached.criticalMoments)
+      if (!isComplete) {
         // Partial analysis: restore evals, then let analysis resume from where it left off
         setResumeFromIndex(cached.moveEvals.length)
         setSkipNextAnalysis(false)
       } else {
         // Complete analysis: skip Stockfish entirely
-        setCriticalMoments(cached.criticalMoments)
         setSkipNextAnalysis(true)
       }
       onGameLoaded()

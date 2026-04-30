@@ -356,16 +356,6 @@ export default function App() {
     stopPositionAnalysis()
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
 
-    // Let full-game review finish cleanly before spinning up extra per-position work.
-    // The review UI stays on the main "Analyzing..." state, then best lines resume once
-    // the background pass is done.
-    if (isLoaded && showAnalyzingBar) {
-      setCurrentPositionLines([])
-      setCurrentAnalysisDepth(0)
-      setAnalyzingPosition(false)
-      return
-    }
-
     const cached = positionCache.current.get(displayFen)
 
     // Always show any cached result immediately (partial or full depth)
@@ -606,7 +596,8 @@ export default function App() {
     // Clear any arrows that were showing in free-play mode so they don't flash
     // on the first position of the newly loaded game.
     setCurrentPositionLines([])
-    setAnalyzingPosition(false)
+    setCurrentAnalysisDepth(0)
+    setAnalyzingPosition(isReady)
     setPanelTab('analysis')
     analysisBoardReset()
     setBranchGrades(new Map())
@@ -615,8 +606,11 @@ export default function App() {
     // Re-seed best-lines when the loaded game changes, even if the displayed FEN
     // stays identical (for example move 0 in consecutive standard games).
     handleBeforeGameLoad()
-    if (isReady) triggerPositionAnalysis(displayFen)
-  }, [loadedGameKey]) // eslint-disable-line react-hooks/exhaustive-deps
+    const t = setTimeout(() => {
+      if (isReady) triggerPositionAnalysis(displayFen)
+    }, 0)
+    return () => clearTimeout(t)
+  }, [loadedGameKey, isReady]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isLoaded) return
@@ -1377,22 +1371,19 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Eval display — hidden during game analysis */}
-                      {(!showAnalyzingBar || atStartOnMainLine) && (
-                        <div className="eval-display">
-                          <span className="eval-display-value">
-                            {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
-                          </span>
-                          {currentAnalysisDepth > 0 ? (
-                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
-                          ) : isAnalyzingPosition ? (
-                            <span className="eval-display-depth">analyzing…</span>
-                          ) : mainEval && !inBranch ? (
-                            <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
-                          ) : null}
+                      <div className="eval-display">
+                        <span className="eval-display-value">
+                          {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
+                        </span>
+                        {currentAnalysisDepth > 0 ? (
+                          <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
+                        ) : isAnalyzingPosition ? (
+                          <span className="eval-display-depth">analyzing…</span>
+                        ) : mainEval && !inBranch ? (
+                          <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
+                        ) : null}
 
-                        </div>
-                      )}
+                      </div>
 
 
                       {/* Keep best lines visible while full-game analysis runs so move switches
