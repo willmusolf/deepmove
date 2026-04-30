@@ -1,5 +1,5 @@
 diff --git a/node_modules/chessground/dist/svg.js b/node_modules/chessground/dist/svg.js
-index b38c6a0..4fce1f5 100644
+index b38c6a0..37158d3 100644
 --- a/node_modules/chessground/dist/svg.js
 +++ b/node_modules/chessground/dist/svg.js
 @@ -149,6 +149,8 @@ function renderShape(state, { shape, current, hash }, brushes, dests, bounds) {
@@ -22,7 +22,7 @@ index b38c6a0..4fce1f5 100644
 +        width: 1,
 +        height: 1,
 +        fill: brush.color,
-+        'fill-opacity': 0.4,
++        'fill-opacity': 0.48,
 +    });
 +}
  function hilite(brush) {
