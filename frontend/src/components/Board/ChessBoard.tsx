@@ -278,6 +278,16 @@ export default function ChessBoard({
   const isDraggingRef = useRef(false)
   const pendingResizeSyncRef = useRef(false)
   const pendingAutoShapesRef = useRef<DrawShape[] | null>(null)
+  const userDrawableShapesRef = useRef<DrawShape[]>([])
+  const userSquareHighlightsRef = useRef<Map<Key, string>>(new Map())
+  const annotationPositionRef = useRef({ fen, pathKey })
+
+  const syncManualAnnotations = useCallback(() => {
+    apiRef.current?.set({
+      drawable: { shapes: userDrawableShapesRef.current },
+      highlight: { custom: userSquareHighlightsRef.current },
+    })
+  }, [])
 
   const syncOverlayMetrics = useCallback(() => {
     const api = apiRef.current
@@ -472,6 +482,8 @@ export default function ChessBoard({
               onIllegalMove?.()
               apiRef.current?.set({
                 fen: currentFen,
+                drawable: { shapes: [] },
+                highlight: { custom: new Map() },
                 turnColor: getTurnColor(currentFen),
                 movable: {
                   color: interactiveRef.current ? getTurnColor(currentFen) : undefined,
@@ -504,18 +516,31 @@ export default function ChessBoard({
       drawable: {
         enabled: true,
         visible: true,
-        defaultSnapToValidMove: true,
-        eraseOnClick: false,
+        defaultSnapToValidMove: false,
+        eraseOnClick: true,
         shapes: [],
         autoShapes: [],
         brushes: {
-          green:    { key: 'green',    color: '#15781B', opacity: 0.8,  lineWidth: 10 },
-          red:      { key: 'red',      color: '#882020', opacity: 0.8,  lineWidth: 10 },
+          // Chessground's default right-drag brush is "green"; tint it yellow so
+          // user-drawn arrows are distinct from the green engine suggestion arrows.
+          green:    { key: 'green',    color: '#efc11a', opacity: 0.92, lineWidth: 10 },
+          red:      { key: 'red',      color: '#a63232', opacity: 0.9,  lineWidth: 10 },
           blue:     { key: 'blue',     color: '#003088', opacity: 0.8,  lineWidth: 10 },
-          yellow:   { key: 'yellow',   color: '#e68f00', opacity: 0.8,  lineWidth: 10 },
+          yellow:   { key: 'yellow',   color: '#efc11a', opacity: 0.92, lineWidth: 10 },
           bestMove: { key: 'bestMove', color: '#15781B', opacity: 0.95, lineWidth: 10 },
           goodMove: { key: 'goodMove', color: '#15781B', opacity: 0.70, lineWidth: 6 },
           okMove:   { key: 'okMove',   color: '#15781B', opacity: 0.50, lineWidth: 3.5 },
+        },
+        onChange: nextShapes => {
+          const nextSquareHighlights = new Map<Key, string>()
+          nextShapes.forEach(shape => {
+            if (!shape.dest) {
+              nextSquareHighlights.set(shape.orig as Key, 'manual-red')
+            }
+          })
+          userDrawableShapesRef.current = nextShapes
+          userSquareHighlightsRef.current = nextSquareHighlights
+          syncManualAnnotations()
         },
       },
     }
@@ -538,6 +563,16 @@ export default function ChessBoard({
     fenRef.current = fen
     if (!apiRef.current) return
 
+    const positionChanged =
+      annotationPositionRef.current.fen !== fen ||
+      annotationPositionRef.current.pathKey !== pathKey
+    annotationPositionRef.current = { fen, pathKey }
+
+    if (positionChanged) {
+      userDrawableShapesRef.current = []
+      userSquareHighlightsRef.current = new Map()
+    }
+
     const pathKeyChanged = prevPathKeyRef.current !== pathKey
     prevPathKeyRef.current = pathKey
 
@@ -548,6 +583,8 @@ export default function ChessBoard({
     const canInteract = interactive || !!userPerspective
     apiRef.current.set({
       fen,
+      drawable: { shapes: userDrawableShapesRef.current },
+      highlight: { custom: userSquareHighlightsRef.current },
       lastMove: lastMove ?? [],
       orientation,
       check: forceCheck ?? checkColor,
@@ -728,6 +765,8 @@ export default function ChessBoard({
       // Snap back on failure
       apiRef.current?.set({
         fen: currentFen,
+        drawable: { shapes: [] },
+        highlight: { custom: new Map() },
         turnColor: getTurnColor(currentFen),
         movable: {
           color: interactiveRef.current ? getTurnColor(currentFen) : undefined,

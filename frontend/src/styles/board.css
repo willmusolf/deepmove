@@ -29,8 +29,12 @@ cg-board square.check {
 /* Mobile/touch interaction needs a stronger selected-square cue because the
    finger hides the dragged or tapped piece. */
 cg-board square.last-move {
-  background: rgba(224, 194, 96, 0.34) !important;
-  box-shadow: inset 0 0 0 1px rgba(255, 244, 196, 0.26);
+  background: rgba(246, 228, 87, 0.54) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 245, 166, 0.38);
+}
+
+cg-board square.manual-red {
+  background: rgba(214, 58, 58, 0.62) !important;
 }
 
 cg-board square.selected {
