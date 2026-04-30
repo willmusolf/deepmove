@@ -516,7 +516,7 @@ export default function ChessBoard({
       drawable: {
         enabled: true,
         visible: true,
-        defaultSnapToValidMove: true,
+        defaultSnapToValidMove: false,
         eraseOnClick: true,
         shapes: [],
         autoShapes: [],

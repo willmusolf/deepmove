@@ -185,6 +185,11 @@ describe('ChessBoard component', () => {
     expect(board).toBeInTheDocument()
   })
 
+  it('does not snap manual arrows to valid chess moves', () => {
+    render(<ChessBoard />)
+    expect(latestConfig?.drawable?.defaultSnapToValidMove).toBe(false)
+  })
+
   it('redraws the board when ResizeObserver reports a new size', () => {
     let resizeCallback: ResizeObserverCallback | null = null
     ;(globalThis as any).ResizeObserver = class ResizeObserver {
