@@ -193,8 +193,15 @@ export function useStockfish() {
       if (controller.signal.aborted || !isCurrentRun()) return
 
       setMoveEvals(results)
-      // Mark analysis as complete so page refresh skips re-analysis
-      useGameStore.getState().setSkipNextAnalysis(true)
+      const isComplete = parsedTotalMoves === 0 || results.length >= parsedTotalMoves
+      if (isComplete) {
+        // Mark analysis as complete so page refresh skips re-analysis
+        useGameStore.getState().setSkipNextAnalysis(true)
+      } else {
+        // Preserve resumability if the engine exits before every move is evaluated.
+        useGameStore.getState().setResumeFromIndex(results.length)
+        useGameStore.getState().setSkipNextAnalysis(false)
+      }
       const moments = detectCriticalMoments(results, color, userElo)
       setCriticalMoments(moments)
 
@@ -203,11 +210,11 @@ export function useStockfish() {
       if (state.currentGameId && state.currentGameMeta) {
         const gameRecord = buildRecord(results, false, moments)
         if (gameRecord) {
-          saveAnalyzedGame(gameRecord).catch(err => console.error('Failed to save game to IndexedDB:', err))
+          saveAnalyzedGame({ ...gameRecord, partial: !isComplete }).catch(err => console.error('Failed to save game to IndexedDB:', err))
 
           // Push to backend if user is authenticated
           const accessToken = useAuthStore.getState().accessToken
-          if (accessToken && !state.backendGameId) {
+          if (isComplete && accessToken && !state.backendGameId) {
             pushGame(gameRecord)
               .then(backendId => {
                 if (backendId !== null) {
