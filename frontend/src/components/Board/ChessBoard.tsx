@@ -274,6 +274,11 @@ export default function ChessBoard({
   const userPerspectiveRef = useRef(userPerspective)
   const prevPathKeyRef = useRef(pathKey)
   const sizeRef = useRef({ width: 0, height: 0 })
+  const isPinchZoomingRef = useRef(false)
+  const isDraggingRef = useRef(false)
+  const pendingResizeSyncRef = useRef(false)
+  const pendingAutoShapesRef = useRef<DrawShape[] | null>(null)
+  const userDrawableShapesRef = useRef<DrawShape[]>([])
 
   const syncOverlayMetrics = useCallback(() => {
     const api = apiRef.current
@@ -435,6 +440,7 @@ export default function ChessBoard({
               onIllegalMove?.()
               apiRef.current?.set({
                 fen: currentFen,
+                drawable: { shapes: userDrawableShapesRef.current },
                 turnColor: getTurnColor(currentFen),
                 movable: {
                   color: interactiveRef.current ? getTurnColor(currentFen) : undefined,
@@ -475,12 +481,15 @@ export default function ChessBoard({
           // Chessground's default right-drag brush is "green"; tint it yellow so
           // user-drawn arrows are distinct from the green engine suggestion arrows.
           green:    { key: 'green',    color: '#efc11a', opacity: 0.92, lineWidth: 10 },
-          red:      { key: 'red',      color: '#d64545', opacity: 0.84, lineWidth: 10 },
+          red:      { key: 'red',      color: '#a63232', opacity: 0.9,  lineWidth: 10 },
           blue:     { key: 'blue',     color: '#003088', opacity: 0.8,  lineWidth: 10 },
           yellow:   { key: 'yellow',   color: '#efc11a', opacity: 0.92, lineWidth: 10 },
           bestMove: { key: 'bestMove', color: '#15781B', opacity: 0.95, lineWidth: 10 },
           goodMove: { key: 'goodMove', color: '#15781B', opacity: 0.70, lineWidth: 6 },
           okMove:   { key: 'okMove',   color: '#15781B', opacity: 0.50, lineWidth: 3.5 },
+        },
+        onChange: nextShapes => {
+          userDrawableShapesRef.current = nextShapes
         },
       },
     }
@@ -513,6 +522,7 @@ export default function ChessBoard({
     const canInteract = interactive || !!userPerspective
     apiRef.current.set({
       fen,
+      drawable: { shapes: userDrawableShapesRef.current },
       lastMove: lastMove ?? [],
       orientation,
       check: forceCheck ?? checkColor,
@@ -650,6 +660,7 @@ export default function ChessBoard({
       // Snap back on failure
       apiRef.current?.set({
         fen: currentFen,
+        drawable: { shapes: userDrawableShapesRef.current },
         turnColor: getTurnColor(currentFen),
         movable: {
           color: interactiveRef.current ? getTurnColor(currentFen) : undefined,

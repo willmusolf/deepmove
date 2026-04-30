@@ -1,16 +1,45 @@
 import { act, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import ChessBoard, { getLegalDests, getTurnColor } from './ChessBoard'
+import type { Config } from 'chessground/config'
 
 const redrawAll = vi.fn()
+const cancelMove = vi.fn()
+const setApi = vi.fn()
+const draggableCurrent = { started: false, orig: 'e2' }
+let latestConfig: Config | null = null
+
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn((query: string) => ({
+    matches: query === '(pointer: coarse)',
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+})
 
 vi.mock('chessground', () => ({
-  Chessground: vi.fn(() => ({
-    set: vi.fn(),
-    cancelMove: vi.fn(),
-    redrawAll,
-    destroy: vi.fn(),
-  })),
+  Chessground: vi.fn((_: HTMLElement, config: Config) => {
+    latestConfig = config
+    return {
+      set: setApi,
+      cancelMove,
+      redrawAll,
+      getKeyAtDomPos: vi.fn(() => 'e4'),
+      state: {
+        draggable: { current: draggableCurrent },
+        dom: {
+          bounds: () => ({ left: 0, top: 0, width: 320, height: 320 }),
+        },
+      },
+      destroy: vi.fn(),
+    }
+  }),
 }))
 
 describe('ChessBoard component', () => {
@@ -46,6 +75,81 @@ describe('ChessBoard component', () => {
 
     expect(redrawAll).toHaveBeenCalled()
     window.requestAnimationFrame = originalRaf
+  })
+
+  it('preserves right-click drawable shapes across fen updates', () => {
+    const originalRaf = window.requestAnimationFrame
+    window.requestAnimationFrame = vi.fn((cb: FrameRequestCallback) => {
+      cb(0)
+      return 1
+    })
+
+    setApi.mockClear()
+    const { rerender } = render(
+      <ChessBoard fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" />,
+    )
+
+    act(() => {
+      latestConfig?.drawable?.onChange?.([{ orig: 'e4', brush: 'green' }])
+    })
+
+    setApi.mockClear()
+    rerender(
+      <ChessBoard fen="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1" />,
+    )
+
+    expect(setApi).toHaveBeenCalledWith(expect.objectContaining({
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1',
+      drawable: { shapes: [{ orig: 'e4', brush: 'green' }] },
+    }))
+
+    window.requestAnimationFrame = originalRaf
+  })
+
+  it('cancels board drag state when a pinch gesture starts', () => {
+    cancelMove.mockClear()
+    render(<ChessBoard />)
+
+    const event = new Event('touchstart')
+    Object.defineProperty(event, 'touches', {
+      configurable: true,
+      value: [{ clientX: 20, clientY: 20 }, { clientX: 80, clientY: 80 }],
+    })
+
+    act(() => {
+      window.dispatchEvent(event)
+    })
+
+    expect(cancelMove).toHaveBeenCalled()
+  })
+
+  it('does not enable pinch-cancel handling for fine pointers', () => {
+    const matchMediaMock = vi.mocked(window.matchMedia)
+    matchMediaMock.mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+
+    cancelMove.mockClear()
+    render(<ChessBoard />)
+
+    const event = new Event('touchstart')
+    Object.defineProperty(event, 'touches', {
+      configurable: true,
+      value: [{ clientX: 20, clientY: 20 }, { clientX: 80, clientY: 80 }],
+    })
+
+    act(() => {
+      window.dispatchEvent(event)
+    })
+
+    expect(cancelMove).not.toHaveBeenCalled()
   })
 })
 
