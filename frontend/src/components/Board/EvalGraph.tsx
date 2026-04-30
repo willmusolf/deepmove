@@ -123,17 +123,17 @@ export default function EvalGraph({
       pts.push({ x: mx(i + 1), y: cpToY(moveEvals[i].eval.score, HEIGHT) })
     }
 
+    const criticalKeys = new Set(criticalMoments.map(cm => `${cm.moveNumber}-${cm.color}`))
     const anns: AnnotationCircle[] = []
     for (let i = 0; i < moveEvals.length; i++) {
       const me = moveEvals[i]
-      const grade = me.grade ?? ''
+      const key = `${me.moveNumber}-${me.color}`
+      if (!criticalKeys.has(key)) continue
 
-      // Coach mode: only blunder + mistake circles
+      const grade = me.grade ?? 'mistake'
       if (viewMode === 'coach' && grade !== 'blunder' && grade !== 'mistake') continue
 
-      const fill = GRADE_CIRCLE_COLOR[grade]
-      if (!fill) continue
-
+      const fill = GRADE_CIRCLE_COLOR[grade] ?? '#f59e0b'
       const x = mx(i + 1)
       const y = cpToY(me.eval.score, HEIGHT)
       anns.push({ moveIndex: i + 1, x, y, fill, grade })
