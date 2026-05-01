@@ -14,6 +14,18 @@ Enable these settings on GitHub for `main`:
 
 If the team gets busier later, add merge queue after the basics are stable.
 
+## Repository security baseline
+
+Enable or confirm these repository-wide protections:
+
+1. Dependabot alerts.
+2. Dependabot security updates.
+3. Secret scanning.
+4. Secret scanning push protection.
+5. Code scanning backed by the committed CodeQL workflow.
+
+The repo already carries `.github/dependabot.yml` for version updates. Keep `.github/workflows/codeql.yml` enabled so GitHub code scanning continuously analyzes both the frontend TypeScript and backend Python code.
+
 ## AI review options
 
 Pick one primary AI reviewer and let it comment on every PR.

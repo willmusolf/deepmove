@@ -122,7 +122,7 @@ describe('analyzeGame', () => {
     const engine = {
       analyzePositionMultiPV: vi
         .fn()
-        .mockResolvedValueOnce(makeLines(35, false, null, ['e2e4']))
+        .mockResolvedValueOnce(makeLines(0, false, null, ['e2e4']))
         .mockResolvedValueOnce(makeLines(120, true, 4, ['e7e5']))
         .mockResolvedValueOnce(makeLines(15, false, null, ['g1f3'])),
     } as any
@@ -138,21 +138,36 @@ describe('analyzeGame', () => {
     expect(results[1].eval.mateIn).toBeNull()
   })
 
-  it('does not auto-grade the first move as best when it was not the top suggestion', async () => {
+  it('checks the opening move against the initial position top line', async () => {
     const makeLines = (score: number, pv: string[]): TopLine[] => [
       { rank: 1, score, isMate: false, mateIn: null, pv, san: pv[0] ?? '', depth: 16 },
-      { rank: 2, score: score - 10, isMate: false, mateIn: null, pv: ['d2d4'], san: 'd2d4', depth: 16 },
     ]
     const engine = {
       analyzePositionMultiPV: vi
         .fn()
-        .mockResolvedValueOnce(makeLines(30, ['e2e4']))
-        .mockResolvedValueOnce(makeLines(25, ['d7d5']))
-        .mockResolvedValueOnce(makeLines(20, ['g1f3'])),
+        .mockResolvedValueOnce(makeLines(0, ['d2d4']))
+        .mockResolvedValueOnce(makeLines(4, ['e7e5']))
+        .mockResolvedValueOnce(makeLines(0, ['g1f3'])),
     } as any
 
-    const results = await analyzeGame('1. d4 d5', engine, 16)
+    const results = await analyzeGame('1. e4 e5', engine, 16)
 
+    expect(results[0].san).toBe('e4')
     expect(results[0].grade).toBe('excellent')
+  })
+})
+
+describe('brilliant move regression tests', () => {
+  it('isSacrificeFn: pawn push capturable by king is NOT a sacrifice', () => {
+    // K+P vs K: white pawn just pushed to e6, black king on e8 can capture it
+    // king value (999) is not < netGiven (1), so should return false
+    const fen = '4k3/8/4P3/8/8/8/8/4K3 b - - 0 1'
+    const move = { piece: 'p', captured: undefined as string | undefined, to: 'e6' }
+    expect(isSacrificeFn(move, fen)).toBe(false)
+  })
+
+  it('classifyMove: no brilliant in an already-lost position', () => {
+    // -600cp before, -620cp after → winPctLoss ≈ 0.5%, but playerBefore win% ≈ 9.5% < 20%
+    expect(classifyMove(-600, -620, 'white', 20, true)).toBe('best')
   })
 })
