@@ -1784,11 +1784,16 @@ export default function App() {
           {currentPage === 'about' && <div className="stub-page">About coming soon.</div>}
           {currentPage === 'privacy' && <PrivacyPage />}
           {currentPage === 'play' && (
-            <BotPlayPage
-              analyzePositionLines={analyzePositionLines}
-              stopPositionAnalysis={stopPositionAnalysis}
-              onNavigateToReview={() => goToPage('review')}
-            />
+            <>
+              <BotPlayPage
+                analyzePositionLines={analyzePositionLines}
+                stopPositionAnalysis={stopPositionAnalysis}
+                onNavigateToReview={() => goToPage('review')}
+              />
+              {!isPremium && (
+                <div className="ad-col" />
+              )}
+            </>
           )}
           <footer className="app-footer">
             <button className="app-footer__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
