@@ -638,8 +638,11 @@ export default function App() {
         setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
       }
     }
+    if (currentPath.length > 1) {
+      playMoveSound(moveTree[currentPath[currentPath.length - 2]]?.san ?? '')
+    }
     goBack()
-  }, [goBack, currentPath, moveTree, branchGrades])
+  }, [goBack, currentPath, moveTree, branchGrades, playMoveSound])
 
   const goForwardFn = useCallback(() => {
     pathKeyRef.current++
@@ -664,8 +667,11 @@ export default function App() {
         setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
       }
     }
+    if (analysisPath.length > 1) {
+      playMoveSound(analysisTree[analysisPath[analysisPath.length - 2]]?.san ?? '')
+    }
     analysisBoardGoBack()
-  }, [analysisPath, branchGrades, analysisBoardGoBack])
+  }, [analysisPath, analysisTree, branchGrades, analysisBoardGoBack, playMoveSound])
 
   const handleAnalysisGoForward = useCallback(() => {
     const lastId = analysisPath.length > 0 ? analysisPath[analysisPath.length - 1] : null
@@ -673,8 +679,9 @@ export default function App() {
     if (destId && !branchGrades.has(destId)) {
       setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
     }
+    if (destId) playMoveSound(analysisTree[destId]?.san ?? '')
     analysisBoardGoForward()
-  }, [analysisPath, analysisTree, analysisRootId, branchGrades, analysisBoardGoForward])
+  }, [analysisPath, analysisTree, analysisRootId, branchGrades, analysisBoardGoForward, playMoveSound])
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
