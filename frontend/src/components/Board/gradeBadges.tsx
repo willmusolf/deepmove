@@ -16,7 +16,7 @@ export const GRADE_BADGE_CONFIG: Record<KnownMoveGrade, GradeBadgeMeta> = {
   great:      { symbol: '!',  boardColor: '#3b82f6', moveListClass: 'grade-great',      reportClass: 'gr-great',      ariaLabel: 'Great move' },
   best:       { symbol: '★',  boardColor: '#22c55e', moveListClass: 'grade-best',       reportClass: 'gr-best',       ariaLabel: 'Best move' },
   excellent:  { symbol: '✓',  boardColor: '#4ade80', moveListClass: 'grade-excellent',  reportClass: 'gr-excellent',  ariaLabel: 'Excellent move' },
-  good:       { icon: 'thumb', boardColor: '#86efac', moveListClass: 'grade-good',      reportClass: 'gr-good',       ariaLabel: 'Good move' },
+  good:       { icon: 'thumb', boardColor: '#22c55e', moveListClass: 'grade-good',      reportClass: 'gr-good',       ariaLabel: 'Good move' },
   inaccuracy: { symbol: '?!', boardColor: '#facc15', moveListClass: 'grade-inaccuracy', reportClass: 'gr-inaccuracy', ariaLabel: 'Inaccuracy' },
   mistake:    { symbol: '?',  boardColor: '#fb923c', moveListClass: 'grade-mistake',    reportClass: 'gr-mistake',    ariaLabel: 'Mistake' },
   blunder:    { symbol: '??', boardColor: '#ef4444', moveListClass: 'grade-blunder',    reportClass: 'gr-blunder',    ariaLabel: 'Blunder' },
@@ -50,14 +50,27 @@ export function renderGradeBadgeGlyph(
 ) {
   const meta = getGradeBadgeMeta(grade)
   if (!meta) return null
-  if (meta.icon !== 'thumb') return meta.symbol ?? null
+  if (meta.icon !== 'thumb') {
+    const className =
+      variant === 'board'
+        ? 'board-grade-badge__glyph'
+      : variant === 'report'
+          ? 'game-report-pill__glyph'
+          : 'move-grade__glyph'
+
+    return (
+      <span aria-hidden="true" className={className} data-grade={grade ?? ''}>
+        {meta.symbol ?? null}
+      </span>
+    )
+  }
 
   const className =
-    variant === 'board'
+    variant === 'board' || variant === 'move-list'
       ? 'board-grade-badge__icon'
       : variant === 'report'
         ? 'game-report-pill__icon'
-        : 'move-grade__icon'
+        : 'board-grade-badge__icon'
 
   return <ThumbsUpIcon className={className} />
 }

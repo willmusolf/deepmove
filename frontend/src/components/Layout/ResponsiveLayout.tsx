@@ -6,6 +6,7 @@ interface ResponsiveLayoutProps {
   currentPage: Page
   onNavigate: (page: Page) => void
   children: ReactNode
+  hasMobileBanner?: boolean
 }
 
 const COMPACT_NAV_MEDIA_QUERY = '(max-width: 1023px)'
@@ -20,7 +21,7 @@ const PAGE_LABELS: Record<Page, string> = {
   privacy: 'Privacy Policy',
 }
 
-export default function ResponsiveLayout({ currentPage, onNavigate, children }: ResponsiveLayoutProps) {
+export default function ResponsiveLayout({ currentPage, onNavigate, children, hasMobileBanner: _hasMobileBanner }: ResponsiveLayoutProps) {
   const [isCompactNav, setIsCompactNav] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia(COMPACT_NAV_MEDIA_QUERY).matches
   ))

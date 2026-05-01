@@ -3,7 +3,6 @@ import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
 import EvalGraph from './components/Board/EvalGraph'
-import GameReport from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
 import PlayerInfoBox from './components/Board/PlayerInfoBox'
 import ImportPanel from './components/Import/ImportPanel'
@@ -19,6 +18,8 @@ import MoveCoachComment from './components/Coach/MoveCoachComment'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './components/Board/gradeBadges'
 import BotPlayPage from './components/Play/BotPlayPage'
 import PrivacyPage from './components/PrivacyPage'
+import AdBanner from './components/AdBanner'
+import MobileAdBanner from './components/MobileAdBanner'
 import { useGameReview } from './hooks/useGameReview'
 import { useAnalysisBoard } from './hooks/useAnalysisBoard'
 import BestLines from './components/Board/BestLines'
@@ -39,14 +40,16 @@ import { readSessionJson, writeSessionJson } from './utils/sessionStorage'
 import { Chess } from 'chess.js'
 import { getSquareOverlayPosition } from './chess/boardGeometry'
 import './styles/board.css'
+import './styles/badge-overrides.css'
 import { detectOpening } from './chess/openings'
+import { ACTIVE_SPONSOR } from './config/sponsor'
 
 // Lichess-style thickness brushes — all green, varying weight
 const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
 // Max depth for per-position multi-PV analysis. Analysis runs continuously to this
 // depth and caches partial results at each depth — so interrupting and returning
 // resumes visually from the last reached depth.
-const POSITION_MAX_DEPTH = 28
+const POSITION_MAX_DEPTH = 27
 
 type PanelTab = "analysis" | "load" | "coach"
 
@@ -188,9 +191,9 @@ export default function App() {
     runAnalysis,
     cancelGameAnalysis,
     analyzePositionLines,
-    analyzePositionSingleBg,
-    analyzePositionMultiPVBg,
+    analyzePositionSingleBranch,
     stopPositionAnalysis,
+    stopBranchAnalysis,
   } = useStockfish()
   const { enabled: soundEnabled, toggle: toggleSound, playMoveSound } = useSound()
 
@@ -344,6 +347,8 @@ export default function App() {
       })
   }
 
+  const showAnalyzingBar = isAnalyzing || (analyzedCount < totalMovesCount && totalMovesCount > 0)
+
   useEffect(() => {
     // Always cancel in-flight analysis and pending timers first — even if the new
     // position is cached.  Without this, a deferred 180ms timer for position A can
@@ -353,6 +358,16 @@ export default function App() {
     positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
     stopPositionAnalysis()
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
+
+    // Let full-game review finish cleanly before spinning up extra per-position work.
+    // The review UI stays on the main "Analyzing..." state, then best lines resume once
+    // the background pass is done.
+    if (isLoaded && showAnalyzingBar) {
+      setCurrentPositionLines([])
+      setCurrentAnalysisDepth(0)
+      setAnalyzingPosition(false)
+      return
+    }
 
     const cached = positionCache.current.get(displayFen)
 
@@ -415,7 +430,7 @@ export default function App() {
       if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayFen])
+  }, [displayFen, isLoaded, showAnalyzingBar])
 
   // When engine becomes ready, analyze whatever position is currently displayed.
   // This is the main seed — displayFen effect skips analysis until engine is ready.
@@ -564,6 +579,13 @@ export default function App() {
   const viewMode = panelTab === 'coach' ? 'coach' : 'classic'
   const [showArrows, setShowArrows] = useState(savedUiState?.showArrows ?? true)
   const [showGrades, setShowGrades] = useState(savedUiState?.showGrades ?? true)
+  const [resetConfirmArmed, setResetConfirmArmed] = useState(false)
+
+  useEffect(() => {
+    if (!resetConfirmArmed) return
+    const timeout = window.setTimeout(() => setResetConfirmArmed(false), 2200)
+    return () => window.clearTimeout(timeout)
+  }, [resetConfirmArmed])
 
   useEffect(() => {
     writeSessionJson(APP_UI_SESSION_KEY, {
@@ -624,8 +646,11 @@ export default function App() {
         setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
       }
     }
+    if (currentPath.length > 1) {
+      playMoveSound(moveTree[currentPath[currentPath.length - 2]]?.san ?? '')
+    }
     goBack()
-  }, [goBack, currentPath, moveTree, branchGrades])
+  }, [goBack, currentPath, moveTree, branchGrades, playMoveSound])
 
   const goForwardFn = useCallback(() => {
     pathKeyRef.current++
@@ -650,8 +675,11 @@ export default function App() {
         setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
       }
     }
+    if (analysisPath.length > 1) {
+      playMoveSound(analysisTree[analysisPath[analysisPath.length - 2]]?.san ?? '')
+    }
     analysisBoardGoBack()
-  }, [analysisPath, branchGrades, analysisBoardGoBack])
+  }, [analysisPath, analysisTree, branchGrades, analysisBoardGoBack, playMoveSound])
 
   const handleAnalysisGoForward = useCallback(() => {
     const lastId = analysisPath.length > 0 ? analysisPath[analysisPath.length - 1] : null
@@ -659,8 +687,9 @@ export default function App() {
     if (destId && !branchGrades.has(destId)) {
       setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
     }
+    if (destId) playMoveSound(analysisTree[destId]?.san ?? '')
     analysisBoardGoForward()
-  }, [analysisPath, analysisTree, analysisRootId, branchGrades, analysisBoardGoForward])
+  }, [analysisPath, analysisTree, analysisRootId, branchGrades, analysisBoardGoForward, playMoveSound])
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -755,10 +784,24 @@ export default function App() {
     setPanelTab('analysis')
   }
 
+  function handleSandboxReset() {
+    if (!resetConfirmArmed) {
+      setResetConfirmArmed(true)
+      return
+    }
+
+    analysisBoardReset()
+    setBranchGrades(new Map())
+    setPendingBranchNodes(new Set())
+    setOpeningName(null)
+    setResetConfirmArmed(false)
+  }
+
   // Called by GameSelector before loading a new game — stops any in-flight
   // position analysis so stale arrows can't flash on the new game's position.
   function handleBeforeGameLoad() {
     cancelGameAnalysis()
+    stopBranchAnalysis()
     positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
     stopPositionAnalysis()
     positionTokenRef.current++
@@ -786,6 +829,10 @@ export default function App() {
     }
   }
 
+  function isStockfishCancelledError(err: unknown): boolean {
+    return err instanceof Error && err.message === 'Stockfish analysis cancelled'
+  }
+
   async function evaluateBranchMove(nodeId: string, parentFen: string, newFen: string) {
     if (!isReady || evalInFlightRef.current.has(nodeId) || branchGrades.has(nodeId)) return
     evalInFlightRef.current.add(nodeId)
@@ -796,12 +843,14 @@ export default function App() {
       const legalCount = chess.moves().length
       const color: 'white' | 'black' = parentFen.split(' ')[1] === 'w' ? 'white' : 'black'
 
-      // Multi-PV on parent: gives evalBefore + top-2 engine suggestions in one call
-      const parentLines = await analyzePositionMultiPVBg(parentFen, 14, 2)
+      const cachedParentTopLine = positionCache.current.get(parentFen)?.[0] ?? null
+      const parentResult = cachedParentTopLine
+        ? { score: cachedParentTopLine.score, pv: cachedParentTopLine.pv }
+        : await analyzePositionSingleBranch(parentFen, 14)
       // Single-PV on position after the branch move
-      const afterResult = await analyzePositionSingleBg(newFen, 14)
+      const afterResult = await analyzePositionSingleBranch(newFen, 14)
 
-      if (!parentLines || parentLines.length === 0 || !afterResult) {
+      if (!parentResult || !afterResult) {
         console.warn('[branch eval] Stockfish returned null for', nodeId)
         setBranchGrades(prev => new Map(prev).set(nodeId, 'unknown' as MoveGrade))
         return  // finally still clears pendingBranchNodes
@@ -810,7 +859,7 @@ export default function App() {
       // Discard result if the user already switched to a different game
       if (branchGradesKeyRef.current !== gameIdAtStart) return
 
-      const evalBefore = parentLines[0].score
+      const evalBefore = parentResult.score
       const evalAfter = afterResult.score
 
       // Derive the played move (needed for sacrifice detection + top-suggestion check)
@@ -819,7 +868,7 @@ export default function App() {
 
       // Branch grades should only treat the engine's #1 move as "top suggested".
       // Otherwise a second-best sacrifice can get mislabeled as brilliant.
-      const topUciMove = parentLines[0]?.pv?.[0] ?? null
+      const topUciMove = parentResult.pv?.[0] ?? null
       const playedUci = playedMove ? playedMove.from + playedMove.to + (playedMove.promotion ?? '') : null
       const isTopSuggested = playedUci !== null && topUciMove === playedUci
 
@@ -829,6 +878,7 @@ export default function App() {
       const grade = classifyMove(evalBefore, evalAfter, color, legalCount, sacrifice, null, isTopSuggested)
       setBranchGrades(prev => new Map(prev).set(nodeId, grade))
     } catch (err) {
+      if (isStockfishCancelledError(err)) return
       console.warn('[branch eval] failed:', err)
     } finally {
       evalInFlightRef.current.delete(nodeId)
@@ -1024,12 +1074,21 @@ export default function App() {
   // ── Misc ───────────────────────────────────────────────────────────────────
 
 
-  const showAnalyzingBar = isAnalyzing || (analyzedCount < totalMovesCount && totalMovesCount > 0)
+  const hideMainLineReviewArtifacts = isLoaded && showAnalyzingBar && !inBranch
 
 
+
+  const mobileSponsorPage = currentPage === 'review' || currentPage === 'play'
+    ? currentPage
+    : null
+  const shouldShowMobileSponsor = !isPremium && ACTIVE_SPONSOR !== null && mobileSponsorPage !== null
 
   return (
-    <ResponsiveLayout currentPage={currentPage} onNavigate={goToPage}>
+    <ResponsiveLayout
+      currentPage={currentPage}
+      onNavigate={goToPage}
+      hasMobileBanner={shouldShowMobileSponsor}
+    >
       <div className="app-main">
           {currentPage === 'review' && (
             <>
@@ -1108,7 +1167,9 @@ export default function App() {
                         ? (inBranch ? currentNodeId : null)
                         : (analysisPath.length > 0 ? analysisPath[analysisPath.length - 1] : null)
                       const grade = isLoaded
-                        ? (inBranch && currentNodeId ? branchGrades.get(currentNodeId) : mainEval?.grade)
+                        ? (hideMainLineReviewArtifacts
+                            ? undefined
+                            : (inBranch && currentNodeId ? branchGrades.get(currentNodeId) : mainEval?.grade))
                         : (analysisPath.length > 0
                           ? branchGrades.get(analysisPath[analysisPath.length - 1])
                           : undefined)
@@ -1121,7 +1182,7 @@ export default function App() {
                       // Show pending spinner while branch eval is in flight.
                       // Also show for main-line moves while full-game analysis is still running
                       // (mainEval?.grade not yet populated for this move index).
-                      const isMainLinePending = isLoaded && !inBranch && isAnalyzing && !mainEval?.grade && !!boardLastMove
+                      const isMainLinePending = isLoaded && !inBranch && !hideMainLineReviewArtifacts && isAnalyzing && !mainEval?.grade && !!boardLastMove
                       const isPendingOnBoard = showGrades && (
                         (boardNodeId !== null && pendingBranchNodes.has(boardNodeId)) ||
                         isMainLinePending
@@ -1259,12 +1320,12 @@ export default function App() {
                     {isLoaded ? (
                       <button className="btn btn-secondary board-control-btn" onClick={handleNewGame}>New Game</button>
                     ) : (
-                      <button className="btn btn-secondary board-control-btn" onClick={() => {
-                        analysisBoardReset()
-                        setBranchGrades(new Map())
-                        setPendingBranchNodes(new Set())
-                        setOpeningName(null)
-                      }}>Reset</button>
+                      <button
+                        className={`btn btn-secondary board-control-btn${resetConfirmArmed ? ' board-control-btn--danger' : ''}`}
+                        onClick={handleSandboxReset}
+                      >
+                        {resetConfirmArmed ? 'Confirm Reset' : 'Reset'}
+                      </button>
                     )}
                     <button
                       className={`btn btn-secondary board-control-btn${showEvalBar ? ' board-control-btn--active' : ''}`}
@@ -1381,14 +1442,6 @@ export default function App() {
                         onLineClick={handleAnalysisBestLineClick}
                       />
 
-                      {(moveEvals.length > 0 || showAnalyzingBar) && (
-                        <GameReport
-                          moveEvals={moveEvals}
-                          userColor={userColor}
-                          isAnalyzing={showAnalyzingBar}
-                        />
-                      )}
-
                       {/* Eval graph — hidden during analysis, shown after completion */}
                       {!showAnalyzingBar && moveEvals.length > 0 && (
                         <EvalGraph
@@ -1411,7 +1464,7 @@ export default function App() {
                         branchGrades={showGrades ? branchGrades : undefined}
                         pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
-                        isAnalyzing={!showGrades}
+                        isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
                       />
                     </>
@@ -1491,7 +1544,7 @@ export default function App() {
                         branchGrades={showGrades ? branchGrades : undefined}
                         pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
-                        isAnalyzing={!showGrades}
+                        isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
                       />
                     </>
@@ -1716,7 +1769,9 @@ export default function App() {
                 </div>
               </div>
               {!isPremium && (
-                <div className="ad-col" />
+                <div className="ad-col">
+                  <AdBanner sponsor={ACTIVE_SPONSOR} placement="desktop-rail" page="review" />
+                </div>
               )}
             </>
           )}
@@ -1765,6 +1820,9 @@ export default function App() {
           <footer className="app-footer">
             <button className="app-footer__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
           </footer>
+          {shouldShowMobileSponsor && (
+            <MobileAdBanner sponsor={ACTIVE_SPONSOR} page={mobileSponsorPage} />
+          )}
       </div>
     </ResponsiveLayout>
   )

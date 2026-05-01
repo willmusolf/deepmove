@@ -288,6 +288,8 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
         <section className="profile-section">
           <h3 className="profile-section-title">Security</h3>
           <form className="profile-field-group" onSubmit={handleChangePassword}>
+            {/* Hidden username field: required for password-manager autofill and browser accessibility */}
+            <input type="email" autoComplete="username" value={user?.email ?? ''} readOnly aria-hidden="true" style={{ display: 'none' }} />
             <div className="profile-field">
               <label className="profile-field-label">Current password</label>
               <input

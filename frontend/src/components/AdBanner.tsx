@@ -2,9 +2,12 @@ import { useEffect, useRef } from 'react'
 import { useAuthStore } from '../stores/authStore'
 
 interface AdBannerProps {
-  slot: string
+  slot?: string
   format?: 'auto' | 'rectangle' | 'vertical'
   className?: string
+  sponsor?: unknown
+  placement?: string
+  page?: string
 }
 
 declare global {
