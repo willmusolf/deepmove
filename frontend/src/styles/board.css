@@ -102,6 +102,11 @@ cg-board square.move-dest.oc:hover {
   display: none;
 }
 
+.board-drag-target--occupied {
+  transform: scale(1.6);
+  background: rgba(86, 92, 100, 0.26);
+}
+
 .board-hover-outline {
   position: absolute;
   z-index: 7;
@@ -1328,6 +1333,14 @@ cg-board {
 }
 
 @media (pointer: coarse) {
+  .cg-wrap {
+    touch-action: pinch-zoom;
+  }
+
+  .cg-wrap piece.anim {
+    will-change: transform;
+  }
+
   .board-hover-outline {
     display: none;
   }
@@ -1337,6 +1350,12 @@ cg-board {
     transform: scale(1.9);
     background: rgba(68, 74, 82, 0.36);
     box-shadow: 0 4px 12px rgba(28, 32, 38, 0.1);
+  }
+
+  .board-drag-target--occupied {
+    transform: scale(2.3);
+    background: rgba(68, 74, 82, 0.44);
+    box-shadow: 0 6px 16px rgba(24, 28, 34, 0.16);
   }
 
   .cg-wrap piece.dragging {
