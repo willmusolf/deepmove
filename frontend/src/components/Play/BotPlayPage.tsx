@@ -66,7 +66,7 @@ interface Props {
 export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis, onNavigateToReview }: Props) {
   const savedUiState = useMemo(() => loadPlayUiState(), [])
   const { handleBoardMove, cancelPremoveQueue, premoveQueue, virtualBoardFen, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
-  const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound } = useSound()
+  const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound, playMoveSound } = useSound()
 
   // Play store state
   const status      = usePlayStore(s => s.status)
@@ -219,6 +219,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
             setAtBrowseStart(false)
             setBrowsePosition(t[nodeId]?.fen ?? null)
             setBrowseStep(s => s + 1)
+            playMoveSound(t[nodeId]?.san ?? '')
           }
         } else {
           // Already browsing — step back one more
@@ -233,6 +234,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
             setAtBrowseStart(false)
             setBrowsePosition(t[nodeId]?.fen ?? null)
             setBrowseStep(s => s + 1)
+            playMoveSound(t[nodeId]?.san ?? '')
           }
         }
       } else {
@@ -254,6 +256,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
         setBrowsePath([...pathToStep, nextId])
         const node = t[nextId]
         if (!node) return
+        playMoveSound(node.san)
         // If we've reached the live tip, exit browse mode
         if (nextId === livePath[livePath.length - 1]) {
           setBrowsePosition(null)
