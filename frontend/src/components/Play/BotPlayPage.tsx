@@ -66,7 +66,7 @@ interface Props {
 export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis, onNavigateToReview }: Props) {
   const savedUiState = useMemo(() => loadPlayUiState(), [])
   const { handleBoardMove, cancelPremoveQueue, premoveQueue, virtualBoardFen, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
-  const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound } = useSound()
+  const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound, playMoveSound } = useSound()
 
   // Play store state
   const status      = usePlayStore(s => s.status)
@@ -219,6 +219,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
             setAtBrowseStart(false)
             setBrowsePosition(t[nodeId]?.fen ?? null)
             setBrowseStep(s => s + 1)
+            playMoveSound(t[nodeId]?.san ?? '')
           }
         } else {
           // Already browsing — step back one more
@@ -233,6 +234,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
             setAtBrowseStart(false)
             setBrowsePosition(t[nodeId]?.fen ?? null)
             setBrowseStep(s => s + 1)
+            playMoveSound(t[nodeId]?.san ?? '')
           }
         }
       } else {
@@ -254,6 +256,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
         setBrowsePath([...pathToStep, nextId])
         const node = t[nextId]
         if (!node) return
+        playMoveSound(node.san)
         // If we've reached the live tip, exit browse mode
         if (nextId === livePath[livePath.length - 1]) {
           setBrowsePosition(null)
@@ -405,54 +408,57 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   // ── Render ───────────────────────────────────────────────────────────────
   if (status === 'idle') {
     return (
-      <div className="play-page">
-        {/* ── Board column — same structure as playing screen for stable layout ── */}
-        <div className="board-col">
-          <div className="board-with-eval">
-            <EvalBar hidden={true} orientation={orientation} />
-            <div className="board-and-players">
-              {/* Placeholder player boxes — same height as playing screen so board doesn't shift on game start */}
-              <PlayerInfoBox
-                username="Stockfish"
-                elo="—"
-                isWhite={orientation !== 'white'}
-                isToMove={false}
-                currentFen={STARTING_FEN}
-                platform={null}
-                clockTime={undefined}
-              />
-              <ChessBoard
-                fen={STARTING_FEN}
-                orientation={orientation}
-                interactive={false}
-              />
-              <PlayerInfoBox
-                username={displayName}
-                elo={null}
-                isWhite={orientation === 'white'}
-                isToMove={false}
-                currentFen={STARTING_FEN}
-                platform={authUser?.chesscom_username ? 'chesscom' : authUser?.lichess_username ? 'lichess' : null}
-                clockTime={undefined}
-              />
+      <div className="play-page play-page--setup">
+        <div className="play-setup-wrapper">
+          <div className="play-setup-board-preview">
+            {/* ── Board preview — same structure as playing screen for stable layout ── */}
+            <div className="board-col">
+              <div className="board-with-eval">
+                <EvalBar hidden={true} orientation={orientation} />
+                <div className="board-and-players">
+                  {/* Placeholder player boxes — same height as playing screen so board doesn't shift on game start */}
+                  <PlayerInfoBox
+                    username="Stockfish"
+                    elo="—"
+                    isWhite={orientation !== 'white'}
+                    isToMove={false}
+                    currentFen={STARTING_FEN}
+                    platform={null}
+                    clockTime={undefined}
+                  />
+                  <ChessBoard
+                    fen={STARTING_FEN}
+                    orientation={orientation}
+                    interactive={false}
+                  />
+                  <PlayerInfoBox
+                    username={displayName}
+                    elo={null}
+                    isWhite={orientation === 'white'}
+                    isToMove={false}
+                    currentFen={STARTING_FEN}
+                    platform={authUser?.chesscom_username ? 'chesscom' : authUser?.lichess_username ? 'lichess' : null}
+                    clockTime={undefined}
+                  />
+                </div>
+              </div>
+              <div className="board-controls play-setup-board-controls">
+                <div className="board-controls__actions">
+                  <button className="btn btn-secondary board-control-btn" onClick={handleFlip}>Flip</button>
+                </div>
+                <span className="board-control-status play-setup-orientation-hint">
+                  You play as {orientation === 'white' ? 'White' : 'Black'}
+                </span>
+              </div>
             </div>
           </div>
-          <div className="board-controls">
-            <div className="board-controls__actions">
-              <button className="btn btn-secondary board-control-btn" onClick={handleFlip}>Flip</button>
-            </div>
-            <span className="board-control-status play-setup-orientation-hint">
-              You play as {orientation === 'white' ? '♙ White' : '♟ Black'}
-            </span>
+          <div className="side-col play-setup-side-col">
+            <PlaySetupPanel
+              initialOrientation={orientation}
+              onStart={startGame}
+              engineReady={botEngineReady}
+            />
           </div>
-        </div>
-        {/* ── Setup panel in side-col position ── */}
-        <div className="side-col">
-          <PlaySetupPanel
-            initialOrientation={orientation}
-            onStart={startGame}
-            engineReady={botEngineReady}
-          />
         </div>
       </div>
     )
