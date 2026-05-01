@@ -58,7 +58,7 @@ export default function AboutPage() {
           <p>
             If something's broken, confusing, or you just have an idea —
             I genuinely want to hear it.{' '}
-            <a href="mailto:hello@deepmove.io">hello@deepmove.io</a>
+            <a href="mailto:willmusolf@gmail.com">willmusolf@gmail.com</a>
           </p>
         </section>
       </div>
