@@ -41,7 +41,11 @@ const WINPCT_MISTAKE    = 22.0  // ≤ 22% → mistake  (> 22% → blunder)
 // Min win-% gap between engine's #1 and #2 lines for a move to qualify as "great"
 const WINPCT_GREAT_GAP = 10.0
 
-const PIECE_VALUES: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 }
+// Min win-probability the player must have HAD before the move for a brilliant to be valid
+// Prevents awarding !! in already-lost positions where winPctLoss is trivially near 0
+const WINPCT_MIN_FOR_BRILLIANT = 20.0  // ~-350cp from player's perspective
+
+const PIECE_VALUES: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 999 }
 
 // A move is a sacrifice if the moved piece can be immediately recaptured by a less-valuable
 // opponent piece (net material loss for the mover). Uses chess.js to check opponent moves.
@@ -104,7 +108,8 @@ export function classifyMove(
   const winPctLoss = cpToWinPct(playerBefore) - cpToWinPct(playerAfter)
 
   // Brilliant: sacrifice + top-suggested + no meaningful win% loss
-  if (sacrifice && isTopSuggested && winPctLoss <= WINPCT_EXCELLENT) return 'brilliant'
+  if (sacrifice && isTopSuggested && winPctLoss <= WINPCT_EXCELLENT
+      && cpToWinPct(playerBefore) >= WINPCT_MIN_FOR_BRILLIANT) return 'brilliant'
 
   // Great: only good move in position (top-suggested + big gap from #2, not a recapture)
   if (isTopSuggested && isOnlyGoodMove && winPctLoss <= WINPCT_EXCELLENT) return 'great'

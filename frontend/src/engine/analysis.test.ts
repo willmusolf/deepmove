@@ -156,3 +156,18 @@ describe('analyzeGame', () => {
     expect(results[0].grade).toBe('excellent')
   })
 })
+
+describe('brilliant move regression tests', () => {
+  it('isSacrificeFn: pawn push capturable by king is NOT a sacrifice', () => {
+    // K+P vs K: white pawn just pushed to e6, black king on e8 can capture it
+    // king value (999) is not < netGiven (1), so should return false
+    const fen = '4k3/8/4P3/8/8/8/8/4K3 b - - 0 1'
+    const move = { piece: 'p', captured: undefined as string | undefined, to: 'e6' }
+    expect(isSacrificeFn(move, fen)).toBe(false)
+  })
+
+  it('classifyMove: no brilliant in an already-lost position', () => {
+    // -600cp before, -620cp after → winPctLoss ≈ 0.5%, but playerBefore win% ≈ 9.5% < 20%
+    expect(classifyMove(-600, -620, 'white', 20, true)).toBe('best')
+  })
+})
