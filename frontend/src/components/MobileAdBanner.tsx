@@ -10,7 +10,12 @@ declare global {
   }
 }
 
-export default function MobileAdBanner() {
+interface MobileAdBannerProps {
+  sponsor?: unknown
+  page?: string
+}
+
+export default function MobileAdBanner(_props: MobileAdBannerProps = {}) {
   const isPremium = useAuthStore(s => s.isPremium)
   const [dismissed, setDismissed] = useState(
     () => sessionStorage.getItem(SESSION_KEY) === '1'
