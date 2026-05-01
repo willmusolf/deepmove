@@ -3894,19 +3894,42 @@ cg-board {
   }
 }
 
+@media (max-width: 860px) {
+  .play-page--setup {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .play-setup-wrapper {
+    width: 100%;
+    max-width: 420px;
+    gap: 0;
+    padding: 0.5rem;
+  }
+
+  .play-setup-board-preview {
+    display: none;
+  }
+
+  .play-setup-side-col {
+    order: 0;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .play-setup-panel {
+    width: 100%;
+    max-width: none;
+  }
+}
+
 @media (max-width: 640px) {
   .play-page {
     gap: 0.75rem;
   }
 
   .play-setup-wrapper {
-    gap: 0.85rem;
-    padding: 0.25rem 0 0.5rem;
-  }
-
-  .play-setup-board-preview,
-  .play-setup-side-col {
-    width: 100%;
+    padding: 0.25rem 0.35rem 0.5rem;
   }
 
   .play-setup-panel {

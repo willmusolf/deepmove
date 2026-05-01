@@ -465,7 +465,7 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   }
 
   return (
-    <div className="play-page">
+    <>
       {/* ── Board column ── */}
       <div className="board-col">
         <div className="board-with-eval">
@@ -643,6 +643,6 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
           />
         )}
       </div>
-    </div>
+    </>
   )
 }
