@@ -18,6 +18,7 @@ import MoveCoachComment from './components/Coach/MoveCoachComment'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './components/Board/gradeBadges'
 import BotPlayPage from './components/Play/BotPlayPage'
 import PrivacyPage from './components/PrivacyPage'
+import AboutPage from './components/AboutPage'
 import { useGameReview } from './hooks/useGameReview'
 import { useAnalysisBoard } from './hooks/useAnalysisBoard'
 import BestLines from './components/Board/BestLines'
@@ -78,7 +79,7 @@ function isPage(value: unknown): value is Page {
   return value === 'review'
     || value === 'practice'
     || value === 'play'
-    || value === 'dashboard'
+
     || value === 'settings'
     || value === 'about'
     || value === 'privacy'
@@ -1749,7 +1750,7 @@ export default function App() {
             </>
           )}
 
-          {currentPage === 'dashboard' && <div className="stub-page">Dashboard coming soon.</div>}
+          
           {currentPage === 'practice' && (
             <div className="practice-coming-soon-page">
               <div className="practice-coming-soon-board">
@@ -1781,7 +1782,7 @@ export default function App() {
               }}
             />
           )}
-          {currentPage === 'about' && <div className="stub-page">About coming soon.</div>}
+          {currentPage === 'about' && <AboutPage />}
           {currentPage === 'privacy' && <PrivacyPage />}
           {currentPage === 'play' && (
             <>
