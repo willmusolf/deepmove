@@ -3708,10 +3708,9 @@ cg-board {
 }
 
 .play-setup-side-col {
-  flex: 0 0 auto;
-  width: min(340px, 100%);
-  min-width: 0;
-  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .play-setup-board-controls {
@@ -3895,44 +3894,30 @@ cg-board {
 }
 
 @media (max-width: 860px) {
-  .play-page--setup {
-    align-items: center;
-    justify-content: center;
-  }
-
-  .play-setup-wrapper {
-    width: 100%;
-    max-width: 420px;
-    gap: 0;
-    padding: 0.5rem;
-  }
-
-  .play-setup-board-preview {
+  .play-setup-preview-col {
     display: none;
   }
 
   .play-setup-side-col {
-    order: 0;
     width: 100%;
     max-width: 420px;
+    min-height: 0;
+    align-self: center;
   }
 
-  .play-setup-panel {
+  .play-setup-side-col .play-setup-panel {
     width: 100%;
     max-width: none;
   }
 }
 
 @media (max-width: 640px) {
-  .play-page {
-    gap: 0.75rem;
+  .play-setup-side-col {
+    padding: 0 0.35rem;
+    max-width: none;
   }
 
-  .play-setup-wrapper {
-    padding: 0.25rem 0.35rem 0.5rem;
-  }
-
-  .play-setup-panel {
+  .play-setup-side-col .play-setup-panel {
     padding: 1rem;
     border-radius: 14px;
   }

@@ -408,59 +408,56 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   // ── Render ───────────────────────────────────────────────────────────────
   if (status === 'idle') {
     return (
-      <div className="play-page play-page--setup">
-        <div className="play-setup-wrapper">
-          <div className="play-setup-board-preview">
-            {/* ── Board preview — same structure as playing screen for stable layout ── */}
-            <div className="board-col">
-              <div className="board-with-eval">
-                <EvalBar hidden={true} orientation={orientation} />
-                <div className="board-and-players">
-                  {/* Placeholder player boxes — same height as playing screen so board doesn't shift on game start */}
-                  <PlayerInfoBox
-                    username="Stockfish"
-                    elo="—"
-                    isWhite={orientation !== 'white'}
-                    isToMove={false}
-                    currentFen={STARTING_FEN}
-                    platform={null}
-                    clockTime={undefined}
-                  />
-                  <ChessBoard
-                    fen={STARTING_FEN}
-                    orientation={orientation}
-                    interactive={false}
-                  />
-                  <PlayerInfoBox
-                    username={displayName}
-                    elo={null}
-                    isWhite={orientation === 'white'}
-                    isToMove={false}
-                    currentFen={STARTING_FEN}
-                    platform={authUser?.chesscom_username ? 'chesscom' : authUser?.lichess_username ? 'lichess' : null}
-                    clockTime={undefined}
-                  />
-                </div>
-              </div>
-              <div className="board-controls play-setup-board-controls">
-                <div className="board-controls__actions">
-                  <button className="btn btn-secondary board-control-btn" onClick={handleFlip}>Flip</button>
-                </div>
-                <span className="board-control-status play-setup-orientation-hint">
-                  You play as {orientation === 'white' ? 'White' : 'Black'}
-                </span>
-              </div>
+      <>
+        {/* ── Board preview — same shell as review for stable desktop alignment ── */}
+        <div className="board-col play-setup-preview-col">
+          <div className="board-with-eval">
+            <EvalBar hidden={true} orientation={orientation} />
+            <div className="board-and-players">
+              {/* Placeholder player boxes — same height as playing screen so board doesn't shift on game start */}
+              <PlayerInfoBox
+                username="Stockfish"
+                elo="—"
+                isWhite={orientation !== 'white'}
+                isToMove={false}
+                currentFen={STARTING_FEN}
+                platform={null}
+                clockTime={undefined}
+              />
+              <ChessBoard
+                fen={STARTING_FEN}
+                orientation={orientation}
+                interactive={false}
+              />
+              <PlayerInfoBox
+                username={displayName}
+                elo={null}
+                isWhite={orientation === 'white'}
+                isToMove={false}
+                currentFen={STARTING_FEN}
+                platform={authUser?.chesscom_username ? 'chesscom' : authUser?.lichess_username ? 'lichess' : null}
+                clockTime={undefined}
+              />
             </div>
           </div>
-          <div className="side-col play-setup-side-col">
-            <PlaySetupPanel
-              initialOrientation={orientation}
-              onStart={startGame}
-              engineReady={botEngineReady}
-            />
+          <div className="board-controls">
+            <div className="board-controls__actions">
+              <button className="btn btn-secondary board-control-btn" onClick={handleFlip}>Flip</button>
+            </div>
+            <span className="board-control-status play-setup-orientation-hint">
+              You play as {orientation === 'white' ? 'White' : 'Black'}
+            </span>
           </div>
         </div>
-      </div>
+
+        <div className="side-col play-setup-side-col">
+          <PlaySetupPanel
+            initialOrientation={orientation}
+            onStart={startGame}
+            engineReady={botEngineReady}
+          />
+        </div>
+      </>
     )
   }
 
