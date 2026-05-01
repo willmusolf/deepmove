@@ -58,3 +58,6 @@ CLAUDE.md
 .claude/
 docs/product-spec.md
 chess-coach-product-spec-v2.md
+
+# Personal dev notes — never commit
+TODO.md
