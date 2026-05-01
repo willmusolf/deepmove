@@ -567,6 +567,13 @@ export default function App() {
   const viewMode = panelTab === 'coach' ? 'coach' : 'classic'
   const [showArrows, setShowArrows] = useState(savedUiState?.showArrows ?? true)
   const [showGrades, setShowGrades] = useState(savedUiState?.showGrades ?? true)
+  const [resetConfirmArmed, setResetConfirmArmed] = useState(false)
+
+  useEffect(() => {
+    if (!resetConfirmArmed) return
+    const timeout = window.setTimeout(() => setResetConfirmArmed(false), 2200)
+    return () => window.clearTimeout(timeout)
+  }, [resetConfirmArmed])
 
   useEffect(() => {
     writeSessionJson(APP_UI_SESSION_KEY, {
@@ -761,6 +768,19 @@ export default function App() {
     setStoredUserColor(null)
     setPgn(chess.pgn())
     setPanelTab('analysis')
+  }
+
+  function handleSandboxReset() {
+    if (!resetConfirmArmed) {
+      setResetConfirmArmed(true)
+      return
+    }
+
+    analysisBoardReset()
+    setBranchGrades(new Map())
+    setPendingBranchNodes(new Set())
+    setOpeningName(null)
+    setResetConfirmArmed(false)
   }
 
   // Called by GameSelector before loading a new game — stops any in-flight
@@ -1278,12 +1298,12 @@ export default function App() {
                     {isLoaded ? (
                       <button className="btn btn-secondary board-control-btn" onClick={handleNewGame}>New Game</button>
                     ) : (
-                      <button className="btn btn-secondary board-control-btn" onClick={() => {
-                        analysisBoardReset()
-                        setBranchGrades(new Map())
-                        setPendingBranchNodes(new Set())
-                        setOpeningName(null)
-                      }}>Reset</button>
+                      <button
+                        className={`btn btn-secondary board-control-btn${resetConfirmArmed ? ' board-control-btn--danger' : ''}`}
+                        onClick={handleSandboxReset}
+                      >
+                        {resetConfirmArmed ? 'Confirm Reset' : 'Reset'}
+                      </button>
                     )}
                     <button
                       className={`btn btn-secondary board-control-btn${showEvalBar ? ' board-control-btn--active' : ''}`}
