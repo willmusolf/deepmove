@@ -1,6 +1,6 @@
 import UserMenu from '../Auth/UserMenu'
 
-export type Page = 'review' | 'practice' | 'play' | 'dashboard' | 'settings' | 'about' | 'privacy'
+export type Page = 'review' | 'practice' | 'play' | 'settings' | 'about' | 'privacy'
 
 interface NavSidebarProps {
   currentPage: Page
@@ -24,13 +24,12 @@ const MAIN_ITEMS = [
       </svg>
     ),
   },
-  { id: 'play'   as const, label: 'Play',   icon: '▶' },
+  { id: 'play'  as const, label: 'Play',  icon: '▶' },
+  { id: 'about' as const, label: 'About', icon: 'ⓘ' },
 ]
 
 const SOON_ITEMS = [
-  { id: 'practice'  as const, label: 'Practice',  icon: '◎' },
-  { id: 'dashboard' as const, label: 'Dashboard', icon: '▨' },
-  { id: 'about'     as const, label: 'About',     icon: 'ⓘ' },
+  { id: 'practice' as const, label: 'Practice', icon: '◎' },
 ]
 
 export default function NavSidebar({ currentPage, onNavigate, collapsed = false, onToggleCollapse }: NavSidebarProps) {
