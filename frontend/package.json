@@ -31,7 +31,7 @@
     "@typescript-eslint/parser": "8.59.1",
     "@vitejs/plugin-react": "6.0.1",
     "eslint": "9.39.4",
-    "eslint-plugin-react-hooks": "5.2.0",
+    "eslint-plugin-react-hooks": "7.1.1",
     "jsdom": "29.1.0",
     "patch-package": "^8.0.1",
     "stockfish": "18.0.5",
