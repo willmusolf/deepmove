@@ -58,6 +58,7 @@ function preloadAllSounds() {
 
 function unlockSoundCache() {
   if (hasUnlockedSoundCache) return
+  hasUnlockedSoundCache = true
 
   for (const event of Object.keys(SOUND_PATHS) as SoundEvent[]) {
     const audio = getOrCreateAudio(event)
@@ -69,7 +70,6 @@ function unlockSoundCache() {
         audio.pause()
         audio.currentTime = 0
         audio.muted = previousMuted
-        hasUnlockedSoundCache = true
       })
       .catch(() => {
         audio.muted = previousMuted
@@ -107,7 +107,6 @@ function playEventNow(event: SoundEvent) {
 export function playSharedMoveSound(san: string) {
   if (!san) return
   ensureSoundWarmup()
-  unlockSoundCache()
   playEventNow(classifySan(san))
 }
 
@@ -125,7 +124,6 @@ export function useSound() {
 
   const playIllegalSound = useCallback(() => {
     ensureSoundWarmup()
-    unlockSoundCache()
     playEventNow('illegal')
   }, [])
 
