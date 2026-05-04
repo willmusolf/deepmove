@@ -164,6 +164,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       body: JSON.stringify(data),
     })
     set({ user: updated, isPremium: updated.is_premium })
+    usePrefsStore.getState().loadFromUser(updated.preferences)
   },
 
 
