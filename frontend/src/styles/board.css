@@ -3875,6 +3875,19 @@ cg-board {
   gap: 0.5rem;
 }
 
+.play-board-col--no-eval .eval-bar-container {
+  display: none;
+}
+
+.play-board-with-eval--no-eval {
+  gap: 0;
+}
+
+.play-board-col--no-eval .board-controls {
+  margin-left: 0;
+  width: 100%;
+}
+
 .play-side-panel {
   display: flex;
   flex: 1;

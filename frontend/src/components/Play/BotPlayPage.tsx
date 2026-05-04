@@ -467,8 +467,8 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   return (
     <>
       {/* ── Board column ── */}
-      <div className="board-col play-board-col">
-        <div className="board-with-eval">
+      <div className={`board-col play-board-col${showAnalysis ? '' : ' play-board-col--no-eval'}`}>
+        <div className={`board-with-eval${showAnalysis ? '' : ' play-board-with-eval--no-eval'}`}>
           <EvalBar
             evalCentipawns={evalCp}
             isMate={isMate}
