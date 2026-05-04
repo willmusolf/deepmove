@@ -687,11 +687,17 @@ export default function ChessBoard({
     window.addEventListener('pointermove', syncDragPreview)
     window.addEventListener('pointerup', clearDragPreview)
     window.addEventListener('pointercancel', clearDragPreview)
+    window.addEventListener('mouseup', clearDragPreview)
+    window.addEventListener('touchend', clearDragPreview)
+    window.addEventListener('touchcancel', clearDragPreview)
 
     return () => {
       window.removeEventListener('pointermove', syncDragPreview)
       window.removeEventListener('pointerup', clearDragPreview)
       window.removeEventListener('pointercancel', clearDragPreview)
+      window.removeEventListener('mouseup', clearDragPreview)
+      window.removeEventListener('touchend', clearDragPreview)
+      window.removeEventListener('touchcancel', clearDragPreview)
     }
   }, [clearDragPreview])
 
@@ -707,7 +713,7 @@ export default function ChessBoard({
     }
 
     const maybeFinishPinchZoom = (event: TouchEvent) => {
-      if (event.touches.length > 1) return
+      if ((event.touches?.length ?? 0) > 1) return
       if (!isPinchZoomingRef.current) return
       isPinchZoomingRef.current = false
       flushPendingLayoutSync()

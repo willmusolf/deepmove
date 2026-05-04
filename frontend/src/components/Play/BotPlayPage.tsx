@@ -465,9 +465,9 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   }
 
   return (
-    <div className="play-page">
+    <>
       {/* ── Board column ── */}
-      <div className="board-col">
+      <div className="board-col play-board-col">
         <div className="board-with-eval">
           <EvalBar
             evalCentipawns={evalCp}
@@ -611,38 +611,47 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
       </div>
 
       {/* ── Side panel ── */}
-      <div className="side-col">
-        <MoveList
-          tree={tree}
-          rootId={rootId}
-          currentPath={browsePosition ? browsePath : currentPath}
-          moveGrades={[]}
-          onNodeClick={(path) => {
-            const nodeId = path[path.length - 1]
-            const node = tree[nodeId]
-            if (!node) return
-            setAtBrowseStart(false)
-            setBrowsePath(path)
-            // If clicking the live tip, exit browse mode
-            if (nodeId === currentPath[currentPath.length - 1]) {
-              setBrowsePosition(null)
-              setBrowsePath([])
-            } else {
-              setBrowsePosition(node.fen)
-            }
-          }}
-          isAnalyzing={false}
-        />
+      <div className="side-col play-side-col">
+        <div className="play-side-panel">
+          <div className="play-side-panel__header">
+            <h3 className="play-side-panel__title">Transcript</h3>
+            {isBotThinking && status === 'playing' && (
+              <span className="play-side-panel__status">Bot thinking…</span>
+            )}
+          </div>
 
-        {status === 'finished' && (
-          <GameResultBanner
-            result={result}
-            reason={endReason}
-            onReview={reviewGame}
-            onNewGame={handleNewGame}
+          <MoveList
+            tree={tree}
+            rootId={rootId}
+            currentPath={browsePosition ? browsePath : currentPath}
+            moveGrades={[]}
+            onNodeClick={(path) => {
+              const nodeId = path[path.length - 1]
+              const node = tree[nodeId]
+              if (!node) return
+              setAtBrowseStart(false)
+              setBrowsePath(path)
+              // If clicking the live tip, exit browse mode
+              if (nodeId === currentPath[currentPath.length - 1]) {
+                setBrowsePosition(null)
+                setBrowsePath([])
+              } else {
+                setBrowsePosition(node.fen)
+              }
+            }}
+            isAnalyzing={false}
           />
-        )}
+
+          {status === 'finished' && (
+            <GameResultBanner
+              result={result}
+              reason={endReason}
+              onReview={reviewGame}
+              onNewGame={handleNewGame}
+            />
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }

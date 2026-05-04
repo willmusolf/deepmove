@@ -93,6 +93,56 @@ describe('ChessBoard component', () => {
     window.requestAnimationFrame = originalRaf
   })
 
+  it('flushes deferred drawable updates on touchend when pointerup never arrives', () => {
+    const originalRaf = window.requestAnimationFrame
+    window.requestAnimationFrame = vi.fn((cb: FrameRequestCallback) => {
+      cb(0)
+      return 1
+    })
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 320,
+      bottom: 320,
+      width: 320,
+      height: 320,
+      toJSON: () => ({}),
+    } as DOMRect)
+
+    draggableCurrent.started = false
+    setApi.mockClear()
+    const { rerender } = render(<ChessBoard shapes={[]} />)
+    setApi.mockClear()
+
+    draggableCurrent.started = true
+    const moveEvent = new Event('pointermove')
+    Object.defineProperty(moveEvent, 'clientX', { configurable: true, value: 40 })
+    Object.defineProperty(moveEvent, 'clientY', { configurable: true, value: 40 })
+
+    act(() => {
+      window.dispatchEvent(moveEvent)
+    })
+
+    rerender(<ChessBoard shapes={[{ orig: 'b1', dest: 'c3', brush: 'green' }]} />)
+
+    expect(setApi).not.toHaveBeenCalled()
+
+    const touchEndEvent = new Event('touchend')
+    act(() => {
+      window.dispatchEvent(touchEndEvent)
+    })
+
+    expect(setApi).toHaveBeenCalledWith({
+      drawable: { autoShapes: [{ orig: 'b1', dest: 'c3', brush: 'green' }] },
+    })
+
+    draggableCurrent.started = false
+    rectSpy.mockRestore()
+    window.requestAnimationFrame = originalRaf
+  })
+
   it('does not call redrawAll when fen prop changes while a drag is active', () => {
     const originalRaf = window.requestAnimationFrame
     window.requestAnimationFrame = vi.fn((cb: FrameRequestCallback) => {

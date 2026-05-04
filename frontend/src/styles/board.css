@@ -1331,6 +1331,61 @@ cg-board {
   }
 }
 
+@media (max-width: 980px) {
+  .play-setup-wrapper {
+    gap: 1.5rem;
+    padding: 1rem 0;
+  }
+
+  .play-setup-board-preview {
+    display: none;
+  }
+
+  .play-setup-side-col,
+  .play-setup-panel {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 860px) {
+  .play-side-col {
+    min-height: 0;
+  }
+
+  .play-side-panel {
+    min-height: 260px;
+  }
+}
+
+@media (max-width: 480px) {
+  .play-page--setup {
+    align-items: flex-start;
+  }
+
+  .play-setup-wrapper {
+    padding: 0;
+  }
+
+  .play-setup-panel {
+    padding: 1rem;
+    border-radius: 12px;
+  }
+
+  .play-board-col .board-controls__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .play-side-panel__header {
+    padding: 0.8rem 0.85rem 0.7rem;
+  }
+
+  .play-side-panel .move-list {
+    padding: 0.45rem 0.2rem 0.65rem;
+  }
+}
+
 @media (pointer: coarse) {
   .board-hover-outline {
     display: none;
@@ -3660,6 +3715,7 @@ cg-board {
   flex: 1;
   min-height: 0;
   gap: 1rem;
+  width: 100%;
 }
 
 .play-page--setup {
@@ -3671,6 +3727,9 @@ cg-board {
   display: flex;
   gap: 2.5rem;
   align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  max-width: 1120px;
   padding: 2rem;
 }
 
@@ -3814,6 +3873,56 @@ cg-board {
 /* ── In-game controls ───────────────────────────────────────────────────── */
 .play-board-controls {
   gap: 0.5rem;
+}
+
+.play-side-panel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--color-panel, #1e1e1e);
+  border: 1px solid var(--color-border, #333);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.play-side-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem 0.8rem;
+  border-bottom: 1px solid var(--color-border, #333);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
+    var(--color-panel, #1e1e1e);
+}
+
+.play-side-panel__title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #aaa);
+}
+
+.play-side-panel__status {
+  font-size: 0.76rem;
+  color: var(--color-text-muted, #aaa);
+  white-space: nowrap;
+}
+
+.play-side-panel .move-list {
+  flex: 1;
+  min-height: 0;
+  padding: 0.55rem 0.35rem 0.75rem;
+}
+
+.play-side-panel .game-result-banner {
+  margin: 0;
+  border-radius: 0;
+  border-top-width: 1px;
 }
 
 /* Bot thinking indicator */
