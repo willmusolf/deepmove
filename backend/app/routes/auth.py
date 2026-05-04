@@ -1,8 +1,16 @@
 """auth.py — Authentication routes (email/password + OAuth)."""
+import base64
+import hashlib
+import hmac
 import logging
 import re
+import secrets
+import time
+from urllib.parse import urlencode
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -66,6 +74,110 @@ def _clear_refresh_cookie(response: Response) -> None:
 def _user_response(user: User) -> UserResponse:
     return UserResponse.model_validate(user)
 
+
+# ── OAuth PKCE helpers ────────────────────────────────────────────────────────
+
+def _generate_pkce() -> tuple[str, str]:
+    """Return (verifier, S256_challenge) pair for PKCE."""
+    verifier = secrets.token_urlsafe(64)
+    digest = hashlib.sha256(verifier.encode()).digest()
+    challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+    return verifier, challenge
+
+
+def _make_state_token(verifier: str) -> str:
+    """Embed the PKCE verifier inside a signed, time-stamped state token.
+
+    The state parameter IS the CSRF token AND carries the verifier — no cookie needed.
+    Format (all base64url / hex, no colons): {ts}:{nonce}:{verifier}:{hmac32}
+    """
+    ts = str(int(time.time()))
+    nonce = secrets.token_urlsafe(16)
+    payload = f"{ts}:{nonce}:{verifier}"
+    sig = hmac.new(settings.secret_key.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+    return f"{payload}:{sig}"
+
+
+def _parse_state_token(state: str, max_age: int = 600) -> str:
+    """Validate the state token and return the embedded verifier.
+
+    Raises ValueError on bad signature, wrong format, or expiry.
+    """
+    try:
+        ts, nonce, verifier, sig = state.split(":", 3)
+    except ValueError:
+        raise ValueError("malformed state")
+    payload = f"{ts}:{nonce}:{verifier}"
+    expected = hmac.new(settings.secret_key.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+    if not hmac.compare_digest(sig, expected):
+        raise ValueError("bad signature")
+    if int(time.time()) - int(ts) > max_age:
+        raise ValueError("expired")
+    return verifier
+
+
+def _find_or_create_oauth_user(
+    db: Session,
+    *,
+    provider: str,
+    provider_id: str,
+    email: str | None,
+    lichess_username: str | None = None,
+) -> User:
+    """Find an existing user by provider ID or email, or create a new one.
+
+    Matching priority:
+      1. Provider-specific ID (e.g. google_id, lichess_id) — exact returning user
+      2. Email match — links OAuth to an existing email/password account
+      3. Create new account (no password set)
+    """
+    field_map = {"google": User.google_id, "lichess": User.lichess_id}
+    field = field_map[provider]
+
+    user = db.query(User).filter(field == provider_id).first()
+
+    if not user and email:
+        user = db.query(User).filter(User.email == email.lower()).first()
+
+    if not user:
+        # email column is NOT NULL — use a placeholder for providers that don't return email.
+        # Users can add a real email from settings later.
+        effective_email = email.lower() if email else f"oauth_{provider}_{provider_id}@noemail.deepmove"
+        user = User(
+            email=effective_email,
+            hashed_password=None,
+        )
+        db.add(user)
+
+    # If found by provider_id but user has a placeholder email and a real-email account
+    # exists, merge into the real-email account (e.g. Google + Lichess same email).
+    if email and user.email and user.email.endswith("@noemail.deepmove"):
+        real_email_user = db.query(User).filter(User.email == email.lower()).first()
+        if real_email_user and real_email_user.id != user.id:
+            # Clear provider ID from placeholder user so it is no longer found by this provider
+            if provider == "google":
+                user.google_id = None
+            elif provider == "lichess":
+                user.lichess_id = None
+            db.flush()
+            user = real_email_user
+        else:
+            user.email = email.lower()
+
+    # Always stamp the provider ID onto the canonical user
+    if provider == "google":
+        user.google_id = provider_id
+    elif provider == "lichess":
+        user.lichess_id = provider_id
+        if lichess_username:
+            user.lichess_username = lichess_username
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+# ── Email / password routes ───────────────────────────────────────────────────
 
 @router.post("/register", response_model=AuthResponse)
 @limiter.limit("3/minute")
@@ -209,55 +321,203 @@ async def logout(
     return {"status": "logged_out"}
 
 
-# ── OAuth routes ─────────────────────────────────────────────────────────────
-# These are stubs that will be completed when OAuth client IDs are configured.
-# SECURITY REQUIREMENTS when implementing:
-#   - Use PKCE (code_verifier + code_challenge S256) for all flows
-#   - Generate a random opaque  parameter; store in session; validate on callback
-#   - Perform the token exchange on the backend only — never expose client_secret to the frontend
-#   - Validate redirect_uri against an explicit allowlist before redirecting
-# The flow: GET /auth/{provider} → redirect to provider → callback → JWT pair.
-
-
-@router.get("/lichess")
-async def lichess_login():
-    """Redirect to Lichess OAuth authorization."""
-    if not settings.lichess_client_id:
-        raise HTTPException(status_code=501, detail="Lichess OAuth not configured")
-    # TODO: Generate PKCE code_verifier, store in session, redirect to Lichess
-    return {"status": "not_configured", "detail": "Set LICHESS_CLIENT_ID in .env"}
-
-
-@router.get("/lichess/callback")
-async def lichess_callback(code: str, state: str = "", db: Session = Depends(get_db)):
-    """Handle Lichess OAuth callback."""
-    # TODO: Exchange code for token, fetch user profile, create/link account
-    raise HTTPException(status_code=501, detail="Lichess OAuth not configured")
+# ── OAuth routes ──────────────────────────────────────────────────────────────
+# Flow: GET /auth/{provider} → PKCE+state cookie set → redirect to provider
+#       → provider redirects to /auth/{provider}/callback?code=...&state=...
+#       → backend validates, exchanges code, finds/creates user, issues JWT pair
+#       → redirect to {FRONTEND_URL}/?oauth_success=1 (refresh cookie set)
+#       → frontend detects param, sets dm_has_session, calls /auth/refresh
 
 
 @router.get("/google")
 async def google_login():
-    """Redirect to Google OAuth authorization."""
+    """Redirect to Google OAuth authorization page."""
     if not settings.google_client_id:
         raise HTTPException(status_code=501, detail="Google OAuth not configured")
-    return {"status": "not_configured", "detail": "Set GOOGLE_CLIENT_ID in .env"}
+    verifier, challenge = _generate_pkce()
+    state = _make_state_token(verifier)
+    params = urlencode({
+        "client_id": settings.google_client_id,
+        "redirect_uri": settings.google_redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+        "access_type": "offline",
+        "prompt": "select_account",
+    })
+    redirect = RedirectResponse(f"https://accounts.google.com/o/oauth2/v2/auth?{params}", 302)
+    return redirect
 
 
 @router.get("/google/callback")
-async def google_callback(code: str, state: str = "", db: Session = Depends(get_db)):
-    """Handle Google OAuth callback."""
-    raise HTTPException(status_code=501, detail="Google OAuth not configured")
+async def google_callback(
+    request: Request,
+    code: str,
+    state: str,
+    db: Session = Depends(get_db),
+):
+    """Handle Google OAuth callback: exchange code, find/create user, issue tokens."""
+    ip = client_ip_from_request(request)
+    redirect_err = RedirectResponse(f"{settings.frontend_url}/?oauth_error=1", 302)
+
+    try:
+        verifier = _parse_state_token(state)
+    except ValueError as exc:
+        log_event(logger, logging.WARNING, "auth.oauth.google_failed", ip=ip, reason=str(exc))
+        return redirect_err
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            token_resp = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "client_id": settings.google_client_id,
+                    "client_secret": settings.google_client_secret,
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": settings.google_redirect_uri,
+                    "code_verifier": verifier,
+                },
+            )
+            if not token_resp.is_success:
+                log_event(logger, logging.WARNING, "auth.oauth.google_failed", ip=ip,
+                          reason="token_exchange_failed", status=token_resp.status_code,
+                          body=token_resp.text[:200])
+                return redirect_err
+            token_data = token_resp.json()
+
+            userinfo_resp = await client.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {token_data['access_token']}"},
+            )
+            if not userinfo_resp.is_success:
+                log_event(logger, logging.WARNING, "auth.oauth.google_failed", ip=ip, reason="userinfo_failed")
+                return redirect_err
+            profile = userinfo_resp.json()
+
+        user = _find_or_create_oauth_user(
+            db,
+            provider="google",
+            provider_id=profile["sub"],
+            email=profile.get("email"),
+        )
+        access = create_access_token(user.id, user.token_version)
+        new_refresh = create_refresh_token(user.id, user.token_version)
+        log_event(logger, logging.INFO, "auth.oauth.google_login", ip=ip, user_id=user.id)
+
+        # Pass access token via hash fragment so the frontend can log in immediately
+        # without depending on the redirect cookie reaching the browser.
+        # Refresh cookie is still set for future silent refreshes.
+        redirect_ok = RedirectResponse(f"{settings.frontend_url}/#at={access}", 302)
+        _set_refresh_cookie(redirect_ok, new_refresh)
+        return redirect_ok
+    except Exception as exc:
+        log_event(logger, logging.ERROR, "auth.oauth.google_failed", ip=ip,
+                  reason="unexpected_error", error=repr(exc))
+        return redirect_err
+
+
+@router.get("/lichess")
+async def lichess_login():
+    """Redirect to Lichess OAuth authorization page."""
+    if not settings.lichess_client_id:
+        raise HTTPException(status_code=501, detail="Lichess OAuth not configured")
+    verifier, challenge = _generate_pkce()
+    state = _make_state_token(verifier)
+    params = urlencode({
+        "response_type": "code",
+        "client_id": settings.lichess_client_id,
+        "redirect_uri": settings.lichess_redirect_uri,
+        "scope": "email:read",
+        "state": state,
+        "code_challenge_method": "S256",
+        "code_challenge": challenge,
+    })
+    return RedirectResponse(f"https://lichess.org/oauth?{params}", 302)
+
+
+@router.get("/lichess/callback")
+async def lichess_callback(
+    request: Request,
+    code: str,
+    state: str,
+    db: Session = Depends(get_db),
+):
+    """Handle Lichess OAuth callback: exchange code, find/create user, issue tokens."""
+    ip = client_ip_from_request(request)
+    redirect_err = RedirectResponse(f"{settings.frontend_url}/?oauth_error=1", 302)
+
+    try:
+        verifier = _parse_state_token(state)
+    except ValueError as exc:
+        log_event(logger, logging.WARNING, "auth.oauth.lichess_failed", ip=ip, reason=str(exc))
+        return redirect_err
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # Lichess public-client PKCE: no client_secret in token exchange
+            token_resp = await client.post(
+                "https://lichess.org/api/token",
+                data={
+                    "grant_type": "authorization_code",
+                    "client_id": settings.lichess_client_id,
+                    "code": code,
+                    "code_verifier": verifier,
+                    "redirect_uri": settings.lichess_redirect_uri,
+                },
+            )
+            if not token_resp.is_success:
+                log_event(logger, logging.WARNING, "auth.oauth.lichess_failed", ip=ip,
+                          reason="token_exchange_failed", status=token_resp.status_code,
+                          body=token_resp.text[:200])
+                return redirect_err
+            token_data = token_resp.json()
+
+            profile_resp = await client.get(
+                "https://lichess.org/api/account",
+                headers={"Authorization": f"Bearer {token_data['access_token']}"},
+            )
+            if not profile_resp.is_success:
+                log_event(logger, logging.WARNING, "auth.oauth.lichess_failed", ip=ip, reason="profile_failed")
+                return redirect_err
+            profile = profile_resp.json()
+
+            # /api/account does not include email — fetch from dedicated endpoint
+            email_resp = await client.get(
+                "https://lichess.org/api/account/email",
+                headers={"Authorization": f"Bearer {token_data['access_token']}"},
+            )
+            lichess_email = email_resp.json().get("email") if email_resp.is_success else None
+
+        user = _find_or_create_oauth_user(
+            db,
+            provider="lichess",
+            provider_id=profile["id"],
+            email=lichess_email,
+            lichess_username=profile.get("username"),
+        )
+        access = create_access_token(user.id, user.token_version)
+        new_refresh = create_refresh_token(user.id, user.token_version)
+        log_event(logger, logging.INFO, "auth.oauth.lichess_login", ip=ip, user_id=user.id)
+
+        redirect_ok = RedirectResponse(f"{settings.frontend_url}/#at={access}", 302)
+        _set_refresh_cookie(redirect_ok, new_refresh)
+        return redirect_ok
+    except Exception as exc:
+        log_event(logger, logging.ERROR, "auth.oauth.lichess_failed", ip=ip,
+                  reason="unexpected_error", error=repr(exc))
+        return redirect_err
 
 
 @router.get("/chesscom")
 async def chesscom_login():
-    """Redirect to Chess.com OAuth authorization."""
-    if not settings.chesscom_client_id:
-        raise HTTPException(status_code=501, detail="Chess.com OAuth not configured")
-    return {"status": "not_configured", "detail": "Set CHESSCOM_CLIENT_ID in .env"}
+    """Chess.com does not offer a public OAuth system.
 
-
-@router.get("/chesscom/callback")
-async def chesscom_callback(code: str, state: str = "", db: Session = Depends(get_db)):
-    """Handle Chess.com OAuth callback."""
-    raise HTTPException(status_code=501, detail="Chess.com OAuth not configured")
+    Users can link their Chess.com account from account settings after signing in.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Chess.com does not provide OAuth. Link your username from account settings.",
+    )

@@ -214,9 +214,18 @@ export default function App() {
 
   // Silent auth refresh on app load — non-blocking, app works without it
   const authRefresh = useAuthStore(s => s.refresh)
+  const bootstrapFromOAuth = useAuthStore(s => s.bootstrapFromOAuth)
   const authUser = useAuthStore(s => s.user)
   const isPremium = useAuthStore(s => s.isPremium)
-  useEffect(() => { void authRefresh() }, [authRefresh])
+  useEffect(() => {
+    const oauthToken = sessionStorage.getItem('dm_oauth_at')
+    if (oauthToken) {
+      sessionStorage.removeItem('dm_oauth_at')
+      void bootstrapFromOAuth(oauthToken)
+    } else {
+      void authRefresh()
+    }
+  }, [authRefresh, bootstrapFromOAuth])
 
   // Initialize userElo from cached detected ratings (instant — cached at import time, no analysis needed)
   useEffect(() => {
