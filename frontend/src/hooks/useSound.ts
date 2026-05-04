@@ -6,6 +6,7 @@ import { usePrefsStore } from '../stores/prefsStore'
 import { useAuthStore } from '../stores/authStore'
 
 type SoundEvent = 'move' | 'capture' | 'castle' | 'check' | 'mate' | 'promote' | 'illegal'
+type BrowserAudioContext = AudioContext
 
 /** Classify a SAN string into the appropriate sound event */
 export function classifySan(san: string): SoundEvent {
@@ -29,7 +30,11 @@ const SOUND_PATHS: Record<SoundEvent, string> = {
 }
 
 const sharedAudioCache: Partial<Record<SoundEvent, HTMLAudioElement>> = {}
-let hasUnlockedSoundCache = false
+const decodedBufferCache: Partial<Record<SoundEvent, AudioBuffer>> = {}
+const decodedBufferLoads: Partial<Record<SoundEvent, Promise<void>>> = {}
+let sharedAudioContext: BrowserAudioContext | null = null
+let hasAttemptedAudioContextInit = false
+let hasUnlockedFallbackCache = false
 let hasRegisteredUnlockListeners = false
 
 function getStoredSoundEnabled(): boolean {
@@ -37,7 +42,8 @@ function getStoredSoundEnabled(): boolean {
   return localStorage.getItem('soundEnabled') !== 'false'
 }
 
-function getOrCreateAudio(event: SoundEvent): HTMLAudioElement {
+function getOrCreateAudio(event: SoundEvent): HTMLAudioElement | null {
+  if (typeof Audio === 'undefined') return null
   let audio = sharedAudioCache[event]
   if (audio) return audio
 
@@ -49,19 +55,72 @@ function getOrCreateAudio(event: SoundEvent): HTMLAudioElement {
   return audio
 }
 
-function preloadAllSounds() {
-  for (const event of Object.keys(SOUND_PATHS) as SoundEvent[]) {
-    const audio = getOrCreateAudio(event)
-    if (audio.readyState === 0) audio.load()
+function getAudioContext(): BrowserAudioContext | null {
+  if (typeof window === 'undefined') return null
+  if (sharedAudioContext) return sharedAudioContext
+  if (hasAttemptedAudioContextInit) return null
+
+  hasAttemptedAudioContextInit = true
+  const AudioContextCtor = window.AudioContext
+    ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+
+  if (!AudioContextCtor) return null
+
+  try {
+    sharedAudioContext = new AudioContextCtor()
+    return sharedAudioContext
+  } catch {
+    return null
   }
 }
 
-function unlockSoundCache() {
-  if (hasUnlockedSoundCache) return
-  hasUnlockedSoundCache = true
+function preloadAllSounds() {
+  for (const event of Object.keys(SOUND_PATHS) as SoundEvent[]) {
+    const audio = getOrCreateAudio(event)
+    if (audio && audio.readyState === 0) audio.load()
+  }
+}
+
+function preloadDecodedSounds() {
+  const context = getAudioContext()
+  if (!context) return
+
+  for (const event of Object.keys(SOUND_PATHS) as SoundEvent[]) {
+    if (decodedBufferCache[event] || decodedBufferLoads[event]) continue
+
+    decodedBufferLoads[event] = fetch(SOUND_PATHS[event])
+      .then(res => {
+        if (!res.ok) throw new Error(`Failed to load sound: ${event}`)
+        return res.arrayBuffer()
+      })
+      .then(buffer => context.decodeAudioData(buffer))
+      .then(decoded => {
+        decodedBufferCache[event] = decoded
+      })
+      .catch(() => {
+        // Fallback HTMLAudio path remains available if fetch/decode fails.
+      })
+      .finally(() => {
+        delete decodedBufferLoads[event]
+      })
+  }
+}
+
+function unlockWebAudio() {
+  const context = getAudioContext()
+  if (!context || context.state !== 'suspended') return
+  void context.resume().catch(() => {
+    // HTMLAudio fallback remains available if resume fails.
+  })
+}
+
+function unlockFallbackCache() {
+  if (hasUnlockedFallbackCache) return
+  hasUnlockedFallbackCache = true
 
   for (const event of Object.keys(SOUND_PATHS) as SoundEvent[]) {
     const audio = getOrCreateAudio(event)
+    if (!audio) continue
     const previousMuted = audio.muted
     audio.muted = true
     audio.currentTime = 0
@@ -80,12 +139,15 @@ function unlockSoundCache() {
 function ensureSoundWarmup() {
   if (typeof window === 'undefined') return
   preloadAllSounds()
+  preloadDecodedSounds()
 
   if (hasRegisteredUnlockListeners) return
   hasRegisteredUnlockListeners = true
 
   const handleFirstInteraction = () => {
-    unlockSoundCache()
+    unlockWebAudio()
+    unlockFallbackCache()
+    preloadDecodedSounds()
     window.removeEventListener('pointerdown', handleFirstInteraction)
     window.removeEventListener('touchstart', handleFirstInteraction)
     window.removeEventListener('keydown', handleFirstInteraction)
@@ -97,9 +159,33 @@ function ensureSoundWarmup() {
   window.addEventListener('keydown', handleFirstInteraction)
 }
 
+function playDecodedBuffer(event: SoundEvent): boolean {
+  const context = getAudioContext()
+  const buffer = context ? decodedBufferCache[event] : null
+  if (!context || !buffer) return false
+
+  if (context.state !== 'running') {
+    unlockWebAudio()
+    return false
+  }
+
+  try {
+    const source = context.createBufferSource()
+    source.buffer = buffer
+    source.connect(context.destination)
+    source.start(0)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function playEventNow(event: SoundEvent) {
   if (!getStoredSoundEnabled()) return
+  if (playDecodedBuffer(event)) return
+
   const audio = getOrCreateAudio(event)
+  if (!audio) return
   audio.currentTime = 0
   void audio.play().catch(err => console.warn('[sound] play failed:', (err as Error).name, (err as Error).message))
 }
