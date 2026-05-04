@@ -27,7 +27,7 @@ import { StockfishEngine } from '../engine/stockfish'
 import { usePlayStore, STARTING_FEN, type PlayConfig, type TimeControl } from '../stores/playStore'
 import { msToHHMMSS } from '../utils/format'
 import { useGameStore } from '../stores/gameStore'
-import { classifySan } from './useSound'
+import { playSharedMoveSound } from './useSound'
 import type { MoveNode } from '../chess/types'
 import { applyPremoveForcefully } from '../components/Board/ChessBoard'
 
@@ -147,7 +147,6 @@ export function useBotPlay(onNavigateToReview: () => void) {
   const botEngineRef = useRef<StockfishEngine | null>(null)
   const clockRafRef = useRef<number | null>(null)
   const lastTickRef = useRef<number>(0)
-  const audioRefs = useRef<Partial<Record<string, HTMLAudioElement>>>({})
   const [botEngineReady, setBotEngineReady] = useState(false)
   const playStatus = usePlayStore(s => s.status)
   const clockRunning = usePlayStore(s => s.clockRunning)
@@ -279,29 +278,6 @@ export function useBotPlay(onNavigateToReview: () => void) {
     cancelClockRaf()
   }, [playStatus, clockRunning, startClockRaf, cancelClockRaf])
 
-  // ── Sound helper ─────────────────────────────────────────────────────────
-  function playSound(san: string) {
-    if (localStorage.getItem('soundEnabled') === 'false') return
-    const event = classifySan(san)
-    const paths: Record<string, string> = {
-      move:    '/sounds/move.mp3',
-      capture: '/sounds/capture.mp3',
-      castle:  '/sounds/castle.mp3',
-      check:   '/sounds/move-check.mp3',
-      mate:    '/sounds/checkmate.mp3',
-      promote: '/sounds/confirmation.mp3',
-    }
-    const path = paths[event] ?? paths.move
-    if (!audioRefs.current[path]) {
-      const audio = new Audio(path)
-      audio.preload = 'auto'
-      audioRefs.current[path] = audio
-    }
-    const audio = audioRefs.current[path]!
-    audio.currentTime = 0
-    audio.play().catch(() => {})
-  }
-
   // ── Check terminal position ──────────────────────────────────────────────
   function checkTerminal(chess: Chess): boolean {
     const state = store.getState()
@@ -388,7 +364,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
     // Add increment to user's clock
     usePlayStore.getState().addIncrement(moveColor)
 
-    playSound(premoveSan)
+    playSharedMoveSound(premoveSan)
     isProcessingMoveRef.current = false
     recordPosition(premoveFen)
 
@@ -495,7 +471,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
     // Add increment to bot's clock after move
     usePlayStore.getState().addIncrement(moveColor)
 
-    playSound(san)
+    playSharedMoveSound(san)
 
     // Check terminal after bot move
     recordPosition(botNewFen)
@@ -562,7 +538,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
     // Add increment to user's clock after move
     usePlayStore.getState().addIncrement(moveColor)
 
-    playSound(san)
+    playSharedMoveSound(san)
 
     isProcessingMoveRef.current = false
 

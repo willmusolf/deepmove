@@ -27,7 +27,20 @@ const SOUND_PATHS: Record<SoundEvent, string> = {
 }
 
 const sharedAudioCache: Partial<Record<SoundEvent, HTMLAudioElement>> = {}
+const sharedBufferCache: Partial<Record<SoundEvent, AudioBuffer>> = {}
+const sharedBufferLoadPromises: Partial<Record<SoundEvent, Promise<AudioBuffer | null>>> = {}
 let hasPrimedAudio = false
+let sharedAudioContext: AudioContext | null = null
+
+function getAudioContext(): AudioContext | null {
+  if (typeof window === 'undefined') return null
+  const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  if (!Ctx) return null
+  if (!sharedAudioContext) {
+    sharedAudioContext = new Ctx()
+  }
+  return sharedAudioContext
+}
 
 function ensureAudio(event: SoundEvent): HTMLAudioElement {
   let audio = sharedAudioCache[event]
@@ -48,9 +61,74 @@ function preloadAllAudio() {
   }
 }
 
+async function loadBuffer(event: SoundEvent): Promise<AudioBuffer | null> {
+  if (sharedBufferCache[event]) return sharedBufferCache[event] ?? null
+  if (sharedBufferLoadPromises[event]) return sharedBufferLoadPromises[event] ?? null
+
+  const context = getAudioContext()
+  if (!context) return null
+
+  const loadPromise = fetch(SOUND_PATHS[event])
+    .then(async response => {
+      if (!response.ok) throw new Error(`Failed to load ${SOUND_PATHS[event]}`)
+      const arrayBuffer = await response.arrayBuffer()
+      const decoded = await context.decodeAudioData(arrayBuffer.slice(0))
+      sharedBufferCache[event] = decoded
+      return decoded
+    })
+    .catch(err => {
+      console.warn('[sound] buffer decode failed:', (err as Error).message)
+      return null
+    })
+
+  sharedBufferLoadPromises[event] = loadPromise
+  return loadPromise
+}
+
+function primeBufferLoads() {
+  for (const event of Object.keys(SOUND_PATHS) as SoundEvent[]) {
+    void loadBuffer(event)
+  }
+}
+
+function playEventNow(event: SoundEvent) {
+  if (!getStoredSoundEnabled()) return
+
+  const context = getAudioContext()
+  const buffer = sharedBufferCache[event]
+  if (context && buffer) {
+    if (context.state === 'suspended') {
+      void context.resume().then(() => {
+        const source = context.createBufferSource()
+        source.buffer = buffer
+        source.connect(context.destination)
+        source.start(0)
+      }).catch(() => {})
+      return
+    }
+
+    const source = context.createBufferSource()
+    source.buffer = buffer
+    source.connect(context.destination)
+    source.start(0)
+    return
+  }
+
+  const audio = ensureAudio(event)
+  audio.currentTime = 0
+  void audio.play().catch(err => console.warn('[sound] play failed:', (err as Error).name, (err as Error).message))
+}
+
 function warmAudioPlayback() {
   if (hasPrimedAudio) return
   hasPrimedAudio = true
+
+  const context = getAudioContext()
+  if (context?.state === 'suspended') {
+    void context.resume().catch(() => {})
+  }
+
+  primeBufferLoads()
 
   for (const event of Object.keys(SOUND_PATHS) as SoundEvent[]) {
     const audio = ensureAudio(event)
@@ -79,6 +157,7 @@ export function useSound() {
 
   useEffect(() => {
     preloadAllAudio()
+    primeBufferLoads()
 
     const handleFirstInteraction = () => {
       preloadAllAudio()
@@ -95,10 +174,7 @@ export function useSound() {
   }, [])
 
   const playEvent = useCallback((event: SoundEvent) => {
-    if (!getStoredSoundEnabled()) return
-    const audio = ensureAudio(event)
-    audio.currentTime = 0
-    void audio.play().catch(err => console.warn('[sound] play failed:', (err as Error).name, (err as Error).message))
+    playEventNow(event)
   }, [])
 
   /** Play the appropriate sound for a SAN string */
@@ -120,4 +196,9 @@ export function useSound() {
   }, [])
 
   return { enabled, toggle, playMoveSound, playIllegalSound }
+}
+
+export function playSharedMoveSound(san: string) {
+  if (!san) return
+  playEventNow(classifySan(san))
 }
