@@ -85,35 +85,43 @@ def _generate_pkce() -> tuple[str, str]:
     return verifier, challenge
 
 
-def _make_state_token(verifier: str) -> str:
-    """Embed the PKCE verifier inside a signed, time-stamped state token.
+def _make_state_token(verifier: str, user_id: int = 0) -> str:
+    """Embed the PKCE verifier (and optional user_id for link flow) in a signed state token.
 
-    The state parameter IS the CSRF token AND carries the verifier — no cookie needed.
-    Format (all base64url / hex, no colons): {ts}:{nonce}:{verifier}:{hmac32}
+    Format: {ts}:{nonce}:{verifier}:{user_id}:{hmac32}
+    user_id=0 means login flow; user_id>0 means account-link flow.
     """
     ts = str(int(time.time()))
     nonce = secrets.token_urlsafe(16)
-    payload = f"{ts}:{nonce}:{verifier}"
+    uid = str(user_id)
+    payload = f"{ts}:{nonce}:{verifier}:{uid}"
     sig = hmac.new(settings.secret_key.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
     return f"{payload}:{sig}"
 
 
-def _parse_state_token(state: str, max_age: int = 600) -> str:
-    """Validate the state token and return the embedded verifier.
+def _parse_state_token(state: str, max_age: int = 600) -> tuple[str, int]:
+    """Validate the state token and return (verifier, user_id).
 
+    user_id=0 means login flow; user_id>0 means account-link flow.
     Raises ValueError on bad signature, wrong format, or expiry.
     """
-    try:
-        ts, nonce, verifier, sig = state.split(":", 3)
-    except ValueError:
+    parts = state.split(":", 4)
+    if len(parts) == 5:
+        ts, nonce, verifier, uid, sig = parts
+        payload = f"{ts}:{nonce}:{verifier}:{uid}"
+    elif len(parts) == 4:
+        # Legacy format (no user_id) — treat as login flow
+        ts, nonce, verifier, sig = parts
+        uid = "0"
+        payload = f"{ts}:{nonce}:{verifier}"
+    else:
         raise ValueError("malformed state")
-    payload = f"{ts}:{nonce}:{verifier}"
     expected = hmac.new(settings.secret_key.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
     if not hmac.compare_digest(sig, expected):
         raise ValueError("bad signature")
     if int(time.time()) - int(ts) > max_age:
         raise ValueError("expired")
-    return verifier
+    return verifier, int(uid) if uid.isdigit() else 0
 
 
 def _find_or_create_oauth_user(
@@ -363,7 +371,7 @@ async def google_callback(
     redirect_err = RedirectResponse(f"{settings.frontend_url}/?oauth_error=1", 302)
 
     try:
-        verifier = _parse_state_token(state)
+        verifier, linking_user_id = _parse_state_token(state)
     except ValueError as exc:
         log_event(logger, logging.WARNING, "auth.oauth.google_failed", ip=ip, reason=str(exc))
         return redirect_err
@@ -396,6 +404,22 @@ async def google_callback(
                 log_event(logger, logging.WARNING, "auth.oauth.google_failed", ip=ip, reason="userinfo_failed")
                 return redirect_err
             profile = userinfo_resp.json()
+
+        if linking_user_id:
+            # Account-link flow: stamp google_id onto the existing user
+            redirect_err_link = RedirectResponse(f"{settings.frontend_url}/?link_error=already_linked", 302)
+            existing = db.query(User).filter(User.google_id == profile["sub"]).first()
+            if existing and existing.id != linking_user_id:
+                log_event(logger, logging.WARNING, "auth.oauth.google_link_conflict", ip=ip,
+                          user_id=linking_user_id, conflicting_id=existing.id)
+                return redirect_err_link
+            link_user = db.query(User).filter(User.id == linking_user_id).first()
+            if not link_user:
+                return redirect_err_link
+            link_user.google_id = profile["sub"]
+            db.commit()
+            log_event(logger, logging.INFO, "auth.oauth.google_linked", ip=ip, user_id=link_user.id)
+            return RedirectResponse(f"{settings.frontend_url}/?link_success=google", 302)
 
         user = _find_or_create_oauth_user(
             db,
@@ -450,7 +474,7 @@ async def lichess_callback(
     redirect_err = RedirectResponse(f"{settings.frontend_url}/?oauth_error=1", 302)
 
     try:
-        verifier = _parse_state_token(state)
+        verifier, linking_user_id = _parse_state_token(state)
     except ValueError as exc:
         log_event(logger, logging.WARNING, "auth.oauth.lichess_failed", ip=ip, reason=str(exc))
         return redirect_err
@@ -491,6 +515,24 @@ async def lichess_callback(
             )
             lichess_email = email_resp.json().get("email") if email_resp.is_success else None
 
+        if linking_user_id:
+            # Account-link flow: stamp lichess_id + username onto the existing user
+            redirect_err_link = RedirectResponse(f"{settings.frontend_url}/?link_error=already_linked", 302)
+            existing = db.query(User).filter(User.lichess_id == profile["id"]).first()
+            if existing and existing.id != linking_user_id:
+                log_event(logger, logging.WARNING, "auth.oauth.lichess_link_conflict", ip=ip,
+                          user_id=linking_user_id, conflicting_id=existing.id)
+                return redirect_err_link
+            link_user = db.query(User).filter(User.id == linking_user_id).first()
+            if not link_user:
+                return redirect_err_link
+            link_user.lichess_id = profile["id"]
+            if profile.get("username"):
+                link_user.lichess_username = profile["username"]
+            db.commit()
+            log_event(logger, logging.INFO, "auth.oauth.lichess_linked", ip=ip, user_id=link_user.id)
+            return RedirectResponse(f"{settings.frontend_url}/?link_success=lichess", 302)
+
         user = _find_or_create_oauth_user(
             db,
             provider="lichess",
@@ -521,3 +563,53 @@ async def chesscom_login():
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="Chess.com does not provide OAuth. Link your username from account settings.",
     )
+
+
+# ── OAuth account-linking (for already-authenticated users) ─────────────────
+# These endpoints let a logged-in user add a second OAuth provider to their
+# existing account without creating a duplicate. The user_id is embedded in
+# the signed state token so the callback knows whose account to stamp.
+
+@router.post("/google/link/start")
+async def google_link_start(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Return the Google OAuth URL for linking (not login). Requires auth."""
+    if not settings.google_client_id:
+        raise HTTPException(status_code=501, detail="Google OAuth not configured")
+    verifier, challenge = _generate_pkce()
+    state = _make_state_token(verifier, user_id=current_user.id)
+    params = urlencode({
+        "client_id": settings.google_client_id,
+        "redirect_uri": settings.google_redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+        "prompt": "select_account",
+    })
+    return {"url": f"https://accounts.google.com/o/oauth2/v2/auth?{params}"}
+
+
+@router.post("/lichess/link/start")
+async def lichess_link_start(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Return the Lichess OAuth URL for linking (not login). Requires auth."""
+    if not settings.lichess_client_id:
+        raise HTTPException(status_code=501, detail="Lichess OAuth not configured")
+    verifier, challenge = _generate_pkce()
+    state = _make_state_token(verifier, user_id=current_user.id)
+    params = urlencode({
+        "response_type": "code",
+        "client_id": settings.lichess_client_id,
+        "redirect_uri": settings.lichess_redirect_uri,
+        "scope": "email:read",
+        "state": state,
+        "code_challenge_method": "S256",
+        "code_challenge": challenge,
+    })
+    return {"url": f"https://lichess.org/oauth?{params}"}

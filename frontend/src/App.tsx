@@ -214,6 +214,7 @@ export default function App() {
   // Silent auth refresh on app load — non-blocking, app works without it
   const authRefresh = useAuthStore(s => s.refresh)
   const bootstrapFromOAuth = useAuthStore(s => s.bootstrapFromOAuth)
+  const reloadUser = useAuthStore(s => s.reloadUser)
   const authUser = useAuthStore(s => s.user)
   const isPremium = useAuthStore(s => s.isPremium)
   useEffect(() => {
@@ -225,6 +226,30 @@ export default function App() {
       void authRefresh()
     }
   }, [authRefresh, bootstrapFromOAuth])
+
+  // After an account-link redirect, reload user to get updated oauth flags
+  useEffect(() => {
+    const linkSuccess = sessionStorage.getItem('dm_link_success')
+    if (linkSuccess) {
+      sessionStorage.removeItem('dm_link_success')
+      void reloadUser()
+    }
+  }, [reloadUser])
+
+  // Sync DB usernames → localStorage so AccountLink restores games on mount
+  // after login (both OAuth and silent refresh), without requiring the user
+  // to visit Settings first.
+  useEffect(() => {
+    if (!authUser) return
+    const LICHESS_KEY = 'deepmove_lichess_username'
+    const CHESSCOM_KEY = 'deepmove_chesscom_username'
+    if (authUser.lichess_username && !localStorage.getItem(LICHESS_KEY)) {
+      localStorage.setItem(LICHESS_KEY, authUser.lichess_username)
+    }
+    if (authUser.chesscom_username && !localStorage.getItem(CHESSCOM_KEY)) {
+      localStorage.setItem(CHESSCOM_KEY, authUser.chesscom_username)
+    }
+  }, [authUser?.id])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize userElo from cached detected ratings (instant — cached at import time, no analysis needed)
   useEffect(() => {
