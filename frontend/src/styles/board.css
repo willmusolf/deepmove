@@ -2724,17 +2724,19 @@ cg-board {
 }
 
 .auth-oauth-btn {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   padding: 0.5rem 0.75rem;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 6px;
   color: #fff;
   font-size: 0.85rem;
-  text-align: center;
   text-decoration: none;
   cursor: pointer;
   transition: background 0.15s;
+  justify-content: center;
 }
 
 .auth-oauth-btn:hover { background: rgba(255,255,255,0.12); }

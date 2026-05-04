@@ -38,6 +38,7 @@ interface AuthState {
     preferences?: Record<string, unknown>
   }) => Promise<void>
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
+  bootstrapFromOAuth: (accessToken: string) => Promise<void>
   clearAuth: () => void
 }
 
@@ -182,6 +183,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accessToken: data.access_token,
       isPremium: data.user.is_premium,
     })
+  },
+  bootstrapFromOAuth: async (accessToken) => {
+    // Called after OAuth redirect with a fresh access token in the URL hash.
+    // Fetches /users/me directly (no refresh cookie needed) and hydrates auth state.
+    try {
+      const user = await authFetch<UserResponse>('/users/me', {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+      set({ user, accessToken, isPremium: user.is_premium, isLoading: false })
+      localStorage.setItem('dm_has_session', '1')
+      usePrefsStore.getState().loadFromUser(user.preferences)
+    } catch {
+      set({ isLoading: false })
+    }
   },
   clearAuth: () => set({ user: null, accessToken: null, isPremium: false }),
 }))
