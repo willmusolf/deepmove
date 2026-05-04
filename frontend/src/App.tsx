@@ -214,9 +214,18 @@ export default function App() {
 
   // Silent auth refresh on app load — non-blocking, app works without it
   const authRefresh = useAuthStore(s => s.refresh)
+  const bootstrapFromOAuth = useAuthStore(s => s.bootstrapFromOAuth)
   const authUser = useAuthStore(s => s.user)
   const isPremium = useAuthStore(s => s.isPremium)
-  useEffect(() => { void authRefresh() }, [authRefresh])
+  useEffect(() => {
+    const oauthToken = sessionStorage.getItem('dm_oauth_at')
+    if (oauthToken) {
+      sessionStorage.removeItem('dm_oauth_at')
+      void bootstrapFromOAuth(oauthToken)
+    } else {
+      void authRefresh()
+    }
+  }, [authRefresh, bootstrapFromOAuth])
 
   // Initialize userElo from cached detected ratings (instant — cached at import time, no analysis needed)
   useEffect(() => {
@@ -359,16 +368,6 @@ export default function App() {
     stopPositionAnalysis()
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
 
-    // Let full-game review finish cleanly before spinning up extra per-position work.
-    // The review UI stays on the main "Analyzing..." state, then best lines resume once
-    // the background pass is done.
-    if (isLoaded && showAnalyzingBar) {
-      setCurrentPositionLines([])
-      setCurrentAnalysisDepth(0)
-      setAnalyzingPosition(false)
-      return
-    }
-
     const cached = positionCache.current.get(displayFen)
 
     // Always show any cached result immediately (partial or full depth)
@@ -430,7 +429,7 @@ export default function App() {
       if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayFen, isLoaded, showAnalyzingBar])
+  }, [displayFen])
 
   // When engine becomes ready, analyze whatever position is currently displayed.
   // This is the main seed — displayFen effect skips analysis until engine is ready.

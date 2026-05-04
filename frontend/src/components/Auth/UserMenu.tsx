@@ -16,7 +16,7 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
   const user = useAuthStore(s => s.user)
   const isLoading = useAuthStore(s => s.isLoading)
   const updateProfile = useAuthStore(s => s.updateProfile)
-  const [showAuth, setShowAuth] = useState(false)
+  const [showAuth, setShowAuth] = useState(() => sessionStorage.getItem('dm_oauth_error') === '1')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
   // Fetch avatar when Chess.com username is linked. Lichess doesn't expose
