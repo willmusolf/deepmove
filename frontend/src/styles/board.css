@@ -1397,6 +1397,14 @@ cg-board {
 }
 
 @media (pointer: coarse) {
+  cg-board square.last-move {
+    box-shadow: none !important;
+  }
+
+  cg-board square.selected {
+    box-shadow: none !important;
+  }
+
   .board-hover-outline {
     display: none;
   }

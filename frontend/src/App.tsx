@@ -28,7 +28,7 @@ import { useStockfish } from './hooks/useStockfish'
 import { useSound } from './hooks/useSound'
 import { useAuthStore } from './stores/authStore'
 import { useGameStore } from './stores/gameStore'
-import { clearPlaySession, usePlayStore } from './stores/playStore'
+import { clearPlaySession } from './stores/playStore'
 import type { TopLine } from './engine/stockfish'
 import { classifyMove, isSacrificeFn } from './engine/analysis'
 import type { MoveGrade } from './engine/analysis'
@@ -119,7 +119,6 @@ function loadAppUiState(): AppUiState | null {
 
 export default function App() {
   const savedUiState = useMemo(() => loadAppUiState(), [])
-  const savedPlayStatus = useMemo(() => usePlayStore.getState().status, [])
   const savedReviewColor = useMemo(() => useGameStore.getState().userColor, [])
   const {
     currentFen,
@@ -563,13 +562,7 @@ export default function App() {
   const [lichessUsername, setLichessUsername] = useState('')
   const [chesscomPagination, setChesscomPagination] = useState<PaginationState | null>(null)
   const [lichessPagination, setLichessPagination] = useState<PaginationState | null>(null)
-  const [currentPage, setCurrentPage] = useState<Page>(() => {
-    const saved = savedUiState?.currentPage ?? 'review'
-    if (saved === 'play' && savedPlayStatus === 'idle') {
-      return 'review'
-    }
-    return saved
-  })
+  const [currentPage, setCurrentPage] = useState<Page>(() => savedUiState?.currentPage ?? 'review')
   const goToPage = (page: Page) => {
     if (page !== 'play') clearPlaySession()
     setCurrentPage(page)
