@@ -884,6 +884,26 @@ cg-board {
   color: var(--color-accent);
 }
 
+@media (hover: none) {
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-accent);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    border-color: var(--color-border);
+    color: var(--color-text);
+  }
+
+  .play-setup-pill:hover {
+    border-color: var(--color-border, #444);
+  }
+
+  .board-control-btn--danger:hover,
+  .board-btn--danger:hover {
+    background: rgba(220, 60, 60, 0.15);
+  }
+}
+
 
 /* ── Responsive: stack on small screens ───────────────────────────────── */
 /* ── Nav sidebar ──────────────────────────────────────────────────────── */

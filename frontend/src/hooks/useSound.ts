@@ -1,7 +1,7 @@
 // useSound.ts — Chess sound effects hook
 // Uses Lichess standard sound set. Preference persisted in localStorage.
 
-import { useRef, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 
 type SoundEvent = 'move' | 'capture' | 'castle' | 'check' | 'mate' | 'promote' | 'illegal'
 
@@ -26,6 +26,49 @@ const SOUND_PATHS: Record<SoundEvent, string> = {
   illegal: '/sounds/illegal.mp3',
 }
 
+const sharedAudioCache: Partial<Record<SoundEvent, HTMLAudioElement>> = {}
+let hasPrimedAudio = false
+
+function ensureAudio(event: SoundEvent): HTMLAudioElement {
+  let audio = sharedAudioCache[event]
+  if (audio) return audio
+
+  audio = new Audio(SOUND_PATHS[event])
+  audio.preload = 'auto'
+  audio.setAttribute('playsinline', '')
+  audio.setAttribute('webkit-playsinline', '')
+  sharedAudioCache[event] = audio
+  return audio
+}
+
+function preloadAllAudio() {
+  for (const event of Object.keys(SOUND_PATHS) as SoundEvent[]) {
+    const audio = ensureAudio(event)
+    if (audio.readyState === 0) audio.load()
+  }
+}
+
+function warmAudioPlayback() {
+  if (hasPrimedAudio) return
+  hasPrimedAudio = true
+
+  for (const event of Object.keys(SOUND_PATHS) as SoundEvent[]) {
+    const audio = ensureAudio(event)
+    const previousMuted = audio.muted
+    audio.muted = true
+    audio.currentTime = 0
+    void audio.play()
+      .then(() => {
+        audio.pause()
+        audio.currentTime = 0
+        audio.muted = previousMuted
+      })
+      .catch(() => {
+        audio.muted = previousMuted
+      })
+  }
+}
+
 function getStoredSoundEnabled(): boolean {
   if (typeof window === 'undefined') return true
   return localStorage.getItem('soundEnabled') !== 'false'
@@ -33,16 +76,27 @@ function getStoredSoundEnabled(): boolean {
 
 export function useSound() {
   const [enabled, setEnabled] = useState(getStoredSoundEnabled)
-  const audioRefs = useRef<Partial<Record<SoundEvent, HTMLAudioElement>>>({})
+
+  useEffect(() => {
+    preloadAllAudio()
+
+    const handleFirstInteraction = () => {
+      preloadAllAudio()
+      warmAudioPlayback()
+    }
+
+    window.addEventListener('pointerdown', handleFirstInteraction, { once: true, passive: true })
+    window.addEventListener('keydown', handleFirstInteraction, { once: true })
+
+    return () => {
+      window.removeEventListener('pointerdown', handleFirstInteraction)
+      window.removeEventListener('keydown', handleFirstInteraction)
+    }
+  }, [])
 
   const playEvent = useCallback((event: SoundEvent) => {
     if (!getStoredSoundEnabled()) return
-    let audio = audioRefs.current[event]
-    if (!audio) {
-      audio = new Audio(SOUND_PATHS[event])
-      audio.preload = 'auto'
-      audioRefs.current[event] = audio
-    }
+    const audio = ensureAudio(event)
     audio.currentTime = 0
     void audio.play().catch(err => console.warn('[sound] play failed:', (err as Error).name, (err as Error).message))
   }, [])
