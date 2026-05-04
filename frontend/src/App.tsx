@@ -1811,8 +1811,6 @@ export default function App() {
           {currentPage === 'privacy' && <PrivacyPage />}
           {currentPage === 'play' && (
             <BotPlayPage
-              analyzePositionLines={analyzePositionLines}
-              stopPositionAnalysis={stopPositionAnalysis}
               onNavigateToReview={() => goToPage('review')}
             />
           )}

@@ -114,6 +114,15 @@ cg-board square.move-dest.oc:hover {
   pointer-events: none;
 }
 
+.board-premove-highlight {
+  position: absolute;
+  z-index: 4;
+  box-sizing: border-box;
+  background: rgba(20, 30, 85, 0.18);
+  box-shadow: inset 0 0 0 3px rgba(20, 30, 85, 0.72);
+  pointer-events: none;
+}
+
 .board-drag-move-dest {
   position: absolute;
   z-index: 8;
@@ -1368,8 +1377,14 @@ cg-board {
     border-radius: 12px;
   }
 
-  .play-board-col .board-controls__actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .play-board-controls .board-controls__actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .play-board-controls .board-control-btn {
+    width: 100%;
   }
 
   .play-side-panel__header {
@@ -3850,6 +3865,10 @@ cg-board {
 /* ── In-game controls ───────────────────────────────────────────────────── */
 .play-board-controls {
   gap: 0.5rem;
+}
+
+.play-board-controls .board-controls__actions {
+  width: 100%;
 }
 
 .play-board-col--no-eval .eval-bar-container {

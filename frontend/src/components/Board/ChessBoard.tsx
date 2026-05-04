@@ -625,33 +625,34 @@ export default function ChessBoard({
     return legalDests.get(dragOriginSquare) ?? []
   }, [dragOriginSquare, isDragging, legalDests])
 
+  const premoveHighlightSquares = useMemo(() => {
+    if (!premoveQueue || premoveQueue.length === 0) return []
+    const seen = new Set<string>()
+    const squares: Key[] = []
+    for (const premove of premoveQueue) {
+      const nextSquares = [premove.orig, premove.dest] as Key[]
+      for (const square of nextSquares) {
+        if (seen.has(square)) continue
+        seen.add(square)
+        squares.push(square)
+      }
+    }
+    return squares
+  }, [premoveQueue])
+
   useEffect(() => {
     if (!apiRef.current) return
     if (!containerRef.current || containerRef.current.getBoundingClientRect().width === 0) return
 
-    // Premove highlight shapes — one filled rect per orig+dest square of each queued premove.
-    // Using autoShapes+customSvg so highlights are pixel-perfect with the board squares
-    // (chessground floors cg-container to 8/DPR px multiples; a DOM overlay would be off).
-    const premoveShapes: DrawShape[] = []
-    if (premoveQueue && premoveQueue.length > 0) {
-      const svgRect = '<rect x="2" y="2" width="96" height="96" fill="rgba(20,30,85,0.15)" stroke="rgba(20,30,85,0.7)" stroke-width="4"/>'
-      for (const pm of premoveQueue) {
-        premoveShapes.push({ orig: pm.orig as Key, customSvg: { html: svgRect } })
-        premoveShapes.push({ orig: pm.dest as Key, customSvg: { html: svgRect } })
-      }
-    }
-
-    const autoShapes = [...premoveShapes, ...shapes]
-
     if (isPinchZoomingRef.current || isDraggingRef.current) {
-      pendingAutoShapesRef.current = autoShapes
+      pendingAutoShapesRef.current = shapes
       return
     }
 
     apiRef.current.set({
-      drawable: { autoShapes },
+      drawable: { autoShapes: shapes },
     })
-  }, [shapes, boardReady, premoveQueue])
+  }, [shapes, boardReady])
 
   useEffect(() => {
     const syncDragPreview = (event: PointerEvent) => {
@@ -790,6 +791,13 @@ export default function ChessBoard({
       aria-label="Chess board"
     >
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {premoveHighlightSquares.map(square => (
+        <div
+          key={`premove-highlight-${square}`}
+          className="board-premove-highlight"
+          style={getSquarePosition(square, orientation, overlayMetrics)}
+        />
+      ))}
       {dragDestinationSquares.map(square => (
         <div
           key={`drag-dest-${square}`}
