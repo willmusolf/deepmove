@@ -2,7 +2,8 @@ import { useState } from 'react'
 import type { PlayConfig, TimeControl, BotSpeed } from '../../stores/playStore'
 
 interface Props {
-  initialOrientation: 'white' | 'black'
+  orientation: 'white' | 'black'
+  onOrientationChange: (orientation: 'white' | 'black') => void
   onStart: (config: PlayConfig) => void
   engineReady?: boolean
 }
@@ -34,14 +35,14 @@ function getIncrementMs(tc: TimeControl): number {
   return tc === '15+10' ? 10_000 : 0
 }
 
-export default function PlaySetupPanel({ initialOrientation, onStart, engineReady = true }: Props) {
+export default function PlaySetupPanel({ orientation, onOrientationChange, onStart, engineReady = true }: Props) {
   const [botElo, setBotElo] = useState(1200)
   const [timeControl, setTimeControl] = useState<TimeControl>('none')
   const [botSpeed, setBotSpeed] = useState<BotSpeed>('normal')
 
   function handleStart() {
     onStart({
-      userColor: initialOrientation,
+      userColor: orientation,
       botElo,
       timeControl,
       incrementMs: getIncrementMs(timeControl),
@@ -52,6 +53,24 @@ export default function PlaySetupPanel({ initialOrientation, onStart, engineRead
   return (
     <div className="play-setup-panel">
       <h2 className="play-setup-title">Play vs Bot</h2>
+
+      <div className="play-setup-section">
+        <label className="play-setup-label">Your Color</label>
+        <div className="play-setup-pills">
+          <button
+            className={`play-setup-pill${orientation === 'white' ? ' active' : ''}`}
+            onClick={() => onOrientationChange('white')}
+          >
+            White
+          </button>
+          <button
+            className={`play-setup-pill${orientation === 'black' ? ' active' : ''}`}
+            onClick={() => onOrientationChange('black')}
+          >
+            Black
+          </button>
+        </div>
+      </div>
 
       <div className="play-setup-section">
         <label className="play-setup-label">Bot Strength</label>

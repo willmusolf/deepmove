@@ -39,10 +39,25 @@ class UserResponse(BaseModel):
     elo_estimate: int | None
     chesscom_username: str | None
     lichess_username: str | None
+    lichess_oauth_linked: bool
+    google_oauth_linked: bool
     preferences: dict
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        # Compute derived boolean fields from provider ID columns
+        data = {
+            **{c: getattr(obj, c) for c in [
+                "is_admin", "id", "email", "is_premium", "elo_estimate",
+                "chesscom_username", "lichess_username", "preferences", "created_at"
+            ]},
+            "lichess_oauth_linked": bool(getattr(obj, "lichess_id", None)),
+            "google_oauth_linked": bool(getattr(obj, "google_id", None)),
+        }
+        return cls(**data)
 
 
 class AuthResponse(BaseModel):

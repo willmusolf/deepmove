@@ -28,7 +28,7 @@ import { useStockfish } from './hooks/useStockfish'
 import { useSound } from './hooks/useSound'
 import { useAuthStore } from './stores/authStore'
 import { useGameStore } from './stores/gameStore'
-import { clearPlaySession, usePlayStore } from './stores/playStore'
+import { clearPlaySession } from './stores/playStore'
 import type { TopLine } from './engine/stockfish'
 import { classifyMove, isSacrificeFn } from './engine/analysis'
 import type { MoveGrade } from './engine/analysis'
@@ -119,7 +119,6 @@ function loadAppUiState(): AppUiState | null {
 
 export default function App() {
   const savedUiState = useMemo(() => loadAppUiState(), [])
-  const savedPlayStatus = useMemo(() => usePlayStore.getState().status, [])
   const savedReviewColor = useMemo(() => useGameStore.getState().userColor, [])
   const {
     currentFen,
@@ -215,6 +214,7 @@ export default function App() {
   // Silent auth refresh on app load — non-blocking, app works without it
   const authRefresh = useAuthStore(s => s.refresh)
   const bootstrapFromOAuth = useAuthStore(s => s.bootstrapFromOAuth)
+  const reloadUser = useAuthStore(s => s.reloadUser)
   const authUser = useAuthStore(s => s.user)
   const isPremium = useAuthStore(s => s.isPremium)
   useEffect(() => {
@@ -226,6 +226,30 @@ export default function App() {
       void authRefresh()
     }
   }, [authRefresh, bootstrapFromOAuth])
+
+  // After an account-link redirect, reload user to get updated oauth flags
+  useEffect(() => {
+    const linkSuccess = sessionStorage.getItem('dm_link_success')
+    if (linkSuccess) {
+      sessionStorage.removeItem('dm_link_success')
+      void reloadUser()
+    }
+  }, [reloadUser])
+
+  // Sync DB usernames → localStorage so AccountLink restores games on mount
+  // after login (both OAuth and silent refresh), without requiring the user
+  // to visit Settings first.
+  useEffect(() => {
+    if (!authUser) return
+    const LICHESS_KEY = 'deepmove_lichess_username'
+    const CHESSCOM_KEY = 'deepmove_chesscom_username'
+    if (authUser.lichess_username && !localStorage.getItem(LICHESS_KEY)) {
+      localStorage.setItem(LICHESS_KEY, authUser.lichess_username)
+    }
+    if (authUser.chesscom_username && !localStorage.getItem(CHESSCOM_KEY)) {
+      localStorage.setItem(CHESSCOM_KEY, authUser.chesscom_username)
+    }
+  }, [authUser?.id])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize userElo from cached detected ratings (instant — cached at import time, no analysis needed)
   useEffect(() => {
@@ -563,13 +587,7 @@ export default function App() {
   const [lichessUsername, setLichessUsername] = useState('')
   const [chesscomPagination, setChesscomPagination] = useState<PaginationState | null>(null)
   const [lichessPagination, setLichessPagination] = useState<PaginationState | null>(null)
-  const [currentPage, setCurrentPage] = useState<Page>(() => {
-    const saved = savedUiState?.currentPage ?? 'review'
-    if (saved === 'play' && savedPlayStatus === 'idle') {
-      return 'review'
-    }
-    return saved
-  })
+  const [currentPage, setCurrentPage] = useState<Page>(() => savedUiState?.currentPage ?? 'review')
   const goToPage = (page: Page) => {
     if (page !== 'play') clearPlaySession()
     setCurrentPage(page)
@@ -1811,8 +1829,6 @@ export default function App() {
           {currentPage === 'privacy' && <PrivacyPage />}
           {currentPage === 'play' && (
             <BotPlayPage
-              analyzePositionLines={analyzePositionLines}
-              stopPositionAnalysis={stopPositionAnalysis}
               onNavigateToReview={() => goToPage('review')}
             />
           )}

@@ -12,6 +12,8 @@ export interface UserResponse {
   elo_estimate: number | null
   chesscom_username: string | null
   lichess_username: string | null
+  lichess_oauth_linked: boolean
+  google_oauth_linked: boolean
   preferences: Record<string, unknown>
   created_at: string
 }
@@ -39,6 +41,7 @@ interface AuthState {
   }) => Promise<void>
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   bootstrapFromOAuth: (accessToken: string) => Promise<void>
+  reloadUser: () => Promise<void>
   clearAuth: () => void
 }
 
@@ -164,6 +167,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       body: JSON.stringify(data),
     })
     set({ user: updated, isPremium: updated.is_premium })
+    usePrefsStore.getState().loadFromUser(updated.preferences)
   },
 
 
@@ -199,6 +203,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       usePrefsStore.getState().loadFromUser(user.preferences)
     } catch {
       set({ isLoading: false })
+    }
+  },
+  reloadUser: async () => {
+    // Re-fetch /users/me after an account-link operation to get updated oauth flags.
+    const token = get().accessToken
+    if (!token) return
+    try {
+      const user = await authFetch<UserResponse>('/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      set({ user, isPremium: user.is_premium })
+    } catch {
+      // Non-fatal — user data just won't reflect the link until next refresh
     }
   },
   clearAuth: () => set({ user: null, accessToken: null, isPremium: false }),

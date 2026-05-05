@@ -26,6 +26,13 @@ if (_hash.startsWith('#at=')) {
   if (_params.get('oauth_error') === '1') {
     sessionStorage.setItem('dm_oauth_error', '1')
     window.history.replaceState({}, '', window.location.pathname)
+  } else if (_params.get('link_success')) {
+    // Account-link completed — stash the provider name so App.tsx can reload user
+    sessionStorage.setItem('dm_link_success', _params.get('link_success')!)
+    window.history.replaceState({}, '', window.location.pathname)
+  } else if (_params.get('link_error')) {
+    sessionStorage.setItem('dm_link_error', _params.get('link_error')!)
+    window.history.replaceState({}, '', window.location.pathname)
   }
 }
 
