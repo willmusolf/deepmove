@@ -80,11 +80,13 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
     )
   }
 
-  // Display name: prefer chess platform username, fall back to email prefix
+  // Display name: prefer chess platform username, fall back to email prefix.
+  // Skip placeholder emails (oauth_xxx@noemail.deepmove) — show 'Player' instead.
+  const isPlaceholderEmail = user.email.endsWith('@noemail.deepmove')
   const displayName =
     user.chesscom_username ||
     user.lichess_username ||
-    user.email.split('@')[0]
+    (isPlaceholderEmail ? 'Player' : user.email.split('@')[0])
 
   const initial = displayName[0].toUpperCase()
 

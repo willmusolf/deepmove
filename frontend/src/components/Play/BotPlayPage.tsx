@@ -1,5 +1,5 @@
 // BotPlayPage.tsx — Full-page Play vs Bot mode.
-// Reuses ChessBoard, PlayerInfoBox, EvalBar, MoveList from the review flow.
+// Reuses ChessBoard, PlayerInfoBox, and MoveList from the review flow.
 // All game state comes from playStore; game loop is in useBotPlay.
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
@@ -9,26 +9,19 @@ import { msToHHMMSS } from '../../utils/format'
 import { useBotPlay } from '../../hooks/useBotPlay'
 import { useSound } from '../../hooks/useSound'
 import ChessBoard from '../Board/ChessBoard'
-import EvalBar from '../Board/EvalBar'
 import PlayerInfoBox from '../Board/PlayerInfoBox'
 import MoveList from '../Board/MoveList'
 import PlaySetupPanel from './PlaySetupPanel'
 import GameResultBanner from './GameResultBanner'
 import { useAuthStore } from '../../stores/authStore'
-import type { TopLine } from '../../engine/stockfish'
-import type { DrawShape } from '../Board/ChessBoard'
 import { Chess } from 'chess.js'
 import { getSquareOverlayPosition } from '../../chess/boardGeometry'
 import { readSessionJson, writeSessionJson } from '../../utils/sessionStorage'
 
-const BOTPLAY_SINGLE_LINE_DEPTH = 26
-const BOTPLAY_MULTI_LINE_DEPTH = 24
 const PLAY_UI_SESSION_KEY = 'deepmove_playUi'
 
 interface PlayUiState {
   orientation: 'white' | 'black'
-  showAnalysis: boolean
-  showArrows: boolean
   browsePosition: string | null
   browsePath: string[]
   atBrowseStart: boolean
@@ -41,8 +34,6 @@ function loadPlayUiState(): PlayUiState | null {
 
   return {
     orientation: parsed.orientation === 'black' ? 'black' : 'white',
-    showAnalysis: parsed.showAnalysis === true,
-    showArrows: parsed.showArrows === true,
     browsePosition: typeof parsed.browsePosition === 'string' ? parsed.browsePosition : null,
     browsePath: Array.isArray(parsed.browsePath)
       ? parsed.browsePath.filter(nodeId => typeof nodeId === 'string')
@@ -53,17 +44,10 @@ function loadPlayUiState(): PlayUiState | null {
 }
 
 interface Props {
-  analyzePositionLines: (
-    fen: string,
-    depth?: number,
-    numLines?: number,
-    onUpdate?: (lines: TopLine[], depth: number) => void,
-  ) => Promise<TopLine[]>
-  stopPositionAnalysis: () => void
   onNavigateToReview: () => void
 }
 
-export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis, onNavigateToReview }: Props) {
+export default function BotPlayPage({ onNavigateToReview }: Props) {
   const savedUiState = useMemo(() => loadPlayUiState(), [])
   const { handleBoardMove, cancelPremoveQueue, premoveQueue, virtualBoardFen, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
   const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound, playMoveSound } = useSound()
@@ -106,17 +90,9 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
 
   // Refs for use inside keydown handler (avoid stale closure)
   const treeRef = useRef(tree)
-  const rootIdRef = useRef(rootId)
   const currentPathRef = useRef(currentPath)
   treeRef.current = tree
-  rootIdRef.current = rootId
   currentPathRef.current = currentPath
-
-  // Analysis overlay (hidden by default — seeing eval is "cheating")
-  const [showAnalysis, setShowAnalysis] = useState(savedUiState?.showAnalysis ?? false)
-  const [showArrows, setShowArrows] = useState(savedUiState?.showArrows ?? false)
-  const [positionLines, setPositionLines] = useState<TopLine[]>([])
-  const analysisTokenRef = useRef(0)
 
   useEffect(() => {
     browsePathRef.current = browsePath
@@ -129,14 +105,12 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   useEffect(() => {
     writeSessionJson(PLAY_UI_SESSION_KEY, {
       orientation,
-      showAnalysis,
-      showArrows,
       browsePosition,
       browsePath,
       atBrowseStart,
       browseStep,
     } satisfies PlayUiState)
-  }, [orientation, showAnalysis, showArrows, browsePosition, browsePath, atBrowseStart, browseStep])
+  }, [orientation, browsePosition, browsePath, atBrowseStart, browseStep])
 
   useEffect(() => {
     if (status === 'idle') {
@@ -281,112 +255,16 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   const lastNode = activePath.length > 0 ? tree[activePath[activePath.length - 1]] : null
   const lastMove: [Key, Key] | undefined = lastNode ? [lastNode.from as Key, lastNode.to as Key] : undefined
 
-  // ── Position analysis (when showAnalysis is on) ──────────────────────────
-  const analysisFen = browsePosition ?? currentFen
-  useEffect(() => {
-    const needsAnalysis = showAnalysis || showArrows
-    analysisTokenRef.current += 1
-    stopPositionAnalysis()
-
-    if (!needsAnalysis || status === 'idle') {
-      setPositionLines([])
-      return
-    }
-
-    const fen = analysisFen
-    const token = ++analysisTokenRef.current
-
-    // Use a stronger single line for the eval bar, and multi-PV only when arrows are visible.
-    let numLines = showArrows ? 2 : 1
-    let depth = showArrows ? BOTPLAY_MULTI_LINE_DEPTH : BOTPLAY_SINGLE_LINE_DEPTH
-    try {
-      const chess = new Chess(fen)
-      const legalMoveCount = chess.moves().length
-      if (legalMoveCount === 0) { setPositionLines([]); return }
-      numLines = Math.min(numLines, legalMoveCount)
-      if (numLines <= 1) depth = BOTPLAY_SINGLE_LINE_DEPTH
-    } catch { /* invalid FEN */ }
-
-    analyzePositionLines(fen, depth, numLines, (lines) => {
-      if (analysisTokenRef.current !== token) return
-      setPositionLines(lines)
-    }).then(lines => {
-      if (analysisTokenRef.current !== token) return
-      setPositionLines(lines)
-    }).catch(() => {})
-
-    return () => {
-      analysisTokenRef.current += 1
-    }
-  }, [analysisFen, showAnalysis, showArrows, status])  // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Stop analysis when hiding
-  useEffect(() => {
-    if (!showAnalysis && !showArrows) {
-      stopPositionAnalysis()
-      setPositionLines([])
-    }
-  }, [showAnalysis, showArrows])  // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Eval bar data ────────────────────────────────────────────────────────
-  const topLine = positionLines[0]
-  const evalCp  = topLine?.isMate ? (topLine.mateIn !== null && topLine.mateIn > 0 ? 30000 : -30000) : topLine?.score
-  const isMate  = topLine?.isMate ?? false
-  const mateIn  = topLine?.mateIn ?? null
-
-  // Filter lines by quality — only show alternatives close to the best move
-  const visibleLines = useMemo(() => {
-    const lines = positionLines
-    if (lines.length === 0) return []
-    const best = lines[0]
-    const seenFirstMove = new Set<string>()
-    return lines.filter((line, i) => {
-      const firstMove = line.pv[0] ?? ''
-      if (seenFirstMove.has(firstMove)) return false
-      seenFirstMove.add(firstMove)
-      if (i === 0) return true
-      if (best.isMate !== line.isMate) return false
-      if (best.isMate && line.isMate) {
-        if (best.mateIn !== null && line.mateIn !== null) {
-          if ((best.mateIn > 0) !== (line.mateIn > 0)) return false
-          return Math.abs(line.mateIn) <= Math.abs(best.mateIn)
-        }
-        return true
-      }
-      const gap = Math.abs(line.score - best.score)
-      if (i === 1) return gap <= 150
-      if (i === 2) return gap <= 50
-      return false
-    })
-  }, [positionLines])
-
-  // Arrow shapes for best-move suggestions (only shown on user's turn)
-  const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
-  const analysisBoardShapes: DrawShape[] = (showArrows && visibleLines.length > 0 && isUserTurn && !browsePosition)
-    ? visibleLines
-        .filter(l => l.pv.length >= 1)
-        .map((line, i) => ({
-          orig: line.pv[0].slice(0, 2) as Key,
-          dest: line.pv[0].slice(2, 4) as Key,
-          brush: LINE_BRUSHES[i] ?? 'okMove',
-        }))
-    : []
-
-  const boardShapes = [...analysisBoardShapes]
-
   const handleFlip = useCallback(() => {
     setOrientation(o => o === 'white' ? 'black' : 'white')
   }, [])
 
   const handleNewGame = useCallback(() => {
-    stopPositionAnalysis()
-    setPositionLines([])
-    setShowAnalysis(false)
     setBrowsePosition(null)
     setBrowsePath([])
     setAtBrowseStart(false)
     resetPlay()
-  }, [resetPlay, setBrowsePosition, stopPositionAnalysis])
+  }, [resetPlay, setBrowsePosition])
 
   // ── User color display info ──────────────────────────────────────────────
   const userIsWhite = config ? config.userColor === 'white' : orientation === 'white'
@@ -410,51 +288,10 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
     return (
       <div className="play-page play-page--setup">
         <div className="play-setup-wrapper">
-          <div className="play-setup-board-preview">
-            {/* ── Board preview — same structure as playing screen for stable layout ── */}
-            <div className="board-col">
-              <div className="board-with-eval">
-                <EvalBar hidden={true} orientation={orientation} />
-                <div className="board-and-players">
-                  {/* Placeholder player boxes — same height as playing screen so board doesn't shift on game start */}
-                  <PlayerInfoBox
-                    username="Stockfish"
-                    elo="—"
-                    isWhite={orientation !== 'white'}
-                    isToMove={false}
-                    currentFen={STARTING_FEN}
-                    platform={null}
-                    clockTime={undefined}
-                  />
-                  <ChessBoard
-                    fen={STARTING_FEN}
-                    orientation={orientation}
-                    interactive={false}
-                  />
-                  <PlayerInfoBox
-                    username={displayName}
-                    elo={null}
-                    isWhite={orientation === 'white'}
-                    isToMove={false}
-                    currentFen={STARTING_FEN}
-                    platform={authUser?.chesscom_username ? 'chesscom' : authUser?.lichess_username ? 'lichess' : null}
-                    clockTime={undefined}
-                  />
-                </div>
-              </div>
-              <div className="board-controls play-setup-board-controls">
-                <div className="board-controls__actions">
-                  <button className="btn btn-secondary board-control-btn" onClick={handleFlip}>Flip</button>
-                </div>
-                <span className="board-control-status play-setup-orientation-hint">
-                  You play as {orientation === 'white' ? 'White' : 'Black'}
-                </span>
-              </div>
-            </div>
-          </div>
           <div className="side-col play-setup-side-col">
             <PlaySetupPanel
-              initialOrientation={orientation}
+              orientation={orientation}
+              onOrientationChange={setOrientation}
               onStart={startGame}
               engineReady={botEngineReady}
             />
@@ -465,18 +302,10 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
   }
 
   return (
-    <div className="play-page">
+    <>
       {/* ── Board column ── */}
-      <div className="board-col">
-        <div className="board-with-eval">
-          <EvalBar
-            evalCentipawns={evalCp}
-            isMate={isMate}
-            mateIn={mateIn}
-            orientation={orientation}
-            hidden={!showAnalysis}
-          />
-
+      <div className="board-col play-board-col play-board-col--no-eval">
+        <div className="board-with-eval play-board-with-eval--no-eval">
           <div className="board-and-players">
             {/* Top player box */}
             {orientation === 'white' ? (
@@ -511,7 +340,6 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
               lastMove={lastMove}
               pathKey={browseStep}
               userPerspective={status === 'playing' && config && !browsePosition ? config.userColor : undefined}
-              shapes={boardShapes}
               premoveQueue={!browsePosition && status === 'playing' ? premoveQueue : undefined}
               forceCheck={endReason === 'resigned' && config && browsePosition === null ? config.userColor : undefined}
             />
@@ -563,19 +391,10 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
         </div>
 
         {/* Board controls — matches Review tab style */}
-        <div className="board-controls">
+        <div className="board-controls play-board-controls">
           <div className="board-controls__actions">
             <button className="btn btn-secondary board-control-btn" onClick={handleFlip} title="Flip board">
               Flip
-            </button>
-
-            <button
-              className={`btn btn-secondary board-control-btn${showAnalysis ? ' board-control-btn--active' : ''}`}
-              onClick={() => setShowAnalysis(v => !v)}
-              title={showAnalysis ? 'Hide eval bar' : 'Show eval bar'}
-              aria-pressed={showAnalysis}
-            >
-              Eval
             </button>
 
             <button
@@ -585,15 +404,6 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
               aria-pressed={soundEnabled}
             >
               Sound
-            </button>
-
-            <button
-              className={`btn btn-secondary board-control-btn${showArrows ? ' board-control-btn--active' : ''}`}
-              onClick={() => setShowArrows(v => !v)}
-              title={showArrows ? 'Hide best move arrows' : 'Show best move arrows'}
-              aria-pressed={showArrows}
-            >
-              Arrows
             </button>
 
             {status === 'playing' && (
@@ -611,38 +421,47 @@ export default function BotPlayPage({ analyzePositionLines, stopPositionAnalysis
       </div>
 
       {/* ── Side panel ── */}
-      <div className="side-col">
-        <MoveList
-          tree={tree}
-          rootId={rootId}
-          currentPath={browsePosition ? browsePath : currentPath}
-          moveGrades={[]}
-          onNodeClick={(path) => {
-            const nodeId = path[path.length - 1]
-            const node = tree[nodeId]
-            if (!node) return
-            setAtBrowseStart(false)
-            setBrowsePath(path)
-            // If clicking the live tip, exit browse mode
-            if (nodeId === currentPath[currentPath.length - 1]) {
-              setBrowsePosition(null)
-              setBrowsePath([])
-            } else {
-              setBrowsePosition(node.fen)
-            }
-          }}
-          isAnalyzing={false}
-        />
+      <div className="side-col play-side-col">
+        <div className="play-side-panel">
+          <div className="play-side-panel__header">
+            <h3 className="play-side-panel__title">Transcript</h3>
+            {isBotThinking && status === 'playing' && (
+              <span className="play-side-panel__status">Bot thinking…</span>
+            )}
+          </div>
 
-        {status === 'finished' && (
-          <GameResultBanner
-            result={result}
-            reason={endReason}
-            onReview={reviewGame}
-            onNewGame={handleNewGame}
+          <MoveList
+            tree={tree}
+            rootId={rootId}
+            currentPath={browsePosition ? browsePath : currentPath}
+            moveGrades={[]}
+            onNodeClick={(path) => {
+              const nodeId = path[path.length - 1]
+              const node = tree[nodeId]
+              if (!node) return
+              setAtBrowseStart(false)
+              setBrowsePath(path)
+              // If clicking the live tip, exit browse mode
+              if (nodeId === currentPath[currentPath.length - 1]) {
+                setBrowsePosition(null)
+                setBrowsePath([])
+              } else {
+                setBrowsePosition(node.fen)
+              }
+            }}
+            isAnalyzing={false}
           />
-        )}
+
+          {status === 'finished' && (
+            <GameResultBanner
+              result={result}
+              reason={endReason}
+              onReview={reviewGame}
+              onNewGame={handleNewGame}
+            />
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }

@@ -21,8 +21,11 @@ interface ProfilePageProps {
   onUsernameLinked?: (platform: 'chesscom' | 'lichess', username: string) => void
 }
 
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+
 export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   const user = useAuthStore(s => s.user)
+  const accessToken = useAuthStore(s => s.accessToken)
   const updateProfile = useAuthStore(s => s.updateProfile)
   const logout = useAuthStore(s => s.logout)
   const changePassword = useAuthStore(s => s.changePassword)
@@ -33,6 +36,27 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   const [lichessInput, setLichessInput] = useState(user?.lichess_username ?? '')
   const [accountSaving, setAccountSaving] = useState(false)
   const [accountMsg, setAccountMsg] = useState('')
+  const [linkMsg, setLinkMsg] = useState(() => {
+    const val = sessionStorage.getItem('dm_link_error')
+    if (val) { sessionStorage.removeItem('dm_link_error'); return 'That account is already linked to a different user.' }
+    return ''
+  })
+
+  async function handleLinkProvider(provider: 'lichess' | 'google') {
+    if (!accessToken) return
+    try {
+      const res = await fetch(`${API_BASE}/auth/${provider}/link/start`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      if (!res.ok) throw new Error('Failed to start link')
+      const { url } = await res.json() as { url: string }
+      window.location.href = url
+    } catch {
+      setLinkMsg('Could not start account linking. Try again.')
+    }
+  }
 
   // Detected ratings — read synchronously from localStorage (cached at import time)
   const [detectedRatings] = useState<DetectedRatings | null>(() => readCachedRatings())
@@ -258,7 +282,9 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
           <div className="profile-info-grid">
             <div className="profile-info-row">
               <span className="profile-info-label">Email</span>
-              <span className="profile-info-value">{user.email}</span>
+              <span className="profile-info-value">
+                {user.email.endsWith('@noemail.deepmove') ? '—' : user.email}
+              </span>
             </div>
             <div className="profile-info-row">
               <span className="profile-info-label">Member since</span>
@@ -365,21 +391,49 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
           </div>
           <div className="profile-field">
             <label className="profile-field-label">Lichess username</label>
-            <input
-              className="profile-input"
-              type="text"
-              name="lichess_username"
-              placeholder="e.g. DrNykterstein"
-              autoComplete="off"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              data-lpignore="true"
-              value={lichessInput}
-              onChange={e => setLichessInput(e.target.value)}
-              disabled={!user}
-            />
+            {user?.lichess_oauth_linked ? (
+              <p className="profile-info-value" style={{ margin: 0 }}>
+                Connected as <strong>{user.lichess_username}</strong>
+                {'  '}<span style={{ opacity: 0.55, fontSize: '0.8em' }}>(via OAuth)</span>
+              </p>
+            ) : (
+              <>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    className="profile-input"
+                    type="text"
+                    name="lichess_username"
+                    placeholder="e.g. DrNykterstein"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    data-lpignore="true"
+                    value={lichessInput}
+                    onChange={e => setLichessInput(e.target.value)}
+                    disabled={!user}
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                    onClick={() => void handleLinkProvider('lichess')}
+                    disabled={!user}
+                    title="Connect your Lichess account via OAuth — proves ownership and auto-syncs your username"
+                  >
+                    Connect via Lichess
+                  </button>
+                </div>
+                <p style={{ margin: '0.25rem 0 0', fontSize: '0.78em', opacity: 0.6 }}>
+                  Type a username to import games, or click Connect to verify ownership.
+                </p>
+              </>
+            )}
           </div>
+          {linkMsg && (
+            <p className="profile-msg profile-msg--err" style={{ marginTop: '-0.25rem' }}>{linkMsg}</p>
+          )}
           <div className="profile-field-row">
             <button
               className="btn btn-primary"
