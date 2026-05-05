@@ -107,18 +107,20 @@ export function useStockfish() {
     // Without this guard, a 2nd+ page refresh calls runAnalysis, sets isAnalyzing=true
     // (causing grade badges to flash blank then restore) on every other refresh.
     // Also prevents wasAnalyzingRef from cancelling position analysis seeded by isReady effect.
+    let totalMoves = 0
     try {
       const tempChess = new Chess()
       tempChess.loadPgn(cleanPgn(pgn))
-      if (startFromIndex >= tempChess.history().length && initialEvals.length > 0) {
+      totalMoves = tempChess.history().length
+      if (startFromIndex >= totalMoves && initialEvals.length > 0) {
         useGameStore.getState().setSkipNextAnalysis(true)
         return
       }
     } catch { /* invalid PGN — fall through to normal analysis path */ }
 
     setAnalyzing(true)
-    setAnalyzedCount(0)
-    setTotalMovesCount(0)
+    setAnalyzedCount(startFromIndex > 0 ? initialEvals.length : 0)
+    setTotalMovesCount(totalMoves)
 
     if (startFromIndex === 0) {
       setMoveEvals([])

@@ -314,6 +314,7 @@ export default function App() {
 
   const displayFen = isLoaded ? currentFen : analysisFen
   const loadedGameKey = isLoaded ? (currentGameId ?? pgn ?? '__loaded-game__') : null
+  const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
   // Opening name — detected from move sequence in both modes
   const [openingName, setOpeningName] = useState<string | null>(null)
@@ -381,6 +382,38 @@ export default function App() {
   }
 
   const showAnalyzingBar = isAnalyzing || (analyzedCount < totalMovesCount && totalMovesCount > 0)
+  const pauseLivePositionAnalysis = isLoaded && showAnalyzingBar && !inBranch
+  const analysisProgressPercent = totalMovesCount > 0
+    ? Math.max(0, Math.min(100, Math.round((analyzedCount / totalMovesCount) * 100)))
+    : null
+  const analysisProgressPhase = analysisProgressPercent === null
+    ? 'Starting analysis'
+    : analysisProgressPercent >= 90
+      ? 'Finishing up'
+      : analysisProgressPercent >= 15
+        ? 'Scanning moves'
+        : 'Starting analysis'
+  const analysisStatusBar = showAnalyzingBar ? (
+    <div className="analyzing-bar">
+      {analysisProgressPercent !== null && (
+        <div
+          className="analyzing-bar__fill"
+          style={{ width: `${analysisProgressPercent}%` }}
+        />
+      )}
+      <span className="analyzing-dot" />
+      <div className="analyzing-bar__content">
+        <span className="analyzing-text">Analyzing game</span>
+        <span className="analyzing-subtext">
+          {analysisProgressPhase}
+          {totalMovesCount > 0 && ` · ${analyzedCount} / ${totalMovesCount} moves`}
+        </span>
+      </div>
+      {analysisProgressPercent !== null && (
+        <span className="analyzing-percent">{analysisProgressPercent}%</span>
+      )}
+    </div>
+  ) : null
 
   useEffect(() => {
     // Always cancel in-flight analysis and pending timers first — even if the new
@@ -391,6 +424,13 @@ export default function App() {
     positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
     stopPositionAnalysis()
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
+
+    if (pauseLivePositionAnalysis) {
+      setCurrentPositionLines([])
+      setCurrentAnalysisDepth(0)
+      setAnalyzingPosition(false)
+      return
+    }
 
     const cached = positionCache.current.get(displayFen)
 
@@ -453,15 +493,7 @@ export default function App() {
       if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayFen])
-
-  // When engine becomes ready, analyze whatever position is currently displayed.
-  // This is the main seed — displayFen effect skips analysis until engine is ready.
-  useEffect(() => {
-    if (!isReady) return
-    triggerPositionAnalysis(displayFen)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady])
+  }, [displayFen, isReady, pauseLivePositionAnalysis])
 
   // When engine becomes ready, retroactively grade any sandbox nodes that were
   // played before Stockfish finished loading (common for eager users).
@@ -997,9 +1029,6 @@ export default function App() {
     [moveEvals]
   )
 
-  // Are we currently in a branch (off the main line)?
-  const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
-
   // Lightweight coaching blurb for the current branch move (no full LLM lesson)
   const currentNodeId = currentPath.length > 0 ? currentPath[currentPath.length - 1] : null
   const currentNode = currentNodeId ? moveTree[currentNodeId] : null
@@ -1417,21 +1446,7 @@ export default function App() {
                           <span className="analyzing-text">Engine loading…</span>
                         </div>
                       )}
-                      {showAnalyzingBar && (
-                        <div className="analyzing-bar">
-                          {totalMovesCount > 0 && (
-                            <div
-                              className="analyzing-bar__fill"
-                              style={{ width: `${Math.round((analyzedCount / totalMovesCount) * 100)}%` }}
-                            />
-                          )}
-                          <span className="analyzing-dot" />
-                          <span className="analyzing-text">
-                            Analyzing…
-                            {totalMovesCount > 0 && ` ${analyzedCount} / ${totalMovesCount}`}
-                          </span>
-                        </div>
-                      )}
+                      {analysisStatusBar}
 
                       {/* Eval display — hidden during game analysis */}
                       {(!showAnalyzingBar || atStartOnMainLine) && (
@@ -1453,11 +1468,13 @@ export default function App() {
 
                       {/* Keep best lines visible while full-game analysis runs so move switches
                           still show suggestions/skeletons instead of collapsing the panel. */}
-                      <BestLines
-                        lines={visibleLines}
-                        isAnalyzingPosition={isAnalyzingPosition}
-                        onLineClick={handleAnalysisBestLineClick}
-                      />
+                      {!pauseLivePositionAnalysis && (
+                        <BestLines
+                          lines={visibleLines}
+                          isAnalyzingPosition={isAnalyzingPosition}
+                          onLineClick={handleAnalysisBestLineClick}
+                        />
+                      )}
 
                       {/* Eval graph — hidden during analysis, shown after completion */}
                       {!showAnalyzingBar && moveEvals.length > 0 && (
@@ -1508,21 +1525,7 @@ export default function App() {
                           <span className="analyzing-text">Engine loading…</span>
                         </div>
                       )}
-                      {showAnalyzingBar && (
-                        <div className="analyzing-bar">
-                          {totalMovesCount > 0 && (
-                            <div
-                              className="analyzing-bar__fill"
-                              style={{ width: `${Math.round((analyzedCount / totalMovesCount) * 100)}%` }}
-                            />
-                          )}
-                          <span className="analyzing-dot" />
-                          <span className="analyzing-text">
-                            Analyzing…
-                            {totalMovesCount > 0 && ` ${analyzedCount} / ${totalMovesCount}`}
-                          </span>
-                        </div>
-                      )}
+                      {analysisStatusBar}
 
                       {/* Eval display */}
                       <div className="eval-display">
