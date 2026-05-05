@@ -1550,6 +1550,22 @@ cg-board {
   pointer-events: none;
 }
 
+.analyzing-bar__content,
+.analyzing-dot,
+.analyzing-percent,
+.analyzing-text {
+  position: relative;
+  z-index: 1;
+}
+
+.analyzing-bar__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
 .analyzing-dot {
   width: 6px;
   height: 6px;
@@ -1568,6 +1584,23 @@ cg-board {
   font-size: 0.75rem;
   color: var(--color-accent);
   font-family: var(--font-mono);
+  line-height: 1.1;
+}
+
+.analyzing-subtext {
+  font-size: 0.66rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  line-height: 1.1;
+}
+
+.analyzing-percent {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* ── Eval display strip ────────────────────────────────────────────────── */

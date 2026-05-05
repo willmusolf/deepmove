@@ -155,6 +155,28 @@ describe('analyzeGame', () => {
     expect(results[0].san).toBe('e4')
     expect(results[0].grade).toBe('excellent')
   })
+
+  it('still records the final move when the resulting position is terminal', async () => {
+    const makeLines = (score: number, pv: string[]): TopLine[] => [
+      { rank: 1, score, isMate: false, mateIn: null, pv, san: pv[0] ?? '', depth: 16 },
+    ]
+    const engine = {
+      analyzePositionMultiPV: vi
+        .fn()
+        .mockResolvedValueOnce(makeLines(0, ['e2e4']))
+        .mockResolvedValueOnce(makeLines(0, ['f2f3']))
+        .mockResolvedValueOnce(makeLines(-60, ['e7e5']))
+        .mockResolvedValueOnce(makeLines(-120, ['g2g4']))
+        .mockResolvedValueOnce([]),
+    } as any
+
+    const results = await analyzeGame('1. f3 e5 2. g4 Qh4#', engine, 16)
+
+    expect(results).toHaveLength(4)
+    expect(results[3].san).toBe('Qh4#')
+    expect(results[3].eval.isMate).toBe(true)
+    expect(results[3].eval.score).toBeLessThan(0)
+  })
 })
 
 describe('brilliant move regression tests', () => {
