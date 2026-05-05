@@ -21,6 +21,9 @@ const TENSION = 0.4   // Catmull-Rom tension
 const DOT_R = 6       // radius of annotation circles
 const DOT_R_HOVER = 9 // radius when hovered
 const DOT_HIT_R = 13  // invisible hit target for easier mouse capture
+const PLOT_PAD_Y = DOT_R_HOVER + 3
+const MARKER_PAD_X = DOT_R_HOVER + 4
+const TOOLTIP_EDGE_THRESHOLD = 72
 
 type Point = { x: number; y: number }
 
@@ -28,7 +31,8 @@ type Point = { x: number; y: number }
 function cpToY(cp: number, height: number): number {
   const clamped = Math.max(-CLAMP, Math.min(CLAMP, cp))
   const pct = 1 / (1 + Math.exp(-clamped / 200))
-  return height * (1 - pct)
+  const usableHeight = Math.max(1, height - PLOT_PAD_Y * 2)
+  return PLOT_PAD_Y + usableHeight * (1 - pct)
 }
 
 /** Build a smooth cubic bezier SVG path from an array of points (Catmull-Rom) */
@@ -113,9 +117,11 @@ export default function EvalGraph({
   // full game length from PGN, so x-positions are stable even as analysis fills in.
   const total = Math.max(totalMoves, analyzed, 1)
 
+  const clampMarkerX = (x: number) => Math.max(MARKER_PAD_X, Math.min(svgWidth - MARKER_PAD_X, x))
+
   const { colWidth, midY, points, annotations, criticalBands, curvePath } = useMemo(() => {
-    const cw = svgWidth / (total + 1)
-    const mx = (i: number) => i * cw
+    const cw = svgWidth / total
+    const mx = (i: number) => Math.min(svgWidth, i * cw)
     const my = cpToY(0, HEIGHT)
 
     const pts: Point[] = [{ x: mx(0), y: my }]
@@ -134,7 +140,7 @@ export default function EvalGraph({
       const fill = GRADE_CIRCLE_COLOR[grade]
       if (!fill) continue
 
-      const x = mx(i + 1)
+      const x = clampMarkerX(mx(i + 1))
       const y = cpToY(me.eval.score, HEIGHT)
       anns.push({ moveIndex: i + 1, x, y, fill, grade })
     }
@@ -156,6 +162,7 @@ export default function EvalGraph({
 
   // ── Cursor ───────────────────────────────────────────────────────────────
   const cursorX = currentMoveIndex <= analyzed ? moveX(currentMoveIndex) : null
+  const cursorDotX = cursorX !== null ? clampMarkerX(cursorX) : null
   const cursorY = currentMoveIndex > 0 && currentMoveIndex <= analyzed
     ? points[currentMoveIndex].y
     : midY
@@ -164,10 +171,14 @@ export default function EvalGraph({
   const hoveredEval = hoveredIndex !== null && hoveredIndex > 0
     ? moveEvals[hoveredIndex - 1] : null
   const hoveredX = hoveredIndex !== null ? moveX(hoveredIndex) : null
-
-  const tooltipLeftPct = hoveredX !== null
-    ? Math.max(4, Math.min(96, (hoveredX / svgWidth) * 100))
-    : null
+  const tooltipAnchorX = hoveredX !== null ? clampMarkerX(hoveredX) : null
+  const tooltipTransform = hoveredX === null
+    ? null
+    : hoveredX <= TOOLTIP_EDGE_THRESHOLD
+      ? 'translateX(0)'
+      : hoveredX >= svgWidth - TOOLTIP_EDGE_THRESHOLD
+        ? 'translateX(-100%)'
+        : 'translateX(-50%)'
 
   function handleClick(e: React.MouseEvent<SVGSVGElement>) {
     if (analyzed === 0) return
@@ -186,8 +197,11 @@ export default function EvalGraph({
   return (
     <div className="eval-graph-wrap" ref={containerRef}>
       {/* Tooltip */}
-      {hoveredEval && tooltipLeftPct !== null && (
-        <div className="eval-graph-tooltip" style={{ left: `${tooltipLeftPct}%` }}>
+      {hoveredEval && tooltipAnchorX !== null && tooltipTransform !== null && (
+        <div
+          className="eval-graph-tooltip"
+          style={{ left: `${tooltipAnchorX}px`, transform: tooltipTransform }}
+        >
           {(() => {
             const hoveredAnnotation = annotations.find(a => a.moveIndex === hoveredIndex)
             const gradeLabel = hoveredAnnotation ? GRADE_LABEL[hoveredAnnotation.grade] : undefined
@@ -254,9 +268,9 @@ export default function EvalGraph({
           {/* Greyed future area */}
           {analyzed < total && (
             <rect
-              x={moveX(analyzed + 1)}
+              x={moveX(analyzed)}
               y={0}
-              width={svgWidth - moveX(analyzed + 1)}
+              width={svgWidth - moveX(analyzed)}
               height={HEIGHT}
               fill="rgba(255,255,255,0.025)"
             />
@@ -344,7 +358,7 @@ export default function EvalGraph({
                 opacity="0.88"
               />
               <circle
-                cx={cursorX} cy={cursorY} r="2.8"
+                cx={cursorDotX ?? cursorX} cy={cursorY} r="2.8"
                 fill="var(--color-accent)"
                 stroke="rgba(255,255,255,0.6)"
                 strokeWidth="0.8"
