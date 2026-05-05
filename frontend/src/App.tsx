@@ -426,8 +426,6 @@ export default function App() {
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
 
     if (pauseLivePositionAnalysis) {
-      setCurrentPositionLines([])
-      setCurrentAnalysisDepth(0)
       setAnalyzingPosition(false)
       return
     }
@@ -581,16 +579,6 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentGameId])
-
-  // When game analysis finishes, auto-trigger position analysis so BestLines appear immediately.
-  const wasAnalyzingRef = useRef(false)
-  useEffect(() => {
-    if (wasAnalyzingRef.current && !isAnalyzing && isLoaded && isReady) {
-      triggerPositionAnalysis(displayFen)
-    }
-    wasAnalyzingRef.current = isAnalyzing
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAnalyzing])
 
   const [orientation, setOrientation] = useState<'white' | 'black'>(
     savedUiState?.orientation ?? savedReviewColor ?? 'white'
@@ -1449,7 +1437,7 @@ export default function App() {
                       {analysisStatusBar}
 
                       {/* Eval display — hidden during game analysis */}
-                      {(!showAnalyzingBar || atStartOnMainLine) && (
+                      {!showAnalyzingBar && (
                         <div className="eval-display">
                           <span className="eval-display-value">
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}

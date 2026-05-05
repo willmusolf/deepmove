@@ -78,14 +78,14 @@ export async function getAnalyzedGame(id: string): Promise<AnalyzedGameRecord | 
   return db.get(STORE, id)
 }
 
-/** Returns the set of game IDs that have cached analysis for a given user+platform */
+/** Returns the set of game IDs that have completed cached analysis for a given user+platform */
 export async function getAnalyzedGameIds(username: string, platform: string): Promise<Set<string>> {
   const db = await getDB()
   const all = await db.getAllFromIndex(STORE, 'platform', platform) as AnalyzedGameRecord[]
   const lowerUser = username.toLowerCase()
   const ids = new Set<string>()
   for (const r of all) {
-    if (r.username.toLowerCase() === lowerUser) ids.add(r.id)
+    if (r.username.toLowerCase() === lowerUser && !r.partial) ids.add(r.id)
   }
   return ids
 }
