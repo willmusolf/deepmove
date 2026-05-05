@@ -135,6 +135,7 @@ export default function PlayerInfoBox({
   // Show pieces this player CAPTURED (opponent's pieces taken as trophies)
   const playerCaptured = isWhite ? capturedPieces.black : capturedPieces.white
   const advantage = isWhite ? materialBalance : -materialBalance
+  const hasMaterialRow = playerCaptured.length > 0 || advantage > 0
 
   const flag = getCountryFlag(countryCode)
 
@@ -163,23 +164,21 @@ export default function PlayerInfoBox({
           {elo && <span className="player-rating">({elo})</span>}
           {flag && <span className="player-flag">{flag}</span>}
         </div>
-        {(playerCaptured.length > 0 || advantage > 0) && (
-          <div className="player-line-2">
-            {playerCaptured.length > 0 && (
-              <span className="captured-pieces">
-                {playerCaptured.map((pieceType, i) => (
-                  <img
-                    key={i}
-                    src={getPieceImage(isWhite ? 'b' : 'w', pieceType)}
-                    alt={pieceType}
-                    className="captured-piece-img"
-                  />
-                ))}
-              </span>
-            )}
-            {advantage > 0 && <span className="material-advantage">+{advantage}</span>}
-          </div>
-        )}
+        <div className={`player-line-2${hasMaterialRow ? '' : ' player-line-2--empty'}`}>
+          {playerCaptured.length > 0 && (
+            <span className="captured-pieces">
+              {playerCaptured.map((pieceType, i) => (
+                <img
+                  key={i}
+                  src={getPieceImage(isWhite ? 'b' : 'w', pieceType)}
+                  alt={pieceType}
+                  className="captured-piece-img"
+                />
+              ))}
+            </span>
+          )}
+          {advantage > 0 && <span className="material-advantage">+{advantage}</span>}
+        </div>
       </div>
 
       {/* Clock */}
