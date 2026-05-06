@@ -18,6 +18,7 @@ import ProfilePage from './components/Profile/ProfilePage'
 import MoveCoachComment from './components/Coach/MoveCoachComment'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './components/Board/gradeBadges'
 import BotPlayPage from './components/Play/BotPlayPage'
+import ErrorBoundary from './components/ErrorBoundary'
 import AboutPage from './components/AboutPage'
 import PrivacyPage from './components/PrivacyPage'
 import AdBanner from './components/AdBanner'
@@ -44,7 +45,14 @@ import { getSquareOverlayPosition } from './chess/boardGeometry'
 import './styles/board.css'
 import './styles/badge-overrides.css'
 import { detectOpening } from './chess/openings'
-import { ACTIVE_SPONSOR } from './config/sponsor'
+import {
+  AD_CONFIG,
+  ACTIVE_SPONSOR,
+  desktopRailAdEnabled,
+  mobileBannerAdEnabled,
+  MOBILE_BANNER_PAGE_SET,
+  RAIL_AD_PAGE_SET,
+} from './config/sponsor'
 import { getPageFromPathname, getPageMeta, getPathForPage, isIndexablePage } from './utils/pageMeta'
 
 // Lichess-style thickness brushes — all green, varying weight
@@ -1201,10 +1209,16 @@ export default function App() {
   // ── Misc ───────────────────────────────────────────────────────────────────
 
 
-  const mobileSponsorPage = currentPage === 'review' || currentPage === 'play'
-    ? currentPage
-    : null
-  const shouldShowMobileSponsor = !isPremium && ACTIVE_SPONSOR !== null && mobileSponsorPage !== null
+  const isReviewPage = currentPage === 'review'
+  const isPlayPage = currentPage === 'play'
+  const isDocumentPage = currentPage === 'about' || currentPage === 'privacy'
+  const isFixedLayoutPage = isReviewPage || isPlayPage
+  const isScrollPage = !isFixedLayoutPage
+  const desktopRailPage = RAIL_AD_PAGE_SET.has(currentPage) ? currentPage : null
+  const mobileSponsorPage = MOBILE_BANNER_PAGE_SET.has(currentPage) ? currentPage : null
+  const shouldShowDesktopRail = !isPremium && desktopRailAdEnabled && desktopRailPage !== null
+  const shouldShowMobileSponsor = !isPremium && mobileBannerAdEnabled && mobileSponsorPage !== null
+  const shouldShowUtilityRail = isFixedLayoutPage && desktopRailPage !== null && !shouldShowDesktopRail
 
   return (
     <ResponsiveLayout
@@ -1212,7 +1226,16 @@ export default function App() {
       onNavigate={goToPage}
       hasMobileBanner={shouldShowMobileSponsor}
     >
-      <div className="app-main">
+      <div className={[
+        'app-view',
+        isScrollPage ? 'app-view--page' : '',
+        isDocumentPage ? 'app-view--document' : '',
+      ].filter(Boolean).join(' ')}>
+        <div className={[
+          'app-main',
+          isDocumentPage ? 'app-main--document' : '',
+          !isFixedLayoutPage && !isDocumentPage ? 'app-main--page' : '',
+        ].filter(Boolean).join(' ')}>
           {currentPage === 'review' && (
             <>
               <div className="board-col">
@@ -1881,9 +1904,14 @@ export default function App() {
                   )}
                 </div>
               </div>
-              {!isPremium && (
+              {shouldShowDesktopRail && (
                 <div className="ad-col">
-                  <AdBanner sponsor={ACTIVE_SPONSOR} placement="desktop-rail" page="review" />
+                  <AdBanner
+                    slot={AD_CONFIG.desktopRailSlot}
+                    sponsor={ACTIVE_SPONSOR}
+                    placement="desktop-rail"
+                    page="review"
+                  />
                 </div>
               )}
             </>
@@ -1921,20 +1949,44 @@ export default function App() {
               }}
             />
           )}
-          {currentPage === 'about' && <AboutPage />}
-          {currentPage === 'privacy' && <PrivacyPage />}
-          {currentPage === 'play' && (
-            <BotPlayPage
-              onNavigateToReview={() => goToPage('review')}
+          {currentPage === 'about' && (
+            <AboutPage
+              onOpenApp={() => goToPage('review')}
+              onOpenPrivacy={() => goToPage('privacy')}
             />
           )}
-          <footer className="app-footer">
+          {currentPage === 'privacy' && (
+            <PrivacyPage
+              onOpenApp={() => goToPage('review')}
+              onOpenAbout={() => goToPage('about')}
+            />
+          )}
+          {currentPage === 'play' && (
+            <ErrorBoundary>
+              <BotPlayPage
+                onNavigateToReview={() => goToPage('review')}
+              />
+            </ErrorBoundary>
+          )}
+          {shouldShowUtilityRail && (
+            <aside className="ad-col utility-rail" aria-label="DeepMove utility links">
+              <div className="utility-rail__panel">
+                <span className="utility-rail__label">Ad Space</span>
+                <button className="app-footer__link utility-rail__link" onClick={() => goToPage('about')}>About</button>
+                <button className="app-footer__link utility-rail__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
+              </div>
+            </aside>
+          )}
+        </div>
+        {!shouldShowUtilityRail && (
+          <footer className="app-footer app-footer--stack">
             <button className="app-footer__link" onClick={() => goToPage('about')}>About</button>
             <button className="app-footer__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
           </footer>
-          {shouldShowMobileSponsor && (
-            <MobileAdBanner sponsor={ACTIVE_SPONSOR} page={mobileSponsorPage} />
-          )}
+        )}
+        {shouldShowMobileSponsor && (
+          <MobileAdBanner sponsor={ACTIVE_SPONSOR} page={mobileSponsorPage} />
+        )}
       </div>
     </ResponsiveLayout>
   )

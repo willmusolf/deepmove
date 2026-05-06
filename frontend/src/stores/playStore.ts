@@ -315,9 +315,9 @@ const initialState = savedSession
       currentFen: savedSession.currentFen,
       whiteTimeMs: savedSession.whiteTimeMs,
       blackTimeMs: savedSession.blackTimeMs,
-      clockRunning: savedSession.clockRunning,
-      isBotThinking: savedSession.isBotThinking,
-      premoveQueue: savedSession.premoveQueue,
+      clockRunning: false,    // always reset — clock controlled by useBotPlay on mount
+      isBotThinking: false,   // always reset — engine re-initializes on mount
+      premoveQueue: [],       // always reset — premoves are ephemeral drag state
     }
   : baseInitialState
 
