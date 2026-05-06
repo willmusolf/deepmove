@@ -88,6 +88,17 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   // Increments on every navigation step so ChessBoard's pathKey changes and cancelMove() fires
   const [browseStep, setBrowseStep] = useState(savedUiState?.browseStep ?? 0)
 
+  // Mobile detection — used to cancel premoves on any board tap (desktop unchanged)
+  const [isCoarsePointer, setIsCoarsePointer] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)')
+    const handler = (e: MediaQueryListEvent) => setIsCoarsePointer(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   // Refs for use inside keydown handler (avoid stale closure)
   const treeRef = useRef(tree)
   const currentPathRef = useRef(currentPath)
@@ -330,7 +341,11 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
               />
             )}
 
-            <div className="board-overlay-host" onContextMenu={cancelPremoveQueue}>
+            <div
+              className="board-overlay-host"
+              onContextMenu={cancelPremoveQueue}
+              onPointerDown={isCoarsePointer && premoveQueue.length > 0 ? cancelPremoveQueue : undefined}
+            >
             <ChessBoard
               fen={displayFen}
               orientation={orientation}
