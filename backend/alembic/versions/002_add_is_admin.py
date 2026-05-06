@@ -14,6 +14,11 @@ depends_on = None
 
 
 def upgrade() -> None:
+    inspector = sa.inspect(op.get_bind())
+    existing_columns = {column["name"] for column in inspector.get_columns("users")}
+    if "is_admin" in existing_columns:
+        return
+
     op.add_column(
         'users',
         sa.Column('is_admin', sa.Boolean(), nullable=False, server_default='false'),

@@ -16,18 +16,28 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "admin_audit_log",
-        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
-        sa.Column("admin_user_id", sa.BigInteger(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("action", sa.Text(), nullable=False),
-        sa.Column("details", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("ip_address", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now()),
-    )
-    op.create_index("idx_admin_audit_log_created_at", "admin_audit_log", ["created_at"])
-    op.create_index("idx_admin_audit_log_admin_user_id", "admin_audit_log", ["admin_user_id"])
-    op.create_index("idx_admin_audit_log_action", "admin_audit_log", ["action"])
+    inspector = sa.inspect(op.get_bind())
+    table_names = set(inspector.get_table_names())
+
+    if "admin_audit_log" not in table_names:
+        op.create_table(
+            "admin_audit_log",
+            sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
+            sa.Column("admin_user_id", sa.BigInteger(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+            sa.Column("action", sa.Text(), nullable=False),
+            sa.Column("details", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+            sa.Column("ip_address", sa.Text(), nullable=False),
+            sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now()),
+        )
+        inspector = sa.inspect(op.get_bind())
+
+    existing_indexes = {index["name"] for index in inspector.get_indexes("admin_audit_log")}
+    if "idx_admin_audit_log_created_at" not in existing_indexes:
+        op.create_index("idx_admin_audit_log_created_at", "admin_audit_log", ["created_at"])
+    if "idx_admin_audit_log_admin_user_id" not in existing_indexes:
+        op.create_index("idx_admin_audit_log_admin_user_id", "admin_audit_log", ["admin_user_id"])
+    if "idx_admin_audit_log_action" not in existing_indexes:
+        op.create_index("idx_admin_audit_log_action", "admin_audit_log", ["action"])
     op.execute("ALTER TABLE admin_audit_log ENABLE ROW LEVEL SECURITY")
 
 
