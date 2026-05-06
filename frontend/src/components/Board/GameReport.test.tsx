@@ -1,5 +1,7 @@
+import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { MoveEval } from '../../engine/analysis'
+import GameReport from './GameReport'
 import { computeSideStats } from './GameReport'
 
 function makeEval(
@@ -36,7 +38,7 @@ describe('computeSideStats', () => {
     expect(computeSideStats(evals, 'black')).toBeNull()
   })
 
-  it('caps huge scores so ACPL stays sane', () => {
+  it('returns a summary when a side has moves', () => {
     const evals: MoveEval[] = [
       makeEval(1, 'white', 30000, 'best'),
       makeEval(1, 'black', 0, 'mistake'),
@@ -45,7 +47,8 @@ describe('computeSideStats', () => {
 
     const stats = computeSideStats(evals, 'white')
     expect(stats).not.toBeNull()
-    expect(stats!.acpl).toBeLessThanOrEqual(1000)
+    expect(stats!.counts.best).toBe(1)
+    expect(stats!.counts.blunder).toBe(1)
   })
 
   it('counts rendered grade buckets correctly', () => {
@@ -60,5 +63,38 @@ describe('computeSideStats', () => {
     const stats = computeSideStats(evals, 'white')
     expect(stats?.counts.good).toBe(2)
     expect(stats?.counts.excellent).toBe(1)
+  })
+})
+
+describe('GameReport rendering', () => {
+  it('hides the report while analysis is incomplete', () => {
+    const { container } = render(
+      <GameReport
+        moveEvals={[makeEval(1, 'white', 40, 'best')]}
+        userColor="white"
+        analysisComplete={false}
+      />
+    )
+
+    expect(container.firstChild).toBeNull()
+  })
+  it('renders the compact stat strip after analysis completes', () => {
+    const { container } = render(
+      <GameReport
+        moveEvals={[
+          makeEval(1, 'white', 30, 'best'),
+          makeEval(1, 'black', 20, 'mistake'),
+        ]}
+        userColor="white"
+        analysisComplete={true}
+      />
+    )
+
+    expect(container.querySelectorAll('.game-report-side')).toHaveLength(2)
+    expect(container.querySelector('.game-report-highlights')).toBeNull()
+    expect(container.textContent).toContain('White')
+    expect(container.textContent).toContain('Black')
+    expect(container.textContent).not.toContain('acc')
+    expect(container.textContent).not.toContain('~')
   })
 })

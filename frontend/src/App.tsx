@@ -388,7 +388,9 @@ export default function App() {
   }
 
   const showAnalyzingBar = isAnalyzing || (analyzedCount < totalMovesCount && totalMovesCount > 0)
-  const pauseLivePositionAnalysis = isLoaded && showAnalyzingBar && !inBranch
+  const analysisComplete = !showAnalyzingBar
+  const hideLoadedReviewArtifacts = isLoaded && showAnalyzingBar
+  const pauseLivePositionAnalysis = hideLoadedReviewArtifacts
   const analysisProgressPercent = totalMovesCount > 0
     ? Math.max(0, Math.min(100, Math.round((analyzedCount / totalMovesCount) * 100)))
     : null
@@ -415,9 +417,6 @@ export default function App() {
           {totalMovesCount > 0 && ` · ${analyzedCount} / ${totalMovesCount} moves`}
         </span>
       </div>
-      {analysisProgressPercent !== null && (
-        <span className="analyzing-percent">{analysisProgressPercent}%</span>
-      )}
     </div>
   ) : null
 
@@ -1144,6 +1143,14 @@ export default function App() {
   const stableEvalCp = evalCp ?? lastEvalRef.current.cp
   const stableIsMate = evalCp !== undefined ? evalIsMate : lastEvalRef.current.isMate
   const stableMateIn = evalCp !== undefined ? evalMateIn : lastEvalRef.current.mateIn
+  const showLoadingEvalPlaceholder = isLoaded && showAnalyzingBar && !inBranch && !mainEval && !posLine
+  const displayedEvalText = showLoadingEvalPlaceholder ? null : formatEval(stableEvalCp, stableIsMate, stableMateIn)
+  const shouldRenderEvalDisplay = Boolean(
+    displayedEvalText
+    || currentAnalysisDepth > 0
+    || isAnalyzingPosition
+    || (mainEval && !inBranch)
+  )
 
   // ── Arrow shapes ───────────────────────────────────────────────────────────
 
@@ -1192,10 +1199,6 @@ export default function App() {
     })), [visibleLines])
 
   // ── Misc ───────────────────────────────────────────────────────────────────
-
-
-  const hideMainLineReviewArtifacts = isLoaded && showAnalyzingBar && !inBranch
-
 
 
   const mobileSponsorPage = currentPage === 'review' || currentPage === 'play'
@@ -1287,7 +1290,7 @@ export default function App() {
                         ? (inBranch ? currentNodeId : null)
                         : (analysisPath.length > 0 ? analysisPath[analysisPath.length - 1] : null)
                       const grade = isLoaded
-                        ? (hideMainLineReviewArtifacts
+                        ? (hideLoadedReviewArtifacts
                             ? undefined
                             : (inBranch && currentNodeId ? branchGrades.get(currentNodeId) : mainEval?.grade))
                         : (analysisPath.length > 0
@@ -1302,8 +1305,8 @@ export default function App() {
                       // Show pending spinner while branch eval is in flight.
                       // Also show for main-line moves while full-game analysis is still running
                       // (mainEval?.grade not yet populated for this move index).
-                      const isMainLinePending = isLoaded && !inBranch && !hideMainLineReviewArtifacts && isAnalyzing && !mainEval?.grade && !!boardLastMove
-                      const isPendingOnBoard = showGrades && (
+                      const isMainLinePending = isLoaded && !inBranch && !hideLoadedReviewArtifacts && isAnalyzing && !mainEval?.grade && !!boardLastMove
+                      const isPendingOnBoard = showGrades && !hideLoadedReviewArtifacts && (
                         (boardNodeId !== null && pendingBranchNodes.has(boardNodeId)) ||
                         isMainLinePending
                       )
@@ -1529,12 +1532,13 @@ export default function App() {
                       )}
                       {analysisStatusBar}
 
-                      {/* Eval display — hidden during game analysis */}
-                      {!showAnalyzingBar && (
+                      {!hideLoadedReviewArtifacts && shouldRenderEvalDisplay && (
                         <div className="eval-display">
-                          <span className="eval-display-value">
-                            {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
-                          </span>
+                          {displayedEvalText && (
+                            <span className="eval-display-value">
+                              {displayedEvalText}
+                            </span>
+                          )}
                           {currentAnalysisDepth > 0 ? (
                             <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
                           ) : isAnalyzingPosition ? (
@@ -1542,14 +1546,10 @@ export default function App() {
                           ) : mainEval && !inBranch ? (
                             <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
                           ) : null}
-
                         </div>
                       )}
-
-
-                      {/* Keep best lines visible while full-game analysis runs so move switches
-                          still show suggestions/skeletons instead of collapsing the panel. */}
-                      {!pauseLivePositionAnalysis && (
+                      
+                      {!hideLoadedReviewArtifacts && (
                         <BestLines
                           lines={visibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
@@ -1557,7 +1557,6 @@ export default function App() {
                         />
                       )}
 
-                      {/* Eval graph — hidden during analysis, shown after completion */}
                       {!showAnalyzingBar && moveEvals.length > 0 && (
                         <EvalGraph
                           moveEvals={moveEvals}
@@ -1573,19 +1572,18 @@ export default function App() {
                         <GameReport
                           moveEvals={moveEvals}
                           userColor={userColor}
-                          isAnalyzing={isAnalyzing}
+                          analysisComplete={analysisComplete}
                         />
                       )}
 
-                      {/* Move list — tree renderer */}
                       <MoveList
                         tree={moveTree}
                         rootId={rootId}
                         currentPath={currentPath}
                         moveGrades={moveGrades}
                         moveDeltas={moveDeltas}
-                        branchGrades={showGrades ? branchGrades : undefined}
-                        pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
+                        branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
+                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
                         isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
@@ -1617,19 +1615,23 @@ export default function App() {
                       {analysisStatusBar}
 
                       {/* Eval display */}
-                      <div className="eval-display">
-                          <span className="eval-display-value">
-                            {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
-                          </span>
-                          {currentAnalysisDepth > 0 ? (
-                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
-                          ) : isAnalyzingPosition ? (
-                            <span className="eval-display-depth">analyzing…</span>
-                          ) : mainEval && !inBranch ? (
-                            <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
-                          ) : null}
+                      {!hideLoadedReviewArtifacts && shouldRenderEvalDisplay && (
+                        <div className="eval-display">
+                            {displayedEvalText && (
+                              <span className="eval-display-value">
+                                {displayedEvalText}
+                              </span>
+                            )}
+                            {currentAnalysisDepth > 0 ? (
+                              <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
+                            ) : isAnalyzingPosition ? (
+                              <span className="eval-display-depth">analyzing…</span>
+                            ) : mainEval && !inBranch ? (
+                              <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
+                            ) : null}
 
-                      </div>
+                          </div>
+                      )}
 
                       {/* Coach comment box — where the graph/report was */}
                       <MoveCoachComment
@@ -1650,8 +1652,8 @@ export default function App() {
                         currentPath={currentPath}
                         moveGrades={moveGrades}
                         moveDeltas={moveDeltas}
-                        branchGrades={showGrades ? branchGrades : undefined}
-                        pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
+                        branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
+                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
                         isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
@@ -1819,11 +1821,13 @@ export default function App() {
                       )}
 
                       {/* Eval display + best lines — works in free-play/analysis mode */}
-                      {(posLine || isAnalyzingPosition || isReady) && (
+                      {(posLine || isAnalyzingPosition || isReady) && shouldRenderEvalDisplay && (
                         <div className="eval-display">
-                          <span className="eval-display-value">
-                            {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
-                          </span>
+                          {displayedEvalText && (
+                            <span className="eval-display-value">
+                              {displayedEvalText}
+                            </span>
+                          )}
                           {currentAnalysisDepth > 0 ? (
                             <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
                           ) : isAnalyzingPosition ? (
@@ -1833,13 +1837,11 @@ export default function App() {
                         </div>
                       )}
 
-                      {!pauseLivePositionAnalysis && (
-                        <BestLines
-                          lines={visibleLines}
-                          isAnalyzingPosition={isAnalyzingPosition}
-                          onLineClick={handleAnalysisBestLineClick}
-                        />
-                      )}
+                      <BestLines
+                        lines={visibleLines}
+                        isAnalyzingPosition={isAnalyzingPosition}
+                        onLineClick={handleAnalysisBestLineClick}
+                      />
 
                       {/* Analysis board move tree */}
                       {analysisRootId ? (
