@@ -3,6 +3,7 @@ import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
 import EvalGraph from './components/Board/EvalGraph'
+import GameReport from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
 import PlayerInfoBox from './components/Board/PlayerInfoBox'
 import ImportPanel from './components/Import/ImportPanel'
@@ -17,6 +18,7 @@ import ProfilePage from './components/Profile/ProfilePage'
 import MoveCoachComment from './components/Coach/MoveCoachComment'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './components/Board/gradeBadges'
 import BotPlayPage from './components/Play/BotPlayPage'
+import AboutPage from './components/AboutPage'
 import PrivacyPage from './components/PrivacyPage'
 import AdBanner from './components/AdBanner'
 import MobileAdBanner from './components/MobileAdBanner'
@@ -43,6 +45,7 @@ import './styles/board.css'
 import './styles/badge-overrides.css'
 import { detectOpening } from './chess/openings'
 import { ACTIVE_SPONSOR } from './config/sponsor'
+import { getPageFromPathname, getPageMeta, getPathForPage, isIndexablePage } from './utils/pageMeta'
 
 // Lichess-style thickness brushes — all green, varying weight
 const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
@@ -119,6 +122,9 @@ function loadAppUiState(): AppUiState | null {
 
 export default function App() {
   const savedUiState = useMemo(() => loadAppUiState(), [])
+  const routePage = useMemo(() => (
+    typeof window !== 'undefined' ? getPageFromPathname(window.location.pathname) : null
+  ), [])
   const savedReviewColor = useMemo(() => useGameStore.getState().userColor, [])
   const {
     currentFen,
@@ -382,7 +388,9 @@ export default function App() {
   }
 
   const showAnalyzingBar = isAnalyzing || (analyzedCount < totalMovesCount && totalMovesCount > 0)
-  const pauseLivePositionAnalysis = isLoaded && showAnalyzingBar && !inBranch
+  const analysisComplete = !showAnalyzingBar
+  const hideLoadedReviewArtifacts = isLoaded && showAnalyzingBar
+  const pauseLivePositionAnalysis = hideLoadedReviewArtifacts
   const analysisProgressPercent = totalMovesCount > 0
     ? Math.max(0, Math.min(100, Math.round((analyzedCount / totalMovesCount) * 100)))
     : null
@@ -409,9 +417,6 @@ export default function App() {
           {totalMovesCount > 0 && ` · ${analyzedCount} / ${totalMovesCount} moves`}
         </span>
       </div>
-      {analysisProgressPercent !== null && (
-        <span className="analyzing-percent">{analysisProgressPercent}%</span>
-      )}
     </div>
   ) : null
 
@@ -607,9 +612,15 @@ export default function App() {
   const [lichessUsername, setLichessUsername] = useState('')
   const [chesscomPagination, setChesscomPagination] = useState<PaginationState | null>(null)
   const [lichessPagination, setLichessPagination] = useState<PaginationState | null>(null)
-  const [currentPage, setCurrentPage] = useState<Page>(() => savedUiState?.currentPage ?? 'review')
+  const [currentPage, setCurrentPage] = useState<Page>(() => routePage ?? savedUiState?.currentPage ?? 'review')
   const goToPage = (page: Page) => {
     if (page !== 'play') clearPlaySession()
+    if (typeof window !== 'undefined') {
+      const nextPath = getPathForPage(page)
+      if (window.location.pathname !== nextPath) {
+        window.history.pushState({ page }, '', nextPath)
+      }
+    }
     setCurrentPage(page)
   }
   const [showEvalBar, setShowEvalBar] = useState(savedUiState?.showEvalBar ?? true)
@@ -636,6 +647,80 @@ export default function App() {
     } satisfies AppUiState)
   }, [currentPage, panelTab, importTab, orientation, showEvalBar, showArrows, showGrades])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handlePopState = () => {
+      const nextPage = getPageFromPathname(window.location.pathname) ?? 'review'
+      if (nextPage !== 'play') clearPlaySession()
+      setCurrentPage(nextPage)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+
+    const meta = getPageMeta(currentPage)
+    document.title = 'DeepMove'
+
+    const upsertMeta = (selector: string, attributes: Record<string, string>) => {
+      let element = document.head.querySelector<HTMLMetaElement>(selector)
+      if (!element) {
+        element = document.createElement('meta')
+        document.head.appendChild(element)
+      }
+      Object.entries(attributes).forEach(([key, value]) => element?.setAttribute(key, value))
+    }
+
+    const upsertLink = (selector: string, attributes: Record<string, string>) => {
+      let element = document.head.querySelector<HTMLLinkElement>(selector)
+      if (!element) {
+        element = document.createElement('link')
+        document.head.appendChild(element)
+      }
+      Object.entries(attributes).forEach(([key, value]) => element?.setAttribute(key, value))
+    }
+
+    upsertMeta('meta[name="description"]', { name: 'description', content: meta.description })
+    upsertMeta('meta[property="og:title"]', { property: 'og:title', content: meta.title })
+    upsertMeta('meta[property="og:description"]', { property: 'og:description', content: meta.description })
+    upsertMeta('meta[property="og:url"]', { property: 'og:url', content: meta.canonicalUrl })
+    upsertMeta('meta[name="twitter:title"]', { name: 'twitter:title', content: meta.title })
+    upsertMeta('meta[name="twitter:description"]', { name: 'twitter:description', content: meta.description })
+    upsertMeta('meta[name="robots"]', {
+      name: 'robots',
+      content: isIndexablePage(currentPage) ? 'index,follow' : 'noindex,nofollow',
+    })
+    upsertLink('link[rel="canonical"]', { rel: 'canonical', href: meta.canonicalUrl })
+  }, [currentPage])
+
+
+  // Desktop: suppress hover appearance immediately after click (until mouse moves).
+  // Prevents buttons from looking "selected" after being clicked with a mouse.
+  // Uses a 5px movement threshold so click-jitter doesn't prematurely remove the class.
+  useEffect(() => {
+    let clickX = 0, clickY = 0
+    const THRESHOLD = 5
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return
+      clickX = e.clientX; clickY = e.clientY
+      document.body.classList.add('just-clicked')
+    }
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return
+      if (Math.hypot(e.clientX - clickX, e.clientY - clickY) > THRESHOLD)
+        document.body.classList.remove('just-clicked')
+    }
+    window.addEventListener('pointerdown', onDown)
+    window.addEventListener('pointermove', onMove)
+    return () => {
+      window.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('pointermove', onMove)
+    }
+  }, [])
 
   // Last-move highlight: always reflects the actual last move in currentPath
   // so chessground never shows a stale highlight after navigating back.
@@ -1058,6 +1143,14 @@ export default function App() {
   const stableEvalCp = evalCp ?? lastEvalRef.current.cp
   const stableIsMate = evalCp !== undefined ? evalIsMate : lastEvalRef.current.isMate
   const stableMateIn = evalCp !== undefined ? evalMateIn : lastEvalRef.current.mateIn
+  const showLoadingEvalPlaceholder = isLoaded && showAnalyzingBar && !inBranch && !mainEval && !posLine
+  const displayedEvalText = showLoadingEvalPlaceholder ? null : formatEval(stableEvalCp, stableIsMate, stableMateIn)
+  const shouldRenderEvalDisplay = Boolean(
+    displayedEvalText
+    || currentAnalysisDepth > 0
+    || isAnalyzingPosition
+    || (mainEval && !inBranch)
+  )
 
   // ── Arrow shapes ───────────────────────────────────────────────────────────
 
@@ -1106,10 +1199,6 @@ export default function App() {
     })), [visibleLines])
 
   // ── Misc ───────────────────────────────────────────────────────────────────
-
-
-  const hideMainLineReviewArtifacts = isLoaded && showAnalyzingBar && !inBranch
-
 
 
   const mobileSponsorPage = currentPage === 'review' || currentPage === 'play'
@@ -1201,7 +1290,7 @@ export default function App() {
                         ? (inBranch ? currentNodeId : null)
                         : (analysisPath.length > 0 ? analysisPath[analysisPath.length - 1] : null)
                       const grade = isLoaded
-                        ? (hideMainLineReviewArtifacts
+                        ? (hideLoadedReviewArtifacts
                             ? undefined
                             : (inBranch && currentNodeId ? branchGrades.get(currentNodeId) : mainEval?.grade))
                         : (analysisPath.length > 0
@@ -1216,8 +1305,8 @@ export default function App() {
                       // Show pending spinner while branch eval is in flight.
                       // Also show for main-line moves while full-game analysis is still running
                       // (mainEval?.grade not yet populated for this move index).
-                      const isMainLinePending = isLoaded && !inBranch && !hideMainLineReviewArtifacts && isAnalyzing && !mainEval?.grade && !!boardLastMove
-                      const isPendingOnBoard = showGrades && (
+                      const isMainLinePending = isLoaded && !inBranch && !hideLoadedReviewArtifacts && isAnalyzing && !mainEval?.grade && !!boardLastMove
+                      const isPendingOnBoard = showGrades && !hideLoadedReviewArtifacts && (
                         (boardNodeId !== null && pendingBranchNodes.has(boardNodeId)) ||
                         isMainLinePending
                       )
@@ -1416,7 +1505,14 @@ export default function App() {
                   >
                     Analysis
                   </button>
-                  {/* Coach tab hidden pre-launch */}
+                  {COACHING_ENABLED && (
+                    <button
+                      className={`panel-tab${panelTab === 'coach' ? ' active' : ''}`}
+                      onClick={() => setPanelTab('coach')}
+                    >
+                      Coach
+                    </button>
+                  )}
                 </div>
 
                 <div className="side-panel-content">
@@ -1436,12 +1532,13 @@ export default function App() {
                       )}
                       {analysisStatusBar}
 
-                      {/* Eval display — hidden during game analysis */}
-                      {!showAnalyzingBar && (
+                      {!hideLoadedReviewArtifacts && shouldRenderEvalDisplay && (
                         <div className="eval-display">
-                          <span className="eval-display-value">
-                            {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
-                          </span>
+                          {displayedEvalText && (
+                            <span className="eval-display-value">
+                              {displayedEvalText}
+                            </span>
+                          )}
                           {currentAnalysisDepth > 0 ? (
                             <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
                           ) : isAnalyzingPosition ? (
@@ -1449,14 +1546,10 @@ export default function App() {
                           ) : mainEval && !inBranch ? (
                             <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
                           ) : null}
-
                         </div>
                       )}
-
-
-                      {/* Keep best lines visible while full-game analysis runs so move switches
-                          still show suggestions/skeletons instead of collapsing the panel. */}
-                      {!pauseLivePositionAnalysis && (
+                      
+                      {!hideLoadedReviewArtifacts && (
                         <BestLines
                           lines={visibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
@@ -1464,7 +1557,6 @@ export default function App() {
                         />
                       )}
 
-                      {/* Eval graph — hidden during analysis, shown after completion */}
                       {!showAnalyzingBar && moveEvals.length > 0 && (
                         <EvalGraph
                           moveEvals={moveEvals}
@@ -1476,15 +1568,22 @@ export default function App() {
                         />
                       )}
 
-                      {/* Move list — tree renderer */}
+                      {!showAnalyzingBar && (
+                        <GameReport
+                          moveEvals={moveEvals}
+                          userColor={userColor}
+                          analysisComplete={analysisComplete}
+                        />
+                      )}
+
                       <MoveList
                         tree={moveTree}
                         rootId={rootId}
                         currentPath={currentPath}
                         moveGrades={moveGrades}
                         moveDeltas={moveDeltas}
-                        branchGrades={showGrades ? branchGrades : undefined}
-                        pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
+                        branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
+                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
                         isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
@@ -1516,19 +1615,23 @@ export default function App() {
                       {analysisStatusBar}
 
                       {/* Eval display */}
-                      <div className="eval-display">
-                          <span className="eval-display-value">
-                            {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
-                          </span>
-                          {currentAnalysisDepth > 0 ? (
-                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
-                          ) : isAnalyzingPosition ? (
-                            <span className="eval-display-depth">analyzing…</span>
-                          ) : mainEval && !inBranch ? (
-                            <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
-                          ) : null}
+                      {!hideLoadedReviewArtifacts && shouldRenderEvalDisplay && (
+                        <div className="eval-display">
+                            {displayedEvalText && (
+                              <span className="eval-display-value">
+                                {displayedEvalText}
+                              </span>
+                            )}
+                            {currentAnalysisDepth > 0 ? (
+                              <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
+                            ) : isAnalyzingPosition ? (
+                              <span className="eval-display-depth">analyzing…</span>
+                            ) : mainEval && !inBranch ? (
+                              <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
+                            ) : null}
 
-                      </div>
+                          </div>
+                      )}
 
                       {/* Coach comment box — where the graph/report was */}
                       <MoveCoachComment
@@ -1549,8 +1652,8 @@ export default function App() {
                         currentPath={currentPath}
                         moveGrades={moveGrades}
                         moveDeltas={moveDeltas}
-                        branchGrades={showGrades ? branchGrades : undefined}
-                        pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
+                        branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
+                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
                         isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
@@ -1718,11 +1821,13 @@ export default function App() {
                       )}
 
                       {/* Eval display + best lines — works in free-play/analysis mode */}
-                      {(posLine || isAnalyzingPosition || isReady) && (
+                      {(posLine || isAnalyzingPosition || isReady) && shouldRenderEvalDisplay && (
                         <div className="eval-display">
-                          <span className="eval-display-value">
-                            {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
-                          </span>
+                          {displayedEvalText && (
+                            <span className="eval-display-value">
+                              {displayedEvalText}
+                            </span>
+                          )}
                           {currentAnalysisDepth > 0 ? (
                             <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
                           ) : isAnalyzingPosition ? (
@@ -1816,7 +1921,7 @@ export default function App() {
               }}
             />
           )}
-          {currentPage === 'about' && <div className="stub-page">About coming soon.</div>}
+          {currentPage === 'about' && <AboutPage />}
           {currentPage === 'privacy' && <PrivacyPage />}
           {currentPage === 'play' && (
             <BotPlayPage
@@ -1824,6 +1929,7 @@ export default function App() {
             />
           )}
           <footer className="app-footer">
+            <button className="app-footer__link" onClick={() => goToPage('about')}>About</button>
             <button className="app-footer__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
           </footer>
           {shouldShowMobileSponsor && (

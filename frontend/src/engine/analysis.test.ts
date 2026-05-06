@@ -7,12 +7,16 @@ describe('classifyMove', () => {
     expect(classifyMove(100, -500, 'white', 1)).toBe('forced')
   })
 
-  it('returns brilliant on tiny loss with sacrifice', () => {
-    expect(classifyMove(100, 96, 'white', 20, true)).toBe('brilliant')
+  it('returns brilliant on tiny loss with sacrifice when it is the only good move', () => {
+    expect(classifyMove(100, 96, 'white', 20, true, null, true, true)).toBe('brilliant')
+  })
+
+  it('does not return brilliant for a sacrifice that is not the only good move', () => {
+    expect(classifyMove(100, 96, 'white', 20, true)).toBe('best')
   })
 
   it('does not return brilliant for a sacrifice that is not top-suggested', () => {
-    expect(classifyMove(100, 96, 'white', 20, true, null, false)).toBe('excellent')
+    expect(classifyMove(100, 96, 'white', 20, true, null, false, true)).toBe('excellent')
   })
 
   it('returns best on 0 cp loss', () => {

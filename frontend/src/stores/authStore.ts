@@ -47,6 +47,16 @@ interface AuthState {
 
 let refreshInFlight: Promise<void> | null = null
 
+function hasStoredSessionHint(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return !!window.localStorage.getItem('dm_has_session') || !!window.sessionStorage.getItem('dm_oauth_at')
+  } catch {
+    return false
+  }
+}
+
+
 async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
   // Merge caller's signal with a 10s timeout so auth calls never hang indefinitely.
   // 10s allows for Neon free-tier cold-start wake-up (~3-5s).
@@ -78,7 +88,7 @@ async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: null,
-  isLoading: false, // starts false — sign-in button shows immediately; refresh updates state async
+  isLoading: hasStoredSessionHint(),
   isPremium: false,
 
   register: async (email, password) => {
@@ -90,6 +100,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: data.user,
       accessToken: data.access_token,
       isPremium: data.user.is_premium,
+      isLoading: false,
     })
     localStorage.setItem('dm_has_session', '1')
     usePrefsStore.getState().loadFromUser(data.user.preferences)
@@ -104,6 +115,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: data.user,
       accessToken: data.access_token,
       isPremium: data.user.is_premium,
+      isLoading: false,
     })
     localStorage.setItem('dm_has_session', '1')
     usePrefsStore.getState().loadFromUser(data.user.preferences)
@@ -136,6 +148,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (refreshInFlight) {
       return refreshInFlight
     }
+    set({ isLoading: true })
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 5000)
     refreshInFlight = (async () => {
