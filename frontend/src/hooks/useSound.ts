@@ -139,7 +139,7 @@ function unlockFallbackCache() {
 function ensureSoundWarmup() {
   if (typeof window === 'undefined') return
   preloadAllSounds()
-  preloadDecodedSounds()
+  // preloadDecodedSounds() fires lazily via handleFirstInteraction on first user tap
 
   if (hasRegisteredUnlockListeners) return
   hasRegisteredUnlockListeners = true
