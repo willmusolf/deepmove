@@ -87,7 +87,7 @@ describe('playStore', () => {
     expect(state.currentPath).toEqual(['p1'])
     expect(state.currentFen).toContain(' b ')
     expect(state.blackTimeMs).toBe(295000)
-    expect(state.isBotThinking).toBe(true)
+    expect(state.isBotThinking).toBe(false) // always reset on hydration — engine re-initializes on mount
   })
 
   it('clears the persisted session when the game resets', async () => {
