@@ -151,7 +151,7 @@ export default function PrivacyPage({ onOpenApp, onOpenAbout }: PrivacyPageProps
           <h2>10. Contact</h2>
           <p>
             Questions about this policy can be sent to{' '}
-            <a href="mailto:privacy@deepmove.io">privacy@deepmove.io</a>.
+            <a href="mailto:williammusolf@gmail.com">williammusolf@gmail.com</a>.
           </p>
         </section>
       </div>

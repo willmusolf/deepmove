@@ -59,6 +59,11 @@ body {
   overflow: hidden;
 }
 
+.app-view--page {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .app-view--document {
   background:
     radial-gradient(circle at top center, rgba(74, 158, 255, 0.08), transparent 34%),
@@ -66,12 +71,19 @@ body {
 }
 
 .app-main--document {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: auto;
   display: block;
-  overflow-y: auto;
+  overflow: visible;
   overflow-x: hidden;
   padding: 0;
+}
+
+.app-main--page {
+  flex: 0 0 auto;
+  min-height: auto;
+  display: block;
+  overflow: visible;
 }
 
 .app-shell__backdrop,
@@ -261,7 +273,7 @@ html.theme-light body {
 }
 
 /* ── Wide screens: ad column visible, larger board offset ──────────────── */
-@media (min-width: 1480px) {
+@media (min-width: 1330px) {
   :root {
     --board-vw-offset: 724px;  /* nav(180)+padding(48)+eval+gap(24)+gap(16)+side(280)+gap(16)+ad(160) */
   }
@@ -322,10 +334,6 @@ html.theme-light body {
   flex-wrap: wrap;
   flex-shrink: 0;
   background: color-mix(in srgb, var(--color-surface) 92%, transparent);
-}
-
-.app-footer--rail {
-  display: none;
 }
 
 .app-footer__link {
@@ -520,33 +528,42 @@ html.theme-light body {
   }
 }
 
-@media (min-width: 1480px) {
-  .app-footer--stack {
-    border-top: 1px solid var(--color-border);
-  }
+.utility-rail {
+  display: flex;
+}
 
-  .app-footer--rail {
-    flex: 0 0 160px;
-    width: 160px;
-    min-width: 160px;
-    align-self: stretch;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    align-items: stretch;
-    gap: 0.65rem;
-    padding: 0.9rem;
-    border: 1px dashed color-mix(in srgb, var(--color-border) 88%, transparent);
-    border-radius: 12px;
-    background:
-      linear-gradient(180deg, rgba(74, 158, 255, 0.05), rgba(74, 158, 255, 0.01)),
-      color-mix(in srgb, var(--color-surface) 96%, transparent);
-    text-align: left;
-  }
+.utility-rail__panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding: 0.9rem;
+  border: 1px dashed color-mix(in srgb, var(--color-border) 88%, transparent);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(74, 158, 255, 0.05), rgba(74, 158, 255, 0.01)),
+    color-mix(in srgb, var(--color-surface) 96%, transparent);
+}
 
-  .app-footer--rail .app-footer__link {
-    text-align: left;
-    font-size: 0.82rem;
+.utility-rail__label {
+  margin-top: auto;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.utility-rail__link {
+  text-align: left;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 1329px) {
+  .utility-rail {
+    display: none;
   }
 }
 

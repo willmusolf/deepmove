@@ -5563,7 +5563,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   text-transform: uppercase;
 }
 
-@media (max-width: 1479px) {
+@media (max-width: 1329px) {
   .ad-col { display: none; }
 }
 

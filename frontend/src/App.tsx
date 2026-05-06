@@ -1208,12 +1208,14 @@ export default function App() {
   // ── Misc ───────────────────────────────────────────────────────────────────
 
 
+  const isReviewPage = currentPage === 'review'
   const isDocumentPage = currentPage === 'about' || currentPage === 'privacy'
+  const isScrollPage = !isReviewPage
   const desktopRailPage = RAIL_AD_PAGE_SET.has(currentPage) ? currentPage : null
   const mobileSponsorPage = MOBILE_BANNER_PAGE_SET.has(currentPage) ? currentPage : null
   const shouldShowDesktopRail = !isPremium && desktopRailAdEnabled && desktopRailPage !== null
   const shouldShowMobileSponsor = !isPremium && mobileBannerAdEnabled && mobileSponsorPage !== null
-  const shouldShowUtilityRail = currentPage === 'review' && !shouldShowDesktopRail
+  const shouldShowUtilityRail = isReviewPage && desktopRailPage !== null && !shouldShowDesktopRail
 
   return (
     <ResponsiveLayout
@@ -1221,8 +1223,16 @@ export default function App() {
       onNavigate={goToPage}
       hasMobileBanner={shouldShowMobileSponsor}
     >
-      <div className={`app-view${isDocumentPage ? ' app-view--document' : ''}`}>
-        <div className={`app-main${isDocumentPage ? ' app-main--document' : ''}`}>
+      <div className={[
+        'app-view',
+        isScrollPage ? 'app-view--page' : '',
+        isDocumentPage ? 'app-view--document' : '',
+      ].filter(Boolean).join(' ')}>
+        <div className={[
+          'app-main',
+          isDocumentPage ? 'app-main--document' : '',
+          !isReviewPage && !isDocumentPage ? 'app-main--page' : '',
+        ].filter(Boolean).join(' ')}>
           {currentPage === 'review' && (
             <>
               <div className="board-col">
@@ -1954,13 +1964,16 @@ export default function App() {
             />
           )}
           {shouldShowUtilityRail && (
-            <footer className="app-footer app-footer--rail">
-              <button className="app-footer__link" onClick={() => goToPage('about')}>About</button>
-              <button className="app-footer__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
-            </footer>
+            <aside className="ad-col utility-rail" aria-label="DeepMove utility links">
+              <div className="utility-rail__panel">
+                <span className="utility-rail__label">DeepMove</span>
+                <button className="app-footer__link utility-rail__link" onClick={() => goToPage('about')}>About</button>
+                <button className="app-footer__link utility-rail__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
+              </div>
+            </aside>
           )}
         </div>
-        {(isDocumentPage || !shouldShowUtilityRail) && (
+        {!shouldShowUtilityRail && (
           <footer className="app-footer app-footer--stack">
             <button className="app-footer__link" onClick={() => goToPage('about')}>About</button>
             <button className="app-footer__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
