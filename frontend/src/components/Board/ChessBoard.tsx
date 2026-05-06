@@ -278,17 +278,6 @@ export default function ChessBoard({
   const isDraggingRef = useRef(false)
   const pendingResizeSyncRef = useRef(false)
   const pendingAutoShapesRef = useRef<DrawShape[] | null>(null)
-  const userDrawableShapesRef = useRef<DrawShape[]>([])
-  const userSquareHighlightsRef = useRef<Map<Key, string>>(new Map())
-  const annotationPositionRef = useRef({ fen, pathKey })
-
-  const syncManualAnnotations = useCallback(() => {
-    apiRef.current?.set({
-      drawable: { shapes: userDrawableShapesRef.current },
-      highlight: { custom: userSquareHighlightsRef.current },
-    })
-  }, [])
-
   const syncOverlayMetrics = useCallback(() => {
     const api = apiRef.current
     const wrapperEl = wrapperRef.current
@@ -550,16 +539,6 @@ export default function ChessBoard({
     fenRef.current = fen
     if (!apiRef.current) return
 
-    const positionChanged =
-      annotationPositionRef.current.fen !== fen ||
-      annotationPositionRef.current.pathKey !== pathKey
-    annotationPositionRef.current = { fen, pathKey }
-
-    if (positionChanged) {
-      userDrawableShapesRef.current = []
-      userSquareHighlightsRef.current = new Map()
-    }
-
     const pathKeyChanged = prevPathKeyRef.current !== pathKey
     prevPathKeyRef.current = pathKey
 
@@ -570,8 +549,6 @@ export default function ChessBoard({
     const canInteract = interactive || !!userPerspective
     apiRef.current.set({
       fen,
-      drawable: { shapes: userDrawableShapesRef.current },
-      highlight: { custom: userSquareHighlightsRef.current },
       lastMove: lastMove ?? [],
       orientation,
       check: forceCheck ?? checkColor,
