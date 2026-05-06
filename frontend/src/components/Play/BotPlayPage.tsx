@@ -344,24 +344,28 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
               forceCheck={endReason === 'resigned' && config && browsePosition === null ? config.userColor : undefined}
             />
             {(() => {
-              const _chess = new Chess(displayFen)
-              const _findKing = (c: 'w' | 'b'): string | null => {
-                for (const f of 'abcdefgh') for (const r of '12345678') {
-                  const p = _chess.get(`${f}${r}` as any)
-                  if (p?.type === 'k' && p.color === c) return f + r
+              try {
+                const _chess = new Chess(displayFen)
+                const _findKing = (c: 'w' | 'b'): string | null => {
+                  for (const f of 'abcdefgh') for (const r of '12345678') {
+                    const p = _chess.get(`${f}${r}` as any)
+                    if (p?.type === 'k' && p.color === c) return f + r
+                  }
+                  return null
+                }
+                if (_chess.isCheckmate()) {
+                  const sq = _findKing(_chess.turn())
+                  if (!sq) return null
+                  return <div className="board-result-badge board-result-badge--checkmate" style={getSquareOverlayPosition(sq, orientation)}>#</div>
+                }
+                if (_chess.isDraw() || (endReason === 'threefold' && browsePosition === null)) {
+                  const wSq = _findKing('w'), bSq = _findKing('b')
+                  return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(wSq, orientation)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(bSq, orientation)}>½</div>}</>
                 }
                 return null
+              } catch {
+                return null
               }
-              if (_chess.isCheckmate()) {
-                const sq = _findKing(_chess.turn())
-                if (!sq) return null
-                return <div className="board-result-badge board-result-badge--checkmate" style={getSquareOverlayPosition(sq, orientation)}>#</div>
-              }
-              if (_chess.isDraw() || (endReason === 'threefold' && browsePosition === null)) {
-                const wSq = _findKing('w'), bSq = _findKing('b')
-                return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(wSq, orientation)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(bSq, orientation)}>½</div>}</>
-              }
-              return null
             })()}
             </div>
 
