@@ -18,6 +18,7 @@ import ProfilePage from './components/Profile/ProfilePage'
 import MoveCoachComment from './components/Coach/MoveCoachComment'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './components/Board/gradeBadges'
 import BotPlayPage from './components/Play/BotPlayPage'
+import ErrorBoundary from './components/ErrorBoundary'
 import AboutPage from './components/AboutPage'
 import PrivacyPage from './components/PrivacyPage'
 import AdBanner from './components/AdBanner'
@@ -1961,9 +1962,11 @@ export default function App() {
             />
           )}
           {currentPage === 'play' && (
-            <BotPlayPage
-              onNavigateToReview={() => goToPage('review')}
-            />
+            <ErrorBoundary>
+              <BotPlayPage
+                onNavigateToReview={() => goToPage('review')}
+              />
+            </ErrorBoundary>
           )}
           {shouldShowUtilityRail && (
             <aside className="ad-col utility-rail" aria-label="DeepMove utility links">

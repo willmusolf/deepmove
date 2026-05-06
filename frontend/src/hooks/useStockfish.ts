@@ -46,12 +46,11 @@ export function useStockfish() {
   useEffect(() => {
     const bg = new StockfishEngine()
     const ia = new StockfishEngine()
-    const br = new StockfishEngine()
     backgroundRef.current = bg
     interactiveRef.current = ia
-    branchRef.current = br
+    // branchRef is lazy-initialized on first use (review page only) — don't waste memory on play page
 
-    Promise.all([bg.initialize(), ia.initialize(), br.initialize()])
+    Promise.all([bg.initialize(), ia.initialize()])
       .then(() => {
         setIsReady(true)
         setEngineStatus('ready')
@@ -64,7 +63,7 @@ export function useStockfish() {
     return () => {
       bg.terminate()
       ia.terminate()
-      br.terminate()
+      branchRef.current?.terminate()  // only if it was ever created
       backgroundRef.current = null
       interactiveRef.current = null
       branchRef.current = null
@@ -256,9 +255,13 @@ export function useStockfish() {
   /** Dedicated branch-analysis lane so branch badge grading does not queue
    *  behind full-game analysis or live per-position arrows. */
   async function analyzePositionSingleBranch(fen: string, depth = 14): Promise<import('../engine/stockfish').EvalResult | null> {
-    const engine = branchRef.current
-    if (!engine || !isReady) return null
-    return engine.analyzePosition(fen, depth)
+    if (!isReady) return null
+    if (!branchRef.current) {
+      const br = new StockfishEngine()
+      branchRef.current = br
+      await br.initialize()
+    }
+    return branchRef.current.analyzePosition(fen, depth)
   }
 
   return {

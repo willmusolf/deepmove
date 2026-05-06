@@ -88,6 +88,17 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   // Increments on every navigation step so ChessBoard's pathKey changes and cancelMove() fires
   const [browseStep, setBrowseStep] = useState(savedUiState?.browseStep ?? 0)
 
+  // Mobile detection — used to cancel premoves on any board tap (desktop unchanged)
+  const [isCoarsePointer, setIsCoarsePointer] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)')
+    const handler = (e: MediaQueryListEvent) => setIsCoarsePointer(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   // Refs for use inside keydown handler (avoid stale closure)
   const treeRef = useRef(tree)
   const currentPathRef = useRef(currentPath)
@@ -330,7 +341,11 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
               />
             )}
 
-            <div className="board-overlay-host" onContextMenu={cancelPremoveQueue}>
+            <div
+              className="board-overlay-host"
+              onContextMenu={cancelPremoveQueue}
+              onPointerDown={isCoarsePointer && premoveQueue.length > 0 ? cancelPremoveQueue : undefined}
+            >
             <ChessBoard
               fen={displayFen}
               orientation={orientation}
@@ -344,24 +359,28 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
               forceCheck={endReason === 'resigned' && config && browsePosition === null ? config.userColor : undefined}
             />
             {(() => {
-              const _chess = new Chess(displayFen)
-              const _findKing = (c: 'w' | 'b'): string | null => {
-                for (const f of 'abcdefgh') for (const r of '12345678') {
-                  const p = _chess.get(`${f}${r}` as any)
-                  if (p?.type === 'k' && p.color === c) return f + r
+              try {
+                const _chess = new Chess(displayFen)
+                const _findKing = (c: 'w' | 'b'): string | null => {
+                  for (const f of 'abcdefgh') for (const r of '12345678') {
+                    const p = _chess.get(`${f}${r}` as any)
+                    if (p?.type === 'k' && p.color === c) return f + r
+                  }
+                  return null
+                }
+                if (_chess.isCheckmate()) {
+                  const sq = _findKing(_chess.turn())
+                  if (!sq) return null
+                  return <div className="board-result-badge board-result-badge--checkmate" style={getSquareOverlayPosition(sq, orientation)}>#</div>
+                }
+                if (_chess.isDraw() || (endReason === 'threefold' && browsePosition === null)) {
+                  const wSq = _findKing('w'), bSq = _findKing('b')
+                  return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(wSq, orientation)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(bSq, orientation)}>½</div>}</>
                 }
                 return null
+              } catch {
+                return null
               }
-              if (_chess.isCheckmate()) {
-                const sq = _findKing(_chess.turn())
-                if (!sq) return null
-                return <div className="board-result-badge board-result-badge--checkmate" style={getSquareOverlayPosition(sq, orientation)}>#</div>
-              }
-              if (_chess.isDraw() || (endReason === 'threefold' && browsePosition === null)) {
-                const wSq = _findKing('w'), bSq = _findKing('b')
-                return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(wSq, orientation)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(bSq, orientation)}>½</div>}</>
-              }
-              return null
             })()}
             </div>
 
