@@ -17,10 +17,14 @@ interface EvalGraphProps {
 
 const HEIGHT = 120
 const CLAMP = 700      // centipawns at which curve hits ~100%
-const TENSION = 0.4   // Catmull-Rom tension
+const TENSION = 0.3   // Catmull-Rom tension
 const DOT_R = 6       // radius of annotation circles
 const DOT_R_HOVER = 9 // radius when hovered
 const DOT_HIT_R = 13  // invisible hit target for easier mouse capture
+const PLOT_PAD_X = DOT_R - 2
+const PLOT_PAD_Y = DOT_R_HOVER + 3
+const TOOLTIP_EDGE_THRESHOLD = 72
+const EDGE_GUIDE_INSET = 1
 
 type Point = { x: number; y: number }
 
@@ -28,7 +32,8 @@ type Point = { x: number; y: number }
 function cpToY(cp: number, height: number): number {
   const clamped = Math.max(-CLAMP, Math.min(CLAMP, cp))
   const pct = 1 / (1 + Math.exp(-clamped / 200))
-  return height * (1 - pct)
+  const usableHeight = Math.max(1, height - PLOT_PAD_Y * 2)
+  return PLOT_PAD_Y + usableHeight * (1 - pct)
 }
 
 /** Build a smooth cubic bezier SVG path from an array of points (Catmull-Rom) */
@@ -113,9 +118,12 @@ export default function EvalGraph({
   // full game length from PGN, so x-positions are stable even as analysis fills in.
   const total = Math.max(totalMoves, analyzed, 1)
 
-  const { colWidth, midY, points, annotations, criticalBands, curvePath } = useMemo(() => {
-    const cw = svgWidth / (total + 1)
-    const mx = (i: number) => i * cw
+  const clampTooltipX = (x: number) => Math.max(DOT_R_HOVER + 4, Math.min(svgWidth - DOT_R_HOVER - 4, x))
+
+  const { colWidth, plotStartX, plotEndX, midY, points, annotations, criticalBands, curvePath } = useMemo(() => {
+    const plotWidth = Math.max(1, svgWidth - PLOT_PAD_X * 2)
+    const cw = plotWidth / total
+    const mx = (i: number) => PLOT_PAD_X + Math.min(plotWidth, i * cw)
     const my = cpToY(0, HEIGHT)
 
     const pts: Point[] = [{ x: mx(0), y: my }]
@@ -149,10 +157,27 @@ export default function EvalGraph({
 
     const cp = buildBezierPath(pts)
 
-    return { colWidth: cw, midY: my, points: pts, annotations: anns, criticalBands: bands, curvePath: cp }
+    return {
+      colWidth: cw,
+      plotStartX: PLOT_PAD_X,
+      plotEndX: PLOT_PAD_X + plotWidth,
+      midY: my,
+      points: pts,
+      annotations: anns,
+      criticalBands: bands,
+      curvePath: cp,
+    }
   }, [moveEvals, svgWidth, total, analyzed, criticalMoments, viewMode])
 
-  const moveX = (i: number) => i * colWidth
+  const moveX = (i: number) => plotStartX + i * colWidth
+  const moveIndexFromClientX = (clientX: number, rect: DOMRect) => {
+    const svgX = ((clientX - rect.left) / rect.width) * svgWidth
+    const clampedX = Math.max(plotStartX, Math.min(plotEndX, svgX))
+    return Math.max(0, Math.min(analyzed, Math.round((clampedX - plotStartX) / colWidth)))
+  }
+  const guideLineInset = (moveIndex: number) => (
+    moveIndex === 0 || moveIndex === analyzed ? EDGE_GUIDE_INSET : 0
+  )
 
   // ── Cursor ───────────────────────────────────────────────────────────────
   const cursorX = currentMoveIndex <= analyzed ? moveX(currentMoveIndex) : null
@@ -164,30 +189,35 @@ export default function EvalGraph({
   const hoveredEval = hoveredIndex !== null && hoveredIndex > 0
     ? moveEvals[hoveredIndex - 1] : null
   const hoveredX = hoveredIndex !== null ? moveX(hoveredIndex) : null
-
-  const tooltipLeftPct = hoveredX !== null
-    ? Math.max(4, Math.min(96, (hoveredX / svgWidth) * 100))
-    : null
+  const tooltipAnchorX = hoveredX !== null ? clampTooltipX(hoveredX) : null
+  const tooltipTransform = hoveredX === null
+    ? null
+    : hoveredX <= TOOLTIP_EDGE_THRESHOLD
+      ? 'translateX(0)'
+      : hoveredX >= svgWidth - TOOLTIP_EDGE_THRESHOLD
+        ? 'translateX(-100%)'
+        : 'translateX(-50%)'
 
   function handleClick(e: React.MouseEvent<SVGSVGElement>) {
     if (analyzed === 0) return
     const rect = e.currentTarget.getBoundingClientRect()
-    const relX = (e.clientX - rect.left) / rect.width
-    onNavigate(Math.max(0, Math.min(analyzed, Math.round(relX * total))))
+    onNavigate(moveIndexFromClientX(e.clientX, rect))
   }
 
   function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
     if (analyzed === 0) return
     const rect = e.currentTarget.getBoundingClientRect()
-    const relX = (e.clientX - rect.left) / rect.width
-    setHoveredIndex(Math.max(0, Math.min(analyzed, Math.round(relX * total))))
+    setHoveredIndex(moveIndexFromClientX(e.clientX, rect))
   }
 
   return (
     <div className="eval-graph-wrap" ref={containerRef}>
       {/* Tooltip */}
-      {hoveredEval && tooltipLeftPct !== null && (
-        <div className="eval-graph-tooltip" style={{ left: `${tooltipLeftPct}%` }}>
+      {hoveredEval && tooltipAnchorX !== null && tooltipTransform !== null && (
+        <div
+          className="eval-graph-tooltip"
+          style={{ left: `${tooltipAnchorX}px`, transform: tooltipTransform }}
+        >
           {(() => {
             const hoveredAnnotation = annotations.find(a => a.moveIndex === hoveredIndex)
             const gradeLabel = hoveredAnnotation ? GRADE_LABEL[hoveredAnnotation.grade] : undefined
@@ -254,9 +284,9 @@ export default function EvalGraph({
           {/* Greyed future area */}
           {analyzed < total && (
             <rect
-              x={moveX(analyzed + 1)}
+              x={moveX(analyzed)}
               y={0}
-              width={svgWidth - moveX(analyzed + 1)}
+              width={svgWidth - moveX(analyzed)}
               height={HEIGHT}
               fill="rgba(255,255,255,0.025)"
             />
@@ -300,7 +330,10 @@ export default function EvalGraph({
           {/* Hover dashed line */}
           {hoveredX !== null && hoveredX !== cursorX && (
             <line
-              x1={hoveredX} y1={0} x2={hoveredX} y2={HEIGHT}
+              x1={hoveredX}
+              y1={guideLineInset(hoveredIndex ?? -1)}
+              x2={hoveredX}
+              y2={HEIGHT - guideLineInset(hoveredIndex ?? -1)}
               stroke="rgba(255,255,255,0.28)"
               strokeWidth="1"
               strokeDasharray="3,3"
@@ -338,7 +371,10 @@ export default function EvalGraph({
           {cursorX !== null && (
             <>
               <line
-                x1={cursorX} y1={0} x2={cursorX} y2={HEIGHT}
+                x1={cursorX}
+                y1={guideLineInset(currentMoveIndex)}
+                x2={cursorX}
+                y2={HEIGHT - guideLineInset(currentMoveIndex)}
                 stroke="var(--color-accent)"
                 strokeWidth="1.2"
                 opacity="0.88"

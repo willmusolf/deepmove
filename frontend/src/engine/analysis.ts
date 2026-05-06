@@ -29,6 +29,39 @@ export interface MoveEval {
   grade: MoveGrade
 }
 
+function buildTerminalTopLine(fen: string, depth: number): TopLine[] {
+  try {
+    const chess = new Chess(fen)
+    if (chess.isCheckmate()) {
+      const sideToMove = fen.split(' ')[1] === 'b' ? 'black' : 'white'
+      const score = sideToMove === 'white' ? -30_000 : 30_000
+      return [{
+        rank: 1,
+        score,
+        isMate: true,
+        mateIn: sideToMove === 'white' ? -1 : 1,
+        pv: [],
+        san: '',
+        depth,
+      }]
+    }
+    if (chess.isDraw()) {
+      return [{
+        rank: 1,
+        score: 0,
+        isMate: false,
+        mateIn: null,
+        pv: [],
+        san: '',
+        depth,
+      }]
+    }
+  } catch {
+    // Fall through — empty array means caller will keep the previous guard behavior.
+  }
+  return []
+}
+
 // ── Win-probability grade thresholds ─────────────────────────────────────────
 // All values are % win-probability loss from the player's perspective.
 // Using win% instead of raw centipawns means a move in an already-won position
@@ -107,8 +140,9 @@ export function classifyMove(
   // Win-probability loss from the player's perspective (positive = they lost winning chance)
   const winPctLoss = cpToWinPct(playerBefore) - cpToWinPct(playerAfter)
 
-  // Brilliant: sacrifice + top-suggested + no meaningful win% loss
-  if (sacrifice && isTopSuggested && winPctLoss <= WINPCT_EXCELLENT
+  // Brilliant: sacrifice + top-suggested + only good move + no meaningful win% loss.
+  // We deliberately bias toward under-awarding Brilliant so the badge stays trustworthy.
+  if (sacrifice && isTopSuggested && isOnlyGoodMove && winPctLoss <= WINPCT_EXCELLENT
       && cpToWinPct(playerBefore) >= WINPCT_MIN_FOR_BRILLIANT) return 'brilliant'
 
   // Great: only good move in position (top-suggested + big gap from #2, not a recapture)
@@ -208,7 +242,8 @@ export async function analyzeGame(
     const color: 'white' | 'black' = i % 2 === 0 ? 'white' : 'black'
 
     // Multi-PV(2): gives us the eval AND top-2 lines for the next move's "great" check
-    const topLines = await engine.analyzePositionMultiPV(fen, depth, 2)
+    const analyzedLines = await engine.analyzePositionMultiPV(fen, depth, 2)
+    const topLines = analyzedLines.length > 0 ? analyzedLines : buildTerminalTopLine(fen, depth)
     if (topLines.length === 0) {
       // Shouldn't happen, but guard against empty results
       prevTopLines = topLines

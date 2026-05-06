@@ -3,6 +3,7 @@ import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
 import EvalGraph from './components/Board/EvalGraph'
+import GameReport from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
 import PlayerInfoBox from './components/Board/PlayerInfoBox'
 import ImportPanel from './components/Import/ImportPanel'
@@ -17,6 +18,7 @@ import ProfilePage from './components/Profile/ProfilePage'
 import MoveCoachComment from './components/Coach/MoveCoachComment'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './components/Board/gradeBadges'
 import BotPlayPage from './components/Play/BotPlayPage'
+import AboutPage from './components/AboutPage'
 import PrivacyPage from './components/PrivacyPage'
 import AdBanner from './components/AdBanner'
 import MobileAdBanner from './components/MobileAdBanner'
@@ -43,6 +45,7 @@ import './styles/board.css'
 import './styles/badge-overrides.css'
 import { detectOpening } from './chess/openings'
 import { ACTIVE_SPONSOR } from './config/sponsor'
+import { getPageFromPathname, getPageMeta, getPathForPage, isIndexablePage } from './utils/pageMeta'
 
 // Lichess-style thickness brushes — all green, varying weight
 const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
@@ -119,6 +122,9 @@ function loadAppUiState(): AppUiState | null {
 
 export default function App() {
   const savedUiState = useMemo(() => loadAppUiState(), [])
+  const routePage = useMemo(() => (
+    typeof window !== 'undefined' ? getPageFromPathname(window.location.pathname) : null
+  ), [])
   const savedReviewColor = useMemo(() => useGameStore.getState().userColor, [])
   const {
     currentFen,
@@ -314,6 +320,7 @@ export default function App() {
 
   const displayFen = isLoaded ? currentFen : analysisFen
   const loadedGameKey = isLoaded ? (currentGameId ?? pgn ?? '__loaded-game__') : null
+  const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
   // Opening name — detected from move sequence in both modes
   const [openingName, setOpeningName] = useState<string | null>(null)
@@ -381,6 +388,38 @@ export default function App() {
   }
 
   const showAnalyzingBar = isAnalyzing || (analyzedCount < totalMovesCount && totalMovesCount > 0)
+  const pauseLivePositionAnalysis = isLoaded && showAnalyzingBar && !inBranch
+  const analysisProgressPercent = totalMovesCount > 0
+    ? Math.max(0, Math.min(100, Math.round((analyzedCount / totalMovesCount) * 100)))
+    : null
+  const analysisProgressPhase = analysisProgressPercent === null
+    ? 'Starting analysis'
+    : analysisProgressPercent >= 90
+      ? 'Finishing up'
+      : analysisProgressPercent >= 15
+        ? 'Scanning moves'
+        : 'Starting analysis'
+  const analysisStatusBar = showAnalyzingBar ? (
+    <div className="analyzing-bar">
+      {analysisProgressPercent !== null && (
+        <div
+          className="analyzing-bar__fill"
+          style={{ width: `${analysisProgressPercent}%` }}
+        />
+      )}
+      <span className="analyzing-dot" />
+      <div className="analyzing-bar__content">
+        <span className="analyzing-text">Analyzing game</span>
+        <span className="analyzing-subtext">
+          {analysisProgressPhase}
+          {totalMovesCount > 0 && ` · ${analyzedCount} / ${totalMovesCount} moves`}
+        </span>
+      </div>
+      {analysisProgressPercent !== null && (
+        <span className="analyzing-percent">{analysisProgressPercent}%</span>
+      )}
+    </div>
+  ) : null
 
   useEffect(() => {
     // Always cancel in-flight analysis and pending timers first — even if the new
@@ -391,6 +430,11 @@ export default function App() {
     positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
     stopPositionAnalysis()
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
+
+    if (pauseLivePositionAnalysis) {
+      setAnalyzingPosition(false)
+      return
+    }
 
     const cached = positionCache.current.get(displayFen)
 
@@ -453,15 +497,7 @@ export default function App() {
       if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayFen])
-
-  // When engine becomes ready, analyze whatever position is currently displayed.
-  // This is the main seed — displayFen effect skips analysis until engine is ready.
-  useEffect(() => {
-    if (!isReady) return
-    triggerPositionAnalysis(displayFen)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady])
+  }, [displayFen, isReady, pauseLivePositionAnalysis])
 
   // When engine becomes ready, retroactively grade any sandbox nodes that were
   // played before Stockfish finished loading (common for eager users).
@@ -550,16 +586,6 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentGameId])
 
-  // When game analysis finishes, auto-trigger position analysis so BestLines appear immediately.
-  const wasAnalyzingRef = useRef(false)
-  useEffect(() => {
-    if (wasAnalyzingRef.current && !isAnalyzing && isLoaded && isReady) {
-      triggerPositionAnalysis(displayFen)
-    }
-    wasAnalyzingRef.current = isAnalyzing
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAnalyzing])
-
   const [orientation, setOrientation] = useState<'white' | 'black'>(
     savedUiState?.orientation ?? savedReviewColor ?? 'white'
   )
@@ -587,9 +613,15 @@ export default function App() {
   const [lichessUsername, setLichessUsername] = useState('')
   const [chesscomPagination, setChesscomPagination] = useState<PaginationState | null>(null)
   const [lichessPagination, setLichessPagination] = useState<PaginationState | null>(null)
-  const [currentPage, setCurrentPage] = useState<Page>(() => savedUiState?.currentPage ?? 'review')
+  const [currentPage, setCurrentPage] = useState<Page>(() => routePage ?? savedUiState?.currentPage ?? 'review')
   const goToPage = (page: Page) => {
     if (page !== 'play') clearPlaySession()
+    if (typeof window !== 'undefined') {
+      const nextPath = getPathForPage(page)
+      if (window.location.pathname !== nextPath) {
+        window.history.pushState({ page }, '', nextPath)
+      }
+    }
     setCurrentPage(page)
   }
   const [showEvalBar, setShowEvalBar] = useState(savedUiState?.showEvalBar ?? true)
@@ -616,6 +648,80 @@ export default function App() {
     } satisfies AppUiState)
   }, [currentPage, panelTab, importTab, orientation, showEvalBar, showArrows, showGrades])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handlePopState = () => {
+      const nextPage = getPageFromPathname(window.location.pathname) ?? 'review'
+      if (nextPage !== 'play') clearPlaySession()
+      setCurrentPage(nextPage)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+
+    const meta = getPageMeta(currentPage)
+    document.title = 'DeepMove'
+
+    const upsertMeta = (selector: string, attributes: Record<string, string>) => {
+      let element = document.head.querySelector<HTMLMetaElement>(selector)
+      if (!element) {
+        element = document.createElement('meta')
+        document.head.appendChild(element)
+      }
+      Object.entries(attributes).forEach(([key, value]) => element?.setAttribute(key, value))
+    }
+
+    const upsertLink = (selector: string, attributes: Record<string, string>) => {
+      let element = document.head.querySelector<HTMLLinkElement>(selector)
+      if (!element) {
+        element = document.createElement('link')
+        document.head.appendChild(element)
+      }
+      Object.entries(attributes).forEach(([key, value]) => element?.setAttribute(key, value))
+    }
+
+    upsertMeta('meta[name="description"]', { name: 'description', content: meta.description })
+    upsertMeta('meta[property="og:title"]', { property: 'og:title', content: meta.title })
+    upsertMeta('meta[property="og:description"]', { property: 'og:description', content: meta.description })
+    upsertMeta('meta[property="og:url"]', { property: 'og:url', content: meta.canonicalUrl })
+    upsertMeta('meta[name="twitter:title"]', { name: 'twitter:title', content: meta.title })
+    upsertMeta('meta[name="twitter:description"]', { name: 'twitter:description', content: meta.description })
+    upsertMeta('meta[name="robots"]', {
+      name: 'robots',
+      content: isIndexablePage(currentPage) ? 'index,follow' : 'noindex,nofollow',
+    })
+    upsertLink('link[rel="canonical"]', { rel: 'canonical', href: meta.canonicalUrl })
+  }, [currentPage])
+
+
+  // Desktop: suppress hover appearance immediately after click (until mouse moves).
+  // Prevents buttons from looking "selected" after being clicked with a mouse.
+  // Uses a 5px movement threshold so click-jitter doesn't prematurely remove the class.
+  useEffect(() => {
+    let clickX = 0, clickY = 0
+    const THRESHOLD = 5
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return
+      clickX = e.clientX; clickY = e.clientY
+      document.body.classList.add('just-clicked')
+    }
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return
+      if (Math.hypot(e.clientX - clickX, e.clientY - clickY) > THRESHOLD)
+        document.body.classList.remove('just-clicked')
+    }
+    window.addEventListener('pointerdown', onDown)
+    window.addEventListener('pointermove', onMove)
+    return () => {
+      window.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('pointermove', onMove)
+    }
+  }, [])
 
   // Last-move highlight: always reflects the actual last move in currentPath
   // so chessground never shows a stale highlight after navigating back.
@@ -996,9 +1102,6 @@ export default function App() {
     }),
     [moveEvals]
   )
-
-  // Are we currently in a branch (off the main line)?
-  const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
   // Lightweight coaching blurb for the current branch move (no full LLM lesson)
   const currentNodeId = currentPath.length > 0 ? currentPath[currentPath.length - 1] : null
@@ -1399,7 +1502,14 @@ export default function App() {
                   >
                     Analysis
                   </button>
-                  {/* Coach tab hidden pre-launch */}
+                  {COACHING_ENABLED && (
+                    <button
+                      className={`panel-tab${panelTab === 'coach' ? ' active' : ''}`}
+                      onClick={() => setPanelTab('coach')}
+                    >
+                      Coach
+                    </button>
+                  )}
                 </div>
 
                 <div className="side-panel-content">
@@ -1417,24 +1527,10 @@ export default function App() {
                           <span className="analyzing-text">Engine loading…</span>
                         </div>
                       )}
-                      {showAnalyzingBar && (
-                        <div className="analyzing-bar">
-                          {totalMovesCount > 0 && (
-                            <div
-                              className="analyzing-bar__fill"
-                              style={{ width: `${Math.round((analyzedCount / totalMovesCount) * 100)}%` }}
-                            />
-                          )}
-                          <span className="analyzing-dot" />
-                          <span className="analyzing-text">
-                            Analyzing…
-                            {totalMovesCount > 0 && ` ${analyzedCount} / ${totalMovesCount}`}
-                          </span>
-                        </div>
-                      )}
+                      {analysisStatusBar}
 
                       {/* Eval display — hidden during game analysis */}
-                      {(!showAnalyzingBar || atStartOnMainLine) && (
+                      {!showAnalyzingBar && (
                         <div className="eval-display">
                           <span className="eval-display-value">
                             {formatEval(stableEvalCp, stableIsMate, stableMateIn)}
@@ -1453,11 +1549,13 @@ export default function App() {
 
                       {/* Keep best lines visible while full-game analysis runs so move switches
                           still show suggestions/skeletons instead of collapsing the panel. */}
-                      <BestLines
-                        lines={visibleLines}
-                        isAnalyzingPosition={isAnalyzingPosition}
-                        onLineClick={handleAnalysisBestLineClick}
-                      />
+                      {!pauseLivePositionAnalysis && (
+                        <BestLines
+                          lines={visibleLines}
+                          isAnalyzingPosition={isAnalyzingPosition}
+                          onLineClick={handleAnalysisBestLineClick}
+                        />
+                      )}
 
                       {/* Eval graph — hidden during analysis, shown after completion */}
                       {!showAnalyzingBar && moveEvals.length > 0 && (
@@ -1468,6 +1566,14 @@ export default function App() {
                           onNavigate={handleGoToMove}
                           criticalMoments={criticalMoments}
                           viewMode={viewMode}
+                        />
+                      )}
+
+                      {!showAnalyzingBar && (
+                        <GameReport
+                          moveEvals={moveEvals}
+                          userColor={userColor}
+                          isAnalyzing={isAnalyzing}
                         />
                       )}
 
@@ -1508,21 +1614,7 @@ export default function App() {
                           <span className="analyzing-text">Engine loading…</span>
                         </div>
                       )}
-                      {showAnalyzingBar && (
-                        <div className="analyzing-bar">
-                          {totalMovesCount > 0 && (
-                            <div
-                              className="analyzing-bar__fill"
-                              style={{ width: `${Math.round((analyzedCount / totalMovesCount) * 100)}%` }}
-                            />
-                          )}
-                          <span className="analyzing-dot" />
-                          <span className="analyzing-text">
-                            Analyzing…
-                            {totalMovesCount > 0 && ` ${analyzedCount} / ${totalMovesCount}`}
-                          </span>
-                        </div>
-                      )}
+                      {analysisStatusBar}
 
                       {/* Eval display */}
                       <div className="eval-display">
@@ -1741,11 +1833,13 @@ export default function App() {
                         </div>
                       )}
 
-                      <BestLines
-                        lines={visibleLines}
-                        isAnalyzingPosition={isAnalyzingPosition}
-                        onLineClick={handleAnalysisBestLineClick}
-                      />
+                      {!pauseLivePositionAnalysis && (
+                        <BestLines
+                          lines={visibleLines}
+                          isAnalyzingPosition={isAnalyzingPosition}
+                          onLineClick={handleAnalysisBestLineClick}
+                        />
+                      )}
 
                       {/* Analysis board move tree */}
                       {analysisRootId ? (
@@ -1825,7 +1919,7 @@ export default function App() {
               }}
             />
           )}
-          {currentPage === 'about' && <div className="stub-page">About coming soon.</div>}
+          {currentPage === 'about' && <AboutPage />}
           {currentPage === 'privacy' && <PrivacyPage />}
           {currentPage === 'play' && (
             <BotPlayPage
@@ -1833,6 +1927,7 @@ export default function App() {
             />
           )}
           <footer className="app-footer">
+            <button className="app-footer__link" onClick={() => goToPage('about')}>About</button>
             <button className="app-footer__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
           </footer>
           {shouldShowMobileSponsor && (

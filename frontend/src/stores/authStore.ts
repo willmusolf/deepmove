@@ -45,6 +45,17 @@ interface AuthState {
   clearAuth: () => void
 }
 
+let refreshInFlight: Promise<void> | null = null
+
+function hasStoredSessionHint(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return !!window.localStorage.getItem('dm_has_session') || !!window.sessionStorage.getItem('dm_oauth_at')
+  } catch {
+    return false
+  }
+}
+
 async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
   // Merge caller's signal with a 10s timeout so auth calls never hang indefinitely.
   // 10s allows for Neon free-tier cold-start wake-up (~3-5s).
@@ -76,7 +87,7 @@ async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: null,
-  isLoading: false, // starts false — sign-in button shows immediately; refresh updates state async
+  isLoading: hasStoredSessionHint(),
   isPremium: false,
 
   register: async (email, password) => {
@@ -88,6 +99,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: data.user,
       accessToken: data.access_token,
       isPremium: data.user.is_premium,
+      isLoading: false,
     })
     localStorage.setItem('dm_has_session', '1')
     usePrefsStore.getState().loadFromUser(data.user.preferences)
@@ -102,6 +114,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: data.user,
       accessToken: data.access_token,
       isPremium: data.user.is_premium,
+      isLoading: false,
     })
     localStorage.setItem('dm_has_session', '1')
     usePrefsStore.getState().loadFromUser(data.user.preferences)
@@ -131,28 +144,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: null, accessToken: null, isPremium: false, isLoading: false })
       return
     }
+    if (refreshInFlight) {
+      return refreshInFlight
+    }
+    set({ isLoading: true })
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 5000)
-    try {
-      const data = await authFetch<AuthResponse>('/auth/refresh', {
-        method: 'POST',
-        signal: controller.signal,
-      })
-      clearTimeout(timer)
-      set({
-        user: data.user,
-        accessToken: data.access_token,
-        isPremium: data.user.is_premium,
-        isLoading: false,
-      })
-      usePrefsStore.getState().loadFromUser(data.user.preferences)
-    } catch {
-      clearTimeout(timer)
-      // Refresh token expired or invalid — clear the session hint so future
-      // page loads don't hit the endpoint again until the user logs in.
-      localStorage.removeItem('dm_has_session')
-      set({ user: null, accessToken: null, isPremium: false, isLoading: false })
-    }
+    refreshInFlight = (async () => {
+      try {
+        const data = await authFetch<AuthResponse>('/auth/refresh', {
+          method: 'POST',
+          signal: controller.signal,
+        })
+        clearTimeout(timer)
+        set({
+          user: data.user,
+          accessToken: data.access_token,
+          isPremium: data.user.is_premium,
+          isLoading: false,
+        })
+        usePrefsStore.getState().loadFromUser(data.user.preferences)
+      } catch {
+        clearTimeout(timer)
+        // Refresh token expired or invalid — clear the session hint so future
+        // page loads don't hit the endpoint again until the user logs in.
+        localStorage.removeItem('dm_has_session')
+        set({ user: null, accessToken: null, isPremium: false, isLoading: false })
+      } finally {
+        refreshInFlight = null
+      }
+    })()
+    return refreshInFlight
   },
 
   updateProfile: async (data) => {
