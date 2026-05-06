@@ -183,6 +183,72 @@ describe('analyzeGame', () => {
   })
 })
 
+describe('classifyMove – great moves', () => {
+  // "great" = top-suggested + only good move + winPctLoss ≤ WINPCT_GOOD (5%)
+  // Key: uses 5% not 2% so defensive resources (costing a few %) still qualify.
+
+  it('returns great on zero win% loss', () => {
+    // isOnlyGoodMove=true, no loss → great
+    expect(classifyMove(100, 100, 'white', 20, false, null, true, true)).toBe('great')
+  })
+
+  it('returns great on ~2.7% loss (was silently downgraded to good before fix)', () => {
+    // evalBefore=100 evalAfter=70 → winPctLoss ≈ 2.69% ≤ 5% → great
+    // Before fix (threshold was 2%), this returned 'good'.
+    expect(classifyMove(100, 70, 'white', 20, false, null, true, true)).toBe('great')
+  })
+
+  it('returns great at the boundary (~4.97% loss)', () => {
+    // evalBefore=100 evalAfter=45 → winPctLoss ≈ 4.97% ≤ 5% → great
+    expect(classifyMove(100, 45, 'white', 20, false, null, true, true)).toBe('great')
+  })
+
+  it('does not return great just over the 5% boundary (~5.4% loss)', () => {
+    // evalBefore=100 evalAfter=40 → winPctLoss ≈ 5.43% > 5% → not great
+    expect(classifyMove(100, 40, 'white', 20, false, null, true, true)).not.toBe('great')
+  })
+
+  it('does not return great when not top-suggested', () => {
+    // isOnlyGoodMove=true but isTopSuggested=false → not great
+    expect(classifyMove(100, 100, 'white', 20, false, null, false, true)).toBe('excellent')
+  })
+
+  it('does not return great when isOnlyGoodMove is false', () => {
+    // isTopSuggested=true but no gap from second move → best, not great
+    expect(classifyMove(100, 100, 'white', 20, false, null, true, false)).toBe('best')
+  })
+
+  it('brilliant takes priority over great when sacrifice conditions are met', () => {
+    // sacrifice + isTopSuggested + isOnlyGoodMove + tiny loss + before win% ≥ 20%
+    expect(classifyMove(100, 96, 'white', 20, true, null, true, true)).toBe('brilliant')
+  })
+
+  it('returns great for black too (perspective flipped correctly)', () => {
+    // black: evalBefore=-100 (white down 100), evalAfter=-100 (no change) → winPctLoss=0 → great
+    expect(classifyMove(-100, -100, 'black', 20, false, null, true, true)).toBe('great')
+  })
+})
+
+describe('analyzeGame – great move detection', () => {
+  it('grades a move as great when it has a large gap from the second-best option', async () => {
+    // top line e2e4 scores +100, second line d2d4 scores -100 → gap ≈ 18.2% ≥ WINPCT_GREAT_GAP (10%)
+    // player plays e2e4 (top-suggested) → isOnlyGoodMove=true → great
+    const makeLine = (rank: number, score: number, pv: string[]): TopLine => ({
+      rank, score, isMate: false, mateIn: null, pv, san: pv[0] ?? '', depth: 16,
+    })
+    const engine = {
+      analyzePositionMultiPV: vi.fn()
+        // Seed: initial position — e2e4 far better than d2d4 (≈18% win-% gap)
+        .mockResolvedValueOnce([makeLine(1, 100, ['e2e4']), makeLine(2, -100, ['d2d4'])])
+        // Loop i=0: position after e4 (score stays healthy, winPctLoss < 0)
+        .mockResolvedValueOnce([makeLine(1, 95, ['e7e5'])]),
+    } as any
+
+    const results = await analyzeGame('1. e4', engine, 16)
+    expect(results[0].grade).toBe('great')
+  })
+})
+
 describe('brilliant move regression tests', () => {
   it('isSacrificeFn: pawn push capturable by king is NOT a sacrifice', () => {
     // K+P vs K: white pawn just pushed to e6, black king on e8 can capture it
