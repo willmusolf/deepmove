@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useAuthStore } from '../stores/authStore'
+import { AD_CONFIG, ensureAdSenseScript } from '../config/sponsor'
 
 interface AdBannerProps {
   slot?: string
@@ -22,22 +23,32 @@ export default function AdBanner({ slot, format = 'auto', className }: AdBannerP
   const pushed = useRef(false)
 
   useEffect(() => {
-    if (isPremium || pushed.current) return
-    try {
-      pushed.current = true
-      ;(window.adsbygoogle = window.adsbygoogle || []).push({})
-    } catch {
-      // AdSense script not loaded yet (pre-approval)
-    }
-  }, [isPremium])
+    if (isPremium || pushed.current || !AD_CONFIG.enabled || !slot) return
 
-  if (isPremium) return null
+    let cancelled = false
+
+    void ensureAdSenseScript()
+      .then(() => {
+        if (cancelled || pushed.current) return
+        pushed.current = true
+        ;(window.adsbygoogle = window.adsbygoogle || []).push({})
+      })
+      .catch(() => {
+        // Ads stay dormant until AdSense is approved and enabled.
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isPremium, slot])
+
+  if (isPremium || !AD_CONFIG.enabled || !slot) return null
 
   return (
     <ins
       className={`adsbygoogle${className ? ` ${className}` : ''}`}
       style={{ display: 'block' }}
-      data-ad-client="ca-pub-6306891304675674"
+      data-ad-client={AD_CONFIG.client}
       data-ad-slot={slot}
       data-ad-format={format}
       data-full-width-responsive="true"
