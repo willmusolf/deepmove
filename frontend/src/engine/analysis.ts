@@ -145,8 +145,10 @@ export function classifyMove(
   if (sacrifice && isTopSuggested && isOnlyGoodMove && winPctLoss <= WINPCT_EXCELLENT
       && cpToWinPct(playerBefore) >= WINPCT_MIN_FOR_BRILLIANT) return 'brilliant'
 
-  // Great: only good move in position (top-suggested + big gap from #2, not a recapture)
-  if (isTopSuggested && isOnlyGoodMove && winPctLoss <= WINPCT_EXCELLENT) return 'great'
+  // Great: only good move in position (top-suggested + big gap from #2, not a recapture).
+  // Uses WINPCT_GOOD (5%) not WINPCT_EXCELLENT — a defensive resource can cost a few percent
+  // yet still be the only sane option; restricting to 2% silently downgrades those moves.
+  if (isTopSuggested && isOnlyGoodMove && winPctLoss <= WINPCT_GOOD) return 'great'
 
   // Best: top-suggested move with no meaningful win% loss
   if (isTopSuggested && winPctLoss <= WINPCT_EXCELLENT) return 'best'
