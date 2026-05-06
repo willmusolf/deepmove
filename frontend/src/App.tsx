@@ -1209,13 +1209,15 @@ export default function App() {
 
 
   const isReviewPage = currentPage === 'review'
+  const isPlayPage = currentPage === 'play'
   const isDocumentPage = currentPage === 'about' || currentPage === 'privacy'
-  const isScrollPage = !isReviewPage
+  const isFixedLayoutPage = isReviewPage || isPlayPage
+  const isScrollPage = !isFixedLayoutPage
   const desktopRailPage = RAIL_AD_PAGE_SET.has(currentPage) ? currentPage : null
   const mobileSponsorPage = MOBILE_BANNER_PAGE_SET.has(currentPage) ? currentPage : null
   const shouldShowDesktopRail = !isPremium && desktopRailAdEnabled && desktopRailPage !== null
   const shouldShowMobileSponsor = !isPremium && mobileBannerAdEnabled && mobileSponsorPage !== null
-  const shouldShowUtilityRail = isReviewPage && desktopRailPage !== null && !shouldShowDesktopRail
+  const shouldShowUtilityRail = isFixedLayoutPage && desktopRailPage !== null && !shouldShowDesktopRail
 
   return (
     <ResponsiveLayout
@@ -1231,7 +1233,7 @@ export default function App() {
         <div className={[
           'app-main',
           isDocumentPage ? 'app-main--document' : '',
-          !isReviewPage && !isDocumentPage ? 'app-main--page' : '',
+          !isFixedLayoutPage && !isDocumentPage ? 'app-main--page' : '',
         ].filter(Boolean).join(' ')}>
           {currentPage === 'review' && (
             <>
@@ -1966,7 +1968,7 @@ export default function App() {
           {shouldShowUtilityRail && (
             <aside className="ad-col utility-rail" aria-label="DeepMove utility links">
               <div className="utility-rail__panel">
-                <span className="utility-rail__label">DeepMove</span>
+                <span className="utility-rail__label">Ad Space</span>
                 <button className="app-footer__link utility-rail__link" onClick={() => goToPage('about')}>About</button>
                 <button className="app-footer__link utility-rail__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
               </div>

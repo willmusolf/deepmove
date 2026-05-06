@@ -9,7 +9,7 @@ const ADSENSE_ENABLED = import.meta.env.VITE_ADSENSE_ENABLED === 'true'
 const DESKTOP_RAIL_SLOT = (import.meta.env.VITE_ADSENSE_DESKTOP_RAIL_SLOT ?? '').trim()
 const MOBILE_BANNER_SLOT = (import.meta.env.VITE_ADSENSE_MOBILE_BANNER_SLOT ?? '').trim()
 
-export const RAIL_AD_PAGE_SET = new Set<Page>(['review'])
+export const RAIL_AD_PAGE_SET = new Set<Page>(['review', 'play'])
 export const MOBILE_BANNER_PAGE_SET = new Set<Page>(['review', 'play'])
 
 export const desktopRailAdEnabled = ADSENSE_ENABLED && DESKTOP_RAIL_SLOT.length > 0
