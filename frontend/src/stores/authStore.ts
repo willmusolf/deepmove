@@ -56,6 +56,7 @@ function hasStoredSessionHint(): boolean {
   }
 }
 
+
 async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
   // Merge caller's signal with a 10s timeout so auth calls never hang indefinitely.
   // 10s allows for Neon free-tier cold-start wake-up (~3-5s).
