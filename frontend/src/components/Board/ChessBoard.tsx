@@ -24,6 +24,7 @@ export interface ChessBoardProps {
   shapes?: DrawShape[]
   lastMove?: [Key, Key]
   pathKey?: number  // Changes whenever position navigates; ensures FEN sync always fires
+  snapFenSyncToken?: number
   forceCheck?: 'white' | 'black'   // Force king highlight (e.g. on resign, even without check)
   userPerspective?: 'white' | 'black'  // When set, keeps movable.color + turnColor on this color
                                         // regardless of whose turn the FEN says it is. Used for
@@ -213,6 +214,7 @@ export default function ChessBoard({
   shapes = [],
   lastMove,
   pathKey = 0,
+  snapFenSyncToken = 0,
   forceCheck,
   userPerspective,
   onIllegalMove,
@@ -273,6 +275,7 @@ export default function ChessBoard({
   const interactiveRef = useRef(interactive)
   const userPerspectiveRef = useRef(userPerspective)
   const prevPathKeyRef = useRef(pathKey)
+  const prevSnapFenSyncTokenRef = useRef(snapFenSyncToken)
   const sizeRef = useRef({ width: 0, height: 0 })
   const isPinchZoomingRef = useRef(false)
   const isDraggingRef = useRef(false)
@@ -576,6 +579,9 @@ export default function ChessBoard({
     const pathKeyChanged = prevPathKeyRef.current !== pathKey
     prevPathKeyRef.current = pathKey
 
+    const shouldSnapFenSync = prevSnapFenSyncTokenRef.current !== snapFenSyncToken
+    prevSnapFenSyncTokenRef.current = snapFenSyncToken
+
     if (pathKeyChanged) {
       apiRef.current.cancelMove() // Cancel any ongoing move interaction when navigation changes
     }
@@ -583,6 +589,9 @@ export default function ChessBoard({
     const canInteract = interactive || !!userPerspective
     apiRef.current.set({
       fen,
+      animation: shouldSnapFenSync
+        ? { enabled: false, duration: 0 }
+        : { enabled: true, duration: 220 },
       drawable: { shapes: userDrawableShapesRef.current },
       highlight: { custom: userSquareHighlightsRef.current },
       lastMove: lastMove ?? [],
@@ -595,8 +604,17 @@ export default function ChessBoard({
       },
       draggable: { enabled: canInteract },
     })
+
+    if (shouldSnapFenSync) {
+      requestAnimationFrame(() => {
+        apiRef.current?.set({
+          animation: { enabled: true, duration: 220 },
+        })
+      })
+    }
+
     requestAnimationFrame(syncOverlayMetrics)
-  }, [fen, lastMove, orientation, interactive, pathKey, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective, syncOverlayMetrics])
+  }, [fen, lastMove, orientation, interactive, pathKey, snapFenSyncToken, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective, syncOverlayMetrics])
 
   // Sync engine arrow shapes — always re-pass movable so chessground's partial
   // set() can never accidentally clear movable.dests during an arrows update.

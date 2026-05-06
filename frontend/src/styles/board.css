@@ -1550,6 +1550,10 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 @media (pointer: coarse) {
+  .cg-wrap {
+    touch-action: pinch-zoom;
+  }
+
   cg-board square.last-move {
     box-shadow: none !important;
   }

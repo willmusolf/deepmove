@@ -49,7 +49,7 @@ interface Props {
 
 export default function BotPlayPage({ onNavigateToReview }: Props) {
   const savedUiState = useMemo(() => loadPlayUiState(), [])
-  const { handleBoardMove, cancelPremoveQueue, premoveQueue, virtualBoardFen, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
+  const { handleBoardMove, cancelPremoveQueue, premoveQueue, premoveSnapToken, virtualBoardFen, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
   const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound, playMoveSound } = useSound()
 
   // Play store state
@@ -271,11 +271,12 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   }, [])
 
   const handleNewGame = useCallback(() => {
+    cancelPremoveQueue()
     setBrowsePosition(null)
     setBrowsePath([])
     setAtBrowseStart(false)
     resetPlay()
-  }, [resetPlay, setBrowsePosition])
+  }, [cancelPremoveQueue, resetPlay, setBrowsePosition])
 
   // ── User color display info ──────────────────────────────────────────────
   const userIsWhite = config ? config.userColor === 'white' : orientation === 'white'
@@ -343,7 +344,10 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
 
             <div
               className="board-overlay-host"
-              onContextMenu={cancelPremoveQueue}
+              onContextMenu={(event) => {
+                event.preventDefault()
+                cancelPremoveQueue()
+              }}
               onPointerDown={isCoarsePointer && premoveQueue.length > 0 ? cancelPremoveQueue : undefined}
             >
             <ChessBoard
@@ -354,6 +358,7 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
               onIllegalMove={playIllegalSound}
               lastMove={lastMove}
               pathKey={browseStep}
+              snapFenSyncToken={premoveSnapToken}
               userPerspective={status === 'playing' && config && !browsePosition ? config.userColor : undefined}
               premoveQueue={!browsePosition && status === 'playing' ? premoveQueue : undefined}
               forceCheck={endReason === 'resigned' && config && browsePosition === null ? config.userColor : undefined}
