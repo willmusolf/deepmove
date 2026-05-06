@@ -140,8 +140,9 @@ export function classifyMove(
   // Win-probability loss from the player's perspective (positive = they lost winning chance)
   const winPctLoss = cpToWinPct(playerBefore) - cpToWinPct(playerAfter)
 
-  // Brilliant: sacrifice + top-suggested + no meaningful win% loss
-  if (sacrifice && isTopSuggested && winPctLoss <= WINPCT_EXCELLENT
+  // Brilliant: sacrifice + top-suggested + only good move + no meaningful win% loss.
+  // We deliberately bias toward under-awarding Brilliant so the badge stays trustworthy.
+  if (sacrifice && isTopSuggested && isOnlyGoodMove && winPctLoss <= WINPCT_EXCELLENT
       && cpToWinPct(playerBefore) >= WINPCT_MIN_FOR_BRILLIANT) return 'brilliant'
 
   // Great: only good move in position (top-suggested + big gap from #2, not a recapture)

@@ -297,7 +297,7 @@ cg-board {
   grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.6rem;
-  padding: 4px 8px;
+  padding: 4px 3px 4px 8px;
   flex-shrink: 0;
   overflow: hidden;
   color: #ffffff;
@@ -306,6 +306,7 @@ cg-board {
 
 .board-and-players > .player-info-box:first-child {
   box-shadow: inset 0 -1px 0 #5a5a5a;
+  padding-top: 2px;
 }
 
 .board-and-players > .player-info-box:last-child {
@@ -321,9 +322,6 @@ cg-board {
   align-self: center;
 }
 
-.board-and-players > .player-info-box:first-child .player-avatar {
-  transform: translateY(-1px);
-}
 
 .avatar-image {
   width: 100%;
@@ -920,24 +918,97 @@ cg-board {
 }
 
 @media (hover: none) {
-  .btn-primary:hover:not(:disabled) {
-    background: var(--color-accent);
-  }
-
+  /* Buttons */
+  .btn-primary:hover:not(:disabled) { background: var(--color-accent); }
   .btn-secondary:hover:not(:disabled) {
     border-color: var(--color-border);
     color: var(--color-text);
   }
-
-  .play-setup-pill:hover {
-    border-color: var(--color-border, #444);
-  }
-
+  .btn-danger:hover { background: rgba(220, 60, 60, 0.15); }
   .board-control-btn--danger:hover,
-  .board-btn--danger:hover {
-    background: rgba(220, 60, 60, 0.15);
+  .board-btn--danger:hover { background: rgba(220, 60, 60, 0.15); }
+
+  /* Navigation */
+  .nav-btn:hover:not(:disabled) { background: transparent; }
+  .nav-item:hover { background: transparent; }
+  .nav-user-btn:hover { background: transparent; }
+  .nav-signin-btn:hover { background: transparent; color: var(--color-text); border-color: var(--color-border); }
+  .nav-user-logout:hover { background: transparent; color: var(--color-text); }
+
+  /* Move list */
+  .move-san:hover { background: transparent; }
+  .move-active:hover { background: var(--color-accent); }
+  .best-line-row:hover { background: transparent; }
+
+  /* Game list */
+  .game-row:hover { background: transparent; }
+  .game-row--loaded:hover { background: transparent; }
+  .game-filter-btn:hover:not(.game-filter-btn--active) {
+    background: transparent;
+    color: var(--color-text-muted);
+    border-color: var(--color-border);
   }
+  .game-list__load-more:hover { background: transparent; }
+  .game-list__load-all:hover:not(:disabled) { background: transparent; }
+  .game-list__cancel-btn:hover { background: transparent; }
+  .import-tab:hover { background: transparent; }
+
+  /* Play setup & result */
+  .play-setup-pill:hover { border-color: var(--color-border, #444); }
+  .play-setup-pill--disabled:hover { border-color: var(--color-border, #444); }
+  .play-setup-start-btn:hover { background: var(--color-accent); }
+  .game-result-btn:hover { background: transparent; }
+
+  /* Auth & identity */
+  .auth-submit:hover { background: var(--color-accent); }
+  .auth-oauth-btn:hover { background: transparent; }
+  .identity-prompt__yes:hover { background: var(--color-accent); }
+  .identity-prompt__no:hover { background: transparent; border-color: var(--color-border); color: var(--color-text); }
+
+  /* Coaching & transcript */
+  .coach-panel__nav-btn:hover:not(:disabled) { background: transparent; }
+  .move-coach-comment__view-lesson-btn:hover { background: transparent; }
+  .move-coach-comment__best-move-btn:hover { background: transparent; }
+  .transcript-pair:hover { background: transparent; }
+  .transcript-san:hover { background: transparent; }
+  .lesson-dot:hover { opacity: 0.7; transform: none; }
 }
+
+/* Desktop: suppress sticky hover after mouse click (JS adds .just-clicked on pointerdown, removes on pointermove) */
+body.just-clicked .btn-primary:hover:not(:disabled) { background: var(--color-accent) !important; }
+body.just-clicked .btn-secondary:hover:not(:disabled) { border-color: var(--color-border) !important; color: var(--color-text) !important; }
+body.just-clicked .btn-danger:hover { background: rgba(220, 60, 60, 0.15) !important; }
+body.just-clicked .board-control-btn--danger:hover,
+body.just-clicked .board-btn--danger:hover { background: rgba(220, 60, 60, 0.15) !important; }
+body.just-clicked .nav-btn:hover:not(:disabled) { background: transparent !important; }
+body.just-clicked .nav-item:hover { background: transparent !important; }
+body.just-clicked .nav-user-btn:hover { background: transparent !important; }
+body.just-clicked .nav-signin-btn:hover { background: transparent !important; color: var(--color-text) !important; border-color: var(--color-border) !important; }
+body.just-clicked .nav-user-logout:hover { background: transparent !important; color: var(--color-text) !important; }
+body.just-clicked .move-san:hover { background: transparent !important; }
+body.just-clicked .move-active:hover { background: var(--color-accent) !important; }
+body.just-clicked .best-line-row:hover { background: transparent !important; }
+body.just-clicked .game-row:hover { background: transparent !important; }
+body.just-clicked .game-row--loaded:hover { background: transparent !important; }
+body.just-clicked .game-filter-btn:hover:not(.game-filter-btn--active) { background: transparent !important; color: var(--color-text-muted) !important; border-color: var(--color-border) !important; }
+body.just-clicked .game-list__load-more:hover { background: transparent !important; }
+body.just-clicked .game-list__load-all:hover:not(:disabled) { background: transparent !important; }
+body.just-clicked .game-list__cancel-btn:hover { background: transparent !important; }
+body.just-clicked .import-tab:hover { background: transparent !important; }
+body.just-clicked .play-setup-pill:hover { border-color: var(--color-border, #444) !important; }
+body.just-clicked .play-setup-pill--disabled:hover { border-color: var(--color-border, #444) !important; }
+body.just-clicked .play-setup-start-btn:hover { background: var(--color-accent) !important; }
+body.just-clicked .game-result-btn:hover { background: transparent !important; }
+body.just-clicked .auth-submit:hover { background: var(--color-accent) !important; }
+body.just-clicked .auth-oauth-btn:hover { background: transparent !important; }
+body.just-clicked .identity-prompt__yes:hover { background: var(--color-accent) !important; }
+body.just-clicked .identity-prompt__no:hover { background: transparent !important; border-color: var(--color-border) !important; color: var(--color-text) !important; }
+body.just-clicked .coach-panel__nav-btn:hover:not(:disabled) { background: transparent !important; }
+body.just-clicked .move-coach-comment__view-lesson-btn:hover { background: transparent !important; }
+body.just-clicked .move-coach-comment__best-move-btn:hover { background: transparent !important; }
+body.just-clicked .transcript-pair:hover { background: transparent !important; }
+body.just-clicked .transcript-san:hover { background: transparent !important; }
+body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !important; }
 
 
 /* ── Responsive: stack on small screens ───────────────────────────────── */
@@ -1363,7 +1434,7 @@ cg-board {
   .player-info-box {
     height: 36px;
     grid-template-columns: 30px minmax(0, 1fr) auto;
-    padding: 2px 6px;
+    padding: 2px 3px 2px 6px;
     gap: 0.4rem;
   }
   .player-avatar {
