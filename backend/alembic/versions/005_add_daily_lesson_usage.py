@@ -15,19 +15,24 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "users",
-        sa.Column("daily_lesson_count", sa.Integer(), nullable=False, server_default="0"),
-    )
-    op.add_column(
-        "users",
-        sa.Column(
-            "daily_lesson_reset",
-            sa.Date(),
-            nullable=False,
-            server_default=sa.func.current_date(),
-        ),
-    )
+    inspector = sa.inspect(op.get_bind())
+    existing_columns = {column["name"] for column in inspector.get_columns("users")}
+
+    if "daily_lesson_count" not in existing_columns:
+        op.add_column(
+            "users",
+            sa.Column("daily_lesson_count", sa.Integer(), nullable=False, server_default="0"),
+        )
+    if "daily_lesson_reset" not in existing_columns:
+        op.add_column(
+            "users",
+            sa.Column(
+                "daily_lesson_reset",
+                sa.Date(),
+                nullable=False,
+                server_default=sa.func.current_date(),
+            ),
+        )
 
 
 def downgrade() -> None:
