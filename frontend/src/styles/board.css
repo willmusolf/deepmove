@@ -2623,6 +2623,30 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   }
 }
 
+@media (max-width: 767px) {
+  .account-link-input,
+  .game-opponent-search,
+  .game-sort-select,
+  .fen-input,
+  .auth-input,
+  .profile-input {
+    font-size: 16px;
+  }
+
+  .account-link-input,
+  .game-opponent-search,
+  .fen-input,
+  .auth-input,
+  .profile-input {
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+
+  .username-suggestions__item {
+    font-size: 0.95rem;
+  }
+}
+
 .game-list__load-actions {
   display: flex;
   gap: 0.4rem;

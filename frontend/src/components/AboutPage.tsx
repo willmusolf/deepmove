@@ -1,3 +1,5 @@
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from '../config/contact'
+
 interface AboutPageProps {
   onOpenApp?: () => void
   onOpenPrivacy?: () => void
@@ -101,6 +103,20 @@ export default function AboutPage({ onOpenApp, onOpenPrivacy }: AboutPageProps) 
                 <li key={item}>{item}</li>
               ))}
             </ul>
+          </div>
+        </section>
+
+        <section className="about-page__section">
+          <div className="about-page__section-head">
+            <h2>Questions, bugs, or feedback?</h2>
+            <p>
+              Email{' '}
+              <a href={SUPPORT_MAILTO}>
+                {SUPPORT_EMAIL}
+              </a>{' '}
+              any time if something breaks, feels confusing, or you have an idea that would make
+              DeepMove more useful.
+            </p>
           </div>
         </section>
       </div>

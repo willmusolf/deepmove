@@ -36,6 +36,18 @@ body {
   line-height: 1.6;
 }
 
+button,
+input,
+select,
+textarea,
+a,
+label,
+summary,
+.nav-item,
+.nav-logo {
+  touch-action: manipulation;
+}
+
 /* ── App shell — fixed full-viewport layout ───────────────────────────── */
 .app {
   height: 100vh;
@@ -441,6 +453,16 @@ html.theme-light body {
   margin-bottom: 0.6rem;
 }
 
+.about-page a,
+.privacy-page a {
+  color: var(--color-accent, #4a9eff);
+}
+
+.about-page a:hover,
+.privacy-page a:hover {
+  color: var(--color-accent-hover, #6ab4ff);
+}
+
 .about-page h3,
 .privacy-page h3 {
   font-size: 0.96rem;
@@ -529,14 +551,6 @@ html.theme-light body {
   background:
     linear-gradient(180deg, rgba(74, 158, 255, 0.08), rgba(74, 158, 255, 0.03)),
     var(--color-surface);
-}
-
-.privacy-page a {
-  color: var(--color-accent, #4a9eff);
-}
-
-.privacy-page a:hover {
-  color: var(--color-accent-hover, #6ab4ff);
 }
 
 @media (max-width: 980px) {

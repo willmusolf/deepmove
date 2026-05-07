@@ -1,3 +1,5 @@
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from '../config/contact'
+
 interface PrivacyPageProps {
   onOpenApp?: () => void
   onOpenAbout?: () => void
@@ -150,8 +152,8 @@ export default function PrivacyPage({ onOpenApp, onOpenAbout }: PrivacyPageProps
         <section className="privacy-page__section">
           <h2>10. Contact</h2>
           <p>
-            Questions about this policy can be sent to{' '}
-            <a href="mailto:williammusolf@gmail.com">williammusolf@gmail.com</a>.
+            Questions about this policy, bug reports, and general feedback can be sent to{' '}
+            <a href={SUPPORT_MAILTO}>{SUPPORT_EMAIL}</a>.
           </p>
         </section>
       </div>
