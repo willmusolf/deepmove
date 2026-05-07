@@ -607,14 +607,15 @@ html.theme-light body {
 
 .utility-rail__links {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem 0.55rem;
+  flex-wrap: nowrap;
+  gap: 0.2rem 0.35rem;
   align-items: center;
+  justify-content: space-between;
 }
 
 .utility-rail__link {
   text-align: left;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   line-height: 1.2;
   white-space: nowrap;
 }
