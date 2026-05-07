@@ -61,6 +61,7 @@ const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
 // depth and caches partial results at each depth — so interrupting and returning
 // resumes visually from the last reached depth.
 const POSITION_MAX_DEPTH = 27
+const UTILITY_RAIL_MEDIA_QUERY = '(min-width: 1330px)'
 
 type PanelTab = "analysis" | "load" | "coach"
 
@@ -1206,6 +1207,27 @@ export default function App() {
       brush: LINE_BRUSHES[i] ?? 'okMove',
     })), [visibleLines])
 
+  const [canShowUtilityRail, setCanShowUtilityRail] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia(UTILITY_RAIL_MEDIA_QUERY).matches
+  ))
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const mediaQuery = window.matchMedia(UTILITY_RAIL_MEDIA_QUERY)
+    const syncUtilityRail = () => setCanShowUtilityRail(mediaQuery.matches)
+
+    syncUtilityRail()
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', syncUtilityRail)
+      return () => mediaQuery.removeEventListener('change', syncUtilityRail)
+    }
+
+    mediaQuery.addListener(syncUtilityRail)
+    return () => mediaQuery.removeListener(syncUtilityRail)
+  }, [])
+
   // ── Misc ───────────────────────────────────────────────────────────────────
 
 
@@ -1221,7 +1243,7 @@ export default function App() {
   // fixed-layout review/play shell and pinch zoom. Keep mobile banner ads off
   // those pages until we replace them with a zoom-safe mobile treatment.
   const shouldShowMobileSponsor = !isFixedLayoutPage && !isPremium && mobileBannerAdEnabled && mobileSponsorPage !== null
-  const shouldShowUtilityRail = isFixedLayoutPage && desktopRailPage !== null && !shouldShowDesktopRail
+  const shouldShowUtilityRail = isFixedLayoutPage && desktopRailPage !== null && !shouldShowDesktopRail && canShowUtilityRail
 
   return (
     <ResponsiveLayout
