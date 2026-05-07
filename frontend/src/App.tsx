@@ -53,6 +53,7 @@ import {
   MOBILE_BANNER_PAGE_SET,
   RAIL_AD_PAGE_SET,
 } from './config/sponsor'
+import { SUPPORT_GITHUB_ISSUES_URL } from './config/contact'
 import { getPageFromPathname, getPageMeta, getPathForPage, isIndexablePage } from './utils/pageMeta'
 
 // Lichess-style thickness brushes — all green, varying weight
@@ -61,6 +62,7 @@ const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
 // depth and caches partial results at each depth — so interrupting and returning
 // resumes visually from the last reached depth.
 const POSITION_MAX_DEPTH = 27
+const UTILITY_RAIL_MEDIA_QUERY = '(min-width: 1330px)'
 
 type PanelTab = "analysis" | "load" | "coach"
 
@@ -1206,6 +1208,27 @@ export default function App() {
       brush: LINE_BRUSHES[i] ?? 'okMove',
     })), [visibleLines])
 
+  const [canShowUtilityRail, setCanShowUtilityRail] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia(UTILITY_RAIL_MEDIA_QUERY).matches
+  ))
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const mediaQuery = window.matchMedia(UTILITY_RAIL_MEDIA_QUERY)
+    const syncUtilityRail = () => setCanShowUtilityRail(mediaQuery.matches)
+
+    syncUtilityRail()
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', syncUtilityRail)
+      return () => mediaQuery.removeEventListener('change', syncUtilityRail)
+    }
+
+    mediaQuery.addListener(syncUtilityRail)
+    return () => mediaQuery.removeListener(syncUtilityRail)
+  }, [])
+
   // ── Misc ───────────────────────────────────────────────────────────────────
 
 
@@ -1221,7 +1244,7 @@ export default function App() {
   // fixed-layout review/play shell and pinch zoom. Keep mobile banner ads off
   // those pages until we replace them with a zoom-safe mobile treatment.
   const shouldShowMobileSponsor = !isFixedLayoutPage && !isPremium && mobileBannerAdEnabled && mobileSponsorPage !== null
-  const shouldShowUtilityRail = isFixedLayoutPage && desktopRailPage !== null && !shouldShowDesktopRail
+  const shouldShowUtilityRail = isFixedLayoutPage && desktopRailPage !== null && !shouldShowDesktopRail && canShowUtilityRail
 
   return (
     <ResponsiveLayout
@@ -1977,6 +2000,7 @@ export default function App() {
                 <span className="utility-rail__label">Ad Space</span>
                 <button className="app-footer__link utility-rail__link" onClick={() => goToPage('about')}>About</button>
                 <button className="app-footer__link utility-rail__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
+                <a className="app-footer__link utility-rail__link" href={SUPPORT_GITHUB_ISSUES_URL} target="_blank" rel="noreferrer">GitHub / Bug Report</a>
               </div>
             </aside>
           )}
@@ -1985,6 +2009,7 @@ export default function App() {
           <footer className="app-footer app-footer--stack">
             <button className="app-footer__link" onClick={() => goToPage('about')}>About</button>
             <button className="app-footer__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
+            <a className="app-footer__link" href={SUPPORT_GITHUB_ISSUES_URL} target="_blank" rel="noreferrer">GitHub / Bug Report</a>
           </footer>
         )}
         {shouldShowMobileSponsor && (
