@@ -264,7 +264,9 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   // Last move squares for board highlight
   const activePath = browsePosition !== null ? browsePath : currentPath
   const lastNode = activePath.length > 0 ? tree[activePath[activePath.length - 1]] : null
-  const lastMove: [Key, Key] | undefined = lastNode ? [lastNode.from as Key, lastNode.to as Key] : undefined
+  const lastMove = useMemo<[Key, Key] | undefined>(() => (
+    lastNode ? [lastNode.from as Key, lastNode.to as Key] : undefined
+  ), [lastNode])
 
   const handleFlip = useCallback(() => {
     setOrientation(o => o === 'white' ? 'black' : 'white')
@@ -294,6 +296,106 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
 
   // Interactive: only when it's the user's turn, bot isn't thinking, and not browsing history
   const boardInteractive = status === 'playing' && isUserTurn && !isBotThinking && !browsePosition
+
+  const boardResultOverlay = useMemo(() => {
+    try {
+      const chess = new Chess(displayFen)
+      const findKing = (color: 'w' | 'b'): string | null => {
+        for (const file of 'abcdefgh') {
+          for (const rank of '12345678') {
+            const piece = chess.get(`${file}${rank}` as any)
+            if (piece?.type === 'k' && piece.color === color) return file + rank
+          }
+        }
+        return null
+      }
+
+      if (chess.isCheckmate()) {
+        const square = findKing(chess.turn())
+        if (!square) return null
+        return (
+          <div
+            className="board-result-badge board-result-badge--checkmate"
+            style={getSquareOverlayPosition(square, orientation)}
+          >
+            #
+          </div>
+        )
+      }
+
+      if (chess.isDraw() || (endReason === 'threefold' && browsePosition === null)) {
+        const whiteKing = findKing('w')
+        const blackKing = findKing('b')
+        return (
+          <>
+            {whiteKing && (
+              <div
+                className="board-result-badge board-result-badge--draw"
+                style={getSquareOverlayPosition(whiteKing, orientation)}
+              >
+                ½
+              </div>
+            )}
+            {blackKing && (
+              <div
+                className="board-result-badge board-result-badge--draw"
+                style={getSquareOverlayPosition(blackKing, orientation)}
+              >
+                ½
+              </div>
+            )}
+          </>
+        )
+      }
+
+      return null
+    } catch {
+      return null
+    }
+  }, [displayFen, orientation, endReason, browsePosition])
+
+  const boardSurface = useMemo(() => (
+    <div
+      className="board-overlay-host"
+      onContextMenu={(event) => {
+        event.preventDefault()
+        cancelPremoveQueue()
+      }}
+      onPointerDown={isCoarsePointer && premoveQueue.length > 0 ? cancelPremoveQueue : undefined}
+    >
+      <ChessBoard
+        fen={displayFen}
+        orientation={orientation}
+        interactive={boardInteractive}
+        onMove={handleBoardMove}
+        onIllegalMove={playIllegalSound}
+        lastMove={lastMove}
+        pathKey={browseStep}
+        snapFenSyncToken={premoveSnapToken}
+        userPerspective={status === 'playing' && config && !browsePosition ? config.userColor : undefined}
+        premoveQueue={!browsePosition && status === 'playing' ? premoveQueue : undefined}
+        forceCheck={endReason === 'resigned' && config && browsePosition === null ? config.userColor : undefined}
+      />
+      {boardResultOverlay}
+    </div>
+  ), [
+    boardInteractive,
+    boardResultOverlay,
+    browsePosition,
+    browseStep,
+    cancelPremoveQueue,
+    config,
+    displayFen,
+    endReason,
+    handleBoardMove,
+    isCoarsePointer,
+    lastMove,
+    orientation,
+    playIllegalSound,
+    premoveQueue,
+    premoveSnapToken,
+    status,
+  ])
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (status === 'idle') {
@@ -342,52 +444,7 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
               />
             )}
 
-            <div
-              className="board-overlay-host"
-              onContextMenu={(event) => {
-                event.preventDefault()
-                cancelPremoveQueue()
-              }}
-              onPointerDown={isCoarsePointer && premoveQueue.length > 0 ? cancelPremoveQueue : undefined}
-            >
-            <ChessBoard
-              fen={displayFen}
-              orientation={orientation}
-              interactive={boardInteractive}
-              onMove={handleBoardMove}
-              onIllegalMove={playIllegalSound}
-              lastMove={lastMove}
-              pathKey={browseStep}
-              snapFenSyncToken={premoveSnapToken}
-              userPerspective={status === 'playing' && config && !browsePosition ? config.userColor : undefined}
-              premoveQueue={!browsePosition && status === 'playing' ? premoveQueue : undefined}
-              forceCheck={endReason === 'resigned' && config && browsePosition === null ? config.userColor : undefined}
-            />
-            {(() => {
-              try {
-                const _chess = new Chess(displayFen)
-                const _findKing = (c: 'w' | 'b'): string | null => {
-                  for (const f of 'abcdefgh') for (const r of '12345678') {
-                    const p = _chess.get(`${f}${r}` as any)
-                    if (p?.type === 'k' && p.color === c) return f + r
-                  }
-                  return null
-                }
-                if (_chess.isCheckmate()) {
-                  const sq = _findKing(_chess.turn())
-                  if (!sq) return null
-                  return <div className="board-result-badge board-result-badge--checkmate" style={getSquareOverlayPosition(sq, orientation)}>#</div>
-                }
-                if (_chess.isDraw() || (endReason === 'threefold' && browsePosition === null)) {
-                  const wSq = _findKing('w'), bSq = _findKing('b')
-                  return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(wSq, orientation)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(bSq, orientation)}>½</div>}</>
-                }
-                return null
-              } catch {
-                return null
-              }
-            })()}
-            </div>
+            {boardSurface}
 
             {/* Bottom player box */}
             {orientation === 'white' ? (
