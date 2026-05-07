@@ -50,6 +50,7 @@ describe('EvalGraph touch interaction', () => {
   ]
 
   it('scrubs through moves on touch drag', () => {
+    vi.useFakeTimers()
     const onNavigate = vi.fn()
     const { container } = render(
       <EvalGraph
@@ -69,9 +70,11 @@ describe('EvalGraph touch interaction', () => {
     fireEvent.touchMove(svg, {
       touches: [{ clientX: 302, clientY: 40 }],
     })
+    vi.advanceTimersByTime(50)
 
     expect(onNavigate).toHaveBeenNthCalledWith(1, 0)
     expect(onNavigate).toHaveBeenLastCalledWith(2)
+    vi.useRealTimers()
   })
 
   it('suppresses the synthetic click after a touch scrub', () => {
