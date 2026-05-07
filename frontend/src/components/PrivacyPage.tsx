@@ -1,4 +1,4 @@
-import { SUPPORT_EMAIL, SUPPORT_MAILTO } from '../config/contact'
+import { SUPPORT_EMAIL, SUPPORT_GITHUB_ISSUES_URL, SUPPORT_MAILTO } from '../config/contact'
 
 interface PrivacyPageProps {
   onOpenApp?: () => void
@@ -9,7 +9,7 @@ const SUMMARY_ITEMS = [
   'We collect the account, game, and coaching data needed to run DeepMove.',
   'We do not sell personal data.',
   'You can request account deletion or a copy of your data by contacting us.',
-  'DeepMove does not currently serve third-party display ads.',
+  'DeepMove has ad infrastructure prepared, but third-party display ads are not currently active.',
 ] as const
 
 export default function PrivacyPage({ onOpenApp, onOpenAbout }: PrivacyPageProps) {
@@ -19,7 +19,7 @@ export default function PrivacyPage({ onOpenApp, onOpenAbout }: PrivacyPageProps
         <section className="privacy-page__hero">
           <p className="privacy-page__eyebrow">Privacy Policy</p>
           <h1>Privacy Policy for DeepMove</h1>
-          <p className="privacy-page__updated">Last updated: May 6, 2026</p>
+          <p className="privacy-page__updated">Last updated: May 7, 2026</p>
           <p className="privacy-page__lede">
             This policy explains what DeepMove collects, why it is collected, and what choices
             you have. The goal is to be straightforward about the data required to run account
@@ -117,9 +117,13 @@ export default function PrivacyPage({ onOpenApp, onOpenAbout }: PrivacyPageProps
         <section className="privacy-page__section">
           <h2>6. Advertising</h2>
           <p>
-            DeepMove does not currently serve third-party display ads. If that changes, this policy
-            will be updated before ads go live to describe the provider, what data may be used, and
-            what controls are available to users.
+            DeepMove is set up to support advertising infrastructure, including Google AdSense, but
+            third-party display ads are not currently active for users.
+          </p>
+          <p>
+            If ads are enabled in the future, this policy will be updated to describe the provider,
+            what technologies may be used, what data may be processed for ad delivery or measurement,
+            and what controls are available to users.
           </p>
         </section>
 
@@ -154,6 +158,12 @@ export default function PrivacyPage({ onOpenApp, onOpenAbout }: PrivacyPageProps
           <p>
             Questions about this policy, bug reports, and general feedback can be sent to{' '}
             <a href={SUPPORT_MAILTO}>{SUPPORT_EMAIL}</a>.
+          </p>
+          <p>
+            Public bug reports can also be filed on{' '}
+            <a href={SUPPORT_GITHUB_ISSUES_URL} target="_blank" rel="noreferrer">
+              GitHub
+            </a>.
           </p>
         </section>
       </div>
