@@ -212,8 +212,29 @@ html.theme-light body {
 
 /* ── Responsive: allow scrolling on small screens ─────────────────────── */
 @media (max-width: 860px) {
-  html, body { overflow-x: hidden; overflow-y: auto; }
-  .app { height: auto; min-height: 100vh; overflow: visible; flex-direction: column; }
+  html, body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: auto;
+  }
+
+  .app {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    flex-direction: column;
+  }
+
+  .app-content,
+  .app-view,
+  .app-main {
+    overflow: visible;
+  }
+
+  .app-main {
+    min-height: auto;
+  }
+
   .app-content { min-width: 0; max-width: 100%; }
 }
 
@@ -321,7 +342,7 @@ html.theme-light body {
 
 /* Offset body content when banner is visible */
 @media (max-width: 767px) {
-  .app-content { padding-bottom: 56px; }
+  .app-content { padding-bottom: 0; }
 }
 
 /* ── App footer (privacy link etc.) ────────────────────────────────────── */
