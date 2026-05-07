@@ -5767,7 +5767,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .move-rail {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
@@ -5807,9 +5807,9 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 7px;
-  min-width: 30px;
-  min-height: 28px;
+  padding: 3px 5px;
+  min-width: 26px;
+  min-height: 26px;
   border-radius: 6px;
   cursor: pointer;
   color: var(--color-text);
@@ -5880,9 +5880,14 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
     padding: 1px 3px;
   }
 
-  .move-list .move-grade {
+  .move-list .move-grade,
+  .move-list .grade-placeholder,
+  .move-list .grade-pending {
     width: 14px;
     height: 14px;
+  }
+
+  .move-list .move-grade {
     font-size: 0.55rem;
   }
 
