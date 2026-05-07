@@ -50,6 +50,14 @@ interface MoveRailProps {
   rootBranchIds?: string[]
 }
 
+type MovePair = {
+  key: string
+  moveNumber: number
+  firstIsBlack: boolean
+  first?: MoveNode   // white (or black if game starts with black)
+  second?: MoveNode  // black (or missing if game ends on white)
+}
+
 export default function MoveRail({
   tree,
   rootId,
@@ -76,6 +84,25 @@ export default function MoveRail({
     return result
   }, [tree, rootId])
 
+  // Group nodes into pairs (white + black per full move)
+  const pairs = useMemo((): MovePair[] => {
+    const result: MovePair[] = []
+    if (nodes.length === 0) return result
+    let i = 0
+    // Handle game starting with black move
+    if (nodes[0].color === 'black') {
+      result.push({ key: nodes[0].id, moveNumber: nodes[0].moveNumber, firstIsBlack: true, second: nodes[0] })
+      i = 1
+    }
+    while (i < nodes.length) {
+      const w = nodes[i]
+      const b: MoveNode | undefined = nodes[i + 1]
+      result.push({ key: w.id, moveNumber: w.moveNumber, firstIsBlack: false, first: w, second: b })
+      i += 2
+    }
+    return result
+  }, [nodes])
+
   // Auto-scroll active chip into view
   const activeId = currentPath[currentPath.length - 1]
   useEffect(() => {
@@ -88,51 +115,50 @@ export default function MoveRail({
 
   if (!rootId) return <div className="move-rail" />
 
+  function chipClass(node: MoveNode, pending: boolean): string {
+    const active = activeId === node.id
+    return [
+      'move-rail__chip',
+      active ? 'move-rail__chip--active' : '',
+      pending ? 'move-rail__chip--pending' : '',
+    ].filter(Boolean).join(' ')
+  }
+
+  function resolveGrade(node: MoveNode): MoveGrade | undefined {
+    if (isAnalyzing) return undefined
+    if (branchGrades?.has(node.id)) return branchGrades.get(node.id)
+    const mainIdx = node.isMainLine ? parseInt(node.id.slice(1), 10) : -1
+    return mainIdx >= 0 ? moveGrades[mainIdx] : undefined
+  }
+
+  function renderChip(node: MoveNode) {
+    const grade = resolveGrade(node)
+    const gradeColor = getGradeColor(grade)
+    const active = activeId === node.id
+    const pending = pendingBranchNodes?.has(node.id) ?? false
+    const chipStyle = gradeColor && !active ? { borderBottomColor: gradeColor } : undefined
+    return (
+      <span
+        key={node.id}
+        className={chipClass(node, pending)}
+        style={chipStyle}
+        data-node-id={node.id}
+        onClick={() => onNodeClick(getPathToNode(node.id, tree))}
+      >
+        {node.san}
+      </span>
+    )
+  }
+
   return (
     <div className="move-rail" ref={railRef}>
-      {nodes.map((node) => {
-        const active = activeId === node.id
-        const isFirstOfPair = node.color === 'white'
-        const mainIdx = node.isMainLine ? parseInt(node.id.slice(1), 10) : -1
-
-        // Grade resolution — same logic as MoveList's MoveToken
-        let grade: MoveGrade | undefined
-        if (!isAnalyzing) {
-          if (branchGrades?.has(node.id)) {
-            grade = branchGrades.get(node.id)
-          } else if (mainIdx >= 0) {
-            grade = moveGrades[mainIdx]
-          }
-        }
-        const gradeColor = getGradeColor(grade)
-        const pending = pendingBranchNodes?.has(node.id) ?? false
-
-        // Move number label
-        const numLabel = isFirstOfPair
-          ? `${node.moveNumber}.`
-          : (nodes[0] === node && node.color === 'black' ? `${node.moveNumber}…` : null)
-
-        const chipClass = [
-          'move-rail__chip',
-          active ? 'move-rail__chip--active' : '',
-          pending ? 'move-rail__chip--pending' : '',
-        ].filter(Boolean).join(' ')
-
-        const chipStyle = gradeColor && !active
-          ? { borderBottomColor: gradeColor }
-          : undefined
-
+      {pairs.map((pair) => {
+        const numLabel = pair.firstIsBlack ? `${pair.moveNumber}…` : `${pair.moveNumber}.`
         return (
-          <span key={node.id} className="move-rail__pair">
-            {numLabel && <span className="move-rail__num">{numLabel}</span>}
-            <span
-              className={chipClass}
-              style={chipStyle}
-              data-node-id={node.id}
-              onClick={() => onNodeClick(getPathToNode(node.id, tree))}
-            >
-              {node.san}
-            </span>
+          <span key={pair.key} className="move-rail__pair">
+            <span className="move-rail__num">{numLabel}</span>
+            {pair.first && renderChip(pair.first)}
+            {pair.second && renderChip(pair.second)}
           </span>
         )
       })}

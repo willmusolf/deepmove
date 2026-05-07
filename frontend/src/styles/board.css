@@ -5767,7 +5767,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .move-rail {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
@@ -5797,7 +5797,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
 .move-rail__num {
   color: var(--color-text-muted);
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   user-select: none;
   flex-shrink: 0;
   padding: 0 1px;
@@ -5851,11 +5851,28 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
     gap: 4px;
   }
 
-  /* Compact move list for Review mode */
+  /* Compact inline-wrapping move list for Review mode */
   .move-list {
     font-size: 0.78rem;
-    padding: 0.3rem 0.15rem 0.5rem;
-    max-height: 200px;
+    padding: 0.3rem 0.25rem 0.5rem;
+  }
+
+  /* Flow all moves inline so they wrap like a paragraph */
+  .move-list .move-full-row {
+    display: inline;
+  }
+
+  .move-list .move-pair-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0;
+    min-height: 0;
+  }
+
+  /* No eval deltas in inline flow */
+  .move-list .move-eval-delta {
+    display: none;
   }
 
   .move-list .move-san {
@@ -5866,6 +5883,12 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
     width: 14px;
     height: 14px;
     font-size: 0.55rem;
+  }
+
+  /* Variations break out as block below the branching line */
+  .move-list .variation-blocks {
+    display: block;
+    margin: 3px 0 3px 8px;
   }
 
   .move-list .variation-block.variation-depth-1 {
