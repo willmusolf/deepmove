@@ -5723,3 +5723,185 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   pointer-events: none;
   filter: blur(2px);
 }
+
+/* ── Horizontal eval bar (phone layout) ──────────────────────────────── */
+
+.eval-bar-container--horizontal {
+  width: 100%;
+  height: 12px;
+  border-radius: 4px;
+}
+
+.eval-bar-container--horizontal .eval-bar-segment {
+  top: 0;
+  bottom: 0;
+  left: auto;
+  right: auto;
+  transition: width 0.2s ease-out, background 0s;
+}
+
+.eval-bar-container--horizontal .eval-bar-left {
+  left: 0;
+}
+
+.eval-bar-container--horizontal .eval-bar-right {
+  right: 0;
+}
+
+.eval-bar-container--horizontal .eval-bar-midline {
+  left: 50%;
+  top: 0;
+  width: 1px;
+  height: 100%;
+}
+
+.eval-bar-container--horizontal .eval-bar-label {
+  top: 50%;
+  transform: translateX(-50%) translateY(-50%);
+  font-size: 0.5rem;
+  padding: 1px 3px;
+}
+
+/* ── Move rail (phone-only horizontal transcript) ────────────────────── */
+
+.move-rail {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  padding: 6px 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  white-space: nowrap;
+  min-height: 40px;
+  flex-shrink: 0;
+  scrollbar-width: none;
+}
+
+.move-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.move-rail__pair {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.move-rail__num {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  user-select: none;
+  flex-shrink: 0;
+  padding: 0 1px;
+}
+
+.move-rail__chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 5px;
+  min-width: 26px;
+  min-height: 26px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--color-text);
+  background: transparent;
+  border-bottom: 3px solid transparent;
+  transition: background 0.1s, border-color 0.15s;
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.move-rail__chip:active {
+  background: var(--color-surface-2);
+}
+
+.move-rail__chip--active {
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 600;
+  border-bottom-color: transparent !important;
+}
+
+.move-rail__chip--pending {
+  border-bottom-color: #374151;
+  animation: rail-pending-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes rail-pending-pulse {
+  0%, 100% { border-bottom-color: #374151; }
+  50% { border-bottom-color: #6b7280; }
+}
+
+/* ── Phone: horizontal eval bar + compact MoveList ───────────────────── */
+
+@media (max-width: 639px) {
+  /* Eval bar above board instead of beside it */
+  .board-with-eval {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* Compact inline-wrapping move list for Review mode */
+  .move-list {
+    font-size: 0.78rem;
+    padding: 0.3rem 0.25rem 0.5rem;
+    line-height: 1.9;
+  }
+
+  /* Flow all moves inline so they wrap like a paragraph */
+  .move-list .move-full-row {
+    display: inline;
+  }
+
+  .move-list .move-pair-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0;
+    min-height: 0;
+  }
+
+  /* No eval deltas in inline flow */
+  .move-list .move-eval-delta {
+    display: none;
+  }
+
+  .move-list .move-san {
+    padding: 1px 3px;
+  }
+
+  .move-list .move-grade,
+  .move-list .grade-placeholder,
+  .move-list .grade-pending {
+    width: 14px;
+    height: 14px;
+  }
+
+  .move-list .move-grade {
+    font-size: 0.55rem;
+  }
+
+  /* Variations break out as block below the branching line */
+  .move-list .variation-blocks {
+    display: block;
+    margin: 3px 0 3px 8px;
+  }
+
+  .move-list .variation-block.variation-depth-1 {
+    margin-left: 3px;
+  }
+
+  .move-list .variation-block.variation-depth-2 {
+    margin-left: 5px;
+  }
+}

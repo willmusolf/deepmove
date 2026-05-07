@@ -95,7 +95,7 @@ describe('MoveList auto-follow', () => {
   it('keeps auto-follow on tablet and desktop widths within the move-list container', () => {
     const { rerender, container } = renderMoveList([])
     const moveList = container.querySelector('.move-list') as HTMLDivElement
-    const activeMove = screen.getByText('e4')
+    const activeMove = container.querySelector('[data-node-id="m0"]') as HTMLElement
     const scrollTo = vi.fn()
 
     moveList.scrollTo = scrollTo

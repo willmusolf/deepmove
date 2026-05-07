@@ -10,6 +10,7 @@ import { useSound } from '../../hooks/useSound'
 import ChessBoard from '../Board/ChessBoard'
 import PlayerInfoBox from '../Board/PlayerInfoBox'
 import MoveList from '../Board/MoveList'
+import MoveRail, { useIsPhone } from '../Board/MoveRail'
 import PlaySetupPanel from './PlaySetupPanel'
 import GameResultBanner from './GameResultBanner'
 import { useAuthStore } from '../../stores/authStore'
@@ -62,6 +63,7 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
     botEngineReady,
   } = useBotPlay(onNavigateToReview)
   const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound, playMoveSound } = useSound()
+  const isPhone = useIsPhone()
 
   // Play store state
   const status      = usePlayStore(s => s.status)
@@ -533,27 +535,49 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
             )}
           </div>
 
-          <MoveList
-            tree={tree}
-            rootId={rootId}
-            currentPath={browsePosition ? browsePath : currentPath}
-            moveGrades={[]}
-            onNodeClick={(path) => {
-              const nodeId = path[path.length - 1]
-              const node = tree[nodeId]
-              if (!node) return
-              setAtBrowseStart(false)
-              setBrowsePath(path)
-              // If clicking the live tip, exit browse mode
-              if (nodeId === currentPath[currentPath.length - 1]) {
-                setBrowsePosition(null)
-                setBrowsePath([])
-              } else {
-                setBrowsePosition(node.fen)
-              }
-            }}
-            isAnalyzing={false}
-          />
+          {isPhone ? (
+            <MoveRail
+              tree={tree}
+              rootId={rootId}
+              currentPath={browsePosition ? browsePath : currentPath}
+              moveGrades={[]}
+              onNodeClick={(path) => {
+                const nodeId = path[path.length - 1]
+                const node = tree[nodeId]
+                if (!node) return
+                setAtBrowseStart(false)
+                setBrowsePath(path)
+                if (nodeId === currentPath[currentPath.length - 1]) {
+                  setBrowsePosition(null)
+                  setBrowsePath([])
+                } else {
+                  setBrowsePosition(node.fen)
+                }
+              }}
+              isAnalyzing={false}
+            />
+          ) : (
+            <MoveList
+              tree={tree}
+              rootId={rootId}
+              currentPath={browsePosition ? browsePath : currentPath}
+              moveGrades={[]}
+              onNodeClick={(path) => {
+                const nodeId = path[path.length - 1]
+                const node = tree[nodeId]
+                if (!node) return
+                setAtBrowseStart(false)
+                setBrowsePath(path)
+                if (nodeId === currentPath[currentPath.length - 1]) {
+                  setBrowsePosition(null)
+                  setBrowsePath([])
+                } else {
+                  setBrowsePosition(node.fen)
+                }
+              }}
+              isAnalyzing={false}
+            />
+          )}
 
           {status === 'finished' && (
             <GameResultBanner

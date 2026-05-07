@@ -65,13 +65,14 @@ function MoveToken({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
   const isPending = ctx.pendingBranchNodes?.has(node.id) ?? false
 
   return (
-    <span className="move-cell">
+    <span
+      className="move-cell"
+      data-node-id={node.id}
+      onClick={() => onNodeClick(getPathToNode(node.id, tree))}
+      style={{ cursor: 'pointer' }}
+    >
       <GradeBadge grade={isAnalyzing ? undefined : grade} pending={isPending} />
-      <span
-        className={['move-san', active ? 'move-active' : '', inPath && !active ? 'move-in-path' : ''].filter(Boolean).join(' ')}
-        data-node-id={node.id}
-        onClick={() => onNodeClick(getPathToNode(node.id, tree))}
-      >
+      <span className={['move-san', active ? 'move-active' : '', inPath && !active ? 'move-in-path' : ''].filter(Boolean).join(' ')}>
         {node.san}
       </span>
     </span>
@@ -203,8 +204,15 @@ export default function MoveList({
   rootBranchIds = [],
 }: MoveListProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const mountedRef = useRef(false)
 
   useEffect(() => {
+    // Skip the first render (initial game load) to prevent the page from jumping
+    // down to the transcript section on mobile when a game is loaded.
+    if (!mountedRef.current) {
+      mountedRef.current = true
+      return
+    }
     const container = containerRef.current
     if (!container) return
     const activeId = currentPath[currentPath.length - 1]
