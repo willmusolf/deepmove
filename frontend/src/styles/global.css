@@ -358,6 +358,16 @@ html.theme-light body {
 /* Offset body content when banner is visible */
 @media (max-width: 767px) {
   .app-content { padding-bottom: 0; }
+
+  .app-footer {
+    padding: 0.6rem 0.75rem;
+    gap: 0.7rem;
+  }
+
+  .app-footer__link {
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
 }
 
 /* ── App footer (privacy link etc.) ────────────────────────────────────── */
