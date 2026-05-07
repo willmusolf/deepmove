@@ -152,6 +152,10 @@ cg-board square.move-dest.oc:hover {
   cursor: grabbing;
 }
 
+.chess-board-container.board-viewport-zoomed {
+  pointer-events: none;
+}
+
 .chess-board-container {
   cursor: default;
 }
