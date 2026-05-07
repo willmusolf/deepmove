@@ -5,7 +5,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Key } from 'chessground/types'
 import { usePlayStore, STARTING_FEN } from '../../stores/playStore'
-import { msToHHMMSS } from '../../utils/format'
 import { useBotPlay } from '../../hooks/useBotPlay'
 import { useSound } from '../../hooks/useSound'
 import ChessBoard from '../Board/ChessBoard'
@@ -49,7 +48,19 @@ interface Props {
 
 export default function BotPlayPage({ onNavigateToReview }: Props) {
   const savedUiState = useMemo(() => loadPlayUiState(), [])
-  const { handleBoardMove, cancelPremoveQueue, premoveQueue, premoveSnapToken, virtualBoardFen, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
+  const {
+    handleBoardMove,
+    cancelPremoveQueue,
+    premoveQueue,
+    premoveSnapToken,
+    virtualBoardFen,
+    startGame,
+    resignGame,
+    reviewGame,
+    getWhiteClockDisplay,
+    getBlackClockDisplay,
+    botEngineReady,
+  } = useBotPlay(onNavigateToReview)
   const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound, playMoveSound } = useSound()
 
   // Play store state
@@ -62,8 +73,6 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   const rootId      = usePlayStore(s => s.rootId)
   const currentPath = usePlayStore(s => s.currentPath)
   const isBotThinking = usePlayStore(s => s.isBotThinking)
-  const whiteTimeMs = usePlayStore(s => s.whiteTimeMs)
-  const blackTimeMs = usePlayStore(s => s.blackTimeMs)
   const resetPlay   = usePlayStore(s => s.resetPlay)
 
   // Auth (for display name)
@@ -77,6 +86,8 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   const [browsePosition, setBrowsePositionRaw] = useState<string | null>(savedUiState?.browsePosition ?? null)
   const [browsePath, setBrowsePath] = useState<string[]>(savedUiState?.browsePath ?? [])
   const [atBrowseStart, setAtBrowseStart] = useState(savedUiState?.atBrowseStart ?? false)
+  const [whiteClockStr, setWhiteClockStr] = useState<string | undefined>(() => getWhiteClockDisplay())
+  const [blackClockStr, setBlackClockStr] = useState<string | undefined>(() => getBlackClockDisplay())
   // Wrap setBrowsePosition: cancel premove queue whenever entering browse mode
   const setBrowsePosition = useCallback((fen: string | null) => {
     if (fen !== null) cancelPremoveQueue()
@@ -112,6 +123,20 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   useEffect(() => {
     atBrowseStartRef.current = atBrowseStart
   }, [atBrowseStart])
+
+  useEffect(() => {
+    const syncClocks = () => {
+      setWhiteClockStr(getWhiteClockDisplay())
+      setBlackClockStr(getBlackClockDisplay())
+    }
+
+    syncClocks()
+
+    if (status !== 'playing' || config?.timeControl === 'none') return
+
+    const intervalId = window.setInterval(syncClocks, 250)
+    return () => window.clearInterval(intervalId)
+  }, [config?.timeControl, getBlackClockDisplay, getWhiteClockDisplay, status])
 
   useEffect(() => {
     writeSessionJson(PLAY_UI_SESSION_KEY, {
@@ -285,9 +310,6 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   const botEloStr   = config ? String(config.botElo) : ''
   const userEloStr  = null  // not tracked for bot games
 
-  // Clock display
-  const whiteClockStr = msToHHMMSS(whiteTimeMs)
-  const blackClockStr = msToHHMMSS(blackTimeMs)
   const userClockStr  = userIsWhite ? whiteClockStr : blackClockStr
   const botClockStr   = userIsWhite ? blackClockStr : whiteClockStr
 
