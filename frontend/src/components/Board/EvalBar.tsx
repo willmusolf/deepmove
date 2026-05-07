@@ -11,6 +11,7 @@ interface EvalBarProps {
   mateIn?: number | null
   hidden?: boolean         // Think First mode
   orientation?: 'white' | 'black'
+  horizontal?: boolean     // Phone layout: thin bar above board instead of tall bar beside it
 }
 
 // Convert centipawns to white-side percentage (0–100) for the bar height.
@@ -25,6 +26,7 @@ export default function EvalBar({
   mateIn,
   hidden,
   orientation = 'white',
+  horizontal = false,
 }: EvalBarProps) {
   // Hold the last known eval so the bar never flashes to 50/50 during
   // transient undefined frames (branch entry, position change debounce).
@@ -58,8 +60,28 @@ export default function EvalBar({
     ? formatEval(cp, true, mIn)
     : `${cp >= 0 ? '+' : ''}${(cp / 100).toFixed(1)}`
 
+  const containerClass = horizontal
+    ? 'eval-bar-container eval-bar-container--horizontal'
+    : 'eval-bar-container'
+
+  if (horizontal) {
+    // Horizontal: LEFT = user's side (botColor/botPct), RIGHT = opponent (topColor/topPct)
+    return (
+      <div className={containerClass} style={hidden ? { visibility: 'hidden' } : undefined}>
+        <div className="eval-bar-inner">
+          <div className="eval-bar-segment eval-bar-left" style={{ width: `${botPct}%`, background: botColor }} />
+          <div className="eval-bar-segment eval-bar-right" style={{ width: `${topPct}%`, background: topColor }} />
+        </div>
+        <div className="eval-bar-midline" />
+        <div className="eval-bar-label" style={{ left: `${botPct}%` }}>
+          {boundaryLabel}
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="eval-bar-container" style={hidden ? { visibility: 'hidden' } : undefined}>
+    <div className={containerClass} style={hidden ? { visibility: 'hidden' } : undefined}>
       {/* Inner wrapper clips the bar segments to rounded corners */}
       <div className="eval-bar-inner">
         {/* Black: grows down from top. White: grows up from bottom.
