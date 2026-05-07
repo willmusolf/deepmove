@@ -62,7 +62,9 @@ function MoveToken({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
 
   // Show pending spinner for any node being evaluated (not just non-main-line).
   // In sandbox mode all nodes are graded via branchGrades, including main-line ones.
-  const isPending = ctx.pendingBranchNodes?.has(node.id) ?? false
+  // During full game analysis (isAnalyzing=true), main-line moves also show a spinner
+  // since pendingBranchNodes is only populated for sandbox/variation moves.
+  const isPending = (ctx.pendingBranchNodes?.has(node.id) ?? false) || (isAnalyzing && mainIdx >= 0)
 
   return (
     <span
@@ -204,8 +206,15 @@ export default function MoveList({
   rootBranchIds = [],
 }: MoveListProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const mountedRef = useRef(false)
 
   useEffect(() => {
+    // Skip the first render (initial game load) to prevent the page from jumping
+    // down to the transcript section on mobile when a game is loaded.
+    if (!mountedRef.current) {
+      mountedRef.current = true
+      return
+    }
     const container = containerRef.current
     if (!container) return
     const activeId = currentPath[currentPath.length - 1]
