@@ -169,6 +169,31 @@ html.theme-light body {
 }
 
 @media (max-width: 1023px) {
+  html, body {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: auto;
+  }
+
+  .app {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    flex-direction: column;
+  }
+
+  .app-content,
+  .app-view,
+  .app-main {
+    overflow: visible;
+  }
+
+  .app-main {
+    min-height: auto;
+  }
+
   .app-shell--compact-nav .app-shell__backdrop {
     display: block;
     position: fixed;
@@ -207,34 +232,12 @@ html.theme-light body {
 
   .app-shell--compact-nav .app-header {
     display: flex;
+    position: static;
   }
 }
 
 /* ── Responsive: allow scrolling on small screens ─────────────────────── */
 @media (max-width: 860px) {
-  html, body {
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: auto;
-  }
-
-  .app {
-    height: auto;
-    min-height: 100vh;
-    overflow: visible;
-    flex-direction: column;
-  }
-
-  .app-content,
-  .app-view,
-  .app-main {
-    overflow: visible;
-  }
-
-  .app-main {
-    min-height: auto;
-  }
-
   .app-content { min-width: 0; max-width: 100%; }
 }
 
