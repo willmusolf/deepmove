@@ -1999,8 +1999,8 @@ export default function App() {
               <div className="utility-rail__panel">
                 <span className="utility-rail__label">Ad Space</span>
                 <button className="app-footer__link utility-rail__link" onClick={() => goToPage('about')}>About</button>
-                <button className="app-footer__link utility-rail__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
-                <a className="app-footer__link utility-rail__link" href={SUPPORT_GITHUB_ISSUES_URL} target="_blank" rel="noreferrer">GitHub / Bug Report</a>
+                <button className="app-footer__link utility-rail__link" onClick={() => goToPage('privacy')}>Privacy</button>
+                <a className="app-footer__link utility-rail__link" href={SUPPORT_GITHUB_ISSUES_URL} target="_blank" rel="noreferrer">Report Bug</a>
               </div>
             </aside>
           )}
