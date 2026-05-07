@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
+import { useIsPhone } from './components/Board/MoveRail'
 import EvalGraph from './components/Board/EvalGraph'
 import GameReport from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
@@ -634,6 +635,7 @@ export default function App() {
     setCurrentPage(page)
   }
   const [showEvalBar, setShowEvalBar] = useState(savedUiState?.showEvalBar ?? true)
+  const isPhone = useIsPhone()
   const viewMode = panelTab === 'coach' ? 'coach' : 'classic'
   const [showArrows, setShowArrows] = useState(savedUiState?.showArrows ?? true)
   const [showGrades, setShowGrades] = useState(savedUiState?.showGrades ?? true)
@@ -1274,6 +1276,7 @@ export default function App() {
                       mateIn={stableMateIn}
                       orientation={orientation}
                       hidden={!showEvalBar}
+                      horizontal={isPhone}
                     />
                   <div className="board-and-players">
                     {isLoaded ? (
