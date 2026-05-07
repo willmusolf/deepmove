@@ -148,6 +148,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
   const clockRafRef = useRef<number | null>(null)
   const lastTickRef = useRef<number>(0)
   const [botEngineReady, setBotEngineReady] = useState(false)
+  const [premoveSnapToken, setPremoveSnapToken] = useState(0)
   const playStatus = usePlayStore(s => s.status)
   const clockRunning = usePlayStore(s => s.clockRunning)
 
@@ -205,9 +206,16 @@ export function useBotPlay(onNavigateToReview: () => void) {
   const gameStore = useGameStore
 
   /** Clear the premove queue in the Zustand store. */
-  function clearPremoveQueue() {
+  const clearPremoveQueue = useCallback(() => {
     usePlayStore.setState({ premoveQueue: [] })
-  }
+  }, [])
+
+  const cancelPremoveQueue = useCallback(() => {
+    const { premoveQueue } = usePlayStore.getState()
+    if (premoveQueue.length === 0) return
+    clearPremoveQueue()
+    setPremoveSnapToken(token => token + 1)
+  }, [clearPremoveQueue])
 
   // ── Engine lifecycle ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -549,12 +557,12 @@ export function useBotPlay(onNavigateToReview: () => void) {
 
     // Schedule bot move
     await scheduleBotMove(newFen)
-  }, [scheduleBotMove])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cancelPremoveQueue, scheduleBotMove])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Start game ───────────────────────────────────────────────────────────
   const startGame = useCallback((config: PlayConfig) => {
     cancelClockRaf()
-    clearPremoveQueue()
+    cancelPremoveQueue()
     isProcessingMoveRef.current = false
     positionCountsRef.current = new Map([[getPositionKey(STARTING_FEN), 1]])
     store.getState().startGame(config)
@@ -569,10 +577,10 @@ export function useBotPlay(onNavigateToReview: () => void) {
   const resignGame = useCallback(() => {
     const state = store.getState()
     if (state.status !== 'playing') return
-    clearPremoveQueue()
+    cancelPremoveQueue()
     state.setResult('user-loss', 'resigned')
     cancelClockRaf()
-  }, [cancelClockRaf, store])
+  }, [cancelClockRaf, cancelPremoveQueue, store])
 
   // ── Review game ──────────────────────────────────────────────────────────
   const reviewGame = useCallback(() => {
@@ -618,8 +626,9 @@ export function useBotPlay(onNavigateToReview: () => void) {
 
   return {
     handleBoardMove,
-    cancelPremoveQueue: clearPremoveQueue,
+    cancelPremoveQueue,
     premoveQueue,
+    premoveSnapToken,
     virtualBoardFen,
     startGame,
     resignGame,

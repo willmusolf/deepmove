@@ -182,6 +182,41 @@ describe('ChessBoard component', () => {
     window.requestAnimationFrame = originalRaf
   })
 
+  it('snaps the next fen sync when the snap token changes', () => {
+    const originalRaf = window.requestAnimationFrame
+    window.requestAnimationFrame = vi.fn((cb: FrameRequestCallback) => {
+      cb(0)
+      return 1
+    })
+
+    setApi.mockClear()
+    const { rerender } = render(
+      <ChessBoard
+        fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        snapFenSyncToken={0}
+      />,
+    )
+
+    setApi.mockClear()
+
+    rerender(
+      <ChessBoard
+        fen="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+        snapFenSyncToken={1}
+      />,
+    )
+
+    expect(setApi).toHaveBeenCalledWith(expect.objectContaining({
+      fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1',
+      animation: { enabled: false, duration: 0 },
+    }))
+    expect(setApi).toHaveBeenCalledWith({
+      animation: { enabled: true, duration: 220 },
+    })
+
+    window.requestAnimationFrame = originalRaf
+  })
+
   it('defers board redraw until drag ends when resize fires mid-drag', () => {
     let resizeCallback: ResizeObserverCallback | null = null
     ;(globalThis as any).ResizeObserver = class ResizeObserver {
