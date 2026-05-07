@@ -1217,7 +1217,10 @@ export default function App() {
   const desktopRailPage = RAIL_AD_PAGE_SET.has(currentPage) ? currentPage : null
   const mobileSponsorPage = MOBILE_BANNER_PAGE_SET.has(currentPage) ? currentPage : null
   const shouldShowDesktopRail = !isPremium && desktopRailAdEnabled && desktopRailPage !== null
-  const shouldShowMobileSponsor = !isPremium && mobileBannerAdEnabled && mobileSponsorPage !== null
+  // iPhone Safari is still unstable when a fixed bottom ad is combined with the
+  // fixed-layout review/play shell and pinch zoom. Keep mobile banner ads off
+  // those pages until we replace them with a zoom-safe mobile treatment.
+  const shouldShowMobileSponsor = !isFixedLayoutPage && !isPremium && mobileBannerAdEnabled && mobileSponsorPage !== null
   const shouldShowUtilityRail = isFixedLayoutPage && desktopRailPage !== null && !shouldShowDesktopRail
 
   return (

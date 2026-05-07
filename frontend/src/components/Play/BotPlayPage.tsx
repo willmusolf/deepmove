@@ -5,7 +5,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Key } from 'chessground/types'
 import { usePlayStore, STARTING_FEN } from '../../stores/playStore'
-import { msToHHMMSS } from '../../utils/format'
 import { useBotPlay } from '../../hooks/useBotPlay'
 import { useSound } from '../../hooks/useSound'
 import ChessBoard from '../Board/ChessBoard'
@@ -49,7 +48,19 @@ interface Props {
 
 export default function BotPlayPage({ onNavigateToReview }: Props) {
   const savedUiState = useMemo(() => loadPlayUiState(), [])
-  const { handleBoardMove, cancelPremoveQueue, premoveQueue, premoveSnapToken, virtualBoardFen, startGame, resignGame, reviewGame, botEngineReady } = useBotPlay(onNavigateToReview)
+  const {
+    handleBoardMove,
+    cancelPremoveQueue,
+    premoveQueue,
+    premoveSnapToken,
+    virtualBoardFen,
+    startGame,
+    resignGame,
+    reviewGame,
+    getWhiteClockDisplay,
+    getBlackClockDisplay,
+    botEngineReady,
+  } = useBotPlay(onNavigateToReview)
   const { enabled: soundEnabled, toggle: toggleSound, playIllegalSound, playMoveSound } = useSound()
 
   // Play store state
@@ -62,8 +73,6 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   const rootId      = usePlayStore(s => s.rootId)
   const currentPath = usePlayStore(s => s.currentPath)
   const isBotThinking = usePlayStore(s => s.isBotThinking)
-  const whiteTimeMs = usePlayStore(s => s.whiteTimeMs)
-  const blackTimeMs = usePlayStore(s => s.blackTimeMs)
   const resetPlay   = usePlayStore(s => s.resetPlay)
 
   // Auth (for display name)
@@ -77,6 +86,8 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   const [browsePosition, setBrowsePositionRaw] = useState<string | null>(savedUiState?.browsePosition ?? null)
   const [browsePath, setBrowsePath] = useState<string[]>(savedUiState?.browsePath ?? [])
   const [atBrowseStart, setAtBrowseStart] = useState(savedUiState?.atBrowseStart ?? false)
+  const [whiteClockStr, setWhiteClockStr] = useState<string | undefined>(() => getWhiteClockDisplay())
+  const [blackClockStr, setBlackClockStr] = useState<string | undefined>(() => getBlackClockDisplay())
   // Wrap setBrowsePosition: cancel premove queue whenever entering browse mode
   const setBrowsePosition = useCallback((fen: string | null) => {
     if (fen !== null) cancelPremoveQueue()
@@ -112,6 +123,20 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   useEffect(() => {
     atBrowseStartRef.current = atBrowseStart
   }, [atBrowseStart])
+
+  useEffect(() => {
+    const syncClocks = () => {
+      setWhiteClockStr(getWhiteClockDisplay())
+      setBlackClockStr(getBlackClockDisplay())
+    }
+
+    syncClocks()
+
+    if (status !== 'playing' || config?.timeControl === 'none') return
+
+    const intervalId = window.setInterval(syncClocks, 250)
+    return () => window.clearInterval(intervalId)
+  }, [config?.timeControl, getBlackClockDisplay, getWhiteClockDisplay, status])
 
   useEffect(() => {
     writeSessionJson(PLAY_UI_SESSION_KEY, {
@@ -264,7 +289,9 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   // Last move squares for board highlight
   const activePath = browsePosition !== null ? browsePath : currentPath
   const lastNode = activePath.length > 0 ? tree[activePath[activePath.length - 1]] : null
-  const lastMove: [Key, Key] | undefined = lastNode ? [lastNode.from as Key, lastNode.to as Key] : undefined
+  const lastMove = useMemo<[Key, Key] | undefined>(() => (
+    lastNode ? [lastNode.from as Key, lastNode.to as Key] : undefined
+  ), [lastNode])
 
   const handleFlip = useCallback(() => {
     setOrientation(o => o === 'white' ? 'black' : 'white')
@@ -283,9 +310,6 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   const botEloStr   = config ? String(config.botElo) : ''
   const userEloStr  = null  // not tracked for bot games
 
-  // Clock display
-  const whiteClockStr = msToHHMMSS(whiteTimeMs)
-  const blackClockStr = msToHHMMSS(blackTimeMs)
   const userClockStr  = userIsWhite ? whiteClockStr : blackClockStr
   const botClockStr   = userIsWhite ? blackClockStr : whiteClockStr
 
@@ -294,6 +318,106 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
 
   // Interactive: only when it's the user's turn, bot isn't thinking, and not browsing history
   const boardInteractive = status === 'playing' && isUserTurn && !isBotThinking && !browsePosition
+
+  const boardResultOverlay = useMemo(() => {
+    try {
+      const chess = new Chess(displayFen)
+      const findKing = (color: 'w' | 'b'): string | null => {
+        for (const file of 'abcdefgh') {
+          for (const rank of '12345678') {
+            const piece = chess.get(`${file}${rank}` as any)
+            if (piece?.type === 'k' && piece.color === color) return file + rank
+          }
+        }
+        return null
+      }
+
+      if (chess.isCheckmate()) {
+        const square = findKing(chess.turn())
+        if (!square) return null
+        return (
+          <div
+            className="board-result-badge board-result-badge--checkmate"
+            style={getSquareOverlayPosition(square, orientation)}
+          >
+            #
+          </div>
+        )
+      }
+
+      if (chess.isDraw() || (endReason === 'threefold' && browsePosition === null)) {
+        const whiteKing = findKing('w')
+        const blackKing = findKing('b')
+        return (
+          <>
+            {whiteKing && (
+              <div
+                className="board-result-badge board-result-badge--draw"
+                style={getSquareOverlayPosition(whiteKing, orientation)}
+              >
+                ½
+              </div>
+            )}
+            {blackKing && (
+              <div
+                className="board-result-badge board-result-badge--draw"
+                style={getSquareOverlayPosition(blackKing, orientation)}
+              >
+                ½
+              </div>
+            )}
+          </>
+        )
+      }
+
+      return null
+    } catch {
+      return null
+    }
+  }, [displayFen, orientation, endReason, browsePosition])
+
+  const boardSurface = useMemo(() => (
+    <div
+      className="board-overlay-host"
+      onContextMenu={(event) => {
+        event.preventDefault()
+        cancelPremoveQueue()
+      }}
+      onPointerDown={isCoarsePointer && premoveQueue.length > 0 ? cancelPremoveQueue : undefined}
+    >
+      <ChessBoard
+        fen={displayFen}
+        orientation={orientation}
+        interactive={boardInteractive}
+        onMove={handleBoardMove}
+        onIllegalMove={playIllegalSound}
+        lastMove={lastMove}
+        pathKey={browseStep}
+        snapFenSyncToken={premoveSnapToken}
+        userPerspective={status === 'playing' && config && !browsePosition ? config.userColor : undefined}
+        premoveQueue={!browsePosition && status === 'playing' ? premoveQueue : undefined}
+        forceCheck={endReason === 'resigned' && config && browsePosition === null ? config.userColor : undefined}
+      />
+      {boardResultOverlay}
+    </div>
+  ), [
+    boardInteractive,
+    boardResultOverlay,
+    browsePosition,
+    browseStep,
+    cancelPremoveQueue,
+    config,
+    displayFen,
+    endReason,
+    handleBoardMove,
+    isCoarsePointer,
+    lastMove,
+    orientation,
+    playIllegalSound,
+    premoveQueue,
+    premoveSnapToken,
+    status,
+  ])
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (status === 'idle') {
@@ -342,52 +466,7 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
               />
             )}
 
-            <div
-              className="board-overlay-host"
-              onContextMenu={(event) => {
-                event.preventDefault()
-                cancelPremoveQueue()
-              }}
-              onPointerDown={isCoarsePointer && premoveQueue.length > 0 ? cancelPremoveQueue : undefined}
-            >
-            <ChessBoard
-              fen={displayFen}
-              orientation={orientation}
-              interactive={boardInteractive}
-              onMove={handleBoardMove}
-              onIllegalMove={playIllegalSound}
-              lastMove={lastMove}
-              pathKey={browseStep}
-              snapFenSyncToken={premoveSnapToken}
-              userPerspective={status === 'playing' && config && !browsePosition ? config.userColor : undefined}
-              premoveQueue={!browsePosition && status === 'playing' ? premoveQueue : undefined}
-              forceCheck={endReason === 'resigned' && config && browsePosition === null ? config.userColor : undefined}
-            />
-            {(() => {
-              try {
-                const _chess = new Chess(displayFen)
-                const _findKing = (c: 'w' | 'b'): string | null => {
-                  for (const f of 'abcdefgh') for (const r of '12345678') {
-                    const p = _chess.get(`${f}${r}` as any)
-                    if (p?.type === 'k' && p.color === c) return f + r
-                  }
-                  return null
-                }
-                if (_chess.isCheckmate()) {
-                  const sq = _findKing(_chess.turn())
-                  if (!sq) return null
-                  return <div className="board-result-badge board-result-badge--checkmate" style={getSquareOverlayPosition(sq, orientation)}>#</div>
-                }
-                if (_chess.isDraw() || (endReason === 'threefold' && browsePosition === null)) {
-                  const wSq = _findKing('w'), bSq = _findKing('b')
-                  return <>{wSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(wSq, orientation)}>½</div>}{bSq && <div className="board-result-badge board-result-badge--draw" style={getSquareOverlayPosition(bSq, orientation)}>½</div>}</>
-                }
-                return null
-              } catch {
-                return null
-              }
-            })()}
-            </div>
+            {boardSurface}
 
             {/* Bottom player box */}
             {orientation === 'white' ? (

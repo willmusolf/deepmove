@@ -152,6 +152,10 @@ cg-board square.move-dest.oc:hover {
   cursor: grabbing;
 }
 
+.chess-board-container.board-viewport-zoomed {
+  pointer-events: none;
+}
+
 .chess-board-container {
   cursor: default;
 }
@@ -1550,6 +1554,33 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 @media (pointer: coarse) {
+  coords coord {
+    font-size: 12px;
+  }
+
+  .cg-wrap coords.ranks {
+    left: 2px;
+  }
+
+  .cg-wrap coords.files coord {
+    padding-left: 3px;
+    transform: translateY(-1px);
+  }
+
+  .chess-board-container,
+  .board-overlay-host {
+    --board-badge-font-size: 0.72rem;
+    --board-badge-wide-font-size: 0.58rem;
+    --board-badge-draw-font-size: 0.56rem;
+  }
+
+  .chess-board-container {
+    --board-coord-inset: 3px;
+    --board-file-offset: 2px;
+    --board-capture-dest-shadow: inset 0 0 0 4px rgba(78, 84, 92, 0.65);
+    container-type: normal;
+  }
+
   .cg-wrap {
     touch-action: pinch-zoom;
   }

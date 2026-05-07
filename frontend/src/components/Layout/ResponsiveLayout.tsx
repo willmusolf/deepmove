@@ -87,7 +87,7 @@ export default function ResponsiveLayout({ currentPage, onNavigate, children, ha
       navOpen ? 'app-shell--nav-open' : '',
       collapsed ? 'app-shell--nav-collapsed' : '',
     ].filter(Boolean).join(' ')}>
-      {isCompactNav && (
+      {isCompactNav && navOpen && (
         <button
           type="button"
           className="app-shell__backdrop"
@@ -96,12 +96,14 @@ export default function ResponsiveLayout({ currentPage, onNavigate, children, ha
         />
       )}
 
-      <NavSidebar
-        currentPage={currentPage}
-        onNavigate={handleNavigate}
-        collapsed={collapsed}
-        onToggleCollapse={!isCompactNav ? handleToggleCollapse : undefined}
-      />
+      {(!isCompactNav || navOpen) && (
+        <NavSidebar
+          currentPage={currentPage}
+          onNavigate={handleNavigate}
+          collapsed={collapsed}
+          onToggleCollapse={!isCompactNav ? handleToggleCollapse : undefined}
+        />
+      )}
 
       <div className="app-content">
         {isCompactNav && (

@@ -261,6 +261,7 @@ export default function ChessBoard({
   const [pendingPromotion, setPendingPromotion] = useState<{ from: Key; to: Key; color: 'white' | 'black'; orientation: 'white' | 'black' } | null>(null)
   const [boardReady, setBoardReady] = useState(false)
   const [isCoarsePointer, setIsCoarsePointer] = useState(false)
+  const [isViewportZoomed, setIsViewportZoomed] = useState(false)
   const [dragPreviewSquare, setDragPreviewSquare] = useState<Key | null>(null)
   const [dragOriginSquare, setDragOriginSquare] = useState<Key | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -278,6 +279,7 @@ export default function ChessBoard({
   const prevSnapFenSyncTokenRef = useRef(snapFenSyncToken)
   const sizeRef = useRef({ width: 0, height: 0 })
   const isPinchZoomingRef = useRef(false)
+  const isViewportZoomedRef = useRef(false)
   const isDraggingRef = useRef(false)
   const pendingResizeSyncRef = useRef(false)
   const pendingAutoShapesRef = useRef<DrawShape[] | null>(null)
@@ -293,6 +295,7 @@ export default function ChessBoard({
   }, [])
 
   const syncOverlayMetrics = useCallback(() => {
+    if (isViewportZoomedRef.current) return
     const api = apiRef.current
     const wrapperEl = wrapperRef.current
     const bounds = api?.state?.dom?.bounds
@@ -326,13 +329,17 @@ export default function ChessBoard({
 
   const flushBoardLayout = useCallback(() => {
     requestAnimationFrame(() => {
+      if (isViewportZoomedRef.current) {
+        pendingResizeSyncRef.current = true
+        return
+      }
       apiRef.current?.redrawAll()
       syncOverlayMetrics()
     })
   }, [syncOverlayMetrics])
 
   const flushPendingDrawableShapes = useCallback(() => {
-    if (isPinchZoomingRef.current || isDraggingRef.current) return
+    if (isPinchZoomingRef.current || isDraggingRef.current || isViewportZoomedRef.current) return
     if (!apiRef.current || !pendingAutoShapesRef.current) return
     apiRef.current.set({
       drawable: { autoShapes: pendingAutoShapesRef.current },
@@ -341,7 +348,7 @@ export default function ChessBoard({
   }, [])
 
   const flushPendingLayoutSync = useCallback(() => {
-    if (isPinchZoomingRef.current || isDraggingRef.current) return
+    if (isPinchZoomingRef.current || isDraggingRef.current || isViewportZoomedRef.current) return
     if (!pendingResizeSyncRef.current) return
     pendingResizeSyncRef.current = false
     flushBoardLayout()
@@ -373,7 +380,7 @@ export default function ChessBoard({
 
       sizeRef.current = { width, height }
       setBoardReady(true)
-      if (isPinchZoomingRef.current || isDraggingRef.current) {
+      if (isPinchZoomingRef.current || isDraggingRef.current || isViewportZoomedRef.current) {
         pendingResizeSyncRef.current = true
         return
       }
@@ -587,6 +594,7 @@ export default function ChessBoard({
     }
 
     const canInteract = interactive || !!userPerspective
+    const interactionEnabled = canInteract && !isViewportZoomedRef.current
     apiRef.current.set({
       fen,
       animation: shouldSnapFenSync
@@ -599,10 +607,10 @@ export default function ChessBoard({
       check: forceCheck ?? checkColor,
       turnColor: fenTurnColor,
       movable: {
-        color: canInteract ? fenTurnColor : undefined,
-        dests: canInteract ? legalDests : undefined,
+        color: interactionEnabled ? fenTurnColor : undefined,
+        dests: interactionEnabled ? legalDests : undefined,
       },
-      draggable: { enabled: canInteract },
+      draggable: { enabled: interactionEnabled },
     })
 
     if (shouldSnapFenSync) {
@@ -613,8 +621,10 @@ export default function ChessBoard({
       })
     }
 
-    requestAnimationFrame(syncOverlayMetrics)
-  }, [fen, lastMove, orientation, interactive, pathKey, snapFenSyncToken, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective, syncOverlayMetrics])
+    if (!isViewportZoomedRef.current) {
+      requestAnimationFrame(syncOverlayMetrics)
+    }
+  }, [fen, lastMove, orientation, interactive, pathKey, snapFenSyncToken, checkColor, fenTurnColor, legalDests, forceCheck, userPerspective, isViewportZoomed, syncOverlayMetrics])
 
   // Sync engine arrow shapes — always re-pass movable so chessground's partial
   // set() can never accidentally clear movable.dests during an arrows update.
@@ -662,7 +672,7 @@ export default function ChessBoard({
     if (!apiRef.current) return
     if (!containerRef.current || containerRef.current.getBoundingClientRect().width === 0) return
 
-    if (isPinchZoomingRef.current || isDraggingRef.current) {
+    if (isPinchZoomingRef.current || isDraggingRef.current || isViewportZoomedRef.current) {
       pendingAutoShapesRef.current = shapes
       return
     }
@@ -676,7 +686,7 @@ export default function ChessBoard({
     const syncDragPreview = (event: PointerEvent) => {
       const api = apiRef.current
       if (!api) return
-      if (isPinchZoomingRef.current) {
+      if (isPinchZoomingRef.current || isViewportZoomedRef.current) {
         clearDragPreview()
         return
       }
@@ -760,6 +770,40 @@ export default function ChessBoard({
   }, [clearDragPreview, flushPendingLayoutSync, isCoarsePointer])
 
   useEffect(() => {
+    if (!isCoarsePointer || typeof window === 'undefined' || !window.visualViewport) return
+
+    const viewport = window.visualViewport
+    const syncViewportZoomState = () => {
+      const zoomed = (viewport.scale ?? 1) > 1.01
+      if (zoomed === isViewportZoomedRef.current) return
+
+      isViewportZoomedRef.current = zoomed
+      setIsViewportZoomed(zoomed)
+      if (zoomed) {
+        pendingResizeSyncRef.current = true
+        apiRef.current?.cancelMove()
+        clearDragPreview()
+        apiRef.current?.set({
+          movable: { color: undefined, dests: undefined },
+          draggable: { enabled: false },
+        })
+        return
+      }
+
+      flushPendingLayoutSync()
+      flushPendingDrawableShapes()
+      requestAnimationFrame(syncOverlayMetrics)
+    }
+
+    syncViewportZoomState()
+    viewport.addEventListener('resize', syncViewportZoomState)
+
+    return () => {
+      viewport.removeEventListener('resize', syncViewportZoomState)
+    }
+  }, [clearDragPreview, flushPendingDrawableShapes, flushPendingLayoutSync, isCoarsePointer, syncOverlayMetrics])
+
+  useEffect(() => {
     const wrapEl = containerRef.current
     if (!wrapEl) return
     const canShowPieceCursor = (interactive || !!userPerspective) && !isDragging
@@ -804,7 +848,7 @@ export default function ChessBoard({
   return (
     <div
       ref={wrapperRef}
-      className={`chess-board-container${isDragging ? ' board-dragging' : ''}`}
+      className={`chess-board-container${isDragging ? ' board-dragging' : ''}${isViewportZoomed ? ' board-viewport-zoomed' : ''}`}
       role="region"
       aria-label="Chess board"
     >
