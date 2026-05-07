@@ -62,9 +62,7 @@ function MoveToken({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
 
   // Show pending spinner for any node being evaluated (not just non-main-line).
   // In sandbox mode all nodes are graded via branchGrades, including main-line ones.
-  // During full game analysis (isAnalyzing=true), main-line moves also show a spinner
-  // since pendingBranchNodes is only populated for sandbox/variation moves.
-  const isPending = (ctx.pendingBranchNodes?.has(node.id) ?? false) || (isAnalyzing && mainIdx >= 0)
+  const isPending = ctx.pendingBranchNodes?.has(node.id) ?? false
 
   return (
     <span
