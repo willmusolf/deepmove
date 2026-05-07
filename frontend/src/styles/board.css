@@ -552,6 +552,10 @@ cg-board {
   font-size: 1.1rem;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
 }
 
 .nav-btn:hover:not(:disabled) {
@@ -1740,6 +1744,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   border: 1px solid var(--color-border);
   background: #0f1117;
   cursor: crosshair;
+  touch-action: none;
 }
 
 .eval-graph-svg {
@@ -1749,6 +1754,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   min-height: 120px;
   max-height: 120px;
   flex-shrink: 0;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .eval-graph-empty {

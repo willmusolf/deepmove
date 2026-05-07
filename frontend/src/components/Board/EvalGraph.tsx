@@ -1,7 +1,14 @@
 // EvalGraph.tsx — Smooth bezier eval curve with small color-coded annotation dots.
 // Fixed 120px height, ResizeObserver for width. SVG clipPath ensures fill matches curve.
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  type MouseEvent as ReactMouseEvent,
+  type TouchEvent as ReactTouchEvent,
+} from 'react'
 import type { MoveEval } from '../../engine/analysis'
 import type { CriticalMoment } from '../../chess/types'
 import { formatEval } from '../../utils/format'
@@ -97,6 +104,7 @@ export default function EvalGraph({
   const containerRef = useRef<HTMLDivElement>(null)
   const [svgWidth, setSvgWidth] = useState(600)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const suppressClickAfterTouchRef = useRef(false)
 
   useEffect(() => {
     const el = containerRef.current
@@ -198,16 +206,48 @@ export default function EvalGraph({
         ? 'translateX(-100%)'
         : 'translateX(-50%)'
 
-  function handleClick(e: React.MouseEvent<SVGSVGElement>) {
+  function updateHoverAndNavigate(clientX: number, rect: DOMRect) {
+    const nextIndex = moveIndexFromClientX(clientX, rect)
+    setHoveredIndex(nextIndex)
+    onNavigate(nextIndex)
+  }
+
+  function handleClick(e: ReactMouseEvent<SVGSVGElement>) {
     if (analyzed === 0) return
+    if (suppressClickAfterTouchRef.current) {
+      suppressClickAfterTouchRef.current = false
+      e.preventDefault()
+      return
+    }
     const rect = e.currentTarget.getBoundingClientRect()
     onNavigate(moveIndexFromClientX(e.clientX, rect))
   }
 
-  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+  function handleMouseMove(e: ReactMouseEvent<SVGSVGElement>) {
     if (analyzed === 0) return
     const rect = e.currentTarget.getBoundingClientRect()
     setHoveredIndex(moveIndexFromClientX(e.clientX, rect))
+  }
+
+  function handleTouchStart(e: ReactTouchEvent<SVGSVGElement>) {
+    if (analyzed === 0) return
+    const touch = e.touches[0]
+    if (!touch) return
+    e.preventDefault()
+    suppressClickAfterTouchRef.current = true
+    updateHoverAndNavigate(touch.clientX, e.currentTarget.getBoundingClientRect())
+  }
+
+  function handleTouchMove(e: ReactTouchEvent<SVGSVGElement>) {
+    if (analyzed === 0) return
+    const touch = e.touches[0]
+    if (!touch) return
+    e.preventDefault()
+    updateHoverAndNavigate(touch.clientX, e.currentTarget.getBoundingClientRect())
+  }
+
+  function handleTouchEnd() {
+    setHoveredIndex(null)
   }
 
   return (
@@ -248,6 +288,10 @@ export default function EvalGraph({
           onClick={handleClick}
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setHoveredIndex(null)}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
         >
           <defs>
             <linearGradient id="whiteGrad" x1="0" y1="0" x2="0" y2="1">
