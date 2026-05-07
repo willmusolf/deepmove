@@ -65,13 +65,14 @@ function MoveToken({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
   const isPending = ctx.pendingBranchNodes?.has(node.id) ?? false
 
   return (
-    <span className="move-cell">
+    <span
+      className="move-cell"
+      data-node-id={node.id}
+      onClick={() => onNodeClick(getPathToNode(node.id, tree))}
+      style={{ cursor: 'pointer' }}
+    >
       <GradeBadge grade={isAnalyzing ? undefined : grade} pending={isPending} />
-      <span
-        className={['move-san', active ? 'move-active' : '', inPath && !active ? 'move-in-path' : ''].filter(Boolean).join(' ')}
-        data-node-id={node.id}
-        onClick={() => onNodeClick(getPathToNode(node.id, tree))}
-      >
+      <span className={['move-san', active ? 'move-active' : '', inPath && !active ? 'move-in-path' : ''].filter(Boolean).join(' ')}>
         {node.san}
       </span>
     </span>

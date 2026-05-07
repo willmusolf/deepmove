@@ -5790,7 +5790,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
 .move-rail__pair {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 2px;
   flex-shrink: 0;
 }
@@ -5807,8 +5807,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 10px;
-  min-width: 36px;
+  padding: 4px 7px;
+  min-width: 30px;
   min-height: 28px;
   border-radius: 6px;
   cursor: pointer;
@@ -5855,6 +5855,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   .move-list {
     font-size: 0.78rem;
     padding: 0.3rem 0.25rem 0.5rem;
+    line-height: 1.9;
   }
 
   /* Flow all moves inline so they wrap like a paragraph */
