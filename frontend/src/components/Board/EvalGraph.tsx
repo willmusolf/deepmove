@@ -18,6 +18,7 @@ interface EvalGraphProps {
   totalMoves: number
   currentMoveIndex: number
   onNavigate: (index: number) => void
+  onScrubStateChange?: (isScrubbing: boolean) => void
   criticalMoments?: CriticalMoment[]
   viewMode?: 'classic' | 'coach'
 }
@@ -32,6 +33,7 @@ const PLOT_PAD_X = DOT_R - 2
 const PLOT_PAD_Y = DOT_R_HOVER + 3
 const TOOLTIP_EDGE_THRESHOLD = 72
 const EDGE_GUIDE_INSET = 1
+const TOUCH_SCRUB_DELAY_MS = 45
 
 type Point = { x: number; y: number }
 
@@ -98,6 +100,7 @@ export default function EvalGraph({
   totalMoves,
   currentMoveIndex,
   onNavigate,
+  onScrubStateChange,
   criticalMoments = [],
   viewMode = 'classic',
 }: EvalGraphProps) {
@@ -105,6 +108,9 @@ export default function EvalGraph({
   const [svgWidth, setSvgWidth] = useState(600)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
   const suppressClickAfterTouchRef = useRef(false)
+  const touchNavigateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingTouchIndexRef = useRef<number | null>(null)
+  const lastTouchNavigatedIndexRef = useRef<number | null>(null)
 
   useEffect(() => {
     const el = containerRef.current
@@ -120,6 +126,13 @@ export default function EvalGraph({
     ro.observe(el)
     return () => { ro.disconnect(); cancelAnimationFrame(rafId) }
   }, [])
+
+  useEffect(() => {
+    return () => {
+      if (touchNavigateTimerRef.current) clearTimeout(touchNavigateTimerRef.current)
+      onScrubStateChange?.(false)
+    }
+  }, [onScrubStateChange])
 
   const analyzed = moveEvals.length
   // Use the larger of totalMoves prop and analyzed count — totalMoves should always be the
@@ -206,10 +219,36 @@ export default function EvalGraph({
         ? 'translateX(-100%)'
         : 'translateX(-50%)'
 
-  function updateHoverAndNavigate(clientX: number, rect: DOMRect) {
+  function flushPendingTouchNavigate() {
+    if (touchNavigateTimerRef.current) {
+      clearTimeout(touchNavigateTimerRef.current)
+      touchNavigateTimerRef.current = null
+    }
+    const nextIndex = pendingTouchIndexRef.current
+    pendingTouchIndexRef.current = null
+    if (nextIndex === null || lastTouchNavigatedIndexRef.current === nextIndex) return
+    lastTouchNavigatedIndexRef.current = nextIndex
+    onNavigate(nextIndex)
+  }
+
+  function updateHoverAndNavigate(clientX: number, rect: DOMRect, immediate = false) {
     const nextIndex = moveIndexFromClientX(clientX, rect)
     setHoveredIndex(nextIndex)
-    onNavigate(nextIndex)
+    if (immediate) {
+      pendingTouchIndexRef.current = null
+      if (touchNavigateTimerRef.current) {
+        clearTimeout(touchNavigateTimerRef.current)
+        touchNavigateTimerRef.current = null
+      }
+      lastTouchNavigatedIndexRef.current = nextIndex
+      onNavigate(nextIndex)
+      return
+    }
+    pendingTouchIndexRef.current = nextIndex
+    if (lastTouchNavigatedIndexRef.current === nextIndex || touchNavigateTimerRef.current) return
+    touchNavigateTimerRef.current = setTimeout(() => {
+      flushPendingTouchNavigate()
+    }, TOUCH_SCRUB_DELAY_MS)
   }
 
   function handleClick(e: ReactMouseEvent<SVGSVGElement>) {
@@ -220,7 +259,9 @@ export default function EvalGraph({
       return
     }
     const rect = e.currentTarget.getBoundingClientRect()
-    onNavigate(moveIndexFromClientX(e.clientX, rect))
+    const nextIndex = moveIndexFromClientX(e.clientX, rect)
+    lastTouchNavigatedIndexRef.current = nextIndex
+    onNavigate(nextIndex)
   }
 
   function handleMouseMove(e: ReactMouseEvent<SVGSVGElement>) {
@@ -235,7 +276,8 @@ export default function EvalGraph({
     if (!touch) return
     e.preventDefault()
     suppressClickAfterTouchRef.current = true
-    updateHoverAndNavigate(touch.clientX, e.currentTarget.getBoundingClientRect())
+    onScrubStateChange?.(true)
+    updateHoverAndNavigate(touch.clientX, e.currentTarget.getBoundingClientRect(), true)
   }
 
   function handleTouchMove(e: ReactTouchEvent<SVGSVGElement>) {
@@ -247,6 +289,8 @@ export default function EvalGraph({
   }
 
   function handleTouchEnd() {
+    flushPendingTouchNavigate()
+    onScrubStateChange?.(false)
     setHoveredIndex(null)
   }
 

@@ -91,13 +91,21 @@ interface AppUiState {
   showGrades: boolean
 }
 
-const TOUCH_NAV_REPEAT_DELAY_MS = 260
-const TOUCH_NAV_REPEAT_INTERVAL_MS = 85
+const TOUCH_NAV_REPEAT_DELAY_MS = 220
+const TOUCH_NAV_REPEAT_INTERVAL_MS = 110
 
-function useTouchHoldNavigate(onStep: () => void, disabled: boolean) {
+function useTouchHoldNavigate(
+  onStep: () => void,
+  disabled: boolean,
+  onHoldChange?: (isHolding: boolean) => void,
+) {
+  const onStepRef = useRef(onStep)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const suppressClickRef = useRef(false)
+  const isHoldingRef = useRef(false)
+
+  onStepRef.current = onStep
 
   const clearRepeat = useCallback(() => {
     if (timeoutRef.current) {
@@ -108,7 +116,13 @@ function useTouchHoldNavigate(onStep: () => void, disabled: boolean) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
     }
-  }, [])
+    if (isHoldingRef.current) {
+      isHoldingRef.current = false
+      onHoldChange?.(false)
+    }
+    window.removeEventListener('touchend', clearRepeat)
+    window.removeEventListener('touchcancel', clearRepeat)
+  }, [onHoldChange])
 
   useEffect(() => clearRepeat, [clearRepeat])
 
@@ -117,13 +131,17 @@ function useTouchHoldNavigate(onStep: () => void, disabled: boolean) {
     e.preventDefault()
     suppressClickRef.current = true
     clearRepeat()
-    onStep()
+    isHoldingRef.current = true
+    onHoldChange?.(true)
+    onStepRef.current()
+    window.addEventListener('touchend', clearRepeat)
+    window.addEventListener('touchcancel', clearRepeat)
     timeoutRef.current = setTimeout(() => {
       intervalRef.current = setInterval(() => {
-        onStep()
+        onStepRef.current()
       }, TOUCH_NAV_REPEAT_INTERVAL_MS)
     }, TOUCH_NAV_REPEAT_DELAY_MS)
-  }, [clearRepeat, disabled, onStep])
+  }, [clearRepeat, disabled, onHoldChange])
 
   const handleTouchEnd = useCallback(() => {
     clearRepeat()
@@ -363,6 +381,10 @@ export default function App() {
   // FEN → TopLine[] cache so revisiting a position never re-analyzes
   const positionCache = useRef<Map<string, TopLine[]>>(new Map())
   const pathKeyRef = useRef(0)
+  const rapidNavResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rapidInteractionActiveRef = useRef(false)
+  const [isRapidNavMode, setIsRapidNavMode] = useState(false)
+  const [rapidNavSnapToken, setRapidNavSnapToken] = useState(0)
   // Keyed on (from+to+newFen) so the guard is immune to timing — if chessground
   // double-fires `after` for the same move (a known chessground quirk), the second
   // call carries the identical triple and gets blocked regardless of when it arrives.
@@ -423,6 +445,32 @@ export default function App() {
   const navHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // When true, the next displayFen change is from a piece move — skip the 180ms deferral
   const isPieceMoveRef = useRef(false)
+  const setRapidNavigationActive = useCallback((active: boolean) => {
+    rapidInteractionActiveRef.current = active
+    if (rapidNavResetTimerRef.current) {
+      clearTimeout(rapidNavResetTimerRef.current)
+      rapidNavResetTimerRef.current = null
+    }
+    if (active) {
+      setIsRapidNavMode(true)
+      return
+    }
+    rapidNavResetTimerRef.current = setTimeout(() => {
+      rapidInteractionActiveRef.current = false
+      setIsRapidNavMode(false)
+    }, 90)
+  }, [])
+
+  const pulseRapidNavigationSnap = useCallback(() => {
+    if (!rapidInteractionActiveRef.current) return
+    setRapidNavSnapToken(prev => prev + 1)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (rapidNavResetTimerRef.current) clearTimeout(rapidNavResetTimerRef.current)
+    }
+  }, [])
 
   function triggerPositionAnalysis(fen: string, depth = POSITION_MAX_DEPTH) {
     // NOTE: callers are responsible for calling stopPositionAnalysis() before this.
@@ -514,12 +562,24 @@ export default function App() {
     stopPositionAnalysis()
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
 
+    const cached = positionCache.current.get(displayFen)
+
     if (pauseLivePositionAnalysis) {
       setAnalyzingPosition(false)
       return
     }
 
-    const cached = positionCache.current.get(displayFen)
+    if (isRapidNavMode) {
+      if (cached && cached.length > 0) {
+        setCurrentPositionLines(cached)
+        setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
+      } else {
+        setCurrentPositionLines([])
+        setCurrentAnalysisDepth(0)
+      }
+      setAnalyzingPosition(false)
+      return
+    }
 
     // Always show any cached result immediately (partial or full depth)
     if (cached && cached.length > 0) {
@@ -580,7 +640,7 @@ export default function App() {
       if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayFen, isReady, pauseLivePositionAnalysis])
+  }, [displayFen, isReady, pauseLivePositionAnalysis, isRapidNavMode])
 
   // When engine becomes ready, retroactively grade any sandbox nodes that were
   // played before Stockfish finished loading (common for eager users).
@@ -854,24 +914,28 @@ export default function App() {
       }
     }
     if (currentPath.length > 1) {
-      playMoveSound(moveTree[currentPath[currentPath.length - 2]]?.san ?? '')
+      if (!rapidInteractionActiveRef.current) {
+        playMoveSound(moveTree[currentPath[currentPath.length - 2]]?.san ?? '')
+      }
     }
+    pulseRapidNavigationSnap()
     goBack()
-  }, [goBack, currentPath, moveTree, branchGrades, playMoveSound])
+  }, [goBack, currentPath, moveTree, branchGrades, playMoveSound, pulseRapidNavigationSnap])
 
   const goForwardFn = useCallback(() => {
     pathKeyRef.current++
     const nextId = currentPath.length === 0
       ? rootId
       : moveTree[currentPath[currentPath.length - 1]]?.childIds[0]
-    if (nextId) playMoveSound(moveTree[nextId]?.san ?? '')
+    if (nextId && !rapidInteractionActiveRef.current) playMoveSound(moveTree[nextId]?.san ?? '')
     // Eagerly mark destination pending so badge shows spinner on first render after nav
     const curInBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
     if (curInBranch && shouldTrackReviewPendingNode(nextId, moveTree, branchGrades)) {
       setPendingBranchNodes(prev => { const s = new Set(prev); s.add(nextId); return s })
     }
+    pulseRapidNavigationSnap()
     goForward()
-  }, [currentPath, rootId, moveTree, goForward, playMoveSound, branchGrades])
+  }, [currentPath, rootId, moveTree, goForward, playMoveSound, branchGrades, pulseRapidNavigationSnap])
 
   // Sandbox nav wrappers: eagerly mark destination as pending so the board badge
   // shows a spinner immediately (before the safety-net effect fires on next render).
@@ -883,10 +947,13 @@ export default function App() {
       }
     }
     if (analysisPath.length > 1) {
-      playMoveSound(analysisTree[analysisPath[analysisPath.length - 2]]?.san ?? '')
+      if (!rapidInteractionActiveRef.current) {
+        playMoveSound(analysisTree[analysisPath[analysisPath.length - 2]]?.san ?? '')
+      }
     }
+    pulseRapidNavigationSnap()
     analysisBoardGoBack()
-  }, [analysisPath, analysisTree, branchGrades, analysisBoardGoBack, playMoveSound])
+  }, [analysisPath, analysisTree, branchGrades, analysisBoardGoBack, playMoveSound, pulseRapidNavigationSnap])
 
   const handleAnalysisGoForward = useCallback(() => {
     const lastId = analysisPath.length > 0 ? analysisPath[analysisPath.length - 1] : null
@@ -894,9 +961,10 @@ export default function App() {
     if (destId && !branchGrades.has(destId)) {
       setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
     }
-    if (destId) playMoveSound(analysisTree[destId]?.san ?? '')
+    if (destId && !rapidInteractionActiveRef.current) playMoveSound(analysisTree[destId]?.san ?? '')
+    pulseRapidNavigationSnap()
     analysisBoardGoForward()
-  }, [analysisPath, analysisTree, analysisRootId, branchGrades, analysisBoardGoForward, playMoveSound])
+  }, [analysisPath, analysisTree, analysisRootId, branchGrades, analysisBoardGoForward, playMoveSound, pulseRapidNavigationSnap])
 
   const reviewBackDisabled = currentPath.length === 0
   const reviewForwardDisabled = currentPath.length === 0
@@ -907,10 +975,10 @@ export default function App() {
     ? true
     : analysisPath.length !== 0 && !analysisTree[analysisPath[analysisPath.length - 1]]?.childIds[0]
 
-  const reviewBackTouchHandlers = useTouchHoldNavigate(goBackFn, reviewBackDisabled)
-  const reviewForwardTouchHandlers = useTouchHoldNavigate(goForwardFn, reviewForwardDisabled)
-  const analysisBackTouchHandlers = useTouchHoldNavigate(handleAnalysisGoBack, analysisBackDisabled)
-  const analysisForwardTouchHandlers = useTouchHoldNavigate(handleAnalysisGoForward, analysisForwardDisabled)
+  const reviewBackTouchHandlers = useTouchHoldNavigate(goBackFn, reviewBackDisabled, setRapidNavigationActive)
+  const reviewForwardTouchHandlers = useTouchHoldNavigate(goForwardFn, reviewForwardDisabled, setRapidNavigationActive)
+  const analysisBackTouchHandlers = useTouchHoldNavigate(handleAnalysisGoBack, analysisBackDisabled, setRapidNavigationActive)
+  const analysisForwardTouchHandlers = useTouchHoldNavigate(handleAnalysisGoForward, analysisForwardDisabled, setRapidNavigationActive)
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -1110,7 +1178,8 @@ export default function App() {
   // Best Lines click: enter first move of that PV as a branch
   function handleGoToMove(index: number) {
     pathKeyRef.current++
-    if (index > 0 && index <= moves.length) playMoveSound(moves[index - 1])
+    pulseRapidNavigationSnap()
+    if (!rapidInteractionActiveRef.current && index > 0 && index <= moves.length) playMoveSound(moves[index - 1])
     goToMove(index)
   }
 
@@ -1142,7 +1211,8 @@ export default function App() {
   function handleNavigateTo(path: string[]) {
     pathKeyRef.current++
     const nodeId = path[path.length - 1]
-    if (nodeId && moveTree[nodeId]) playMoveSound(moveTree[nodeId].san)
+    pulseRapidNavigationSnap()
+    if (!rapidInteractionActiveRef.current && nodeId && moveTree[nodeId]) playMoveSound(moveTree[nodeId].san)
     navigateTo(path)
   }
 
@@ -1422,6 +1492,7 @@ export default function App() {
                           : undefined
                       )}
                       pathKey={pathKeyRef.current}
+                      snapFenSyncToken={rapidNavSnapToken}
                     />
                     {(() => {
                       // Determine current branch node for pending/grade lookup
@@ -1712,6 +1783,7 @@ export default function App() {
                           totalMoves={totalMoves}
                           currentMoveIndex={currentMoveIndex}
                           onNavigate={handleGoToMove}
+                          onScrubStateChange={setRapidNavigationActive}
                           criticalMoments={criticalMoments}
                           viewMode={viewMode}
                         />
