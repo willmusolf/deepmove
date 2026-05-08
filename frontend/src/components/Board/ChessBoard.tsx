@@ -594,7 +594,7 @@ export default function ChessBoard({
     }
 
     const canInteract = interactive || !!userPerspective
-    const interactionEnabled = canInteract && !isViewportZoomedRef.current
+    const interactionEnabled = canInteract  // zoom is blocked by CSS pointer-events, not API
     apiRef.current.set({
       fen,
       animation: shouldSnapFenSync
@@ -783,10 +783,11 @@ export default function ChessBoard({
         pendingResizeSyncRef.current = true
         apiRef.current?.cancelMove()
         clearDragPreview()
-        apiRef.current?.set({
-          movable: { color: undefined, dests: undefined },
-          draggable: { enabled: false },
-        })
+        // CSS .board-viewport-zoomed { pointer-events: none } already blocks
+        // accidental moves during zoom. Do NOT disable movable/dests via the
+        // chessground API here — if the user zooms to 1.5× then back to 1.1×
+        // (still > 1.01 threshold), isViewportZoomed stays true and the board
+        // would be permanently locked until they return to exactly 1×.
         return
       }
 
