@@ -115,9 +115,15 @@ export function cpToWinPct(cp: number): number {
  * Grade priority:
  *   forced > brilliant > great > best > miss > excellent > good > inaccuracy > mistake > blunder
  *
+ * "Brilliant" (!!) — a sound sacrifice: top engine move, no meaningful win% loss,
+ *   and the player was not already dead lost. This intentionally does NOT require
+ *   the move to be the only good option; forcing that check under-awards common
+ *   Chess.com-style brilliants where multiple winning continuations exist.
+ *
  * "Great" (!) — the only good move in the position: top engine move AND it's significantly
  *   better than the 2nd-best option (gap ≥ WINPCT_GREAT_GAP). Recaptures are excluded
- *   because it's obvious you recapture after a trade.
+ *   because it's obvious you recapture after a trade. Immediate checkmates are also
+ *   excluded so obvious finishing blows stay "best" rather than being over-promoted.
  *
  * "Miss" (✗) — opponent just blundered but player fails to capitalise (winPctLoss > WINPCT_GOOD).
  */
@@ -131,13 +137,14 @@ export function classifyMove(
   isTopSuggested = true,
   isOnlyGoodMove = false,
   inCheck = false,
+  isCheckmateMove = false,
 ): MoveGrade {
   // Forced: only one legal move, no agency
   if (legalMoveCount === 1) return 'forced'
 
-  // Suppress "brilliant" and "great" when responding to check — escaping check is
-  // obvious even when only one escape is good. Downgrade to normal grading.
-  const effectiveOnlyGoodMove = inCheck ? false : isOnlyGoodMove
+  // Suppress "great" when responding to check or delivering immediate mate —
+  // those moves are strong, but usually too forcing/obvious for a special "!" badge.
+  const effectiveOnlyGoodMove = (inCheck || isCheckmateMove) ? false : isOnlyGoodMove
 
   const playerBefore = color === 'white' ? capScore(evalBefore) : -capScore(evalBefore)
   const playerAfter  = color === 'white' ? capScore(evalAfter)  : -capScore(evalAfter)
@@ -145,9 +152,9 @@ export function classifyMove(
   // Win-probability loss from the player's perspective (positive = they lost winning chance)
   const winPctLoss = cpToWinPct(playerBefore) - cpToWinPct(playerAfter)
 
-  // Brilliant: sacrifice + top-suggested + only good move + no meaningful win% loss.
-  // We deliberately bias toward under-awarding Brilliant so the badge stays trustworthy.
-  if (sacrifice && isTopSuggested && effectiveOnlyGoodMove && winPctLoss <= WINPCT_EXCELLENT
+  // Brilliant: sound sacrifice + top-suggested + no meaningful win% loss.
+  // We still suppress check-escape brilliants because getting out of check is too forced.
+  if (!inCheck && sacrifice && isTopSuggested && winPctLoss <= WINPCT_EXCELLENT
       && cpToWinPct(playerBefore) >= WINPCT_MIN_FOR_BRILLIANT) return 'brilliant'
 
   // Great: only good move in position (top-suggested + big gap from #2, not a recapture).
@@ -220,10 +227,12 @@ export async function analyzeGame(
   // Pre-compute legal move counts and check status at each position BEFORE the move
   const legalMoveCounts: number[] = []
   const inCheckFlags: boolean[] = []
+  const checkmateAfterFlags: boolean[] = []
   for (let i = 0; i < history.length; i++) {
     const tempChess = new Chess(positions[i])
     legalMoveCounts.push(tempChess.moves().length)
     inCheckFlags.push(tempChess.isCheck())
+    checkmateAfterFlags.push(new Chess(positions[i + 1]).isCheckmate())
   }
 
   // Seed prevScore/prevOpponentGrade from the last known eval (for resume continuity)
@@ -284,7 +293,7 @@ export async function analyzeGame(
 
     const grade = classifyMove(
       prevScore, scoreWhite, color, legalMoveCounts[i],
-      sacrifice, prevOpponentGrade, isTopSuggested, isOnlyGoodMove, inCheckFlags[i],
+      sacrifice, prevOpponentGrade, isTopSuggested, isOnlyGoodMove, inCheckFlags[i], checkmateAfterFlags[i],
     )
 
     const moveEval: MoveEval = {
