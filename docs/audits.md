@@ -213,12 +213,12 @@ Last full audit: **2026-05-08** (production-hardening rounds 1-2)
 ## 6. Scaling Audit
 
 ### What breaks first at 1,000 users
-- **In-memory LRU cache** (1000 entries, process-local) — multiple Railway instances each have separate caches → cache misses double. Fix: Upstash Redis shared cache.
+- **In-memory LRU cache** (1000 entries, process-local) — multiple Render instances each have separate caches → cache misses double. Fix: Upstash Redis shared cache.
 - **Neon free tier** (0.5GB storage, 1 vCPU) — may hit CPU limits under concurrent analysis. Fix: upgrade to Neon Launch ($19/mo) or Scale tier.
 - **Anthropic API** — rate limits on Haiku tier. Fix: monitor usage, upgrade tier, add LRU cache hit metrics to reduce unnecessary calls.
 
 ### What breaks first at 10,000 users
-- **Railway single instance** — needs horizontal scaling or more vCPUs. Fix: Railway Pro + multiple instances or switch to Fly.io.
+- **Render single instance** — needs horizontal scaling or more vCPUs. Fix: scale the Render service and move shared quota/cache state to Redis.
 - **DB connection pool** (pool_size=5, max_overflow=10 = 15 max) — 10k concurrent users will exhaust. Fix: PgBouncer connection pooling or Neon's built-in connection pooling endpoint.
 - **Lesson DB table** — grows unbounded. Fix: add TTL on old lessons, periodic cleanup job.
 
@@ -235,9 +235,9 @@ Last full audit: **2026-05-08** (production-hardening rounds 1-2)
 - [ ] Monitor cache hit rate via admin metrics endpoint (TODO)
 
 ### Queue / Background Jobs (Future)
-- For bulk game rescans (10+ games), use a job queue (Celery + Redis or Railway Cron)
-- For weekly coaching email summaries, use Railway Cron + SendGrid
-- For DB cleanup (old lessons / audit logs), Railway Cron weekly using `backend/scripts/prune_admin_audit_log.py`
+- For bulk game rescans (10+ games), use a job queue (Celery + Redis or Render Cron)
+- For weekly coaching email summaries, use Render Cron + SendGrid
+- For DB cleanup (old lessons / audit logs), use Render Cron weekly with `backend/scripts/prune_admin_audit_log.py`
 
 ---
 
@@ -245,4 +245,5 @@ Last full audit: **2026-05-08** (production-hardening rounds 1-2)
 
 | Date | Scope | Issues Found | Issues Fixed | Notes |
 |------|-------|-------------|-------------|-------|
+| 2026-05-08 | Production-hardening rounds 1-2 | 10+ launch-readiness issues | Frontend monitoring hooks, error boundaries, retry/backoff, exact runtime pinning, mypy CI, audit-log retention tooling | Remaining: shared quota/cache state, disposable Postgres test target, production Sentry config, RLS/CSP decisions |
 | 2026-04-21 | Full pre-launch security | 12 issues | 6 fixed this session | SECRET_KEY enforcement, rate limiting, CORS, error leakage, COEP headers, password complexity. Remaining: runtime API validation, Zod schema enforcement, audit logging |
