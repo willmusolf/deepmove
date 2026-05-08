@@ -11,8 +11,8 @@ describe('classifyMove', () => {
     expect(classifyMove(100, 96, 'white', 20, true, null, true, true)).toBe('brilliant')
   })
 
-  it('does not return brilliant for a sacrifice that is not the only good move', () => {
-    expect(classifyMove(100, 96, 'white', 20, true)).toBe('best')
+  it('returns brilliant for a sound sacrifice even when it is not the only good move', () => {
+    expect(classifyMove(100, 96, 'white', 20, true)).toBe('brilliant')
   })
 
   it('does not return brilliant for a sacrifice that is not top-suggested', () => {
@@ -262,6 +262,12 @@ describe('brilliant move regression tests', () => {
     // -600cp before, -620cp after → winPctLoss ≈ 0.5%, but playerBefore win% ≈ 9.5% < 20%
     expect(classifyMove(-600, -620, 'white', 20, true)).toBe('best')
   })
+
+  it('classifyMove: game-like knight sacrifice can still be brilliant without only-good-move gap', () => {
+    // Mirrors positions like ...Nxh3+ or Nxe5 where the sac is best and sound,
+    // but Stockfish still sees more than one strong continuation.
+    expect(classifyMove(180, 176, 'white', 30, true, null, true, false)).toBe('brilliant')
+  })
 })
 
 describe('classifyMove – check suppression', () => {
@@ -295,8 +301,43 @@ describe('classifyMove – check suppression', () => {
     expect(classifyMove(100, 100, 'white', 3, false, null, true, true, false)).toBe('great')
   })
 
+  it('suppresses great on immediate mate so the move stays best', () => {
+    expect(classifyMove(100, 100, 'white', 20, false, null, true, true, false, true)).toBe('best')
+  })
+
   it('forced still takes priority over check suppression', () => {
     // legalMoveCount=1 → forced, regardless of inCheck
     expect(classifyMove(100, -500, 'white', 1, false, null, true, true, true)).toBe('forced')
+  })
+})
+
+describe('analyzeGame – mate finish grading', () => {
+  it('keeps an immediate mate as best instead of over-promoting it to great', async () => {
+    const makeLine = (rank: number, score: number, pv: string[], opts: { isMate?: boolean; mateIn?: number | null } = {}): TopLine => ({
+      rank,
+      score,
+      isMate: opts.isMate ?? false,
+      mateIn: opts.mateIn ?? null,
+      pv,
+      san: pv[0] ?? '',
+      depth: 16,
+    })
+
+    const engine = {
+      analyzePositionMultiPV: vi.fn()
+        // Seed: before Qh4#, engine sees mate and a much weaker fallback.
+        .mockResolvedValueOnce([
+          makeLine(1, -30000, ['d8h4'], { isMate: true, mateIn: -1 }),
+          makeLine(2, -300, ['d8e7']),
+        ])
+        // After 1...Qh4#, analyzeGame uses terminal fallback, so return [] here.
+        .mockResolvedValueOnce([])
+    } as any
+
+    const results = await analyzeGame('1. f3 e5 2. g4 Qh4#', engine, 16, undefined, undefined, undefined, undefined, 3)
+
+    expect(results).toHaveLength(1)
+    expect(results[0].san).toBe('Qh4#')
+    expect(results[0].grade).toBe('best')
   })
 })
