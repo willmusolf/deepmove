@@ -2648,7 +2648,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   }
 
   .game-filter-btn {
-    padding: 2px 5px;
+    padding: 2px 4px;
     font-size: 0.72rem;
   }
 
