@@ -15,6 +15,8 @@ interface BestLinesProps {
 }
 
 const MAX_LINES = 2
+const COLLAPSED_MAX_PLIES = 10
+const EXPANDED_MAX_PLIES = 16
 const LINE_COLORS = ['#4ade80', '#60a5fa', '#facc15']  // green, blue, yellow
 
 function pvToSans(fen: string, pv: string[]): string[] {
@@ -89,8 +91,9 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
     () => visibleLines.map(line => {
       const sans = pvToSans(fen, line.pv)
       return {
-        notation: formatPvNotation(fen, sans),
-        tokens: buildPvTokens(fen, sans),
+        notation: formatPvNotation(fen, sans, COLLAPSED_MAX_PLIES),
+        collapsedTokens: buildPvTokens(fen, sans, COLLAPSED_MAX_PLIES),
+        expandedTokens: buildPvTokens(fen, sans, EXPANDED_MAX_PLIES),
       }
     }),
     [fen, visibleLines],
@@ -101,7 +104,7 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
   }, [fen])
 
   const expandedLine = expandedIndex !== null ? visibleLines[expandedIndex] : null
-  const expandedTokens = expandedIndex !== null ? (pvData[expandedIndex]?.tokens ?? []) : []
+  const expandedTokens = expandedIndex !== null ? (pvData[expandedIndex]?.expandedTokens ?? []) : []
 
   return (
     <div className="best-lines">
@@ -127,7 +130,29 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
           >
             <div className="best-line-main" title="Click to explore this line">
               <span className="best-line-dot" style={{ background: LINE_COLORS[i] ?? LINE_COLORS[0] }} />
-              <span className="best-line-pv">{pvData[i]?.notation || line.san}</span>
+              <span className="best-line-pv">
+                {(pvData[i]?.collapsedTokens.length ?? 0) > 0
+                  ? pvData[i]!.collapsedTokens.map(token => (
+                    token.plyCount === null ? (
+                      <span key={token.key} className="best-line-pv__move-num">{token.text}</span>
+                    ) : (
+                      <button
+                        key={token.key}
+                        type="button"
+                        className="best-line-pv__move"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onLineMoveClick(line, token.plyCount!)
+                        }}
+                        onKeyDown={(event) => event.stopPropagation()}
+                        title={`Go to ${token.text}`}
+                      >
+                        {token.text}
+                      </button>
+                    )
+                  ))
+                  : (pvData[i]?.notation || line.san)}
+              </span>
             </div>
             <button
               type="button"
