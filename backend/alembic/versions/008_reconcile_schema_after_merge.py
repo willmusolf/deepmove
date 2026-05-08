@@ -1,7 +1,7 @@
-"""Add password_reset_tokens table for email-based password recovery.
+"""Reconcile schema after the legacy 006/007 migration branch conflict.
 
-Revision ID: 007
-Revises: 006, 006a
+Revision ID: 008
+Revises: 007
 Create Date: 2026-05-08
 """
 
@@ -9,14 +9,15 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "007"
-down_revision = ("006", "006a")
+revision = "008"
+down_revision = "007"
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
     inspector = sa.inspect(op.get_bind())
+
     user_columns = {column["name"] for column in inspector.get_columns("users")}
     if "stripe_customer_id" not in user_columns:
         op.add_column(
@@ -50,9 +51,7 @@ def upgrade() -> None:
             ["game_id", "user_id", "move_number", "principle_id"],
         )
 
-    inspector = sa.inspect(op.get_bind())
     table_names = set(inspector.get_table_names())
-
     if "password_reset_tokens" not in table_names:
         op.create_table(
             "password_reset_tokens",
@@ -63,7 +62,6 @@ def upgrade() -> None:
                 sa.ForeignKey("users.id", ondelete="CASCADE"),
                 nullable=False,
             ),
-            # SHA-256 hex of the raw token; raw token only ever lives in the email
             sa.Column("token_hash", sa.Text(), nullable=False),
             sa.Column(
                 "expires_at",
@@ -82,24 +80,26 @@ def upgrade() -> None:
                 server_default=sa.func.now(),
             ),
         )
+        inspector = sa.inspect(op.get_bind())
 
-    inspector = sa.inspect(op.get_bind())
-    existing_indexes = {
+    password_reset_indexes = {
         idx["name"]
         for idx in inspector.get_indexes("password_reset_tokens")
     }
-    if "idx_prt_token_hash" not in existing_indexes:
+    if "idx_prt_token_hash" not in password_reset_indexes:
         op.create_index(
             "idx_prt_token_hash", "password_reset_tokens", ["token_hash"], unique=True
         )
-    if "idx_prt_user_id" not in existing_indexes:
+    if "idx_prt_user_id" not in password_reset_indexes:
         op.create_index("idx_prt_user_id", "password_reset_tokens", ["user_id"])
-    if "idx_prt_expires_at" not in existing_indexes:
+    if "idx_prt_expires_at" not in password_reset_indexes:
         op.create_index("idx_prt_expires_at", "password_reset_tokens", ["expires_at"])
 
 
 def downgrade() -> None:
-    op.drop_index("idx_prt_expires_at", table_name="password_reset_tokens")
-    op.drop_index("idx_prt_user_id", table_name="password_reset_tokens")
-    op.drop_index("idx_prt_token_hash", table_name="password_reset_tokens")
-    op.drop_table("password_reset_tokens")
+    """No-op.
+
+    This revision reconciles legacy schema drift after a duplicated revision ID
+    conflict. The parent revisions own the underlying tables, columns, and
+    indexes, so downgrading from 008 should leave the schema unchanged.
+    """

@@ -1,6 +1,6 @@
 """Add composite indexes for high-traffic game and lesson queries.
 
-Revision ID: 006
+Revision ID: 006a
 Revises: 005
 Create Date: 2026-05-07
 """
@@ -8,7 +8,7 @@ Create Date: 2026-05-07
 from alembic import op
 import sqlalchemy as sa
 
-revision = "006"
+revision = "006a"
 down_revision = "005"
 branch_labels = None
 depends_on = None
