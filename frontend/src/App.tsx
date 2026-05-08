@@ -338,6 +338,18 @@ export default function App() {
     }
   }, [reloadUser])
 
+  // After Stripe checkout success, reload user so is_premium reflects immediately
+  const [paymentSuccessMsg, setPaymentSuccessMsg] = useState('')
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('payment') === 'success') {
+      window.history.replaceState({}, '', window.location.pathname)
+      void reloadUser()
+      setPaymentSuccessMsg('You\'re now on Premium!')
+      setTimeout(() => setPaymentSuccessMsg(''), 5000)
+    }
+  }, [reloadUser])
+
   // Sync DB usernames → localStorage so AccountLink restores games on mount
   // after login (both OAuth and silent refresh), without requiring the user
   // to visit Settings first.
@@ -1354,6 +1366,9 @@ export default function App() {
       onNavigate={goToPage}
       hasMobileBanner={shouldShowMobileSponsor}
     >
+      {paymentSuccessMsg && (
+        <div className="payment-success-banner">{paymentSuccessMsg}</div>
+      )}
       <div className={[
         'app-view',
         isScrollPage ? 'app-view--page' : '',

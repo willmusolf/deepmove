@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     # Frontend URL (for OAuth redirects back to the app)
     frontend_url: str = "http://localhost:5173"
 
+    # Sentry
+    sentry_dsn: str = ""
+
+    # Stripe
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_id: str = ""
+
     # Feature flags
     coaching_enabled: bool = False
     trusted_proxy_depth: int = Field(default=1, ge=1)

@@ -8,6 +8,7 @@ export interface UserResponse {
   id: number
   email: string
   is_premium: boolean
+  subscription_status: string
   is_admin: boolean
   elo_estimate: number | null
   chesscom_username: string | null
