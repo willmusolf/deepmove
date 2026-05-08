@@ -14,6 +14,7 @@ import logging
 from datetime import UTC, date, datetime, timedelta
 
 import anthropic
+from anthropic.types import TextBlock
 from cachetools import LRUCache
 
 from app.config import settings
@@ -189,7 +190,13 @@ async def generate_lesson(coaching_request: dict) -> dict:
                 ),
                 timeout=15,
             )
-            lesson_text = message.content[0].text  # type: ignore[index]
+            lesson_text = next(
+                (block.text for block in message.content if isinstance(block, TextBlock)),
+                "",
+            )
+            if not lesson_text:
+                logger.warning("LLM response did not include a text block")
+                return build_fallback_result(coaching_request)
         except Exception:
             logger.exception("LLM lesson generation failed")
             return build_fallback_result(coaching_request)

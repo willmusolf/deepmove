@@ -24,6 +24,7 @@ import { detectCriticalMoments } from '../engine/criticalMoments'
 import { useGameStore } from '../stores/gameStore'
 import { saveAnalyzedGame } from '../services/gameDB'
 import { pushGame } from '../services/syncService'
+import { captureFrontendError } from '../services/monitoring'
 import { useAuthStore } from '../stores/authStore'
 
 export type EngineStatus = 'loading' | 'ready' | 'error'
@@ -58,7 +59,9 @@ export function useStockfish() {
         setEngineStatus('ready')
       })
       .catch(err => {
-        console.error('Stockfish init failed:', err)
+        captureFrontendError(err, {
+          tags: { hook: 'useStockfish', stage: 'initialize' },
+        })
         setEngineStatus('error')
       })
 
@@ -226,7 +229,12 @@ export function useStockfish() {
       if (state.currentGameId && state.currentGameMeta) {
         const gameRecord = buildRecord(results, false, moments)
         if (gameRecord) {
-          saveAnalyzedGame(gameRecord).catch(err => console.error('Failed to save game to IndexedDB:', err))
+          saveAnalyzedGame(gameRecord).catch(err => {
+            captureFrontendError(err, {
+              tags: { hook: 'useStockfish', stage: 'save_game' },
+              extra: { gameId: gameRecord.id },
+            })
+          })
 
           // Push to backend if user is authenticated
           const accessToken = useAuthStore.getState().accessToken
@@ -237,13 +245,20 @@ export function useStockfish() {
                   useGameStore.getState().setBackendGameId(backendId)
                 }
               })
-              .catch(err => console.error('Failed to push game to backend:', err))
+              .catch(err => {
+                captureFrontendError(err, {
+                  tags: { hook: 'useStockfish', stage: 'push_game' },
+                  extra: { gameId: gameRecord.id },
+                })
+              })
           }
         }
       }
     } catch (err) {
       if (controller.signal.aborted || analysisRunIdRef.current !== runId) return
-      console.error('Analysis failed:', err)
+      captureFrontendError(err, {
+        tags: { hook: 'useStockfish', stage: 'analyze_game' },
+      })
     } finally {
       if (progressFlushTimer) {
         clearTimeout(progressFlushTimer)

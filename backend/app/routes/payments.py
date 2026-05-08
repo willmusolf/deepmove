@@ -4,6 +4,7 @@ import logging
 import stripe
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
+from stripe._error import SignatureVerificationError
 
 from app.config import settings
 from app.dependencies import get_current_user, get_db
@@ -77,7 +78,7 @@ async def stripe_webhook(
         event = stripe.Webhook.construct_event(
             payload, stripe_signature or "", settings.stripe_webhook_secret
         )
-    except stripe.error.SignatureVerificationError:
+    except SignatureVerificationError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid signature")
 
     event_type = event["type"]

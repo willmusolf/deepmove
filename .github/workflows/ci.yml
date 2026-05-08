@@ -70,7 +70,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.13"
+          python-version-file: ".python-version"
           cache: "pip"
           cache-dependency-path: backend/requirements.txt
 
@@ -100,6 +100,9 @@ jobs:
 
       - name: Lint with ruff
         run: python -m ruff check app/ tests/
+
+      - name: Type-check with mypy
+        run: python -m mypy app/routes app/services
 
       - name: Run tests
         run: python -m pytest tests/ -v

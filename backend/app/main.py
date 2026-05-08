@@ -152,7 +152,7 @@ app.include_router(payments.router, prefix="/payments", tags=["payments"])
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 def health_check():
-    """Simple health check — used by Railway and monitoring."""
+    """Simple health check — used by Render and monitoring."""
     return {"status": "ok", "service": "deepmove-api"}
 
 

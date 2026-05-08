@@ -15,7 +15,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 logger = logging.getLogger(__name__)
 
 
-def get_db() -> Generator[Session, None, None]:
+def get_db() -> Generator[Session]:
     """Yield a database session, closing it after the request."""
     if SessionLocal is None:
         raise HTTPException(
