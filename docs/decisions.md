@@ -267,3 +267,16 @@ Raw centipawn-loss thresholds (ADR-011). Transparent and debuggable. 90% of the 
 **Full cache hit (depth ≥ 25):** `displayFen` effect returns early, no re-analysis.
 
 **Revert path:** Change `POSITION_MAX_DEPTH = 25` to `16` and restore `movetime 45000` in `stockfish.ts` dispatch.
+
+### ADR-029: Stripe-Hosted Checkout (No Client SDK)
+**Status:** Implemented (2026-05-08)
+
+**Decision:** Stripe subscription uses server-side session creation + Stripe-hosted checkout page. No `@stripe/stripe-js` frontend SDK. Billing portal for self-service management. Webhook-driven `is_premium` updates.
+
+**Rationale:** Stripe-hosted checkout handles PCI compliance, localization, SCA/3DS, and mobile UX out of the box. The frontend only calls `POST /payments/checkout` → receives a URL → redirects. This is ~200 lines of backend code vs a full Stripe.js integration. Billing portal gives subscribers self-service cancel/update without any custom UI.
+
+**Webhook events handled:** `checkout.session.completed` → `is_premium=True, subscription_status='active'`; `customer.subscription.deleted` → `is_premium=False, subscription_status='canceled'`; `invoice.payment_failed` → `subscription_status='past_due'` (no immediate premium revocation — grace period).
+
+**DB fields added (migration 006):** `stripe_customer_id TEXT UNIQUE`, `subscription_status TEXT DEFAULT 'none'`. `is_premium BOOLEAN` pre-existed.
+
+**Stripe env vars:** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID` (all default empty → 503 if unset, never 500).
