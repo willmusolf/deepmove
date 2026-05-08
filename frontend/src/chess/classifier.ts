@@ -332,25 +332,6 @@ export function buildAnalysisFacts(
   }
 }
 
-// Backward-compat export for hot-reload and any stale callers still importing the old helper.
-export function buildVerifiedFacts(
-  features: PositionFeatures,
-  moment: Pick<CriticalMoment, 'evalSwing' | 'moveNumber' | 'color' | 'movePlayed'> & { evalAfter?: number },
-  _principleId?: string | null,
-): string[] {
-  return buildAnalysisFacts(
-    features,
-    {
-      evalSwing: moment.evalSwing,
-      moveNumber: moment.moveNumber,
-      color: moment.color,
-      movePlayed: moment.movePlayed,
-      evalAfter: moment.evalAfter ?? -(moment.evalSwing ?? 0),  // rough proxy: assume started near 0
-    },
-    [],
-  ).factList
-}
-
 const PIECE_NAME_MAP: Record<string, string> = {
   p: 'Pawn', n: 'Knight', b: 'Bishop', r: 'Rook', q: 'Queen', k: 'King',
 }

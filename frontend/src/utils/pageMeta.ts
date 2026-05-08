@@ -10,6 +10,7 @@ const PAGE_PATHS: Record<Page, string> = {
   settings: '/settings',
   about: '/about',
   privacy: '/privacy',
+  'reset-password': '/reset-password',
 }
 
 const INDEXABLE_PAGES = new Set<Page>(['review', 'play', 'about', 'privacy'])
@@ -42,6 +43,10 @@ const PAGE_META: Record<Page, { title: string, description: string }> = {
   privacy: {
     title: 'DeepMove | Privacy Policy',
     description: 'Read the DeepMove privacy policy.',
+  },
+  'reset-password': {
+    title: 'DeepMove | Reset Password',
+    description: 'Set a new password for your DeepMove account.',
   },
 }
 

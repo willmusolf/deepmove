@@ -6,9 +6,11 @@ import logging
 import re
 import secrets
 import time
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
 
 import httpx
+import pydantic
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -16,9 +18,11 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.dependencies import get_current_user, get_db
 from app.logging_utils import client_ip_from_request, log_event
+from app.models.password_reset_token import PasswordResetToken
 from app.models.user import User
 from app.rate_limiting import limiter
 from app.schemas.user import AuthResponse, UserCreate, UserResponse
+from app.services.email import send_password_reset_email
 from app.utils.security import (
     create_access_token,
     create_refresh_token,
@@ -28,6 +32,11 @@ from app.utils.security import (
 )
 
 router = APIRouter()
+
+# Track consumed OAuth state nonces to prevent state token replay attacks.
+# Nonces are ~22 chars; at 1000 logins/day this uses ~22 KB/day. Resets on
+# restart (acceptable — HMAC still prevents forged tokens post-restart).
+_consumed_oauth_nonces: set[str] = set()
 logger = logging.getLogger(__name__)
 
 _PASSWORD_RE = re.compile(r"(?=.*[A-Za-z])(?=.*[0-9])")
@@ -121,6 +130,9 @@ def _parse_state_token(state: str, max_age: int = 600) -> tuple[str, int]:
         raise ValueError("bad signature")
     if int(time.time()) - int(ts) > max_age:
         raise ValueError("expired")
+    if nonce in _consumed_oauth_nonces:
+        raise ValueError("state_already_used")
+    _consumed_oauth_nonces.add(nonce)
     return verifier, int(uid) if uid.isdigit() else 0
 
 
@@ -332,13 +344,14 @@ async def logout(
 # ── OAuth routes ──────────────────────────────────────────────────────────────
 # Flow: GET /auth/{provider} → PKCE+state cookie set → redirect to provider
 #       → provider redirects to /auth/{provider}/callback?code=...&state=...
-#       → backend validates, exchanges code, finds/creates user, issues JWT pair
+#       → backend validates, exchanges code, finds/creates user, issues refresh cookie
 #       → redirect to {FRONTEND_URL}/?oauth_success=1 (refresh cookie set)
 #       → frontend detects param, sets dm_has_session, calls /auth/refresh
 
 
 @router.get("/google")
-async def google_login():
+@limiter.limit("20/minute")
+async def google_login(request: Request):
     """Redirect to Google OAuth authorization page."""
     if not settings.google_client_id:
         raise HTTPException(status_code=501, detail="Google OAuth not configured")
@@ -360,6 +373,7 @@ async def google_login():
 
 
 @router.get("/google/callback")
+@limiter.limit("20/minute")
 async def google_callback(
     request: Request,
     code: str,
@@ -427,14 +441,10 @@ async def google_callback(
             provider_id=profile["sub"],
             email=profile.get("email"),
         )
-        access = create_access_token(user.id, user.token_version)
         new_refresh = create_refresh_token(user.id, user.token_version)
         log_event(logger, logging.INFO, "auth.oauth.google_login", ip=ip, user_id=user.id)
 
-        # Pass access token via hash fragment so the frontend can log in immediately
-        # without depending on the redirect cookie reaching the browser.
-        # Refresh cookie is still set for future silent refreshes.
-        redirect_ok = RedirectResponse(f"{settings.frontend_url}/#at={access}", 302)
+        redirect_ok = RedirectResponse(f"{settings.frontend_url}/?oauth_success=1", 302)
         _set_refresh_cookie(redirect_ok, new_refresh)
         return redirect_ok
     except Exception as exc:
@@ -444,7 +454,8 @@ async def google_callback(
 
 
 @router.get("/lichess")
-async def lichess_login():
+@limiter.limit("20/minute")
+async def lichess_login(request: Request):
     """Redirect to Lichess OAuth authorization page."""
     if not settings.lichess_client_id:
         raise HTTPException(status_code=501, detail="Lichess OAuth not configured")
@@ -463,6 +474,7 @@ async def lichess_login():
 
 
 @router.get("/lichess/callback")
+@limiter.limit("20/minute")
 async def lichess_callback(
     request: Request,
     code: str,
@@ -540,11 +552,10 @@ async def lichess_callback(
             email=lichess_email,
             lichess_username=profile.get("username"),
         )
-        access = create_access_token(user.id, user.token_version)
         new_refresh = create_refresh_token(user.id, user.token_version)
         log_event(logger, logging.INFO, "auth.oauth.lichess_login", ip=ip, user_id=user.id)
 
-        redirect_ok = RedirectResponse(f"{settings.frontend_url}/#at={access}", 302)
+        redirect_ok = RedirectResponse(f"{settings.frontend_url}/?oauth_success=1", 302)
         _set_refresh_cookie(redirect_ok, new_refresh)
         return redirect_ok
     except Exception as exc:
@@ -554,7 +565,8 @@ async def lichess_callback(
 
 
 @router.get("/chesscom")
-async def chesscom_login():
+@limiter.limit("20/minute")
+async def chesscom_login(request: Request):
     """Chess.com does not offer a public OAuth system.
 
     Users can link their Chess.com account from account settings after signing in.
@@ -571,6 +583,7 @@ async def chesscom_login():
 # the signed state token so the callback knows whose account to stamp.
 
 @router.post("/google/link/start")
+@limiter.limit("10/minute")
 async def google_link_start(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -594,6 +607,7 @@ async def google_link_start(
 
 
 @router.post("/lichess/link/start")
+@limiter.limit("10/minute")
 async def lichess_link_start(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -613,3 +627,88 @@ async def lichess_link_start(
         "code_challenge": challenge,
     })
     return {"url": f"https://lichess.org/oauth?{params}"}
+
+
+# ── Password reset ────────────────────────────────────────────────────────────
+
+class _ForgotPasswordBody(pydantic.BaseModel):
+    email: str
+
+
+class _ResetPasswordBody(pydantic.BaseModel):
+    token: str
+    new_password: str
+
+
+@router.post("/forgot-password")
+@limiter.limit("3/minute")
+async def forgot_password(
+    request: Request,
+    body: _ForgotPasswordBody,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """Initiate a password reset. Always returns 200 to prevent email enumeration."""
+    ip = client_ip_from_request(request)
+    email = body.email.strip().lower()
+    user = db.query(User).filter(User.email == email).first()
+
+    # Always return the same response regardless of whether the user exists
+    _ok = {"message": "If an account with that email exists, a reset link has been sent."}
+
+    if user is None or user.hashed_password is None:
+        # No email/password account — silently succeed
+        log_event(logger, logging.INFO, "auth.forgot_password.no_account", email=email, ip=ip)
+        return _ok
+
+    # Invalidate any existing unused tokens for this user
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == user.id,
+        PasswordResetToken.used_at.is_(None),
+    ).delete(synchronize_session=False)
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    expires_at = datetime.now(UTC) + timedelta(minutes=settings.password_reset_expire_minutes)
+
+    db.add(PasswordResetToken(user_id=user.id, token_hash=token_hash, expires_at=expires_at))
+    db.commit()
+
+    send_password_reset_email(user.email, raw_token)
+    log_event(logger, logging.INFO, "auth.forgot_password.sent", email=email, ip=ip)
+    return _ok
+
+
+@router.post("/reset-password")
+@limiter.limit("5/minute")
+async def reset_password(
+    request: Request,
+    body: _ResetPasswordBody,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """Complete a password reset using the token from the email link."""
+    ip = client_ip_from_request(request)
+    _validate_password(body.new_password)
+
+    token_hash = hashlib.sha256(body.token.encode()).hexdigest()
+    token_row = db.query(PasswordResetToken).filter(
+        PasswordResetToken.token_hash == token_hash
+    ).first()
+
+    if (
+        token_row is None
+        or token_row.used_at is not None
+        or token_row.expires_at.replace(tzinfo=UTC) < datetime.now(UTC)
+    ):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link.")
+
+    user = db.query(User).filter(User.id == token_row.user_id).first()
+    if user is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link.")
+
+    user.hashed_password = hash_password(body.new_password)
+    user.token_version += 1  # invalidate all existing sessions
+    token_row.used_at = datetime.now(UTC)
+    db.commit()
+
+    log_event(logger, logging.INFO, "auth.reset_password.success", user_id=user.id, ip=ip)
+    return {"message": "Password reset successfully. You can now log in with your new password."}

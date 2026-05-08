@@ -3065,6 +3065,19 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
 .auth-oauth-btn:hover { background: rgba(255,255,255,0.12); }
 
+.auth-forgot {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #aaa);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 2px 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  align-self: flex-start;
+}
+.auth-forgot:hover { color: #fff; }
+
 /* ── User Menu (sidebar) ──────────────────────────────────────────────────── */
 
 .nav-spacer { flex: 1; }

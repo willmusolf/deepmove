@@ -134,7 +134,7 @@ async def request_id_middleware(request: Request, call_next):
     response.headers.setdefault("Content-Security-Policy", "default-src 'none'")
     # Hide server implementation details
     response.headers["Server"] = "deepmove"
-    if settings.environment == "production":
+    if settings.environment in ("production", "staging"):
         response.headers.setdefault(
             "Strict-Transport-Security",
             "max-age=31536000; includeSubDomains; preload",
