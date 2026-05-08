@@ -485,6 +485,7 @@ export default function App() {
   const navHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // When true, the next displayFen change is from a piece move — skip the 180ms deferral
   const isPieceMoveRef = useRef(false)
+  const playBestLineMoveRef = useRef<(uci: string) => boolean>(() => false)
 
   function triggerPositionAnalysis(fen: string, depth = POSITION_MAX_DEPTH) {
     // NOTE: callers are responsible for calling stopPositionAnalysis() before this.
@@ -1213,12 +1214,8 @@ export default function App() {
     navigateTo(path)
   }
 
-  // Enter first move of a best line (clicked in BestLines panel or via arrow).
-  // In game review mode: plays into the game's variation tree (same as dragging the piece).
-  // In sandbox mode: plays into the free-play analysis tree.
-  function handleAnalysisBestLineClick(line: TopLine) {
-    const uci = line.pv[0]
-    if (!uci || uci.length < 4) return
+  function playBestLineUci(uci: string): boolean {
+    if (!uci || uci.length < 4) return false
     const from = uci.slice(0, 2)
     const to = uci.slice(2, 4)
     const promotion = uci.length === 5 ? uci[4] : undefined
@@ -1227,16 +1224,16 @@ export default function App() {
       // Game review mode — delegate to handleBoardMove which handles main-line advance vs branch
       const chess = new Chess(currentFen)
       const result = chess.move({ from, to, promotion })
-      if (!result) return
-      playMoveSound(result.san)
+      if (!result) return false
       isPieceMoveRef.current = true
       pathKeyRef.current++
       handleBoardMove(from, to, result.san, chess.fen())
+      return true
     } else {
       // Sandbox/free-play mode
       const chess = new Chess(analysisFen)
       const result = chess.move({ from, to, promotion })
-      if (!result) return
+      if (!result) return false
       playMoveSound(result.san)
       pathKeyRef.current++
       const parentFen = analysisFen
@@ -1248,6 +1245,25 @@ export default function App() {
         void evaluateBranchMove(nodeId, parentFen, newFen)
       }
       if (panelTab !== 'coach') setPanelTab('analysis')
+      return true
+    }
+  }
+
+  playBestLineMoveRef.current = playBestLineUci
+
+  // Enter first move of a best line (clicked in BestLines panel or via arrow).
+  function handleAnalysisBestLineClick(line: TopLine) {
+    void playBestLineMoveRef.current(line.pv[0] ?? '')
+  }
+
+  async function handleAnalysisBestLineMoveClick(line: TopLine, plyCount: number) {
+    const sequence = line.pv.slice(0, plyCount)
+    for (let i = 0; i < sequence.length; i += 1) {
+      const moved = playBestLineMoveRef.current(sequence[i])
+      if (!moved) break
+      if (i < sequence.length - 1) {
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      }
     }
   }
 
@@ -1799,6 +1815,7 @@ export default function App() {
                           lines={visibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
                           onLineClick={handleAnalysisBestLineClick}
+                          onLineMoveClick={handleAnalysisBestLineMoveClick}
                           fen={displayFen}
                         />
                       )}
@@ -2092,6 +2109,7 @@ export default function App() {
                         lines={visibleLines}
                         isAnalyzingPosition={isAnalyzingPosition}
                         onLineClick={handleAnalysisBestLineClick}
+                        onLineMoveClick={handleAnalysisBestLineMoveClick}
                         fen={displayFen}
                       />
 

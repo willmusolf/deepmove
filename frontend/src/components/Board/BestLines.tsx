@@ -10,6 +10,7 @@ interface BestLinesProps {
   lines: TopLine[]
   isAnalyzingPosition: boolean
   onLineClick: (line: TopLine) => void
+  onLineMoveClick: (line: TopLine, plyCount: number) => void
   fen: string
 }
 
@@ -59,13 +60,38 @@ function formatScore(line: TopLine): string {
   return formatEval(line.score, line.isMate, line.mateIn)
 }
 
-export default function BestLines({ lines, isAnalyzingPosition, onLineClick, fen }: BestLinesProps) {
+function buildPvTokens(fen: string, sans: string[], maxMoves = 8): Array<{ text: string; plyCount: number | null; key: string }> {
+  const parts = fen.split(' ')
+  let moveNum = parseInt(parts[5] ?? '1', 10)
+  let isWhite = parts[1] === 'w'
+  const tokens: Array<{ text: string; plyCount: number | null; key: string }> = []
+
+  for (let i = 0; i < Math.min(sans.length, maxMoves); i += 1) {
+    if (isWhite) {
+      tokens.push({ text: `${moveNum}.`, plyCount: null, key: `mn-${i}` })
+    } else if (i === 0) {
+      tokens.push({ text: `${moveNum}...`, plyCount: null, key: `mn-${i}` })
+    }
+
+    tokens.push({ text: sans[i], plyCount: i + 1, key: `san-${i}` })
+
+    if (!isWhite) moveNum += 1
+    isWhite = !isWhite
+  }
+
+  return tokens
+}
+
+export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onLineMoveClick, fen }: BestLinesProps) {
   const visibleLines = lines.slice(0, MAX_LINES)
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
-  const pvNotations = useMemo(
+  const pvData = useMemo(
     () => visibleLines.map(line => {
       const sans = pvToSans(fen, line.pv)
-      return formatPvNotation(fen, sans)
+      return {
+        notation: formatPvNotation(fen, sans),
+        tokens: buildPvTokens(fen, sans),
+      }
     }),
     [fen, visibleLines],
   )
@@ -75,7 +101,7 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, fen
   }, [fen])
 
   const expandedLine = expandedIndex !== null ? visibleLines[expandedIndex] : null
-  const expandedNotation = expandedIndex !== null ? (pvNotations[expandedIndex] || expandedLine?.san || '') : ''
+  const expandedTokens = expandedIndex !== null ? (pvData[expandedIndex]?.tokens ?? []) : []
 
   return (
     <div className="best-lines">
@@ -97,7 +123,7 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, fen
               title="Click to explore this line"
             >
               <span className="best-line-dot" style={{ background: LINE_COLORS[i] ?? LINE_COLORS[0] }} />
-              <span className="best-line-pv">{pvNotations[i] || line.san}</span>
+              <span className="best-line-pv">{pvData[i]?.notation || line.san}</span>
             </button>
             <button
               type="button"
@@ -117,26 +143,34 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, fen
       )}
       {expandedLine && (
         <div className="best-lines-overlay" role="dialog" aria-label="Full best line">
-          <div className="best-lines-overlay__header">
-            <span className="best-line-dot" style={{ background: LINE_COLORS[expandedIndex ?? 0] ?? LINE_COLORS[0] }} />
-            <span className="best-lines-overlay__title">Line {expandedLine.rank}</span>
-            <button
-              type="button"
-              className="best-lines-overlay__close"
-              onClick={() => setExpandedIndex(null)}
-              aria-label="Close full line"
-            >
-              ×
-            </button>
-          </div>
           <button
             type="button"
-            className="best-lines-overlay__body"
-            title="Full line"
+            className="best-lines-overlay__close"
+            onClick={() => setExpandedIndex(null)}
+            aria-label="Close full line"
           >
-            <span className="best-lines-overlay__pv">{expandedNotation}</span>
-            <span className="best-lines-overlay__eval">{formatScore(expandedLine)}</span>
+            ×
           </button>
+          <div className="best-lines-overlay__body">
+            <span className="best-lines-overlay__pv">
+              {expandedTokens.map(token => (
+                token.plyCount === null ? (
+                  <span key={token.key} className="best-lines-overlay__move-num">{token.text}</span>
+                ) : (
+                  <button
+                    key={token.key}
+                    type="button"
+                    className="best-lines-overlay__move"
+                    onClick={() => onLineMoveClick(expandedLine, token.plyCount!)}
+                    title={`Go to ${token.text}`}
+                  >
+                    {token.text}
+                  </button>
+                )
+              ))}
+            </span>
+            <span className="best-lines-overlay__eval">{formatScore(expandedLine)}</span>
+          </div>
         </div>
       )}
     </div>
