@@ -4,8 +4,8 @@ Everything you need to get from zero to a running dev environment.
 
 ## Prerequisites
 
-- Node.js 20+ (`node --version`)
-- Python 3.11+ (`python3 --version`)
+- Node.js 20.20.2 (`node --version`)
+- Python 3.13.7 (`python3 --version`)
 - A text editor (VS Code recommended)
 
 No Docker required.
@@ -38,7 +38,7 @@ This runs `npm install` in `frontend/` and `pip install -r requirements.txt` in 
 
 ```bash
 # Backend
-cp .env.example backend/.env
+cp backend/.env.example backend/.env
 # Edit backend/.env and fill in:
 #   ANTHROPIC_API_KEY=sk-ant-...
 #   DATABASE_URL=postgresql://... (from Neon step 3)
@@ -68,8 +68,11 @@ make dev-frontend
 ## Step 6: Verify everything works
 
 ```bash
-make typecheck    # Should pass with 0 errors
-make test         # Should pass (basic smoke tests)
+make typecheck           # Frontend TypeScript
+make typecheck-backend   # Backend mypy
+make verify-migrations   # Alembic graph sanity check
+make test-frontend       # Frontend tests
+make test-backend-smoke  # Safe backend smoke tests (no DB required)
 ```
 
 Open http://localhost:5173 — you should see the DeepMove placeholder page.
@@ -86,10 +89,27 @@ This happens automatically in Claude Code — no action needed.
 make dev-frontend    # Vite dev server (:5173)
 make dev-backend     # FastAPI server (:8000)
 make typecheck       # TypeScript check
-make test            # All tests
+make typecheck-backend  # Backend mypy check
+make verify-migrations  # Alembic graph check
+make test-frontend      # Frontend tests
+make test-backend       # Full backend tests (requires TEST_DATABASE_URL)
+make test-backend-smoke # Backend non-DB smoke tests only
 make test-chess      # Chess logic tests only (use during Track B)
 make lint            # Frontend + backend lint
 make build           # Production build
+```
+
+### Running full backend DB tests locally
+
+The DB-backed pytest suite only runs when `TEST_DATABASE_URL` is set explicitly.
+This is intentional so you cannot accidentally point pytest at a dev, staging,
+or production database through a generic `DATABASE_URL`.
+
+Example:
+
+```bash
+export TEST_DATABASE_URL=postgresql://test:test@localhost:5432/deepmove_test
+make test-backend
 ```
 
 ## Project structure
