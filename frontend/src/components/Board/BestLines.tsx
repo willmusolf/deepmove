@@ -72,7 +72,7 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, fen
 
   useEffect(() => {
     setExpandedIndex(null)
-  }, [fen, lines])
+  }, [fen])
 
   const expandedLine = expandedIndex !== null ? visibleLines[expandedIndex] : null
   const expandedNotation = expandedIndex !== null ? (pvNotations[expandedIndex] || expandedLine?.san || '') : ''
@@ -132,8 +132,7 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, fen
           <button
             type="button"
             className="best-lines-overlay__body"
-            onClick={() => onLineClick(expandedLine)}
-            title="Click to explore this line"
+            title="Full line"
           >
             <span className="best-lines-overlay__pv">{expandedNotation}</span>
             <span className="best-lines-overlay__eval">{formatScore(expandedLine)}</span>

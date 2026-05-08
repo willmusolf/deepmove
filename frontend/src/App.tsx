@@ -454,6 +454,20 @@ export default function App() {
   const loadedGameKey = isLoaded ? (currentGameId ?? pgn ?? '__loaded-game__') : null
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
+  function mergeStreamingTopLines(incoming: TopLine[]): TopLine[] {
+    if (incoming.length === 0) return incoming
+    const existing = useGameStore.getState().currentPositionLines
+    if (existing.length <= incoming.length) return incoming
+
+    const mergedByRank = new Map<number, TopLine>()
+    for (const line of existing) mergedByRank.set(line.rank, line)
+    for (const line of incoming) mergedByRank.set(line.rank, line)
+
+    return Array.from(mergedByRank.values())
+      .sort((a, b) => a.rank - b.rank)
+      .slice(0, existing.length)
+  }
+
   // Opening name — detected from move sequence in both modes
   const [openingName, setOpeningName] = useState<string | null>(null)
 
@@ -502,9 +516,10 @@ export default function App() {
     analyzePositionLines(fen, depth, numLines, (lines, d) => {
       if (positionTokenRef.current !== token) return
       if (d <= resumeFromDepth) return  // skip already-seen depths
-      setCurrentPositionLines(lines)
+      const stableLines = mergeStreamingTopLines(lines)
+      setCurrentPositionLines(stableLines)
       setCurrentAnalysisDepth(d)
-      if (lines.length > 0) positionCache.current.set(fen, lines)
+      if (stableLines.length > 0) positionCache.current.set(fen, stableLines)
     })
       .then(lines => {
         if (positionTokenRef.current !== token) return
@@ -1808,6 +1823,7 @@ export default function App() {
                           blackName={blackPlayer}
                           whiteElo={whiteElo}
                           blackElo={blackElo}
+                          result={gameResult}
                         />
                       )}
 

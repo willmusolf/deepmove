@@ -1993,7 +1993,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   gap: 2px;
   height: 66px;  /* 2 rows × 32px + 2px gap */
   flex-shrink: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .best-line-row {
