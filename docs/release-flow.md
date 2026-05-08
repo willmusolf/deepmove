@@ -8,19 +8,18 @@ DeepMove uses:
 
 ### Current recommended flow
 
-1. Open a branch for each change.
-2. Open a PR into `main`.
+1. Open a branch for each change (branch from clean `main`).
+2. Open a PR from the feature branch into `staging` first.
 3. Let GitHub Actions run:
    - `Frontend — TypeCheck + Test + Build`
    - `Backend — Lint + Test`
-4. Merge only after checks pass.
-5. After merge:
+4. Merge only after checks pass. Verify on staging.
+5. After staging verification, open a PR from `staging` into `main` and merge.
    - Vercel should auto-deploy the frontend from `main`
    - GitHub Actions should trigger the Render backend deploy hook, but only when backend files changed
    - GitHub Actions should run a small production smoke check against `deepmove.io` and `api.deepmove.io/health`
    - GitHub Actions should fast-forward `staging` to the merged `main` commit when `staging` is already an ancestor of that commit
-6. For staging:
-   - merge or push to `staging`
+6. Staging deploys happen automatically on step 2 merge:
    - GitHub Actions should trigger the staging Render deploy hook, but only when backend files changed
    - GitHub Actions should run a staging smoke check against `staging-api.deepmove.io/health/deep`
 
