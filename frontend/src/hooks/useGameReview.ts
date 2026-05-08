@@ -402,6 +402,7 @@ export function useGameReview() {
     currentPath,
     currentFen,
     currentMoveIndex,
+    pathDepth: currentPath.length,
     goToMove,
     goForward,
     goBack,
