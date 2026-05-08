@@ -16,7 +16,7 @@ interface BestLinesProps {
 
 const MAX_LINES = 2
 const COLLAPSED_MAX_PLIES = 10
-const EXPANDED_MAX_PLIES = 16
+const EXPANDED_MAX_PLIES = 12
 const LINE_COLORS = ['#4ade80', '#60a5fa', '#facc15']  // green, blue, yellow
 
 function pvToSans(fen: string, pv: string[]): string[] {
