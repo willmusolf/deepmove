@@ -1,6 +1,6 @@
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
@@ -10,3 +10,12 @@ ignore = ["E501"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.mypy]
+python_version = "3.13"
+files = ["app/routes", "app/services"]
+ignore_missing_imports = true
+check_untyped_defs = true
+pretty = true
+show_error_codes = true
+warn_unused_configs = true

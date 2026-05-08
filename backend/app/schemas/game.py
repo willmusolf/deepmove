@@ -1,7 +1,7 @@
 """game.py — Pydantic schemas for game API"""
 import json
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -20,8 +20,8 @@ class GameCreate(BaseModel):
     result: Literal["W", "L", "D"] | None = None
     time_control: str | None = Field(default=None, max_length=20)
     end_time: int | None = Field(default=None, ge=0)  # unix ms
-    move_evals: list[dict] | None = Field(default=None, max_length=MAX_JSON_ITEMS)
-    critical_moments: list[dict] | None = Field(default=None, max_length=20)
+    move_evals: list[dict[str, Any]] | None = Field(default=None, max_length=MAX_JSON_ITEMS)
+    critical_moments: list[dict[str, Any]] | None = Field(default=None, max_length=20)
     analyzed_at: datetime | None = None
 
     @field_validator("pgn")
@@ -33,7 +33,10 @@ class GameCreate(BaseModel):
 
     @field_validator("move_evals", "critical_moments")
     @classmethod
-    def validate_json_payload_size(cls, value: list[dict] | None) -> list[dict] | None:
+    def validate_json_payload_size(
+        cls,
+        value: list[dict[str, Any]] | None,
+    ) -> list[dict[str, Any]] | None:
         if value is None:
             return value
         for item in value:
@@ -57,8 +60,8 @@ class GameResponse(BaseModel):
     result: str | None
     time_control: str | None
     end_time: int | None
-    move_evals: list | None
-    critical_moments: list | None
+    move_evals: list[dict[str, Any]] | None
+    critical_moments: list[dict[str, Any]] | None
     analyzed_at: datetime | None
     created_at: datetime
 
@@ -84,11 +87,11 @@ class GameListResponse(BaseModel):
 
 
 class SyncStatusRequest(BaseModel):
-    games: list[dict] = Field(max_length=200)  # [{ platform_game_id, analyzedAt }]
+    games: list[dict[str, Any]] = Field(max_length=200)  # [{ platform_game_id, analyzedAt }]
 
     @field_validator("games")
     @classmethod
-    def validate_games(cls, value: list[dict]) -> list[dict]:
+    def validate_games(cls, value: list[dict[str, Any]]) -> list[dict[str, Any]]:
         for item in value:
             platform_game_id = item.get("platform_game_id")
             if platform_game_id is not None and (

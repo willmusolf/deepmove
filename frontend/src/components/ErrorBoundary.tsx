@@ -1,9 +1,16 @@
 import React from 'react'
+import { captureFrontendError } from '../services/monitoring'
 
 interface State { hasError: boolean }
 
+interface ErrorBoundaryProps {
+  boundaryName?: string
+  fallback?: React.ReactNode
+  resetKey?: string | number
+}
+
 export default class ErrorBoundary extends React.Component<
-  React.PropsWithChildren<{ fallback?: React.ReactNode }>,
+  React.PropsWithChildren<ErrorBoundaryProps>,
   State
 > {
   state: State = { hasError: false }
@@ -12,8 +19,17 @@ export default class ErrorBoundary extends React.Component<
     return { hasError: true }
   }
 
+  componentDidUpdate(prevProps: Readonly<React.PropsWithChildren<ErrorBoundaryProps>>) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false })
+    }
+  }
+
   componentDidCatch(error: unknown, info: React.ErrorInfo) {
-    console.error('[ErrorBoundary]', error, info.componentStack)
+    captureFrontendError(error, {
+      tags: { boundary: this.props.boundaryName ?? 'unknown' },
+      extra: { componentStack: info.componentStack },
+    })
   }
 
   render() {

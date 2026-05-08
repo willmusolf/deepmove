@@ -95,6 +95,31 @@ interface AppUiState {
 const TOUCH_NAV_REPEAT_DELAY_MS = 220
 const TOUCH_NAV_REPEAT_INTERVAL_MS = 110
 
+function renderBoundaryFallback(title: string, message: string) {
+  return (
+    <div
+      role="alert"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '14rem',
+        gap: '0.75rem',
+        padding: '1.5rem',
+        textAlign: 'center',
+        color: '#d9dde8',
+      }}
+    >
+      <strong>{title}</strong>
+      <span>{message}</span>
+      <button className="btn btn-secondary" onClick={() => window.location.reload()}>
+        Reload
+      </button>
+    </div>
+  )
+}
+
 function useTouchHoldNavigate(
   onStep: () => void,
   disabled: boolean,
@@ -1361,6 +1386,8 @@ export default function App() {
   // those pages until we replace them with a zoom-safe mobile treatment.
   const shouldShowMobileSponsor = !isFixedLayoutPage && !isPremium && mobileBannerAdEnabled && mobileSponsorPage !== null
   const shouldShowUtilityRail = isFixedLayoutPage && desktopRailPage !== null && !shouldShowDesktopRail && canShowUtilityRail
+  const reviewBoundaryKey = `${currentGameId ?? 'sandbox'}:${panelTab}:${importTab}:${isLoaded ? 'loaded' : 'sandbox'}`
+  const boardBoundaryKey = `${reviewBoundaryKey}:${orientation}`
 
   return (
     <ResponsiveLayout
@@ -1383,6 +1410,14 @@ export default function App() {
         ].filter(Boolean).join(' ')}>
           {currentPage === 'review' && (
             <>
+              <ErrorBoundary
+                boundaryName="review-board"
+                resetKey={boardBoundaryKey}
+                fallback={renderBoundaryFallback(
+                  'Board unavailable',
+                  'The board view hit a problem. Reload or open another game to continue reviewing.',
+                )}
+              >
               <div className="board-col">
                 {/* board-with-eval wraps eval bar + the full board column (player boxes + board)
                     so the eval bar spans the full height and all left/right edges align */}
@@ -1667,6 +1702,7 @@ export default function App() {
                   <div className="opening-label">{openingName}</div>
                 )}
               </div>
+              </ErrorBoundary>
 
               {/* ── Right panel ─────────────────────────────────────── */}
               <div className="side-col">
@@ -1694,6 +1730,22 @@ export default function App() {
                 </div>
 
                 <div className="side-panel-content">
+                  <ErrorBoundary
+                    boundaryName={`review-panel-${panelTab}`}
+                    resetKey={reviewBoundaryKey}
+                    fallback={renderBoundaryFallback(
+                      panelTab === 'load'
+                        ? 'Import unavailable'
+                        : panelTab === 'coach'
+                          ? 'Coach unavailable'
+                          : 'Analysis unavailable',
+                      panelTab === 'load'
+                        ? 'The import panel crashed. Switch tabs or reload to try again.'
+                        : panelTab === 'coach'
+                          ? 'The coaching panel crashed. Your game is still loaded and the board is safe.'
+                          : 'The analysis panel crashed. Switch tabs or reload to recover it.',
+                    )}
+                  >
                   {panelTab === 'analysis' && isLoaded && (
                     <>
                       {/* Engine / analyzing status */}
@@ -2057,6 +2109,7 @@ export default function App() {
                       )}
                     </>
                   )}
+                  </ErrorBoundary>
                 </div>
               </div>
               {shouldShowDesktopRail && (
@@ -2120,7 +2173,14 @@ export default function App() {
             <ResetPasswordPage onDone={() => goToPage('review')} />
           )}
           {currentPage === 'play' && (
-            <ErrorBoundary>
+            <ErrorBoundary
+              boundaryName="play-page"
+              resetKey={currentPage}
+              fallback={renderBoundaryFallback(
+                'Play page unavailable',
+                'The bot play board crashed. Reload to start a new game.',
+              )}
+            >
               <BotPlayPage
                 onNavigateToReview={() => goToPage('review')}
               />

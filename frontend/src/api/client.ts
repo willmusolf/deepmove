@@ -11,6 +11,7 @@ class ApiError extends Error {
     public status: number,
     message: string,
     public detail?: unknown,
+    public requestId?: string,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -18,6 +19,17 @@ class ApiError extends Error {
 }
 
 type RequestOptions = RequestInit & { timeoutMs?: number }
+const CONNECTION_ERROR_MESSAGE = 'Could not connect to the server — check your internet connection'
+
+function isRetryableConnectionError(error: unknown): error is ApiError {
+  return error instanceof ApiError
+    && error.status === 0
+    && error.message === CONNECTION_ERROR_MESSAGE
+}
+
+async function sleep(delayMs: number): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, delayMs))
+}
 
 async function fetchWithTimeout(
   url: string,
@@ -44,7 +56,7 @@ async function fetchWithTimeout(
       }
       throw new ApiError(0, 'Request timed out — the server took too long to respond')
     }
-    throw new ApiError(0, 'Could not connect to the server — check your internet connection')
+    throw new ApiError(0, CONNECTION_ERROR_MESSAGE)
   } finally {
     clearTimeout(timer)
   }
@@ -61,7 +73,17 @@ async function request<T>(path: string, options?: RequestOptions): Promise<T> {
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const res = await fetchWithTimeout(`${API_BASE}${path}`, options ?? {}, headers)
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${API_BASE}${path}`, options ?? {}, headers)
+  } catch (err) {
+    if (!isRetryableConnectionError(err)) {
+      throw err
+    }
+
+    await sleep(500)
+    res = await fetchWithTimeout(`${API_BASE}${path}`, options ?? {}, headers)
+  }
 
   // On 401, try to refresh and retry once
   if (res.status === 401 && token) {
@@ -77,6 +99,7 @@ async function request<T>(path: string, options?: RequestOptions): Promise<T> {
             retry.status,
             getErrorMessage(body, retry.status),
             body.detail ?? body,
+            retry.headers.get('X-Request-ID') ?? undefined,
           )
         }
         return retry.json() as Promise<T>
@@ -94,6 +117,7 @@ async function request<T>(path: string, options?: RequestOptions): Promise<T> {
       res.status,
       getErrorMessage(body, res.status),
       body.detail ?? body,
+      res.headers.get('X-Request-ID') ?? undefined,
     )
   }
   return res.json() as Promise<T>

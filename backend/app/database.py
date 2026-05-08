@@ -1,11 +1,13 @@
 """database.py — SQLAlchemy engine and session setup"""
-from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy import Engine, create_engine
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import QueuePool
 
 from app.config import settings
 
 Base = declarative_base()
+engine: Engine | None
+SessionLocal: sessionmaker[Session] | None
 
 def _psycopg3_url(url: str) -> str:
     """Rewrite postgresql:// to postgresql+psycopg:// to use psycopg3 (not psycopg2)."""
@@ -28,4 +30,4 @@ if settings.database_url:
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 else:
     engine = None
-    SessionLocal = None  # type: ignore[assignment]
+    SessionLocal = None

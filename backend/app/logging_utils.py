@@ -60,6 +60,7 @@ class DevelopmentFormatter(logging.Formatter):
 def configure_logging(environment: str) -> None:
     handler = logging.StreamHandler()
     handler.addFilter(RequestContextFilter())
+    formatter: logging.Formatter
 
     if environment == "production":
         formatter = JsonFormatter(
