@@ -224,6 +224,7 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
       setAdminErr('')
       setAdminMsg('')
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.is_admin])
 
   async function handleSetCoachingEnabled(enabled: boolean) {
