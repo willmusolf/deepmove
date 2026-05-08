@@ -148,9 +148,11 @@ export function useBotPlay(onNavigateToReview: () => void) {
   const clockRafRef = useRef<number | null>(null)
   const lastTickRef = useRef<number>(0)
   const [botEngineReady, setBotEngineReady] = useState(false)
+  const botEngineReadyRef = useRef(false)
   const [premoveSnapToken, setPremoveSnapToken] = useState(0)
   const playStatus = usePlayStore(s => s.status)
   const clockRunning = usePlayStore(s => s.clockRunning)
+  const isBotThinking = usePlayStore(s => s.isBotThinking)
 
   // ── Virtual board FEN ──────────────────────────────────────────────────────
   // The FEN passed to ChessBoard — real position with all queued premoves applied.
@@ -222,22 +224,54 @@ export function useBotPlay(onNavigateToReview: () => void) {
     const engine = new StockfishEngine()
     botEngineRef.current = engine
     engine.initialize().then(() => {
+      botEngineReadyRef.current = true
       setBotEngineReady(true)
-      // If we remounted while a game was in progress (e.g. tab switch),
-      // re-trigger the bot if it was thinking
-      const state = store.getState()
-      if (state.status === 'playing' && state.isBotThinking) {
-        store.getState().setIsBotThinking(false)
-        scheduleBotMove(state.currentFen)
-      }
+      // Session restore is handled by the safety-net useEffect below —
+      // when botEngineReady becomes true and it's the bot's turn, the
+      // effect triggers scheduleBotMove automatically.
     }).catch(console.error)
 
     return () => {
       cancelClockRaf()
+      botEngineReadyRef.current = false
       engine.terminate()
       botEngineRef.current = null
     }
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Safety net: recover when the bot should move but nothing is happening ─
+  // If the normal chain (handleBoardMove → scheduleBotMove) breaks for any
+  // reason (zoom interruption, engine hang, session restore, etc.), this
+  // effect detects the inconsistency and re-triggers the bot after a delay.
+  const safetyNetRetryRef = useRef(0)
+  const SAFETY_NET_MAX_RETRIES = 3
+
+  useEffect(() => {
+    if (playStatus !== 'playing') { safetyNetRetryRef.current = 0; return }
+    if (!botEngineReady) return
+    if (isBotThinking) { safetyNetRetryRef.current = 0; return }
+
+    const state = store.getState()
+    if (!state.config) return
+    const turnColor = state.currentFen.split(' ')[1] === 'w' ? 'white' : 'black'
+    if (turnColor === state.config.userColor) return  // user's turn — nothing to do
+
+    // It's the bot's turn but bot isn't thinking. Delay to avoid racing with
+    // the normal chain (which sets isBotThinking=true synchronously).
+    if (safetyNetRetryRef.current >= SAFETY_NET_MAX_RETRIES) return
+
+    const timerId = setTimeout(() => {
+      const s = store.getState()
+      if (s.status !== 'playing' || s.isBotThinking) return
+      const tc = s.currentFen.split(' ')[1] === 'w' ? 'white' : 'black'
+      if (tc === s.config?.userColor) return
+
+      safetyNetRetryRef.current++
+      scheduleBotMove(s.currentFen)
+    }, 500)
+
+    return () => clearTimeout(timerId)
+  }, [playStatus, isBotThinking, currentFen, botEngineReady]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Clock RAF loop ───────────────────────────────────────────────────────
   const startClockRaf = useCallback(() => {
@@ -381,7 +415,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
   // ── Bot move ─────────────────────────────────────────────────────────────
   const scheduleBotMove = useCallback(async (fen: string) => {
     const state = store.getState()
-    if (!botEngineRef.current || state.status !== 'playing') return
+    if (!botEngineRef.current || !botEngineReadyRef.current || state.status !== 'playing') return
 
     state.setIsBotThinking(true)
     const botMoveStart = performance.now()
@@ -395,9 +429,15 @@ export function useBotPlay(onNavigateToReview: () => void) {
     const config = store.getState().config!
     const movetime = getBotMovetime(config.timeControl)
 
+    const BOT_MOVE_TIMEOUT_MS = 15_000
     let uci: string
     try {
-      uci = await botEngineRef.current.getBotMove(fen, config.botElo, movetime)
+      uci = await Promise.race([
+        botEngineRef.current.getBotMove(fen, config.botElo, movetime),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Bot move timed out')), BOT_MOVE_TIMEOUT_MS)
+        ),
+      ])
     } catch (e) {
       console.error('Bot move failed', e)
       store.getState().setIsBotThinking(false)
@@ -564,6 +604,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
     cancelClockRaf()
     cancelPremoveQueue()
     isProcessingMoveRef.current = false
+    safetyNetRetryRef.current = 0
     positionCountsRef.current = new Map([[getPositionKey(STARTING_FEN), 1]])
     store.getState().startGame(config)
 
