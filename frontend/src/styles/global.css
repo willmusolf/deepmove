@@ -36,6 +36,18 @@ body {
   line-height: 1.6;
 }
 
+button,
+input,
+select,
+textarea,
+a,
+label,
+summary,
+.nav-item,
+.nav-logo {
+  touch-action: manipulation;
+}
+
 /* ── App shell — fixed full-viewport layout ───────────────────────────── */
 .app {
   height: 100vh;
@@ -346,6 +358,16 @@ html.theme-light body {
 /* Offset body content when banner is visible */
 @media (max-width: 767px) {
   .app-content { padding-bottom: 0; }
+
+  .app-footer {
+    padding: 0.6rem 0.75rem;
+    gap: 0.7rem;
+  }
+
+  .app-footer__link {
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
 }
 
 /* ── App footer (privacy link etc.) ────────────────────────────────────── */
@@ -441,6 +463,16 @@ html.theme-light body {
   margin-bottom: 0.6rem;
 }
 
+.about-page a,
+.privacy-page a {
+  color: var(--color-accent, #4a9eff);
+}
+
+.about-page a:hover,
+.privacy-page a:hover {
+  color: var(--color-accent-hover, #6ab4ff);
+}
+
 .about-page h3,
 .privacy-page h3 {
   font-size: 0.96rem;
@@ -531,14 +563,6 @@ html.theme-light body {
     var(--color-surface);
 }
 
-.privacy-page a {
-  color: var(--color-accent, #4a9eff);
-}
-
-.privacy-page a:hover {
-  color: var(--color-accent-hover, #6ab4ff);
-}
-
 @media (max-width: 980px) {
   .about-page__grid,
   .about-page__section--split {
@@ -563,8 +587,8 @@ html.theme-light body {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 0.65rem;
-  padding: 0.9rem;
+  gap: 0.35rem;
+  padding: 0.75rem;
   border: 1px dashed color-mix(in srgb, var(--color-border) 88%, transparent);
   border-radius: 12px;
   background:
@@ -575,15 +599,25 @@ html.theme-light body {
 .utility-rail__label {
   margin-top: auto;
   color: var(--color-text-muted);
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
+.utility-rail__links {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.2rem 0.35rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .utility-rail__link {
   text-align: left;
-  font-size: 0.82rem;
+  font-size: 0.66rem;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 @media (max-width: 1329px) {
