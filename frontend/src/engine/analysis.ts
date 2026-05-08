@@ -130,9 +130,14 @@ export function classifyMove(
   prevOpponentGrade: MoveGrade = null,
   isTopSuggested = true,
   isOnlyGoodMove = false,
+  inCheck = false,
 ): MoveGrade {
   // Forced: only one legal move, no agency
   if (legalMoveCount === 1) return 'forced'
+
+  // Suppress "brilliant" and "great" when responding to check — escaping check is
+  // obvious even when only one escape is good. Downgrade to normal grading.
+  const effectiveOnlyGoodMove = inCheck ? false : isOnlyGoodMove
 
   const playerBefore = color === 'white' ? capScore(evalBefore) : -capScore(evalBefore)
   const playerAfter  = color === 'white' ? capScore(evalAfter)  : -capScore(evalAfter)
@@ -142,13 +147,13 @@ export function classifyMove(
 
   // Brilliant: sacrifice + top-suggested + only good move + no meaningful win% loss.
   // We deliberately bias toward under-awarding Brilliant so the badge stays trustworthy.
-  if (sacrifice && isTopSuggested && isOnlyGoodMove && winPctLoss <= WINPCT_EXCELLENT
+  if (sacrifice && isTopSuggested && effectiveOnlyGoodMove && winPctLoss <= WINPCT_EXCELLENT
       && cpToWinPct(playerBefore) >= WINPCT_MIN_FOR_BRILLIANT) return 'brilliant'
 
   // Great: only good move in position (top-suggested + big gap from #2, not a recapture).
   // Uses WINPCT_GOOD (5%) not WINPCT_EXCELLENT — a defensive resource can cost a few percent
   // yet still be the only sane option; restricting to 2% silently downgrades those moves.
-  if (isTopSuggested && isOnlyGoodMove && winPctLoss <= WINPCT_GOOD) return 'great'
+  if (isTopSuggested && effectiveOnlyGoodMove && winPctLoss <= WINPCT_GOOD) return 'great'
 
   // Best: top-suggested move with no meaningful win% loss
   if (isTopSuggested && winPctLoss <= WINPCT_EXCELLENT) return 'best'
@@ -212,11 +217,13 @@ export async function analyzeGame(
   // Start with already-analyzed evals (from resume)
   const results: MoveEval[] = [...initialEvals]
 
-  // Pre-compute legal move counts at each position BEFORE the move
+  // Pre-compute legal move counts and check status at each position BEFORE the move
   const legalMoveCounts: number[] = []
+  const inCheckFlags: boolean[] = []
   for (let i = 0; i < history.length; i++) {
     const tempChess = new Chess(positions[i])
     legalMoveCounts.push(tempChess.moves().length)
+    inCheckFlags.push(tempChess.isCheck())
   }
 
   // Seed prevScore/prevOpponentGrade from the last known eval (for resume continuity)
@@ -277,7 +284,7 @@ export async function analyzeGame(
 
     const grade = classifyMove(
       prevScore, scoreWhite, color, legalMoveCounts[i],
-      sacrifice, prevOpponentGrade, isTopSuggested, isOnlyGoodMove,
+      sacrifice, prevOpponentGrade, isTopSuggested, isOnlyGoodMove, inCheckFlags[i],
     )
 
     const moveEval: MoveEval = {
