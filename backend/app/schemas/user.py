@@ -36,6 +36,7 @@ class UserResponse(BaseModel):
     id: int
     email: str
     is_premium: bool
+    subscription_status: str
     elo_estimate: int | None
     chesscom_username: str | None
     lichess_username: str | None
@@ -51,8 +52,9 @@ class UserResponse(BaseModel):
         # Compute derived boolean fields from provider ID columns
         data = {
             **{c: getattr(obj, c) for c in [
-                "is_admin", "id", "email", "is_premium", "elo_estimate",
-                "chesscom_username", "lichess_username", "preferences", "created_at"
+                "is_admin", "id", "email", "is_premium", "subscription_status",
+                "elo_estimate", "chesscom_username", "lichess_username",
+                "preferences", "created_at"
             ]},
             "lichess_oauth_linked": bool(getattr(obj, "lichess_id", None)),
             "google_oauth_linked": bool(getattr(obj, "google_id", None)),

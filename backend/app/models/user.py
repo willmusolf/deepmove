@@ -31,6 +31,10 @@ class User(Base):
     google_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     chesscom_id: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Stripe billing
+    stripe_customer_id: Mapped[str | None] = mapped_column(Text, unique=True, nullable=True)
+    subscription_status: Mapped[str] = mapped_column(Text, nullable=False, default="none", server_default="none")
+
     # User preferences (soundEnabled, thinkFirstMode, etc.)
     preferences: Mapped[dict] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")

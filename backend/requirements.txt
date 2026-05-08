@@ -40,3 +40,6 @@ resend==2.30.0
 
 # Rate limiting
 slowapi==0.1.9
+
+# Payments
+stripe==11.6.0

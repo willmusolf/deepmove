@@ -10,6 +10,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { usePrefsStore, type AppTheme, type BoardTheme } from '../../stores/prefsStore'
 import { clearAllAnalyses } from '../../services/gameDB'
 import { readCachedRatings, type DetectedRatings } from '../Import/normalizeGame'
+import UpgradeButton from './UpgradeButton'
 
 const REVIEW_USERNAME_STORAGE = {
   chesscom: 'deepmove_chesscom_username',
@@ -294,7 +295,13 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
             </div>
             <div className="profile-info-row">
               <span className="profile-info-label">Plan</span>
-              <span className="profile-info-value">{user.is_premium ? 'Premium' : 'Free'}</span>
+              <span className="profile-info-value">
+                {user.is_premium ? 'Premium' : 'Free'}
+              </span>
+            </div>
+            <div className="profile-info-row">
+              <span className="profile-info-label" />
+              <UpgradeButton />
             </div>
             {user.is_admin && (
               <div className="profile-info-row">

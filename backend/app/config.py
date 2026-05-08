@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     password_reset_expire_minutes: int = 30
     password_reset_from_email: str = "noreply@deepmove.io"
 
+    # Stripe
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_id: str = ""
+
     # Feature flags
     coaching_enabled: bool = False
     trusted_proxy_depth: int = Field(default=1, ge=1)
