@@ -1763,6 +1763,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .eval-graph-container {
+  width: 100%;
   flex-shrink: 0;
   flex-grow: 0;
   height: 120px;
@@ -1989,7 +1990,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   display: flex;
   flex-direction: column;
   gap: 2px;
-  height: 66px;  /* 2 rows × 32px + 2px gap = 66px — never shifts layout */
+  height: 100px;  /* 3 rows × 32px + 2 × 2px gap */
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -2024,11 +2025,25 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   flex-shrink: 0;
 }
 
-.best-line-move {
-  font-weight: 600;
+.best-line-pv {
+  font-size: 0.8rem;
   font-family: var(--font-mono, monospace);
-  min-width: 2.8rem;
   color: var(--color-text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.best-line-pv strong {
+  font-weight: 700;
+}
+
+.best-line-continuation {
+  color: var(--color-text-muted);
+  font-weight: 400;
+  opacity: 0.75;
 }
 
 .best-line-eval {
@@ -2165,6 +2180,31 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   align-items: center;
 }
 
+/* ── Player info in report ─────────────────────────────────────────── */
+.game-report-player {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+
+.game-report-player-name {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100px;
+}
+
+.game-report-player-elo {
+  font-size: 0.6rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
 .game-report-label {
   font-size: 0.62rem;
   font-weight: 500;
@@ -2172,6 +2212,19 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+
+/* ── Accuracy display ──────────────────────────────────────────────── */
+.game-report-accuracy {
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  margin: 2px 0;
+}
+
+.game-report-accuracy--green  { color: #4ade80; }
+.game-report-accuracy--yellow { color: #facc15; }
+.game-report-accuracy--red    { color: #ef4444; }
 
 .game-report-grades {
   display: flex;

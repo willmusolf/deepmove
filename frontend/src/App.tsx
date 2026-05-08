@@ -1784,6 +1784,7 @@ export default function App() {
                           lines={visibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
                           onLineClick={handleAnalysisBestLineClick}
+                          fen={displayFen}
                         />
                       )}
 
@@ -1803,6 +1804,10 @@ export default function App() {
                           moveEvals={moveEvals}
                           userColor={userColor}
                           analysisComplete={analysisComplete}
+                          whiteName={whitePlayer}
+                          blackName={blackPlayer}
+                          whiteElo={whiteElo}
+                          blackElo={blackElo}
                         />
                       )}
 
@@ -2071,6 +2076,7 @@ export default function App() {
                         lines={visibleLines}
                         isAnalyzingPosition={isAnalyzingPosition}
                         onLineClick={handleAnalysisBestLineClick}
+                        fen={displayFen}
                       />
 
                       {/* Analysis board move tree */}

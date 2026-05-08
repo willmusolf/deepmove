@@ -94,7 +94,29 @@ describe('GameReport rendering', () => {
     expect(container.querySelector('.game-report-highlights')).toBeNull()
     expect(container.textContent).toContain('White')
     expect(container.textContent).toContain('Black')
-    expect(container.textContent).not.toContain('acc')
+    expect(container.textContent).toMatch(/\d+(\.\d)?%/)
     expect(container.textContent).not.toContain('~')
+  })
+
+  it('renders player names and ratings when provided', () => {
+    const { container } = render(
+      <GameReport
+        moveEvals={[
+          makeEval(1, 'white', 30, 'best'),
+          makeEval(1, 'black', 20, 'mistake'),
+        ]}
+        userColor="white"
+        analysisComplete={true}
+        whiteName="Alice"
+        blackName="Bob"
+        whiteElo="1500"
+        blackElo="1400"
+      />
+    )
+
+    expect(container.textContent).toContain('Alice')
+    expect(container.textContent).toContain('Bob')
+    expect(container.textContent).toContain('1500')
+    expect(container.textContent).toContain('1400')
   })
 })
