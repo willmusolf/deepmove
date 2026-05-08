@@ -2,7 +2,7 @@
 // Clicking a line enters variation mode to walk through the PV on the board.
 
 import { Chess } from 'chess.js'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { TopLine } from '../../engine/stockfish'
 import { formatEval } from '../../utils/format'
 
@@ -13,7 +13,7 @@ interface BestLinesProps {
   fen: string
 }
 
-const MAX_LINES = 3
+const MAX_LINES = 2
 const LINE_COLORS = ['#4ade80', '#60a5fa', '#facc15']  // green, blue, yellow
 
 function pvToSans(fen: string, pv: string[]): string[] {
@@ -61,6 +61,7 @@ function formatScore(line: TopLine): string {
 
 export default function BestLines({ lines, isAnalyzingPosition, onLineClick, fen }: BestLinesProps) {
   const visibleLines = lines.slice(0, MAX_LINES)
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
   const pvNotations = useMemo(
     () => visibleLines.map(line => {
       const sans = pvToSans(fen, line.pv)
@@ -69,27 +70,75 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, fen
     [fen, visibleLines],
   )
 
+  useEffect(() => {
+    setExpandedIndex(null)
+  }, [fen, lines])
+
+  const expandedLine = expandedIndex !== null ? visibleLines[expandedIndex] : null
+  const expandedNotation = expandedIndex !== null ? (pvNotations[expandedIndex] || expandedLine?.san || '') : ''
+
   return (
     <div className="best-lines">
       {isAnalyzingPosition && lines.length === 0 ? (
         <>
           <div className="best-line-row best-line-skeleton" />
           <div className="best-line-row best-line-skeleton" />
-          <div className="best-line-row best-line-skeleton" />
         </>
       ) : (
         visibleLines.map((line, i) => (
-          <button
+          <div
             key={line.rank}
             className="best-line-row"
-            onClick={() => onLineClick(line)}
+          >
+            <button
+              type="button"
+              className="best-line-main"
+              onClick={() => onLineClick(line)}
+              title="Click to explore this line"
+            >
+              <span className="best-line-dot" style={{ background: LINE_COLORS[i] ?? LINE_COLORS[0] }} />
+              <span className="best-line-pv">{pvNotations[i] || line.san}</span>
+            </button>
+            <button
+              type="button"
+              className={`best-line-expand${expandedIndex === i ? ' best-line-expand--open' : ''}`}
+              aria-label={expandedIndex === i ? 'Hide full line' : 'Show full line'}
+              title={expandedIndex === i ? 'Hide full line' : 'Show full line'}
+              onClick={(event) => {
+                event.stopPropagation()
+                setExpandedIndex(prev => (prev === i ? null : i))
+              }}
+            >
+              ▾
+            </button>
+            <span className="best-line-eval">{formatScore(line)}</span>
+          </div>
+        ))
+      )}
+      {expandedLine && (
+        <div className="best-lines-overlay" role="dialog" aria-label="Full best line">
+          <div className="best-lines-overlay__header">
+            <span className="best-line-dot" style={{ background: LINE_COLORS[expandedIndex ?? 0] ?? LINE_COLORS[0] }} />
+            <span className="best-lines-overlay__title">Line {expandedLine.rank}</span>
+            <button
+              type="button"
+              className="best-lines-overlay__close"
+              onClick={() => setExpandedIndex(null)}
+              aria-label="Close full line"
+            >
+              ×
+            </button>
+          </div>
+          <button
+            type="button"
+            className="best-lines-overlay__body"
+            onClick={() => onLineClick(expandedLine)}
             title="Click to explore this line"
           >
-            <span className="best-line-dot" style={{ background: LINE_COLORS[i] ?? LINE_COLORS[0] }} />
-            <span className="best-line-pv">{pvNotations[i] || line.san}</span>
-            <span className="best-line-eval">{formatScore(line)}</span>
+            <span className="best-lines-overlay__pv">{expandedNotation}</span>
+            <span className="best-lines-overlay__eval">{formatScore(expandedLine)}</span>
           </button>
-        ))
+        </div>
       )}
     </div>
   )

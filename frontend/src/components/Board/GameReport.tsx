@@ -45,7 +45,7 @@ interface SidePanelProps {
   isUser: boolean
   accuracy: number | null
   playerName?: string | null
-  elo?: string | null
+  rating?: string | null
 }
 
 function accuracyToneClass(accuracy: number): string {
@@ -54,21 +54,56 @@ function accuracyToneClass(accuracy: number): string {
   return 'game-report-accuracy--red'
 }
 
-function SidePanel({ label, stats, isUser, accuracy, playerName, elo }: SidePanelProps) {
+function parseRating(rating: string | null | undefined): number | null {
+  if (!rating) return null
+  const parsed = parseInt(rating.replace(/[^\d]/g, ''), 10)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function expectedAccuracyForRating(rating: number): number {
+  return 50 + 45 / (1 + Math.exp(-(rating - 1500) / 700))
+}
+
+function estimatePerformanceRating(accuracy: number | null, rating: string | null | undefined): number | null {
+  if (accuracy === null) return null
+  const parsedRating = parseRating(rating)
+  if (parsedRating === null) return null
+
+  // Chess.com publicly states that game rating compares move quality to what is
+  // expected from a player at that rating level, but it does not publish the
+  // exact formula. This is a calibrated local estimate, not exact parity.
+  const expected = expectedAccuracyForRating(parsedRating)
+  const estimate = parsedRating + (accuracy - expected) * 28
+  return Math.round(Math.max(100, Math.min(3200, estimate)))
+}
+
+function SidePanel({ label, stats, isUser, accuracy, playerName, rating }: SidePanelProps) {
   const displayName = playerName?.trim() || label
-  const showElo = elo?.trim() || null
+  const performanceRating = estimatePerformanceRating(accuracy, rating)
+  const sideClass = label === 'White' ? 'game-report-player-dot--white' : 'game-report-player-dot--black'
 
   return (
     <div className={`game-report-side${isUser ? ' game-report-side--user' : ''}`}>
       <div className="game-report-header">
         <div className="game-report-player">
+          <span className={`game-report-player-dot ${sideClass}`} aria-hidden="true" />
           <span className="game-report-player-name">{displayName}</span>
-          {showElo && <span className="game-report-player-elo">({showElo})</span>}
         </div>
       </div>
-      {stats && accuracy !== null && (
-        <div className={`game-report-accuracy ${accuracyToneClass(accuracy)}`}>
-          {accuracy.toFixed(1)}%
+      {stats && (
+        <div className="game-report-metrics">
+          {accuracy !== null && (
+            <div className="game-report-metric">
+              <span className="game-report-metric-label">Accuracy:</span>
+              <span className={`game-report-accuracy ${accuracyToneClass(accuracy)}`}>{accuracy.toFixed(1)}%</span>
+            </div>
+          )}
+          {performanceRating !== null && (
+            <div className="game-report-metric">
+              <span className="game-report-metric-label">Game Rating:</span>
+              <span className="game-report-rating">{performanceRating}</span>
+            </div>
+          )}
         </div>
       )}
       <div className="game-report-grades">
@@ -121,7 +156,7 @@ export default function GameReport({
         isUser={userColor === 'white'}
         accuracy={white ? whiteAccuracy : null}
         playerName={whiteName}
-        elo={whiteElo}
+        rating={whiteElo}
       />
       <div className="game-report-divider" />
       <SidePanel
@@ -130,7 +165,7 @@ export default function GameReport({
         isUser={userColor === 'black'}
         accuracy={black ? blackAccuracy : null}
         playerName={blackName}
-        elo={blackElo}
+        rating={blackElo}
       />
     </div>
   )
