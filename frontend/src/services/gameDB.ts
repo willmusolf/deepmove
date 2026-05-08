@@ -191,7 +191,6 @@ function parseTimeControlToSeconds(tc: string): number {
 export async function computeDetectedRatings(): Promise<DetectedRatings> {
   const db = await getDB()
   const all = (await db.getAll(STORE)) as AnalyzedGameRecord[]
-  console.log('[detectRatings] records:', all.length, all.slice(0,2).map(r => ({ tc: r.timeControl, elo: r.userElo })))
   const buckets: Record<string, AnalyzedGameRecord[]> = {
     bullet: [], blitz: [], rapid: [], classical: [],
   }

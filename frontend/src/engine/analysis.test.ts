@@ -263,3 +263,40 @@ describe('brilliant move regression tests', () => {
     expect(classifyMove(-600, -620, 'white', 20, true)).toBe('best')
   })
 })
+
+describe('classifyMove – check suppression', () => {
+  it('returns best (not great) when in check with only one good escape', () => {
+    // In check, top-suggested, only good move, zero loss → would be "great"
+    // but inCheck=true → suppressed to "best"
+    expect(classifyMove(100, 100, 'white', 3, false, null, true, true, true)).toBe('best')
+  })
+
+  it('returns best (not brilliant) when in check with sacrifice escape', () => {
+    // In check, sacrifice, top-suggested, only good move, tiny loss, high win% before
+    // → would be "brilliant" but inCheck=true → suppressed to "best"
+    expect(classifyMove(100, 96, 'white', 3, true, null, true, true, true)).toBe('best')
+  })
+
+  it('still allows best when in check and top-suggested with low loss', () => {
+    expect(classifyMove(100, 100, 'white', 3, false, null, true, false, true)).toBe('best')
+  })
+
+  it('still grades blunders normally when in check', () => {
+    // Bad escape from check is still a blunder
+    expect(classifyMove(100, -300, 'white', 3, false, null, false, false, true)).toBe('blunder')
+  })
+
+  it('still grades mistakes normally when in check', () => {
+    expect(classifyMove(200, 0, 'white', 5, false, null, false, false, true)).toBe('mistake')
+  })
+
+  it('does not suppress great when NOT in check (regression guard)', () => {
+    // Same params but inCheck=false → great should still work
+    expect(classifyMove(100, 100, 'white', 3, false, null, true, true, false)).toBe('great')
+  })
+
+  it('forced still takes priority over check suppression', () => {
+    // legalMoveCount=1 → forced, regardless of inCheck
+    expect(classifyMove(100, -500, 'white', 1, false, null, true, true, true)).toBe('forced')
+  })
+})
