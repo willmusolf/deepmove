@@ -2168,10 +2168,34 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
 .best-lines-overlay__eval {
   flex-shrink: 0;
+  align-self: center;
   font-size: 0.78rem;
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
-  padding-top: 1px;
+}
+
+@media (max-width: 640px) {
+  .best-line-row {
+    gap: 0.4rem;
+    padding: 0.34rem 0.45rem;
+  }
+
+  .best-line-pv {
+    font-size: 0.75rem;
+  }
+
+  .best-lines-overlay {
+    padding: 7px 28px 7px 7px;
+  }
+
+  .best-lines-overlay__body {
+    gap: 6px;
+  }
+
+  .best-lines-overlay__pv,
+  .best-lines-overlay__eval {
+    font-size: 0.74rem;
+  }
 }
 
 
@@ -2417,7 +2441,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   font-variant-numeric: tabular-nums;
 }
 
-.gr-brilliant  { background: rgba(147, 197, 253, 0.14); color: #bfdbfe; border-color: rgba(147, 197, 253, 0.28); }
+.gr-brilliant  { background: rgba(56, 189, 248, 0.16); color: #7dd3fc; border-color: rgba(56, 189, 248, 0.34); }
 .gr-great      { background: rgba(59, 130, 246, 0.14); color: #93c5fd; border-color: rgba(59, 130, 246, 0.28); }
 .gr-best       { background: rgba(34, 197, 94, 0.14); color: #86efac; border-color: rgba(34, 197, 94, 0.28); }
 .gr-excellent  { background: rgba(74, 222, 128, 0.14); color: #86efac; border-color: rgba(74, 222, 128, 0.28); }

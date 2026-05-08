@@ -485,7 +485,7 @@ export default function App() {
   const navHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // When true, the next displayFen change is from a piece move — skip the 180ms deferral
   const isPieceMoveRef = useRef(false)
-  const playBestLineMoveRef = useRef<(uci: string) => boolean>(() => false)
+  const playBestLineMoveRef = useRef<(uci: string, options?: { playSound?: boolean }) => boolean>(() => false)
 
   function triggerPositionAnalysis(fen: string, depth = POSITION_MAX_DEPTH) {
     // NOTE: callers are responsible for calling stopPositionAnalysis() before this.
@@ -1097,9 +1097,15 @@ export default function App() {
   }
 
   // Board move during game review: advance main line or create branch.
-  function handleBoardMove(from: string, to: string, san: string, newFen: string) {
+  function handleBoardMove(
+    from: string,
+    to: string,
+    san: string,
+    newFen: string,
+    options?: { playSound?: boolean },
+  ) {
     pathKeyRef.current++
-    playMoveSound(san)
+    if (options?.playSound !== false) playMoveSound(san)
     isPieceMoveRef.current = true
     const next = nextMainLineNode
     if (next && next.from === from && next.to === to && next.san === san) {
@@ -1214,7 +1220,7 @@ export default function App() {
     navigateTo(path)
   }
 
-  function playBestLineUci(uci: string): boolean {
+  function playBestLineUci(uci: string, options?: { playSound?: boolean }): boolean {
     if (!uci || uci.length < 4) return false
     const from = uci.slice(0, 2)
     const to = uci.slice(2, 4)
@@ -1227,14 +1233,14 @@ export default function App() {
       if (!result) return false
       isPieceMoveRef.current = true
       pathKeyRef.current++
-      handleBoardMove(from, to, result.san, chess.fen())
+      handleBoardMove(from, to, result.san, chess.fen(), options)
       return true
     } else {
       // Sandbox/free-play mode
       const chess = new Chess(analysisFen)
       const result = chess.move({ from, to, promotion })
       if (!result) return false
-      playMoveSound(result.san)
+      if (options?.playSound !== false) playMoveSound(result.san)
       pathKeyRef.current++
       const parentFen = analysisFen
       const newFen = chess.fen()
@@ -1258,13 +1264,30 @@ export default function App() {
 
   async function handleAnalysisBestLineMoveClick(line: TopLine, plyCount: number) {
     const sequence = line.pv.slice(0, plyCount)
+    let lastSan: string | null = null
+    try {
+      const chess = new Chess(displayFen)
+      for (const uci of sequence) {
+        const result = chess.move({
+          from: uci.slice(0, 2),
+          to: uci.slice(2, 4),
+          promotion: uci.length === 5 ? uci[4] : undefined,
+        })
+        if (!result) break
+        lastSan = result.san
+      }
+    } catch {
+      lastSan = null
+    }
+
     for (let i = 0; i < sequence.length; i += 1) {
-      const moved = playBestLineMoveRef.current(sequence[i])
+      const moved = playBestLineMoveRef.current(sequence[i], { playSound: false })
       if (!moved) break
       if (i < sequence.length - 1) {
         await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
       }
     }
+    if (lastSan) playMoveSound(lastSan)
   }
 
 
