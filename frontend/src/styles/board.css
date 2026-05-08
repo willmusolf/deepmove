@@ -2640,8 +2640,6 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 @media (max-width: 480px) {
   .game-filter-row {
     gap: 0.25rem;
-    flex-wrap: nowrap;
-    overflow-x: auto;
   }
 
   .game-filter-group {
