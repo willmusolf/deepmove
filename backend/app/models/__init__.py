@@ -2,7 +2,8 @@
 from app.models.audit import AdminAuditLog
 from app.models.game import Game
 from app.models.lesson import Lesson
+from app.models.password_reset_token import PasswordResetToken
 from app.models.principle import UserPrinciple
 from app.models.user import User
 
-__all__ = ["AdminAuditLog", "User", "Game", "Lesson", "UserPrinciple"]
+__all__ = ["AdminAuditLog", "User", "Game", "Lesson", "PasswordResetToken", "UserPrinciple"]

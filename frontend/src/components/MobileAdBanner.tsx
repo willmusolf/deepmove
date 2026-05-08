@@ -6,7 +6,7 @@ const SESSION_KEY = 'mobileAdDismissed'
 
 declare global {
   interface Window {
-    adsbygoogle: unknown[]
+    adsbygoogle: Array<Record<string, never>>
   }
 }
 

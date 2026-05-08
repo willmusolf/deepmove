@@ -30,6 +30,7 @@ import BotPlayPage from './components/Play/BotPlayPage'
 import ErrorBoundary from './components/ErrorBoundary'
 import AboutPage from './components/AboutPage'
 import PrivacyPage from './components/PrivacyPage'
+import ResetPasswordPage from './components/Auth/ResetPasswordPage'
 import AdBanner from './components/AdBanner'
 import MobileAdBanner from './components/MobileAdBanner'
 import { useGameReview } from './hooks/useGameReview'
@@ -182,6 +183,7 @@ function isPage(value: unknown): value is Page {
     || value === 'settings'
     || value === 'about'
     || value === 'privacy'
+    || value === 'reset-password'
 }
 
 function loadAppUiState(): AppUiState | null {
@@ -315,19 +317,12 @@ export default function App() {
 
   // Silent auth refresh on app load — non-blocking, app works without it
   const authRefresh = useAuthStore(s => s.refresh)
-  const bootstrapFromOAuth = useAuthStore(s => s.bootstrapFromOAuth)
   const reloadUser = useAuthStore(s => s.reloadUser)
   const authUser = useAuthStore(s => s.user)
   const isPremium = useAuthStore(s => s.isPremium)
   useEffect(() => {
-    const oauthToken = sessionStorage.getItem('dm_oauth_at')
-    if (oauthToken) {
-      sessionStorage.removeItem('dm_oauth_at')
-      void bootstrapFromOAuth(oauthToken)
-    } else {
-      void authRefresh()
-    }
-  }, [authRefresh, bootstrapFromOAuth])
+    void authRefresh()
+  }, [authRefresh])
 
   // After an account-link redirect, reload user to get updated oauth flags
   useEffect(() => {
@@ -1092,7 +1087,6 @@ export default function App() {
       const afterResult = await analyzePositionSingleBranch(newFen, 14)
 
       if (!parentResult || !afterResult) {
-        console.warn('[branch eval] Stockfish returned null for', nodeId)
         lastGradedNodeIdRef.current = nodeId
         setBranchGrades(prev => new Map(prev).set(nodeId, 'unknown' as MoveGrade))
         return  // finally still clears pendingBranchNodes
@@ -1122,7 +1116,6 @@ export default function App() {
       setBranchGrades(prev => new Map(prev).set(nodeId, grade))
     } catch (err) {
       if (isStockfishCancelledError(err)) return
-      console.warn('[branch eval] failed:', err)
     } finally {
       evalInFlightRef.current.delete(nodeId)
       setPendingBranchNodes(prev => { const s = new Set(prev); s.delete(nodeId); return s })
@@ -1155,8 +1148,8 @@ export default function App() {
         if (move) {
           addVariationMove(move.from, move.to, move.san, chess.fen())
         }
-      } catch (e) {
-        console.warn('[handleShowBestMove] failed:', e)
+      } catch {
+        // Invalid SAN should not break the review UI.
       }
     })
   }
@@ -2107,6 +2100,9 @@ export default function App() {
               onOpenApp={() => goToPage('review')}
               onOpenAbout={() => goToPage('about')}
             />
+          )}
+          {currentPage === 'reset-password' && (
+            <ResetPasswordPage onDone={() => goToPage('review')} />
           )}
           {currentPage === 'play' && (
             <ErrorBoundary>

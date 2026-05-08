@@ -13,7 +13,7 @@ interface AdBannerProps {
 
 declare global {
   interface Window {
-    adsbygoogle: unknown[]
+    adsbygoogle: Array<Record<string, never>>
   }
 }
 

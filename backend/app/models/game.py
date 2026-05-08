@@ -54,4 +54,5 @@ class Game(Base):
             postgresql_where=text("platform_game_id IS NOT NULL"),
         ),
         Index("idx_games_user_id", "user_id"),
+        Index("idx_games_user_end_time", "user_id", text("end_time DESC")),
     )
