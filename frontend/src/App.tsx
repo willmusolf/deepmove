@@ -1264,30 +1264,15 @@ export default function App() {
 
   async function handleAnalysisBestLineMoveClick(line: TopLine, plyCount: number) {
     const sequence = line.pv.slice(0, plyCount)
-    let lastSan: string | null = null
-    try {
-      const chess = new Chess(displayFen)
-      for (const uci of sequence) {
-        const result = chess.move({
-          from: uci.slice(0, 2),
-          to: uci.slice(2, 4),
-          promotion: uci.length === 5 ? uci[4] : undefined,
-        })
-        if (!result) break
-        lastSan = result.san
-      }
-    } catch {
-      lastSan = null
-    }
-
     for (let i = 0; i < sequence.length; i += 1) {
-      const moved = playBestLineMoveRef.current(sequence[i], { playSound: false })
+      const moved = playBestLineMoveRef.current(sequence[i])
       if (!moved) break
       if (i < sequence.length - 1) {
-        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+        await new Promise<void>(resolve => {
+          window.setTimeout(() => requestAnimationFrame(() => resolve()), 110)
+        })
       }
     }
-    if (lastSan) playMoveSound(lastSan)
   }
 
 

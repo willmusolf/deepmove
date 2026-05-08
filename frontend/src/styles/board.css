@@ -1837,7 +1837,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   flex-shrink: 0;
 }
 
-.grade-brilliant  { background: #38bdf8; }           /* neon blue */
+.grade-brilliant  { background: #30d5ff; }           /* neon blue */
 .grade-great      { background: #3b82f6; }           /* blue */
 .grade-best       { background: #22c55e; }           /* medium green */
 .grade-excellent  { background: #4ade80; }           /* light green */
@@ -2006,7 +2006,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   border-radius: 5px;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.08);
-  cursor: default;
+  cursor: pointer;
   width: 100%;
   text-align: left;
   transition: background 0.12s, border-color 0.12s, opacity 0.15s ease;
@@ -2019,18 +2019,19 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   border-color: rgba(255,255,255,0.14);
 }
 
+.best-line-row:focus-visible {
+  outline: 2px solid rgba(96, 165, 250, 0.42);
+  outline-offset: 1px;
+}
+
 .best-line-main {
   min-width: 0;
   flex: 1;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: transparent;
-  border: 0;
   color: inherit;
-  padding: 0;
   text-align: left;
-  cursor: pointer;
 }
 
 .best-line-dot {
@@ -2441,7 +2442,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   font-variant-numeric: tabular-nums;
 }
 
-.gr-brilliant  { background: rgba(56, 189, 248, 0.16); color: #7dd3fc; border-color: rgba(56, 189, 248, 0.34); }
+.gr-brilliant  { background: rgba(48, 213, 255, 0.16); color: #30d5ff; border-color: rgba(48, 213, 255, 0.34); }
 .gr-great      { background: rgba(59, 130, 246, 0.14); color: #93c5fd; border-color: rgba(59, 130, 246, 0.28); }
 .gr-best       { background: rgba(34, 197, 94, 0.14); color: #86efac; border-color: rgba(34, 197, 94, 0.28); }
 .gr-excellent  { background: rgba(74, 222, 128, 0.14); color: #86efac; border-color: rgba(74, 222, 128, 0.28); }
@@ -4698,7 +4699,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   font-weight: 700;
   line-height: 1;
 }
-.coach-narrative__grade--brilliant { color: #38bdf8; }
+.coach-narrative__grade--brilliant { color: #30d5ff; }
 .coach-narrative__grade--great     { color: #34d399; }
 .coach-narrative__grade--best      { color: #34d399; }
 .coach-narrative__grade--excellent { color: #6ee7b7; }

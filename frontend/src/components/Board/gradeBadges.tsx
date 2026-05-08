@@ -12,7 +12,7 @@ type GradeBadgeMeta = {
 }
 
 export const GRADE_BADGE_CONFIG: Record<KnownMoveGrade, GradeBadgeMeta> = {
-  brilliant:  { symbol: '!!', boardColor: '#38bdf8', moveListClass: 'grade-brilliant',  reportClass: 'gr-brilliant',  ariaLabel: 'Brilliant move' },
+  brilliant:  { symbol: '!!', boardColor: '#30d5ff', moveListClass: 'grade-brilliant',  reportClass: 'gr-brilliant',  ariaLabel: 'Brilliant move' },
   great:      { symbol: '!',  boardColor: '#3b82f6', moveListClass: 'grade-great',      reportClass: 'gr-great',      ariaLabel: 'Great move' },
   best:       { symbol: '★',  boardColor: '#22c55e', moveListClass: 'grade-best',       reportClass: 'gr-best',       ariaLabel: 'Best move' },
   excellent:  { symbol: '✓',  boardColor: '#4ade80', moveListClass: 'grade-excellent',  reportClass: 'gr-excellent',  ariaLabel: 'Excellent move' },

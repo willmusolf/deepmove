@@ -115,16 +115,20 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
           <div
             key={line.rank}
             className="best-line-row"
+            role="button"
+            tabIndex={0}
+            onClick={() => onLineClick(line)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onLineClick(line)
+              }
+            }}
           >
-            <button
-              type="button"
-              className="best-line-main"
-              onClick={() => onLineClick(line)}
-              title="Click to explore this line"
-            >
+            <div className="best-line-main" title="Click to explore this line">
               <span className="best-line-dot" style={{ background: LINE_COLORS[i] ?? LINE_COLORS[0] }} />
               <span className="best-line-pv">{pvData[i]?.notation || line.san}</span>
-            </button>
+            </div>
             <button
               type="button"
               className={`best-line-expand${expandedIndex === i ? ' best-line-expand--open' : ''}`}
@@ -134,6 +138,7 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
                 event.stopPropagation()
                 setExpandedIndex(prev => (prev === i ? null : i))
               }}
+              onKeyDown={(event) => event.stopPropagation()}
             >
               ▾
             </button>
