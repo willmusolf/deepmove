@@ -5,6 +5,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 import sqlalchemy as sa
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +22,13 @@ from app.services import coaching as coaching_service
 
 configure_logging(settings.environment)
 logger = logging.getLogger(__name__)
+
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.environment,
+        traces_sample_rate=0.1,
+    )
 
 
 async def _wake_database() -> None:

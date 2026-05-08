@@ -37,3 +37,6 @@ bcrypt==4.0.1
 
 # Rate limiting
 slowapi==0.1.9
+
+# Observability
+sentry-sdk[fastapi]==2.29.1

@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # Frontend URL (for OAuth redirects back to the app)
     frontend_url: str = "http://localhost:5173"
 
+    # Observability
+    sentry_dsn: str = ""
+
     # Feature flags
     coaching_enabled: bool = False
     trusted_proxy_depth: int = Field(default=1, ge=1)
