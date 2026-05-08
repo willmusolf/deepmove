@@ -239,6 +239,13 @@ export function useGameReview() {
     ? STARTING_FEN
     : tree[currentPath[currentPath.length - 1]]?.fen ?? STARTING_FEN
 
+  const treeRef = useRef(tree)
+  const currentPathRef = useRef(currentPath)
+  const rootIdRef = useRef(rootId)
+  treeRef.current = tree
+  currentPathRef.current = currentPath
+  rootIdRef.current = rootId
+
   // Count consecutive main-line moves in path (for EvalGraph index)
   const currentMoveIndex = useMemo(() => {
     let count = 0
@@ -285,13 +292,17 @@ export function useGameReview() {
   const navigateTo = useCallback((path: string[]) => setPath(path), [setPath])
 
   const goForward = useCallback(() => {
-    if (currentPath.length === 0) {
-      if (rootId) setPath([rootId])
+    const latestPath = currentPathRef.current
+    const latestTree = treeRef.current
+    const latestRootId = rootIdRef.current
+
+    if (latestPath.length === 0) {
+      if (latestRootId) setPath([latestRootId])
     } else {
-      const firstChild = tree[currentPath[currentPath.length - 1]]?.childIds[0]
-      if (firstChild) setPath([...currentPath, firstChild])
+      const firstChild = latestTree[latestPath[latestPath.length - 1]]?.childIds[0]
+      if (firstChild) setPath([...latestPath, firstChild])
     }
-  }, [currentPath, tree, rootId, setPath])
+  }, [setPath])
 
   const goBack = useCallback(() => {
     setBranchState(prev => {
