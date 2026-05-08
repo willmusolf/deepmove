@@ -19,20 +19,11 @@ export interface ChessComGame {
   black: { username: string; rating: number; result: string }
 }
 
-export interface ChessComArchive {
+interface ChessComArchive {
   archives: string[]  // URLs to monthly game archives
 }
 
-export async function getPlayerGames(username: string, year: number, month: number): Promise<ChessComGame[]> {
-  const paddedMonth = String(month).padStart(2, '0')
-  const res = await fetch(`${CHESSCOM_BASE}/player/${username}/games/${year}/${paddedMonth}`)
-  if (res.status === 429) throw new Error('Chess.com rate limit reached — please wait a moment and try again')
-  if (!res.ok) throw new Error(`Chess.com API error: ${res.status}`)
-  const data = await res.json() as { games: ChessComGame[] }
-  return data.games
-}
-
-export async function getPlayerArchives(username: string): Promise<string[]> {
+async function getPlayerArchives(username: string): Promise<string[]> {
   const res = await fetch(`${CHESSCOM_BASE}/player/${username}/games/archives`)
   if (res.status === 429) throw new Error('Chess.com rate limit reached — please wait a moment and try again')
   if (!res.ok) throw new Error(`Chess.com API error: ${res.status}`)

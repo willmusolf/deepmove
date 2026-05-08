@@ -19,6 +19,7 @@ const PAGE_LABELS: Record<Page, string> = {
   settings: 'Settings',
   about: 'About',
   privacy: 'Privacy Policy',
+  'reset-password': 'Reset Password',
 }
 
 export default function ResponsiveLayout({ currentPage, onNavigate, children, hasMobileBanner: _hasMobileBanner }: ResponsiveLayoutProps) {

@@ -150,8 +150,9 @@ async def batch_create(
             if body.platform_game_id:
                 new_games.append((body.platform_game_id, game))
             created += 1
-        except Exception as e:
-            errors.append(f"{body.platform_game_id}: {e!s}")
+        except Exception:
+            failed_id = body.platform_game_id or "unknown-game"
+            errors.append(f"{failed_id}: failed to process game")
 
     db.commit()
     for platform_game_id, game_obj in new_games:
