@@ -227,6 +227,8 @@ export default function App() {
     rootId,
     currentPath,
     currentMoveIndex,
+    pathDepth,
+    displayTotalDepth,
     goToMove,
     goForward,
     goBack,
@@ -1072,6 +1074,7 @@ export default function App() {
     try {
       const chess = new Chess(parentFen)
       const legalCount = chess.moves().length
+      const inCheck = chess.isCheck()
       const color: 'white' | 'black' = parentFen.split(' ')[1] === 'w' ? 'white' : 'black'
 
       const cachedParentTopLine = positionCache.current.get(parentFen)?.[0] ?? null
@@ -1106,7 +1109,7 @@ export default function App() {
       // Sacrifice detection (requires the move + position after)
       const sacrifice = playedMove ? isSacrificeFn(playedMove, newFen) : false
 
-      const grade = classifyMove(evalBefore, evalAfter, color, legalCount, sacrifice, null, isTopSuggested)
+      const grade = classifyMove(evalBefore, evalAfter, color, legalCount, sacrifice, null, isTopSuggested, false, inCheck)
       setBranchGrades(prev => new Map(prev).set(nodeId, grade))
     } catch (err) {
       if (isStockfishCancelledError(err)) return
@@ -1559,7 +1562,7 @@ export default function App() {
                           ←
                         </button>
                         <span className="move-counter">
-                          {currentMoveIndex} / {totalMoves}
+                          {pathDepth} / {displayTotalDepth}
                         </span>
                         <button
                           className="nav-btn"
