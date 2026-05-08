@@ -193,6 +193,12 @@ async def _generate_lesson_impl(
     limit: int
     ip_address: str | None = None
     if user:
+        # Re-read the user row with a DB-level lock to prevent concurrent requests
+        # from both passing the quota check before either increments the counter.
+        if db is not None:
+            locked = db.query(User).filter(User.id == user.id).with_for_update().first()
+            if locked is not None:
+                user = locked
         _reset_user_quota_if_needed(user)
         limit = (
             settings.premium_daily_lessons
@@ -254,13 +260,15 @@ async def _generate_lesson_impl(
 
 
 @router.post("/socratic")
-async def generate_socratic_question():
+@limiter.limit("10/minute")
+async def generate_socratic_question(request: Request):
     # Think First blunder-check checklist is rendered client-side from classification data.
     # This endpoint is reserved for future server-side Socratic question generation.
     return {"status": "not_implemented"}
 
 
 @router.delete("/cache")
+@limiter.limit("5/minute")
 def flush_lesson_cache(request: Request, current_user: User = Depends(get_current_user)):
     """Flush the in-memory LRU lesson cache (admin only)."""
     if not current_user.is_admin:

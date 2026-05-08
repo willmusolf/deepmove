@@ -51,6 +51,7 @@ class User(Base):
     games = relationship("Game", back_populates="user", cascade="all, delete-orphan")
     lessons = relationship("Lesson", back_populates="user", cascade="all, delete-orphan")
     principles = relationship("UserPrinciple", back_populates="user", cascade="all, delete-orphan")
+    password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_users_lichess_id", "lichess_id", unique=True, postgresql_where=text("lichess_id IS NOT NULL")),

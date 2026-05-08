@@ -7,7 +7,11 @@ import { useAuthStore } from '../stores/authStore'
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+    public detail?: unknown,
+  ) {
     super(message)
     this.name = 'ApiError'
   }
@@ -50,6 +54,7 @@ async function request<T>(path: string, options?: RequestOptions): Promise<T> {
   const token = useAuthStore.getState().accessToken
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'X-Request-ID': crypto.randomUUID(),
     ...(options?.headers as Record<string, string> | undefined),
   }
   if (token) {
@@ -68,7 +73,11 @@ async function request<T>(path: string, options?: RequestOptions): Promise<T> {
         const retry = await fetchWithTimeout(`${API_BASE}${path}`, options ?? {}, headers)
         if (!retry.ok) {
           const body = await retry.json().catch(() => ({ detail: `Error ${retry.status}` }))
-          throw new ApiError(retry.status, body.detail ?? `Error ${retry.status}`)
+          throw new ApiError(
+            retry.status,
+            getErrorMessage(body, retry.status),
+            body.detail ?? body,
+          )
         }
         return retry.json() as Promise<T>
       }
@@ -81,9 +90,28 @@ async function request<T>(path: string, options?: RequestOptions): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: `Error ${res.status}` }))
-    throw new ApiError(res.status, body.detail ?? `Error ${res.status}`)
+    throw new ApiError(
+      res.status,
+      getErrorMessage(body, res.status),
+      body.detail ?? body,
+    )
   }
   return res.json() as Promise<T>
+}
+
+function getErrorMessage(body: { detail?: unknown }, status: number): string {
+  if (typeof body.detail === 'string') {
+    return body.detail
+  }
+  if (
+    body.detail
+    && typeof body.detail === 'object'
+    && 'detail' in body.detail
+    && typeof (body.detail as { detail?: unknown }).detail === 'string'
+  ) {
+    return (body.detail as { detail: string }).detail
+  }
+  return `Error ${status}`
 }
 
 export { ApiError }

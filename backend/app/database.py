@@ -18,8 +18,10 @@ if settings.database_url:
     engine = create_engine(
         _psycopg3_url(settings.database_url),
         poolclass=QueuePool,
-        pool_size=5,
-        max_overflow=10,
+        # Keep the pool intentionally small for Neon free-tier / pooled connections.
+        pool_size=2,
+        max_overflow=2,
+        pool_timeout=10,
         pool_pre_ping=True,  # Reconnect on stale connections (hosted PgBouncer compat)
         connect_args={"connect_timeout": 10},  # Fail fast if DB is unreachable
     )

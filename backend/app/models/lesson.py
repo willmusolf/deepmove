@@ -36,6 +36,7 @@ class Lesson(Base):
         CheckConstraint("color IN ('white', 'black')", name="ck_lessons_color"),
         Index("idx_lessons_game", "game_id"),
         Index("idx_lessons_user", "user_id"),
+        Index("idx_lessons_lookup", "game_id", "user_id", "move_number", "principle_id"),
         Index("idx_lessons_principle", "user_id", "principle_id",
               postgresql_where="principle_id IS NOT NULL"),
     )

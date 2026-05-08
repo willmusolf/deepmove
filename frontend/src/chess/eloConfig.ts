@@ -16,15 +16,6 @@ export function getCriticalMomentThreshold(elo: number): number {
   return 60                   // 1600+: >0.6 pawns (subtler errors matter)
 }
 
-export function getEloBand(elo: number): keyof typeof ELO_BANDS {
-  if (elo < 800)  return 'BEGINNER'
-  if (elo < 1200) return 'NOVICE'
-  if (elo < 1400) return 'INTERMEDIATE'
-  if (elo < 1600) return 'CLUB'
-  if (elo < 1800) return 'ADVANCED'
-  return 'EXPERT'
-}
-
 // Cache key band labels (for LLM response caching)
 export function getCacheBand(elo: number): string {
   if (elo < 800)  return '0-800'
