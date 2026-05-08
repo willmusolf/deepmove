@@ -485,6 +485,7 @@ export default function App() {
   const navHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // When true, the next displayFen change is from a piece move — skip the 180ms deferral
   const isPieceMoveRef = useRef(false)
+  const suppressPositionAnalysisRef = useRef(false)
   const playBestLineMoveRef = useRef<(uci: string, options?: { playSound?: boolean }) => boolean>(() => false)
 
   function triggerPositionAnalysis(fen: string, depth = POSITION_MAX_DEPTH) {
@@ -579,6 +580,11 @@ export default function App() {
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
 
     if (pauseLivePositionAnalysis) {
+      setAnalyzingPosition(false)
+      return
+    }
+
+    if (suppressPositionAnalysisRef.current) {
       setAnalyzingPosition(false)
       return
     }
@@ -1264,6 +1270,28 @@ export default function App() {
 
   async function handleAnalysisBestLineMoveClick(line: TopLine, plyCount: number) {
     const sequence = line.pv.slice(0, plyCount)
+    let targetFen = displayFen
+    try {
+      const chess = new Chess(displayFen)
+      for (const uci of sequence) {
+        const result = chess.move({
+          from: uci.slice(0, 2),
+          to: uci.slice(2, 4),
+          promotion: uci.length === 5 ? uci[4] : undefined,
+        })
+        if (!result) break
+        targetFen = chess.fen()
+      }
+    } catch {
+      targetFen = displayFen
+    }
+
+    suppressPositionAnalysisRef.current = true
+    positionTokenRef.current++
+    stopPositionAnalysis()
+    if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
+    setAnalyzingPosition(false)
+
     for (let i = 0; i < sequence.length; i += 1) {
       const moved = playBestLineMoveRef.current(sequence[i])
       if (!moved) break
@@ -1273,6 +1301,26 @@ export default function App() {
         })
       }
     }
+
+    suppressPositionAnalysisRef.current = false
+
+    if (pauseLivePositionAnalysis || !isReady) return
+
+    const cached = positionCache.current.get(targetFen)
+    if (cached && cached.length > 0) {
+      setCurrentPositionLines(cached)
+      setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
+      if ((cached[0]?.depth ?? 0) >= POSITION_MAX_DEPTH) {
+        setAnalyzingPosition(false)
+        return
+      }
+      setAnalyzingPosition(true)
+    } else {
+      setCurrentPositionLines([])
+      setCurrentAnalysisDepth(0)
+    }
+
+    triggerPositionAnalysis(targetFen)
   }
 
 

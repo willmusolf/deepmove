@@ -37,51 +37,31 @@ function pvToSans(fen: string, pv: string[]): string[] {
   return sans
 }
 
-function formatPvNotation(fen: string, sans: string[], maxMoves = 8): string {
-  if (sans.length === 0) return ''
-  const parts = fen.split(' ')
-  let moveNum = parseInt(parts[5] ?? '1', 10)
-  let isWhite = parts[1] === 'w'
-  const tokens: string[] = []
-
-  for (let i = 0; i < Math.min(sans.length, maxMoves); i += 1) {
-    if (isWhite) {
-      tokens.push(`${moveNum}.\u2009${sans[i]}`)
-    } else {
-      if (i === 0) tokens.push(`${moveNum}...\u2009${sans[i]}`)
-      else tokens.push(sans[i])
-      moveNum += 1
-    }
-    isWhite = !isWhite
-  }
-
-  return tokens.join(' ')
-}
-
 function formatScore(line: TopLine): string {
   return formatEval(line.score, line.isMate, line.mateIn)
 }
 
-function buildPvTokens(fen: string, sans: string[], maxMoves = 8): Array<{ text: string; plyCount: number | null; key: string }> {
+function buildPvSegments(fen: string, sans: string[], maxMoves = 8): Array<{ text: string; plyCount: number; key: string }> {
   const parts = fen.split(' ')
   let moveNum = parseInt(parts[5] ?? '1', 10)
   let isWhite = parts[1] === 'w'
-  const tokens: Array<{ text: string; plyCount: number | null; key: string }> = []
+  const segments: Array<{ text: string; plyCount: number; key: string }> = []
 
   for (let i = 0; i < Math.min(sans.length, maxMoves); i += 1) {
+    let prefix = ''
     if (isWhite) {
-      tokens.push({ text: `${moveNum}.`, plyCount: null, key: `mn-${i}` })
+      prefix = `${moveNum}.\u2009`
     } else if (i === 0) {
-      tokens.push({ text: `${moveNum}...`, plyCount: null, key: `mn-${i}` })
+      prefix = `${moveNum}...\u2009`
     }
 
-    tokens.push({ text: sans[i], plyCount: i + 1, key: `san-${i}` })
+    segments.push({ text: `${prefix}${sans[i]}`, plyCount: i + 1, key: `seg-${i}` })
 
     if (!isWhite) moveNum += 1
     isWhite = !isWhite
   }
 
-  return tokens
+  return segments
 }
 
 export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onLineMoveClick, fen }: BestLinesProps) {
@@ -91,9 +71,8 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
     () => visibleLines.map(line => {
       const sans = pvToSans(fen, line.pv)
       return {
-        notation: formatPvNotation(fen, sans, COLLAPSED_MAX_PLIES),
-        collapsedTokens: buildPvTokens(fen, sans, COLLAPSED_MAX_PLIES),
-        expandedTokens: buildPvTokens(fen, sans, EXPANDED_MAX_PLIES),
+        collapsedSegments: buildPvSegments(fen, sans, COLLAPSED_MAX_PLIES),
+        expandedSegments: buildPvSegments(fen, sans, EXPANDED_MAX_PLIES),
       }
     }),
     [fen, visibleLines],
@@ -104,7 +83,7 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
   }, [fen])
 
   const expandedLine = expandedIndex !== null ? visibleLines[expandedIndex] : null
-  const expandedTokens = expandedIndex !== null ? (pvData[expandedIndex]?.expandedTokens ?? []) : []
+  const expandedSegments = expandedIndex !== null ? (pvData[expandedIndex]?.expandedSegments ?? []) : []
 
   return (
     <div className="best-lines">
@@ -131,27 +110,23 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
             <div className="best-line-main" title="Click to explore this line">
               <span className="best-line-dot" style={{ background: LINE_COLORS[i] ?? LINE_COLORS[0] }} />
               <span className="best-line-pv">
-                {(pvData[i]?.collapsedTokens.length ?? 0) > 0
-                  ? pvData[i]!.collapsedTokens.map(token => (
-                    token.plyCount === null ? (
-                      <span key={token.key} className="best-line-pv__move-num">{token.text}</span>
-                    ) : (
-                      <button
-                        key={token.key}
-                        type="button"
-                        className="best-line-pv__move"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onLineMoveClick(line, token.plyCount!)
-                        }}
-                        onKeyDown={(event) => event.stopPropagation()}
-                        title={`Go to ${token.text}`}
-                      >
-                        {token.text}
-                      </button>
-                    )
+                {(pvData[i]?.collapsedSegments.length ?? 0) > 0
+                  ? pvData[i]!.collapsedSegments.map(segment => (
+                    <button
+                      key={segment.key}
+                      type="button"
+                      className="best-line-pv__move"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onLineMoveClick(line, segment.plyCount)
+                      }}
+                      onKeyDown={(event) => event.stopPropagation()}
+                      title={`Go to ${segment.text}`}
+                    >
+                      {segment.text}
+                    </button>
                   ))
-                  : (pvData[i]?.notation || line.san)}
+                  : line.san}
               </span>
             </div>
             <button
@@ -183,20 +158,16 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
           </button>
           <div className="best-lines-overlay__body">
             <span className="best-lines-overlay__pv">
-              {expandedTokens.map(token => (
-                token.plyCount === null ? (
-                  <span key={token.key} className="best-lines-overlay__move-num">{token.text}</span>
-                ) : (
-                  <button
-                    key={token.key}
-                    type="button"
-                    className="best-lines-overlay__move"
-                    onClick={() => onLineMoveClick(expandedLine, token.plyCount!)}
-                    title={`Go to ${token.text}`}
-                  >
-                    {token.text}
-                  </button>
-                )
+              {expandedSegments.map(segment => (
+                <button
+                  key={segment.key}
+                  type="button"
+                  className="best-lines-overlay__move"
+                  onClick={() => onLineMoveClick(expandedLine, segment.plyCount)}
+                  title={`Go to ${segment.text}`}
+                >
+                  {segment.text}
+                </button>
               ))}
             </span>
             <span className="best-lines-overlay__eval">{formatScore(expandedLine)}</span>

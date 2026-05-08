@@ -2052,12 +2052,6 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   min-width: 0;
 }
 
-.best-line-pv__move-num {
-  color: var(--color-text-muted);
-  opacity: 0.85;
-  margin-right: 4px;
-}
-
 .best-line-pv__move {
   padding: 0 2px;
   margin-right: 4px;
@@ -2067,7 +2061,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   color: var(--color-text);
   font: inherit;
   line-height: inherit;
-  white-space: inherit;
+  white-space: nowrap;
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
@@ -2164,11 +2158,6 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   padding-right: 2px;
 }
 
-.best-lines-overlay__move-num {
-  color: var(--color-text-muted);
-  opacity: 0.85;
-}
-
 .best-lines-overlay__move {
   padding: 0 2px;
   border: 0;
@@ -2177,6 +2166,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   color: var(--color-text);
   font: inherit;
   line-height: inherit;
+  white-space: nowrap;
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
