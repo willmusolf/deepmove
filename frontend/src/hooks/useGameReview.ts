@@ -263,6 +263,19 @@ export function useGameReview() {
     return count
   }, [tree, rootId])
 
+  // Denominator for the display counter: path depth + remaining forward chain from current node.
+  // Unlike totalMoves (which only walks childIds[0] from root), this stays correct when the user
+  // is on a non-first-child variation branch and continues adding moves.
+  const displayTotalDepth = useMemo(() => {
+    const lastId = currentPath[currentPath.length - 1]
+    let depth = currentPath.length
+    let id: string | null = lastId != null
+      ? (tree[lastId]?.childIds[0] ?? null)
+      : (rootId ?? null)
+    while (id) { depth++; id = tree[id]?.childIds[0] ?? null }
+    return depth
+  }, [currentPath, tree, rootId])
+
   // Flat SAN list of main line (for EvalGraph / backward compat)
   const moves = useMemo(() => {
     const result: string[] = []
@@ -403,6 +416,7 @@ export function useGameReview() {
     currentFen,
     currentMoveIndex,
     pathDepth: currentPath.length,
+    displayTotalDepth,
     goToMove,
     goForward,
     goBack,

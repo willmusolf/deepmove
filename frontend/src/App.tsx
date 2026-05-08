@@ -228,6 +228,7 @@ export default function App() {
     currentPath,
     currentMoveIndex,
     pathDepth,
+    displayTotalDepth,
     goToMove,
     goForward,
     goBack,
@@ -1560,7 +1561,7 @@ export default function App() {
                           ←
                         </button>
                         <span className="move-counter">
-                          {pathDepth} / {totalMoves}
+                          {pathDepth} / {displayTotalDepth}
                         </span>
                         <button
                           className="nav-btn"
