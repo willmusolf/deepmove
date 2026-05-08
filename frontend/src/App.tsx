@@ -1,4 +1,12 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  type MouseEvent as ReactMouseEvent,
+  type TouchEvent as ReactTouchEvent,
+} from 'react'
 import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
@@ -81,6 +89,81 @@ interface AppUiState {
   showEvalBar: boolean
   showArrows: boolean
   showGrades: boolean
+}
+
+const TOUCH_NAV_REPEAT_DELAY_MS = 220
+const TOUCH_NAV_REPEAT_INTERVAL_MS = 110
+
+function useTouchHoldNavigate(
+  onStep: () => void,
+  disabled: boolean,
+) {
+  const onStepRef = useRef(onStep)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const suppressClickRef = useRef(false)
+
+  onStepRef.current = onStep
+
+  const clearRepeat = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+    window.removeEventListener('touchend', clearRepeat)
+    window.removeEventListener('touchcancel', clearRepeat)
+  }, [])
+
+  useEffect(() => clearRepeat, [clearRepeat])
+
+  const handleTouchStart = useCallback((e: ReactTouchEvent<HTMLButtonElement>) => {
+    if (disabled) return
+    e.preventDefault()
+    suppressClickRef.current = true
+    clearRepeat()
+    onStepRef.current()
+    window.addEventListener('touchend', clearRepeat)
+    window.addEventListener('touchcancel', clearRepeat)
+    timeoutRef.current = setTimeout(() => {
+      intervalRef.current = setInterval(() => {
+        onStepRef.current()
+      }, TOUCH_NAV_REPEAT_INTERVAL_MS)
+    }, TOUCH_NAV_REPEAT_DELAY_MS)
+  }, [clearRepeat, disabled])
+
+  const handleTouchEnd = useCallback(() => {
+    clearRepeat()
+  }, [clearRepeat])
+
+  const handleTouchMove = useCallback((e: ReactTouchEvent<HTMLButtonElement>) => {
+    if (disabled) return
+    e.preventDefault()
+  }, [disabled])
+
+  const handleClick = useCallback((e: ReactMouseEvent<HTMLButtonElement>) => {
+    if (disabled) {
+      e.preventDefault()
+      return
+    }
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      e.preventDefault()
+      return
+    }
+    onStep()
+  }, [disabled, onStep])
+
+  return {
+    onClick: handleClick,
+    onTouchStart: handleTouchStart,
+    onTouchEnd: handleTouchEnd,
+    onTouchCancel: handleTouchEnd,
+    onTouchMove: handleTouchMove,
+  }
 }
 
 function isPanelTab(value: unknown): value is PanelTab {
@@ -825,6 +908,20 @@ export default function App() {
     analysisBoardGoForward()
   }, [analysisPath, analysisTree, analysisRootId, branchGrades, analysisBoardGoForward, playMoveSound])
 
+  const reviewBackDisabled = currentPath.length === 0
+  const reviewForwardDisabled = currentPath.length === 0
+    ? !rootId
+    : !moveTree[currentPath[currentPath.length - 1]]?.childIds[0]
+  const analysisBackDisabled = analysisPath.length === 0
+  const analysisForwardDisabled = analysisRootId === null
+    ? true
+    : analysisPath.length !== 0 && !analysisTree[analysisPath[analysisPath.length - 1]]?.childIds[0]
+
+  const reviewBackTouchHandlers = useTouchHoldNavigate(goBackFn, reviewBackDisabled)
+  const reviewForwardTouchHandlers = useTouchHoldNavigate(goForwardFn, reviewForwardDisabled)
+  const analysisBackTouchHandlers = useTouchHoldNavigate(handleAnalysisGoBack, analysisBackDisabled)
+  const analysisForwardTouchHandlers = useTouchHoldNavigate(handleAnalysisGoForward, analysisForwardDisabled)
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const active = document.activeElement
@@ -1454,33 +1551,43 @@ export default function App() {
                   <div className="board-controls__nav">
                     {isLoaded ? (
                       <>
-                        <button className="nav-btn" onClick={goBackFn}
-                          disabled={currentPath.length === 0}>←</button>
+                        <button
+                          className="nav-btn"
+                          disabled={reviewBackDisabled}
+                          {...reviewBackTouchHandlers}
+                        >
+                          ←
+                        </button>
                         <span className="move-counter">
                           {currentMoveIndex} / {totalMoves}
                         </span>
-                        <button className="nav-btn" onClick={goForwardFn}
-                          disabled={
-                            currentPath.length === 0
-                              ? !rootId
-                              : !moveTree[currentPath[currentPath.length - 1]]?.childIds[0]
-                          }>→</button>
+                        <button
+                          className="nav-btn"
+                          disabled={reviewForwardDisabled}
+                          {...reviewForwardTouchHandlers}
+                        >
+                          →
+                        </button>
                       </>
                     ) : (
                       <>
-                        <button className="nav-btn" onClick={handleAnalysisGoBack}
-                          disabled={analysisPath.length === 0}>←</button>
+                        <button
+                          className="nav-btn"
+                          disabled={analysisBackDisabled}
+                          {...analysisBackTouchHandlers}
+                        >
+                          ←
+                        </button>
                         <span className="move-counter">
                           {analysisPath.length} / {analysisMainLineSans.length}
                         </span>
-                        <button className="nav-btn" onClick={handleAnalysisGoForward}
-                          disabled={
-                            analysisRootId === null
-                              ? true
-                              : analysisPath.length === 0
-                                ? false
-                                : !analysisTree[analysisPath[analysisPath.length - 1]]?.childIds[0]
-                          }>→</button>
+                        <button
+                          className="nav-btn"
+                          disabled={analysisForwardDisabled}
+                          {...analysisForwardTouchHandlers}
+                        >
+                          →
+                        </button>
                       </>
                     )}
                   </div>
