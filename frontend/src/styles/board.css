@@ -2648,8 +2648,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   }
 
   .game-filter-btn {
-    padding: 2px 5px;
-    font-size: 0.68rem;
+    padding: 3px 8px;
+    font-size: 0.82rem;
   }
 
   .game-sort-select {
@@ -2668,12 +2668,16 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   }
 
   .account-link-input,
-  .game-opponent-search,
   .fen-input,
   .auth-input,
   .profile-input {
     padding-top: 0.55rem;
     padding-bottom: 0.55rem;
+  }
+
+  .game-opponent-search {
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
   }
 
   .username-suggestions__item {
