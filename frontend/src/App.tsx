@@ -363,6 +363,9 @@ export default function App() {
   // Tracks which game the current branchGrades belong to — used by the write effect so it
   // always writes to the correct sessionStorage key even if currentGameId changes async.
   const branchGradesKeyRef = useRef<string | null>(useGameStore.getState().currentGameId)
+  // Tracks the node ID of the most recently computed branch grade. Avoids reading a
+  // stale analysisPath[last] in the board badge when the user moves faster than the eval.
+  const lastGradedNodeIdRef = useRef<string | null>(null)
   const [pendingBranchNodes, setPendingBranchNodes] = useState<Set<string>>(new Set())
   // Tracks nodes with an eval already dispatched — prevents duplicate Stockfish calls
   // when nav handlers eagerly add to pendingBranchNodes before the safety-net effect fires.
@@ -392,6 +395,7 @@ export default function App() {
       const storedBg = bgGameId
         ? readSessionJson<Record<string, string>>(`deepmove_bg_${bgGameId}`)
         : null
+      lastGradedNodeIdRef.current = null
       setBranchGrades(
         storedBg && Object.keys(storedBg).length > 0
           ? new Map(Object.entries(storedBg) as [string, MoveGrade][])
@@ -833,6 +837,7 @@ export default function App() {
     setAnalyzingPosition(false)
     setPanelTab('analysis')
     analysisBoardReset()
+    lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
     setPendingBranchNodes(new Set())
 
@@ -994,6 +999,7 @@ export default function App() {
     reset()
     lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
     positionCache.current.clear()
+    lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
     setPendingBranchNodes(new Set())
     analysisBoardReset()
@@ -1019,6 +1025,7 @@ export default function App() {
     }
 
     analysisBoardReset()
+    lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
     setPendingBranchNodes(new Set())
     setOpeningName(null)
@@ -1080,6 +1087,7 @@ export default function App() {
       const afterResult = await analyzePositionSingleBranch(newFen, 14)
 
       if (!parentResult || !afterResult) {
+        lastGradedNodeIdRef.current = nodeId
         setBranchGrades(prev => new Map(prev).set(nodeId, 'unknown' as MoveGrade))
         return  // finally still clears pendingBranchNodes
       }
@@ -1104,6 +1112,7 @@ export default function App() {
       const sacrifice = playedMove ? isSacrificeFn(playedMove, newFen) : false
 
       const grade = classifyMove(evalBefore, evalAfter, color, legalCount, sacrifice, null, isTopSuggested, false, inCheck)
+      lastGradedNodeIdRef.current = nodeId
       setBranchGrades(prev => new Map(prev).set(nodeId, grade))
     } catch (err) {
       if (isStockfishCancelledError(err)) return
@@ -1430,23 +1439,22 @@ export default function App() {
                       pathKey={pathKeyRef.current}
                     />
                     {(() => {
-                      // Determine current branch node for pending/grade lookup
+                      // Determine current branch node for pending/grade lookup.
+                      // In free-play (!isLoaded) use lastGradedNodeIdRef so the badge
+                      // reflects the most recently computed eval even if analysisPath
+                      // has already advanced to the next move before this render.
                       const boardNodeId = isLoaded
                         ? (inBranch ? currentNodeId : null)
-                        : (analysisPath.length > 0 ? analysisPath[analysisPath.length - 1] : null)
+                        : (lastGradedNodeIdRef.current ?? (analysisPath.length > 0 ? analysisPath[analysisPath.length - 1] : null))
                       const grade = isLoaded
                         ? (hideLoadedReviewArtifacts
                             ? undefined
                             : (inBranch && currentNodeId ? branchGrades.get(currentNodeId) : mainEval?.grade))
-                        : (analysisPath.length > 0
-                          ? branchGrades.get(analysisPath[analysisPath.length - 1])
-                          : undefined)
+                        : (boardNodeId ? branchGrades.get(boardNodeId) : undefined)
                       const badgeMeta = showGrades ? getGradeBadgeMeta(grade) : null
                       const destSquare = isLoaded
                         ? (inBranch && currentNodeId ? moveTree[currentNodeId]?.to : boardLastMove?.[1])
-                        : (analysisPath.length > 0
-                          ? analysisTree[analysisPath[analysisPath.length - 1]]?.to
-                          : undefined)
+                        : (boardNodeId ? analysisTree[boardNodeId]?.to : undefined)
                       // Show pending spinner while branch eval is in flight.
                       // Also show for main-line moves while full-game analysis is still running
                       // (mainEval?.grade not yet populated for this move index).
