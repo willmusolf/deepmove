@@ -11,6 +11,8 @@ function getAnalysisDepth(elo: number): number {
   return 16
 }
 
+const ANALYSIS_PROGRESS_FLUSH_MS = 180
+
 import { useEffect, useRef, useState } from 'react'
 import { Chess } from 'chess.js'
 import { StockfishEngine } from '../engine/stockfish'
@@ -156,20 +158,44 @@ export function useStockfish() {
 
     // Per-move callback: update store + save partial checkpoint to IndexedDB
     const accumulatedEvals: import('../engine/analysis').MoveEval[] = [...initialEvals]
-    function onMoveComplete(moveEval: import('../engine/analysis').MoveEval) {
+    let progressFlushTimer: ReturnType<typeof setTimeout> | null = null
+    let lastProgressFlushAt = 0
+
+    const flushProgress = () => {
+      if (progressFlushTimer) {
+        clearTimeout(progressFlushTimer)
+        progressFlushTimer = null
+      }
       if (controller.signal.aborted || !isCurrentRun()) return
-      accumulatedEvals.push(moveEval)
+      lastProgressFlushAt = Date.now()
       setMoveEvals([...accumulatedEvals])
       setAnalyzedCount(accumulatedEvals.length)
       // Detect critical moments progressively so coaching lessons start fetching early.
       // Only run once we have enough evals for the detection to be meaningful (10+ moves).
-      // This fires on every move but detectCriticalMoments is cheap (sort + slice).
       if (accumulatedEvals.length >= 10) {
         const earlyMoments = detectCriticalMoments([...accumulatedEvals], color, userElo)
         setCriticalMoments(earlyMoments)
       }
       const record = buildRecord([...accumulatedEvals], true)
       if (record) saveAnalyzedGame(record).catch(() => {})
+    }
+
+    const scheduleProgressFlush = () => {
+      const elapsed = Date.now() - lastProgressFlushAt
+      if (elapsed >= ANALYSIS_PROGRESS_FLUSH_MS) {
+        flushProgress()
+        return
+      }
+      if (progressFlushTimer) return
+      progressFlushTimer = setTimeout(() => {
+        flushProgress()
+      }, ANALYSIS_PROGRESS_FLUSH_MS - elapsed)
+    }
+
+    function onMoveComplete(moveEval: import('../engine/analysis').MoveEval) {
+      if (controller.signal.aborted || !isCurrentRun()) return
+      accumulatedEvals.push(moveEval)
+      scheduleProgressFlush()
     }
 
     try {
@@ -188,6 +214,7 @@ export function useStockfish() {
 
       if (controller.signal.aborted || !isCurrentRun()) return
 
+      flushProgress()
       setMoveEvals(results)
       // Mark analysis as complete so page refresh skips re-analysis
       useGameStore.getState().setSkipNextAnalysis(true)
@@ -218,6 +245,10 @@ export function useStockfish() {
       if (controller.signal.aborted || analysisRunIdRef.current !== runId) return
       console.error('Analysis failed:', err)
     } finally {
+      if (progressFlushTimer) {
+        clearTimeout(progressFlushTimer)
+        progressFlushTimer = null
+      }
       if (abortRef.current === controller) {
         abortRef.current = null
       }
