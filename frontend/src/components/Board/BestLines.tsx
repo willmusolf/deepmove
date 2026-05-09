@@ -15,7 +15,8 @@ interface BestLinesProps {
 }
 
 const MAX_LINES = 2
-const COLLAPSED_MAX_PLIES = 7
+const COLLAPSED_MAX_PLIES_WHITE_TO_MOVE = 8
+const COLLAPSED_MAX_PLIES_BLACK_TO_MOVE = 6
 const EXPANDED_MAX_PLIES = 16
 const MOBILE_BREAKPOINT = '(max-width: 640px)'
 
@@ -74,15 +75,20 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
   const [isMobile, setIsMobile] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia(MOBILE_BREAKPOINT).matches
   ))
+  const collapsedMaxPlies = useMemo(() => (
+    fen.split(' ')[1] === 'w'
+      ? COLLAPSED_MAX_PLIES_WHITE_TO_MOVE
+      : COLLAPSED_MAX_PLIES_BLACK_TO_MOVE
+  ), [fen])
   const pvData = useMemo(
     () => visibleLines.map(line => {
       const sans = pvToSans(fen, line.pv)
       return {
-        collapsedSegments: buildCollapsedSegments(fen, sans, COLLAPSED_MAX_PLIES),
+        collapsedSegments: buildCollapsedSegments(fen, sans, collapsedMaxPlies),
         expandedSegments: buildCollapsedSegments(fen, sans, EXPANDED_MAX_PLIES),
       }
     }),
-    [fen, visibleLines],
+    [collapsedMaxPlies, fen, visibleLines],
   )
 
   useEffect(() => {
