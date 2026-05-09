@@ -15,8 +15,10 @@ interface BestLinesProps {
 }
 
 const MAX_LINES = 2
-const COLLAPSED_MAX_PLIES_WHITE_TO_MOVE = 8
-const COLLAPSED_MAX_PLIES_BLACK_TO_MOVE = 6
+const COLLAPSED_MAX_PLIES_DESKTOP_WHITE_TO_MOVE = 8
+const COLLAPSED_MAX_PLIES_DESKTOP_BLACK_TO_MOVE = 5
+const COLLAPSED_MAX_PLIES_MOBILE_WHITE_TO_MOVE = 9
+const COLLAPSED_MAX_PLIES_MOBILE_BLACK_TO_MOVE = 6
 const EXPANDED_MAX_PLIES = 16
 const MOBILE_BREAKPOINT = '(max-width: 640px)'
 
@@ -75,11 +77,17 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
   const [isMobile, setIsMobile] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia(MOBILE_BREAKPOINT).matches
   ))
-  const collapsedMaxPlies = useMemo(() => (
-    fen.split(' ')[1] === 'w'
-      ? COLLAPSED_MAX_PLIES_WHITE_TO_MOVE
-      : COLLAPSED_MAX_PLIES_BLACK_TO_MOVE
-  ), [fen])
+  const collapsedMaxPlies = useMemo(() => {
+    const isWhiteToMove = fen.split(' ')[1] === 'w'
+    if (isMobile) {
+      return isWhiteToMove
+        ? COLLAPSED_MAX_PLIES_MOBILE_WHITE_TO_MOVE
+        : COLLAPSED_MAX_PLIES_MOBILE_BLACK_TO_MOVE
+    }
+    return isWhiteToMove
+      ? COLLAPSED_MAX_PLIES_DESKTOP_WHITE_TO_MOVE
+      : COLLAPSED_MAX_PLIES_DESKTOP_BLACK_TO_MOVE
+  }, [fen, isMobile])
   const pvData = useMemo(
     () => visibleLines.map(line => {
       const sans = pvToSans(fen, line.pv)
