@@ -15,8 +15,8 @@ interface BestLinesProps {
 }
 
 const MAX_LINES = 2
-const COLLAPSED_MAX_PLIES = 6
-const EXPANDED_MAX_PLIES = 14
+const COLLAPSED_MAX_PLIES = 7
+const EXPANDED_MAX_PLIES = 16
 const MOBILE_BREAKPOINT = '(max-width: 640px)'
 
 function pvToSans(fen: string, pv: string[]): string[] {
