@@ -17,7 +17,7 @@ interface BestLinesProps {
 const MAX_LINES = 2
 const COLLAPSED_MAX_PLIES = 10
 const EXPANDED_MAX_PLIES = 12
-const LINE_COLORS = ['#4ade80', '#60a5fa', '#facc15']  // green, blue, yellow
+const MOBILE_BREAKPOINT = '(max-width: 640px)'
 
 function pvToSans(fen: string, pv: string[]): string[] {
   const sans: string[] = []
@@ -41,11 +41,15 @@ function formatScore(line: TopLine): string {
   return formatEval(line.score, line.isMate, line.mateIn)
 }
 
-function buildPvSegments(fen: string, sans: string[], maxMoves = 8): Array<{ text: string; plyCount: number; key: string }> {
+function buildCollapsedSegments(
+  fen: string,
+  sans: string[],
+  maxMoves = 8,
+): Array<{ prefix: string; san: string; plyCount: number; key: string }> {
   const parts = fen.split(' ')
   let moveNum = parseInt(parts[5] ?? '1', 10)
   let isWhite = parts[1] === 'w'
-  const segments: Array<{ text: string; plyCount: number; key: string }> = []
+  const segments: Array<{ prefix: string; san: string; plyCount: number; key: string }> = []
 
   for (let i = 0; i < Math.min(sans.length, maxMoves); i += 1) {
     let prefix = ''
@@ -55,7 +59,7 @@ function buildPvSegments(fen: string, sans: string[], maxMoves = 8): Array<{ tex
       prefix = `${moveNum}...\u2009`
     }
 
-    segments.push({ text: `${prefix}${sans[i]}`, plyCount: i + 1, key: `seg-${i}` })
+    segments.push({ prefix, san: sans[i], plyCount: i + 1, key: `seg-${i}` })
 
     if (!isWhite) moveNum += 1
     isWhite = !isWhite
@@ -64,19 +68,47 @@ function buildPvSegments(fen: string, sans: string[], maxMoves = 8): Array<{ tex
   return segments
 }
 
+function buildExpandedSegments(
+  fen: string,
+  sans: string[],
+  maxMoves = 8,
+): Array<{ text: string; plyCount: number; key: string }> {
+  return buildCollapsedSegments(fen, sans, maxMoves).map(segment => ({
+    text: `${segment.prefix}${segment.san}`,
+    plyCount: segment.plyCount,
+    key: segment.key,
+  }))
+}
+
 export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onLineMoveClick, fen }: BestLinesProps) {
   const visibleLines = lines.slice(0, MAX_LINES)
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
+  const [isMobile, setIsMobile] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia(MOBILE_BREAKPOINT).matches
+  ))
   const pvData = useMemo(
     () => visibleLines.map(line => {
       const sans = pvToSans(fen, line.pv)
       return {
-        collapsedSegments: buildPvSegments(fen, sans, COLLAPSED_MAX_PLIES),
-        expandedSegments: buildPvSegments(fen, sans, EXPANDED_MAX_PLIES),
+        collapsedSegments: buildCollapsedSegments(fen, sans, COLLAPSED_MAX_PLIES),
+        expandedSegments: buildExpandedSegments(fen, sans, EXPANDED_MAX_PLIES),
       }
     }),
     [fen, visibleLines],
   )
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mediaQuery = window.matchMedia(MOBILE_BREAKPOINT)
+    const sync = () => setIsMobile(mediaQuery.matches)
+    sync()
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', sync)
+      return () => mediaQuery.removeEventListener('change', sync)
+    }
+    mediaQuery.addListener(sync)
+    return () => mediaQuery.removeListener(sync)
+  }, [])
 
   useEffect(() => {
     setExpandedIndex(null)
@@ -108,23 +140,28 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
             }}
           >
             <div className="best-line-main" title="Click to explore this line">
-              <span className="best-line-dot" style={{ background: LINE_COLORS[i] ?? LINE_COLORS[0] }} />
               <span className="best-line-pv">
                 {(pvData[i]?.collapsedSegments.length ?? 0) > 0
                   ? pvData[i]!.collapsedSegments.map(segment => (
-                    <button
-                      key={segment.key}
-                      type="button"
-                      className="best-line-pv__move"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onLineMoveClick(line, segment.plyCount)
-                      }}
-                      onKeyDown={(event) => event.stopPropagation()}
-                      title={`Go to ${segment.text}`}
-                    >
-                      {segment.text}
-                    </button>
+                    <span key={segment.key} className="best-line-pv__segment">
+                      {segment.prefix && <span className="best-line-pv__prefix">{segment.prefix}</span>}
+                      {isMobile ? (
+                        <span className="best-line-pv__text">{segment.san}</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="best-line-pv__move"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            onLineMoveClick(line, segment.plyCount)
+                          }}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          title={`Go to ${segment.prefix}${segment.san}`}
+                        >
+                          {segment.san}
+                        </button>
+                      )}
+                    </span>
                   ))
                   : line.san}
               </span>

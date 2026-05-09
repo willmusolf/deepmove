@@ -486,6 +486,7 @@ export default function App() {
   // When true, the next displayFen change is from a piece move — skip the 180ms deferral
   const isPieceMoveRef = useRef(false)
   const suppressPositionAnalysisRef = useRef(false)
+  const [isBestLineJumping, setBestLineJumping] = useState(false)
   const playBestLineMoveRef = useRef<(uci: string, options?: { playSound?: boolean }) => boolean>(() => false)
 
   function triggerPositionAnalysis(fen: string, depth = POSITION_MAX_DEPTH) {
@@ -585,7 +586,6 @@ export default function App() {
     }
 
     if (suppressPositionAnalysisRef.current) {
-      setAnalyzingPosition(false)
       return
     }
 
@@ -1287,10 +1287,13 @@ export default function App() {
     }
 
     suppressPositionAnalysisRef.current = true
+    setBestLineJumping(true)
     positionTokenRef.current++
     stopPositionAnalysis()
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
-    setAnalyzingPosition(false)
+    setCurrentPositionLines([])
+    setCurrentAnalysisDepth(0)
+    setAnalyzingPosition(true)
 
     for (let i = 0; i < sequence.length; i += 1) {
       const moved = playBestLineMoveRef.current(sequence[i])
@@ -1304,13 +1307,18 @@ export default function App() {
 
     suppressPositionAnalysisRef.current = false
 
-    if (pauseLivePositionAnalysis || !isReady) return
+    if (pauseLivePositionAnalysis || !isReady) {
+      setBestLineJumping(false)
+      setAnalyzingPosition(false)
+      return
+    }
 
     const cached = positionCache.current.get(targetFen)
     if (cached && cached.length > 0) {
       setCurrentPositionLines(cached)
       setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
       if ((cached[0]?.depth ?? 0) >= POSITION_MAX_DEPTH) {
+        setBestLineJumping(false)
         setAnalyzingPosition(false)
         return
       }
@@ -1320,6 +1328,7 @@ export default function App() {
       setCurrentAnalysisDepth(0)
     }
 
+    setBestLineJumping(false)
     triggerPositionAnalysis(targetFen)
   }
 
@@ -1382,11 +1391,14 @@ export default function App() {
   const stableIsMate = evalCp !== undefined ? evalIsMate : lastEvalRef.current.isMate
   const stableMateIn = evalCp !== undefined ? evalMateIn : lastEvalRef.current.mateIn
   const showLoadingEvalPlaceholder = isLoaded && showAnalyzingBar && !inBranch && !mainEval && !posLine
-  const displayedEvalText = showLoadingEvalPlaceholder ? null : formatEval(stableEvalCp, stableIsMate, stableMateIn)
+  const displayedEvalText = (showLoadingEvalPlaceholder || isBestLineJumping)
+    ? null
+    : formatEval(stableEvalCp, stableIsMate, stableMateIn)
   const shouldRenderEvalDisplay = Boolean(
     displayedEvalText
     || currentAnalysisDepth > 0
     || isAnalyzingPosition
+    || isBestLineJumping
     || (mainEval && !inBranch)
   )
 
@@ -1398,6 +1410,7 @@ export default function App() {
   //   line 3: gap ≤ 50cp  (must be essentially equal — "excellent" or better)
   // This prevents inaccuracies/mistakes from appearing as "suggested" alternatives.
   const visibleLines = useMemo(() => {
+    if (isBestLineJumping) return []
     const lines = currentPositionLines
     if (lines.length === 0) return []
     const best = lines[0]
@@ -1426,7 +1439,7 @@ export default function App() {
       if (i === 2) return gap <= 50
       return false
     })
-  }, [currentPositionLines])
+  }, [currentPositionLines, isBestLineJumping])
 
   const boardShapes: DrawShape[] = useMemo(() => visibleLines
     .filter(l => l.pv.length >= 1)
