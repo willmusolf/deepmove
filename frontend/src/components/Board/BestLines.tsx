@@ -15,7 +15,7 @@ interface BestLinesProps {
 }
 
 const MAX_LINES = 2
-const COLLAPSED_MAX_PLIES = 10
+const COLLAPSED_MAX_PLIES = 8
 const EXPANDED_MAX_PLIES = 12
 const MOBILE_BREAKPOINT = '(max-width: 640px)'
 
@@ -68,18 +68,6 @@ function buildCollapsedSegments(
   return segments
 }
 
-function buildExpandedSegments(
-  fen: string,
-  sans: string[],
-  maxMoves = 8,
-): Array<{ text: string; plyCount: number; key: string }> {
-  return buildCollapsedSegments(fen, sans, maxMoves).map(segment => ({
-    text: `${segment.prefix}${segment.san}`,
-    plyCount: segment.plyCount,
-    key: segment.key,
-  }))
-}
-
 export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onLineMoveClick, fen }: BestLinesProps) {
   const visibleLines = lines.slice(0, MAX_LINES)
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
@@ -91,7 +79,7 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
       const sans = pvToSans(fen, line.pv)
       return {
         collapsedSegments: buildCollapsedSegments(fen, sans, COLLAPSED_MAX_PLIES),
-        expandedSegments: buildExpandedSegments(fen, sans, EXPANDED_MAX_PLIES),
+        expandedSegments: buildCollapsedSegments(fen, sans, EXPANDED_MAX_PLIES),
       }
     }),
     [fen, visibleLines],
@@ -196,15 +184,17 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
           <div className="best-lines-overlay__body">
             <span className="best-lines-overlay__pv">
               {expandedSegments.map(segment => (
-                <button
-                  key={segment.key}
-                  type="button"
-                  className="best-lines-overlay__move"
-                  onClick={() => onLineMoveClick(expandedLine, segment.plyCount)}
-                  title={`Go to ${segment.text}`}
-                >
-                  {segment.text}
-                </button>
+                <span key={segment.key} className="best-lines-overlay__segment">
+                  {segment.prefix && <span className="best-lines-overlay__prefix">{segment.prefix}</span>}
+                  <button
+                    type="button"
+                    className="best-lines-overlay__move"
+                    onClick={() => onLineMoveClick(expandedLine, segment.plyCount)}
+                    title={`Go to ${segment.prefix}${segment.san}`}
+                  >
+                    {segment.san}
+                  </button>
+                </span>
               ))}
             </span>
             <span className="best-lines-overlay__eval">{formatScore(expandedLine)}</span>
