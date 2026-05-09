@@ -2048,13 +2048,13 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   display: inline-flex;
   align-items: baseline;
   white-space: nowrap;
-  margin-right: 6px;
+  margin-right: 3px;
 }
 
 .best-line-pv__prefix {
   color: var(--color-text-muted);
   opacity: 0.85;
-  margin-right: 2px;
+  margin-right: 1px;
 }
 
 .best-line-pv__text {
@@ -2062,7 +2062,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .best-line-pv__move {
-  padding: 0 2px;
+  padding: 0 1px;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -2170,13 +2170,13 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   display: inline-flex;
   align-items: baseline;
   white-space: nowrap;
-  margin-right: 6px;
+  margin-right: 4px;
 }
 
 .best-lines-overlay__prefix {
   color: var(--color-text-muted);
   opacity: 0.85;
-  margin-right: 2px;
+  margin-right: 1px;
 }
 
 .best-lines-overlay__move {
