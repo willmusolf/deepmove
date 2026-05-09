@@ -2048,13 +2048,13 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   display: inline-flex;
   align-items: baseline;
   white-space: nowrap;
-  margin-right: 3px;
+  margin-right: 2px;
 }
 
 .best-line-pv__prefix {
   color: var(--color-text-muted);
   opacity: 0.85;
-  margin-right: 1px;
+  margin-right: 0;
 }
 
 .best-line-pv__text {
@@ -2170,13 +2170,13 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   display: inline-flex;
   align-items: baseline;
   white-space: nowrap;
-  margin-right: 4px;
+  margin-right: 3px;
 }
 
 .best-lines-overlay__prefix {
   color: var(--color-text-muted);
   opacity: 0.85;
-  margin-right: 1px;
+  margin-right: 0;
 }
 
 .best-lines-overlay__move {

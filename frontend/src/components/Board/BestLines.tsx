@@ -15,7 +15,7 @@ interface BestLinesProps {
 }
 
 const MAX_LINES = 2
-const COLLAPSED_MAX_PLIES = 6
+const COLLAPSED_MAX_PLIES = 5
 const EXPANDED_MAX_PLIES = 12
 const MOBILE_BREAKPOINT = '(max-width: 640px)'
 
@@ -54,9 +54,9 @@ function buildCollapsedSegments(
   for (let i = 0; i < Math.min(sans.length, maxMoves); i += 1) {
     let prefix = ''
     if (isWhite) {
-      prefix = `${moveNum}.\u2009`
+      prefix = `${moveNum}.`
     } else if (i === 0) {
-      prefix = `${moveNum}...\u2009`
+      prefix = `${moveNum}...`
     }
 
     segments.push({ prefix, san: sans[i], plyCount: i + 1, key: `seg-${i}` })
