@@ -19,6 +19,7 @@ const COLLAPSED_MAX_PLIES = 12
 const EXPANDED_MAX_PLIES = 16
 const MOBILE_BREAKPOINT = '(max-width: 640px)'
 const COLLAPSED_FIT_BUFFER_PX = 6
+const COLLAPSED_TRAILING_SAFETY_PX = 8
 
 function pvToSans(fen: string, pv: string[]): string[] {
   const sans: string[] = []
@@ -121,7 +122,10 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
 
         for (const node of segmentNodes) {
           const segmentWidth = Math.ceil(node.getBoundingClientRect().width)
-          if (count > 0 && usedWidth + segmentWidth > availableWidth) break
+          const maxWidthForThisChunk = count === 0
+            ? availableWidth
+            : Math.max(0, availableWidth - COLLAPSED_TRAILING_SAFETY_PX)
+          if (count > 0 && usedWidth + segmentWidth > maxWidthForThisChunk) break
           usedWidth += segmentWidth
           count += 1
         }
