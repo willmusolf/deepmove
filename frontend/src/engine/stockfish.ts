@@ -32,6 +32,10 @@ export interface TopLine {
   depth: number       // analysis depth at which this line was produced
 }
 
+export interface StockfishInitOptions {
+  hashMB?: number
+}
+
 export function uciToSanForFen(fen: string, uciMove: string): string {
   try {
     const chess = new Chess(fen)
@@ -118,7 +122,7 @@ export class StockfishEngine {
     return this.currentSideToMove === 'w' ? mateIn : -mateIn
   }
 
-  async initialize(): Promise<void> {
+  async initialize(opts: StockfishInitOptions = {}): Promise<void> {
     return new Promise((resolve, reject) => {
       this.worker = new Worker(
         `/stockfish/worker.js?v=${STOCKFISH_ASSET_VERSION}#/stockfish/stockfish.wasm?v=${STOCKFISH_ASSET_VERSION}`,
@@ -136,7 +140,8 @@ export class StockfishEngine {
       this.worker.onmessage = (e: MessageEvent<string>) => {
         const line = e.data
         if (line === 'uciok') {
-          this.worker!.postMessage('setoption name Hash value 128')
+          const hash = opts.hashMB ?? 16
+          this.worker!.postMessage(`setoption name Hash value ${hash}`)
           // The shipped asset is the Stockfish "lite-single" build, which only
           // supports one thread. Sending a higher value can stall initialization
           // on COEP-enabled production where SharedArrayBuffer is available.

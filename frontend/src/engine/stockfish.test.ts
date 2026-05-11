@@ -10,6 +10,53 @@ function createEngine() {
   return engine
 }
 
+// Helper: simulate engine init handshake and capture postMessage calls
+function captureInitMessages(opts?: Parameters<StockfishEngine['initialize']>[0]): Promise<string[]> {
+  const messages: string[] = []
+  let onMessage: ((e: MessageEvent<string>) => void) | null = null
+
+  class MockWorker {
+    postMessage(msg: string) {
+      messages.push(msg)
+      if (msg === 'uci') {
+        onMessage?.({ data: 'uciok' } as MessageEvent<string>)
+      } else if (msg === 'isready') {
+        onMessage?.({ data: 'readyok' } as MessageEvent<string>)
+      }
+    }
+    set onmessage(handler: (e: MessageEvent<string>) => void) {
+      onMessage = handler
+    }
+    onerror = null
+    terminate = vi.fn()
+  }
+
+  vi.stubGlobal('Worker', MockWorker)
+
+  const engine = new StockfishEngine()
+  return engine.initialize(opts).then(() => {
+    vi.unstubAllGlobals()
+    return messages
+  })
+}
+
+describe('StockfishEngine initialize hashMB option', () => {
+  it('sends specified hashMB value during init', async () => {
+    const messages = await captureInitMessages({ hashMB: 32 })
+    expect(messages).toContain('setoption name Hash value 32')
+  })
+
+  it('uses default hash of 16 when hashMB is not provided', async () => {
+    const messages = await captureInitMessages()
+    expect(messages).toContain('setoption name Hash value 16')
+  })
+
+  it('always sends Threads value 1', async () => {
+    const messages = await captureInitMessages({ hashMB: 64 })
+    expect(messages).toContain('setoption name Threads value 1')
+  })
+})
+
 describe('StockfishEngine single-PV normalization', () => {
   it('normalizes centipawn scores to white perspective', async () => {
     const engine = createEngine()

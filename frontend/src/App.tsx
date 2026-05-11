@@ -50,6 +50,12 @@ import { cacheRatingsFromGameList, readCachedRatings } from './components/Import
 import { formatEval } from './utils/format'
 import { pruneReviewPendingNodes, shouldTrackReviewPendingNode } from './utils/reviewPending'
 import { readSessionJson, writeSessionJson } from './utils/sessionStorage'
+import {
+  positionCacheKey,
+  restorePositionCache,
+  makeThrottledWriter,
+  type ThrottledCacheWriter,
+} from './utils/positionCacheSession'
 import { Chess } from 'chess.js'
 import { getSquareOverlayPosition } from './chess/boardGeometry'
 import './styles/board.css'
@@ -435,6 +441,14 @@ export default function App() {
   // Hold last valid eval so the bar never receives undefined (prevents 50/50 flash)
   const lastEvalRef = useRef({ cp: 0, isMate: false, mateIn: null as number | null })
   const seededPositionCacheCountRef = useRef(0)
+  const positionCacheWriterRef = useRef<ThrottledCacheWriter | null>(null)
+
+  // Restore sandbox position cache on mount so free-play revisits are fast
+  useEffect(() => {
+    if (!useGameStore.getState().pgn) {
+      restorePositionCache(positionCache.current, null)
+    }
+  }, [])
 
   // Trigger full-game analysis whenever a new game loads and the engine is ready
   const setSkipNextAnalysis = useGameStore(s => s.setSkipNextAnalysis)
@@ -443,6 +457,7 @@ export default function App() {
       // Always clear the position cache when a new game loads — even for cached
       // games where skipNextAnalysis is true — so stale per-position multi-PV
       // results from the previous game never bleed into the new one.
+      positionCacheWriterRef.current?.cancel()
       positionCache.current.clear()
       seededPositionCacheCountRef.current = 0
       // Restore branch grades from session if this is the same game (refresh),
@@ -460,6 +475,13 @@ export default function App() {
       )
       setPendingBranchNodes(new Set())
       lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
+      // Restore persisted position cache for this game (same-tab refresh fast path)
+      const positionCacheScopeId = bgGameId
+      restorePositionCache(positionCache.current, positionCacheScopeId)
+      positionCacheWriterRef.current = makeThrottledWriter(
+        () => positionCache.current,
+        positionCacheKey(positionCacheScopeId),
+      )
       if (useGameStore.getState().skipNextAnalysis) {
         setSkipNextAnalysis(false)
         return
@@ -496,6 +518,14 @@ export default function App() {
       fen,
       mergeCachedTopLines(positionCache.current.get(fen), lines),
     )
+    // Lazily create a sandbox writer when no game-scoped writer exists yet
+    if (!positionCacheWriterRef.current) {
+      positionCacheWriterRef.current = makeThrottledWriter(
+        () => positionCache.current,
+        positionCacheKey(null),
+      )
+    }
+    positionCacheWriterRef.current.flush(fen, positionCache.current.get(fen) ?? lines)
   }, [mergeCachedTopLines])
 
   function mergeStreamingTopLines(incoming: TopLine[]): TopLine[] {

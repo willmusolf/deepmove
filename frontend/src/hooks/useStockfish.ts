@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Chess } from 'chess.js'
 import { StockfishEngine } from '../engine/stockfish'
 import type { TopLine } from '../engine/stockfish'
+import { detectPerformanceTier, getEngineProfile } from '../utils/engineProfile'
 import { analyzeGame } from '../engine/analysis'
 import { cleanPgn } from '../chess/pgn'
 
@@ -36,6 +37,10 @@ function roundDuration(durationMs: number): number {
 }
 
 export type EngineStatus = 'loading' | 'ready' | 'error'
+
+// Detected once per page load — stable for the entire session
+const _sessionTier = detectPerformanceTier()
+const _sessionProfile = getEngineProfile(_sessionTier)
 
 export function useStockfish() {
   const backgroundRef = useRef<StockfishEngine | null>(null)
@@ -64,7 +69,10 @@ export function useStockfish() {
     const initStartedAt = nowMs()
     reportFrontendPerf('engine_init_start', { workers: ['background', 'interactive'] })
 
-    Promise.all([bg.initialize(), ia.initialize()])
+    Promise.all([
+      bg.initialize({ hashMB: _sessionProfile.backgroundHashMB }),
+      ia.initialize({ hashMB: _sessionProfile.interactiveHashMB }),
+    ])
       .then(() => {
         setIsReady(true)
         setEngineStatus('ready')
@@ -116,7 +124,7 @@ export function useStockfish() {
     const startedAt = nowMs()
     reportFrontendPerf('branch_engine_init_start', { reason })
 
-    const initPromise = branchEngine.initialize()
+    const initPromise = branchEngine.initialize({ hashMB: _sessionProfile.branchHashMB })
       .then(() => {
         reportFrontendPerf('branch_engine_init_ready', {
           reason,
