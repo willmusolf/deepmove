@@ -474,7 +474,7 @@ export default function App() {
   const loadedGameKey = isLoaded ? (currentGameId ?? pgn ?? '__loaded-game__') : null
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
-  function mergeCachedTopLines(existing: TopLine[] | undefined, incoming: TopLine[]): TopLine[] {
+  const mergeCachedTopLines = useCallback((existing: TopLine[] | undefined, incoming: TopLine[]): TopLine[] => {
     if (!existing || existing.length === 0) return incoming
     if (incoming.length === 0) return existing
 
@@ -488,15 +488,15 @@ export default function App() {
     }
 
     return Array.from(mergedByRank.values()).sort((a, b) => a.rank - b.rank)
-  }
+  }, [])
 
-  function seedPositionCache(fen: string, lines: TopLine[]) {
+  const seedPositionCache = useCallback((fen: string, lines: TopLine[]) => {
     if (lines.length === 0) return
     positionCache.current.set(
       fen,
       mergeCachedTopLines(positionCache.current.get(fen), lines),
     )
-  }
+  }, [mergeCachedTopLines])
 
   function mergeStreamingTopLines(incoming: TopLine[]): TopLine[] {
     if (incoming.length === 0) return incoming
@@ -522,7 +522,7 @@ export default function App() {
     }
 
     seededPositionCacheCountRef.current = moveEvals.length
-  }, [moveEvals])
+  }, [moveEvals, seedPositionCache])
 
   // Opening name — detected from move sequence in both modes
   const [openingName, setOpeningName] = useState<string | null>(null)
