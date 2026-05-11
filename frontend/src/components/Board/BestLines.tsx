@@ -130,7 +130,17 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
           count += 1
         }
 
-        return Math.max(1, count)
+        let safeCount = Math.max(1, count)
+        const actualNodes = Array.from(container.children) as HTMLElement[]
+
+        while (safeCount > 1 && actualNodes.length >= safeCount) {
+          const lastVisibleNode = actualNodes[safeCount - 1]
+          const renderedWidth = Math.ceil(lastVisibleNode.offsetLeft + lastVisibleNode.offsetWidth)
+          if (renderedWidth <= availableWidth) break
+          safeCount -= 1
+        }
+
+        return safeCount
       })
 
       setVisibleCollapsedCounts(prev => {
