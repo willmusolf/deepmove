@@ -130,17 +130,7 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
           count += 1
         }
 
-        let safeCount = Math.max(1, count)
-        const actualNodes = Array.from(container.children) as HTMLElement[]
-
-        while (safeCount > 1 && actualNodes.length >= safeCount) {
-          const lastVisibleNode = actualNodes[safeCount - 1]
-          const renderedWidth = Math.ceil(lastVisibleNode.offsetLeft + lastVisibleNode.offsetWidth)
-          if (renderedWidth <= availableWidth) break
-          safeCount -= 1
-        }
-
-        return safeCount
+        return Math.max(1, count)
       })
 
       setVisibleCollapsedCounts(prev => {
@@ -165,6 +155,20 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
 
     return () => observer.disconnect()
   }, [pvData, visibleLines])
+
+  useLayoutEffect(() => {
+    if (visibleCollapsedCounts.length === 0) return
+
+    const overflowedCounts = visibleLines.map((_, i) => {
+      const container = collapsedPvRefs.current[i]
+      const currentCount = visibleCollapsedCounts[i] ?? 0
+      if (!container || currentCount <= 1) return currentCount
+      return container.scrollWidth > container.clientWidth ? currentCount - 1 : currentCount
+    })
+
+    const changed = overflowedCounts.some((value, index) => value !== (visibleCollapsedCounts[index] ?? 0))
+    if (changed) setVisibleCollapsedCounts(overflowedCounts)
+  }, [visibleCollapsedCounts, visibleLines])
 
   const expandedLine = expandedIndex !== null ? visibleLines[expandedIndex] : null
   const expandedSegments = expandedIndex !== null ? (pvData[expandedIndex]?.expandedSegments ?? []) : []
