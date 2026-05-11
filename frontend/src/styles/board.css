@@ -2150,6 +2150,27 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   min-height: 0;
 }
 
+.best-lines-overlay__loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.best-lines-overlay__loading-line {
+  height: 0.72rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s infinite;
+}
+
+.best-lines-overlay__loading-line--short {
+  width: 68%;
+}
+
 .best-lines-overlay__pv {
   flex: 1;
   display: flex;
@@ -2236,16 +2257,17 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   }
 
   .best-line-expand {
-    width: 28px;
-    height: 28px;
+    width: 34px;
+    height: 26px;
     font-size: 0.95rem;
-    margin-right: -4px;
+    margin-right: -5px;
+    border-radius: 10px;
   }
 
   .best-line-expand::before {
     content: '';
     position: absolute;
-    inset: -6px;
+    inset: -7px -5px;
   }
 }
 

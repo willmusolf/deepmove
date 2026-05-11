@@ -16,9 +16,9 @@ interface BestLinesProps {
 
 const MAX_LINES = 2
 const COLLAPSED_MAX_PLIES_DESKTOP_WHITE_TO_MOVE = 8
-const COLLAPSED_MAX_PLIES_DESKTOP_BLACK_TO_MOVE = 5
-const COLLAPSED_MAX_PLIES_MOBILE_WHITE_TO_MOVE = 9
-const COLLAPSED_MAX_PLIES_MOBILE_BLACK_TO_MOVE = 6
+const COLLAPSED_MAX_PLIES_DESKTOP_BLACK_TO_MOVE = 6
+const COLLAPSED_MAX_PLIES_MOBILE_WHITE_TO_MOVE = 10
+const COLLAPSED_MAX_PLIES_MOBILE_BLACK_TO_MOVE = 7
 const EXPANDED_MAX_PLIES = 16
 const MOBILE_BREAKPOINT = '(max-width: 640px)'
 
@@ -79,14 +79,17 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
   ))
   const collapsedMaxPlies = useMemo(() => {
     const isWhiteToMove = fen.split(' ')[1] === 'w'
-    if (isMobile) {
-      return isWhiteToMove
+    const fullMoveNumber = parseInt(fen.split(' ')[5] ?? '1', 10)
+    const moveNumberPenalty = fullMoveNumber >= 10 ? 1 : 0
+    const base = isMobile
+      ? (isWhiteToMove
         ? COLLAPSED_MAX_PLIES_MOBILE_WHITE_TO_MOVE
-        : COLLAPSED_MAX_PLIES_MOBILE_BLACK_TO_MOVE
-    }
-    return isWhiteToMove
-      ? COLLAPSED_MAX_PLIES_DESKTOP_WHITE_TO_MOVE
-      : COLLAPSED_MAX_PLIES_DESKTOP_BLACK_TO_MOVE
+        : COLLAPSED_MAX_PLIES_MOBILE_BLACK_TO_MOVE)
+      : (isWhiteToMove
+        ? COLLAPSED_MAX_PLIES_DESKTOP_WHITE_TO_MOVE
+        : COLLAPSED_MAX_PLIES_DESKTOP_BLACK_TO_MOVE)
+
+    return Math.max(4, base - moveNumberPenalty)
   }, [fen, isMobile])
   const pvData = useMemo(
     () => visibleLines.map(line => {
@@ -113,11 +116,12 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
   }, [])
 
   useEffect(() => {
-    setExpandedIndex(null)
-  }, [fen])
+    if (!isMobile) setExpandedIndex(null)
+  }, [fen, isMobile])
 
   const expandedLine = expandedIndex !== null ? visibleLines[expandedIndex] : null
   const expandedSegments = expandedIndex !== null ? (pvData[expandedIndex]?.expandedSegments ?? []) : []
+  const showExpandedOverlay = expandedIndex !== null
 
   return (
     <div className="best-lines">
@@ -185,7 +189,7 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
           </div>
         ))
       )}
-      {expandedLine && (
+      {showExpandedOverlay && (
         <div className="best-lines-overlay" role="dialog" aria-label="Full best line">
           <button
             type="button"
@@ -196,22 +200,31 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
             ×
           </button>
           <div className="best-lines-overlay__body">
-            <span className="best-lines-overlay__pv">
-              {expandedSegments.map(segment => (
-                <span key={segment.key} className="best-lines-overlay__segment">
-                  {segment.prefix && <span className="best-lines-overlay__prefix">{segment.prefix}</span>}
-                  <button
-                    type="button"
-                    className="best-lines-overlay__move"
-                    onClick={() => onLineMoveClick(expandedLine, segment.plyCount)}
-                    title={`Go to ${segment.prefix}${segment.san}`}
-                  >
-                    {segment.san}
-                  </button>
+            {expandedLine ? (
+              <>
+                <span className="best-lines-overlay__pv">
+                  {expandedSegments.map(segment => (
+                    <span key={segment.key} className="best-lines-overlay__segment">
+                      {segment.prefix && <span className="best-lines-overlay__prefix">{segment.prefix}</span>}
+                      <button
+                        type="button"
+                        className="best-lines-overlay__move"
+                        onClick={() => onLineMoveClick(expandedLine, segment.plyCount)}
+                        title={`Go to ${segment.prefix}${segment.san}`}
+                      >
+                        {segment.san}
+                      </button>
+                    </span>
+                  ))}
                 </span>
-              ))}
-            </span>
-            <span className="best-lines-overlay__eval">{formatScore(expandedLine)}</span>
+                <span className="best-lines-overlay__eval">{formatScore(expandedLine)}</span>
+              </>
+            ) : (
+              <div className="best-lines-overlay__loading" aria-hidden="true">
+                <div className="best-lines-overlay__loading-line" />
+                <div className="best-lines-overlay__loading-line best-lines-overlay__loading-line--short" />
+              </div>
+            )}
           </div>
         </div>
       )}
