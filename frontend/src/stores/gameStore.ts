@@ -196,16 +196,34 @@ function toPersistedGameState(state: GameState): PersistedGameState {
   }
 }
 
-function persistGameState(state: GameState) {
-  if (!state.pgn) {
-    removeSessionValue(GAME_SESSION_KEY)
-    return
-  }
+function hasPersistedGameStateChanged(
+  prev: PersistedGameState | null,
+  next: PersistedGameState,
+): boolean {
+  if (prev === null) return true
 
-  writeSessionJson(GAME_SESSION_KEY, toPersistedGameState(state))
+  return prev.pgn !== next.pgn
+    || prev.rawPgn !== next.rawPgn
+    || prev.loadedPgn !== next.loadedPgn
+    || prev.moveEvals !== next.moveEvals
+    || prev.criticalMoments !== next.criticalMoments
+    || prev.userElo !== next.userElo
+    || prev.userColor !== next.userColor
+    || prev.platform !== next.platform
+    || prev.totalMovesCount !== next.totalMovesCount
+    || prev.currentGameId !== next.currentGameId
+    || prev.backendGameId !== next.backendGameId
+    || prev.currentGameMeta !== next.currentGameMeta
+    || prev.skipNextAnalysis !== next.skipNextAnalysis
+    || prev.resumeFromIndex !== next.resumeFromIndex
 }
 
 const hydratedInitialState = loadGameState()
+// Keep the last persisted slice so live position-analysis updates don't rewrite
+// sessionStorage when none of the review-session fields actually changed.
+let lastPersistedGameState: PersistedGameState | null = hydratedInitialState.pgn
+  ? toPersistedGameState(hydratedInitialState as GameState)
+  : null
 
 export const useGameStore = create<GameState>(set => ({
   ...hydratedInitialState,
@@ -234,5 +252,17 @@ export const useGameStore = create<GameState>(set => ({
 }))
 
 useGameStore.subscribe((state) => {
-  persistGameState(state)
+  if (!state.pgn) {
+    if (lastPersistedGameState !== null) {
+      removeSessionValue(GAME_SESSION_KEY)
+      lastPersistedGameState = null
+    }
+    return
+  }
+
+  const nextPersistedState = toPersistedGameState(state)
+  if (!hasPersistedGameStateChanged(lastPersistedGameState, nextPersistedState)) return
+
+  writeSessionJson(GAME_SESSION_KEY, nextPersistedState)
+  lastPersistedGameState = nextPersistedState
 })

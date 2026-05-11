@@ -9,7 +9,7 @@
 
 import { Chess } from 'chess.js'
 
-const MIN_MULTIPV_DISPLAY_DEPTH = 10
+const MIN_MULTIPV_DISPLAY_DEPTH = 14
 
 export interface EvalResult {
   fen: string

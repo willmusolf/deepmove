@@ -65,6 +65,7 @@ import {
 } from './config/sponsor'
 import { SUPPORT_GITHUB_ISSUES_URL } from './config/contact'
 import { getPageFromPathname, getPageMeta, getPathForPage, isIndexablePage } from './utils/pageMeta'
+import { reportFrontendPerf } from './services/monitoring'
 
 // Lichess-style thickness brushes — all green, varying weight
 const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
@@ -118,6 +119,14 @@ function renderBoundaryFallback(title: string, message: string) {
       </button>
     </div>
   )
+}
+
+function nowMs(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now()
+}
+
+function roundDuration(durationMs: number): number {
+  return Math.round(durationMs * 10) / 10
 }
 
 function useTouchHoldNavigate(
@@ -320,6 +329,7 @@ export default function App() {
     cancelGameAnalysis,
     analyzePositionLines,
     analyzePositionSingleBranch,
+    prewarmBranchAnalysis,
     stopPositionAnalysis,
     stopBranchAnalysis,
   } = useStockfish()
@@ -409,6 +419,15 @@ export default function App() {
   const evalInFlightRef = useRef<Set<string>>(new Set())
   // FEN → TopLine[] cache so revisiting a position never re-analyzes
   const positionCache = useRef<Map<string, TopLine[]>>(new Map())
+  const positionPerfRef = useRef<{
+    startedAt: number
+    cacheState: 'cold' | 'resume'
+    firstVisibleReported: boolean
+  } | null>(null)
+  const hasReportedPositionCacheHitRef = useRef(false)
+  const hasReportedPositionColdStartRef = useRef(false)
+  const hasReportedBestLineVisibleRef = useRef(false)
+  const hasReportedBranchGradeReadyRef = useRef(false)
   const pathKeyRef = useRef(0)
   // Keyed on (from+to+newFen) so the guard is immune to timing — if chessground
   // double-fires `after` for the same move (a known chessground quirk), the second
@@ -514,11 +533,38 @@ export default function App() {
     // onUpdate skips any depth ≤ resumeFromDepth so the counter never goes backward:
     // if we left at depth 12, we show 12 from cache, then continue at 13, 14...
     const resumeFromDepth = positionCache.current.get(fen)?.[0]?.depth ?? 0
+    positionPerfRef.current = {
+      startedAt: nowMs(),
+      cacheState: resumeFromDepth > 0 ? 'resume' : 'cold',
+      firstVisibleReported: false,
+    }
+    if (resumeFromDepth === 0 && !hasReportedPositionColdStartRef.current) {
+      hasReportedPositionColdStartRef.current = true
+      reportFrontendPerf('position_analysis_cold_start', {
+        mode: isLoaded ? 'review' : 'sandbox',
+        targetDepth: depth,
+      })
+    }
     if (resumeFromDepth === 0) setCurrentAnalysisDepth(0)
 
     analyzePositionLines(fen, depth, numLines, (lines, d) => {
       if (positionTokenRef.current !== token) return
       if (d <= resumeFromDepth) return  // skip already-seen depths
+      const perfState = positionPerfRef.current
+      if (
+        perfState
+        && !perfState.firstVisibleReported
+        && !hasReportedBestLineVisibleRef.current
+      ) {
+        perfState.firstVisibleReported = true
+        hasReportedBestLineVisibleRef.current = true
+        reportFrontendPerf('best_line_visible', {
+          cacheState: perfState.cacheState,
+          depth: d,
+          durationMs: roundDuration(nowMs() - perfState.startedAt),
+          mode: isLoaded ? 'review' : 'sandbox',
+        })
+      }
       const stableLines = mergeStreamingTopLines(lines)
       setCurrentPositionLines(stableLines)
       setCurrentAnalysisDepth(d)
@@ -595,6 +641,14 @@ export default function App() {
     if (cached && cached.length > 0) {
       setCurrentPositionLines(cached)
       setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
+      if (!hasReportedPositionCacheHitRef.current) {
+        hasReportedPositionCacheHitRef.current = true
+        reportFrontendPerf('position_analysis_cache_hit', {
+          complete: (cached[0]?.depth ?? 0) >= POSITION_MAX_DEPTH,
+          depth: cached[0]?.depth ?? 0,
+          mode: isLoaded ? 'review' : 'sandbox',
+        })
+      }
       if ((cached[0]?.depth ?? 0) >= POSITION_MAX_DEPTH) {
         // Full depth — no further analysis needed
         setAnalyzingPosition(false)
@@ -801,6 +855,41 @@ export default function App() {
       showGrades,
     } satisfies AppUiState)
   }, [currentPage, panelTab, importTab, orientation, showEvalBar, showArrows, showGrades])
+
+  useEffect(() => {
+    if (!isReady || currentPage !== 'review' || typeof window === 'undefined') return
+
+    let cancelled = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let idleId: number | null = null
+    const win = window as Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
+      cancelIdleCallback?: (handle: number) => void
+    }
+
+    const kickOffPrewarm = () => {
+      if (cancelled) return
+      void prewarmBranchAnalysis()
+    }
+
+    if (typeof win.requestIdleCallback === 'function') {
+      idleId = win.requestIdleCallback(() => {
+        kickOffPrewarm()
+      }, { timeout: 1200 })
+    } else {
+      timeoutId = window.setTimeout(() => {
+        kickOffPrewarm()
+      }, 350)
+    }
+
+    return () => {
+      cancelled = true
+      if (timeoutId) window.clearTimeout(timeoutId)
+      if (idleId !== null && typeof win.cancelIdleCallback === 'function') {
+        win.cancelIdleCallback(idleId)
+      }
+    }
+  }, [currentPage, isReady, prewarmBranchAnalysis])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1136,6 +1225,7 @@ export default function App() {
   async function evaluateBranchMove(nodeId: string, parentFen: string, newFen: string) {
     if (!isReady || evalInFlightRef.current.has(nodeId) || branchGrades.has(nodeId)) return
     evalInFlightRef.current.add(nodeId)
+    const branchEvalStartedAt = nowMs()
     // Capture gameId at start — discard result if user switches games mid-eval
     const gameIdAtStart = branchGradesKeyRef.current
     try {
@@ -1179,6 +1269,14 @@ export default function App() {
       const grade = classifyMove(evalBefore, evalAfter, color, legalCount, sacrifice, null, isTopSuggested, false, inCheck)
       lastGradedNodeIdRef.current = nodeId
       setBranchGrades(prev => new Map(prev).set(nodeId, grade))
+      if (!hasReportedBranchGradeReadyRef.current) {
+        hasReportedBranchGradeReadyRef.current = true
+        reportFrontendPerf('branch_grade_ready', {
+          durationMs: roundDuration(nowMs() - branchEvalStartedAt),
+          grade,
+          parentUsedCache: Boolean(cachedParentTopLine),
+        })
+      }
     } catch (err) {
       if (isStockfishCancelledError(err)) return
     } finally {
