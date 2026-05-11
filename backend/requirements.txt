@@ -14,7 +14,7 @@ anthropic==0.96.0
 httpx==0.28.1
 
 # Config / env
-pydantic==2.13.3
+pydantic==2.13.4
 pydantic-core==2.46.3
 pydantic-settings==2.14.0
 python-dotenv==1.2.2
