@@ -71,7 +71,7 @@ function buildCollapsedSegments(
 }
 
 export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onLineMoveClick, fen }: BestLinesProps) {
-  const visibleLines = lines.slice(0, MAX_LINES)
+  const visibleLines = useMemo(() => lines.slice(0, MAX_LINES), [lines])
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
   const [visibleCollapsedCounts, setVisibleCollapsedCounts] = useState<number[]>([])
   const [isMobile, setIsMobile] = useState(() => (
