@@ -150,8 +150,9 @@ async def batch_create(
             if body.platform_game_id:
                 new_games.append((body.platform_game_id, game))
             created += 1
-        except Exception as e:
-            errors.append(f"{body.platform_game_id}: {e!s}")
+        except Exception:
+            failed_id = body.platform_game_id or "unknown-game"
+            errors.append(f"{failed_id}: failed to process game")
 
     db.commit()
     for platform_game_id, game_obj in new_games:
@@ -176,10 +177,14 @@ async def sync_status(
         .filter(Game.user_id == user.id, Game.platform_game_id.isnot(None))
         .all()
     )
-    server_ids = {g.platform_game_id for g in server_games}
+    server_ids = {g.platform_game_id for g in server_games if g.platform_game_id is not None}
 
     # Client's game IDs
-    client_ids = {g.get("platform_game_id") for g in body.games if g.get("platform_game_id")}
+    client_ids = {
+        platform_game_id
+        for game in body.games
+        if isinstance((platform_game_id := game.get("platform_game_id")), str) and platform_game_id
+    }
 
     # Games client has but server doesn't → client should upload
     to_upload = list(client_ids - server_ids)

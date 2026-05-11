@@ -20,10 +20,15 @@ from app.rate_limiting import limiter
 
 
 def _get_test_db_url() -> str:
-    """Return the test database URL. Uses TEST_DATABASE_URL if set, else DATABASE_URL."""
-    url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL", "")
+    """Return the isolated test database URL.
+
+    Full DB-backed tests only run when TEST_DATABASE_URL is explicitly set.
+    This avoids accidentally pointing pytest at a developer, staging, or
+    production database via a generic DATABASE_URL environment variable.
+    """
+    url = os.environ.get("TEST_DATABASE_URL", "")
     if not url:
-        pytest.skip("No DATABASE_URL set — skipping DB tests")
+        pytest.skip("No TEST_DATABASE_URL set — skipping DB tests")
     return _psycopg3_url(url)
 
 

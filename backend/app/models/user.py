@@ -31,6 +31,10 @@ class User(Base):
     google_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     chesscom_id: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Stripe billing
+    stripe_customer_id: Mapped[str | None] = mapped_column(Text, unique=True, nullable=True)
+    subscription_status: Mapped[str] = mapped_column(Text, nullable=False, default="none", server_default="none")
+
     # User preferences (soundEnabled, thinkFirstMode, etc.)
     preferences: Mapped[dict] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
@@ -47,6 +51,7 @@ class User(Base):
     games = relationship("Game", back_populates="user", cascade="all, delete-orphan")
     lessons = relationship("Lesson", back_populates="user", cascade="all, delete-orphan")
     principles = relationship("UserPrinciple", back_populates="user", cascade="all, delete-orphan")
+    password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_users_lichess_id", "lichess_id", unique=True, postgresql_where=text("lichess_id IS NOT NULL")),

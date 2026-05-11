@@ -1,4 +1,4 @@
-.PHONY: install dev-frontend dev-backend dev-coach typecheck test test-frontend test-backend lint test-chess test-coaching test-ui check check-coaching review-3b build worktree ship ship-checks help
+.PHONY: install dev-frontend dev-backend dev-coach typecheck typecheck-backend test test-frontend test-backend test-backend-smoke lint test-chess test-coaching test-ui check check-coaching review-3b build worktree ship ship-checks verify-migrations help
 
 # ── Setup ──────────────────────────────────────────────────────────────────
 install:
@@ -27,6 +27,9 @@ dev-coach:
 typecheck:
 	cd frontend && npm run typecheck
 
+typecheck-backend:
+	cd backend && python -m mypy app/routes app/services
+
 lint-frontend:
 	cd frontend && npm run lint
 
@@ -41,6 +44,9 @@ test-frontend:
 
 test-backend:
 	cd backend && pytest tests/ -v
+
+test-backend-smoke:
+	cd backend && DATABASE_URL='' TEST_DATABASE_URL='' ANTHROPIC_API_KEY='' SECRET_KEY='local-test-secret' ENVIRONMENT=test pytest tests/ -v
 
 test: test-frontend test-backend
 
@@ -59,6 +65,9 @@ check:
 	@make typecheck
 	@make test-coaching
 	@make lint
+
+verify-migrations:
+	cd backend && python scripts/check_alembic_graph.py
 
 check-coaching:
 	@echo "Coaching checkpoint:"
@@ -108,9 +117,13 @@ help:
 	@echo "  make dev-backend    — Start FastAPI server (:8000)"
 	@echo "  make dev-coach      — Start the Prompt 3B coaching workspace"
 	@echo "  make typecheck      — TypeScript type check"
+	@echo "  make typecheck-backend — Backend mypy check"
 	@echo "  make test           — Run all tests"
+	@echo "  make test-backend   — Run full backend tests (requires TEST_DATABASE_URL)"
+	@echo "  make test-backend-smoke — Run backend non-DB smoke tests safely"
 	@echo "  make test-chess     — Run chess logic tests only (Track B)"
 	@echo "  make test-coaching  — Run coaching-related frontend tests"
+	@echo "  make verify-migrations — Fail if the Alembic graph is invalid"
 	@echo "  make check          — Typecheck + coaching tests + lint"
 	@echo "  make check-coaching — Coaching quality checkpoint"
 	@echo "  make review-3b      — Print the manual product review loop for Prompt 3B"

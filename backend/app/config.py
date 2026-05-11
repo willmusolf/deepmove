@@ -51,8 +51,18 @@ class Settings(BaseSettings):
     chesscom_client_secret: str = ""
     chesscom_redirect_uri: str = "http://localhost:8000/auth/chesscom/callback"
 
-    # Frontend URL (for OAuth redirects back to the app)
+    # Frontend URL (for OAuth redirects + password reset links)
     frontend_url: str = "http://localhost:5173"
+
+    # Password reset (email via Resend)
+    resend_api_key: str = ""
+    password_reset_expire_minutes: int = 30
+    password_reset_from_email: str = "noreply@deepmove.io"
+
+    # Stripe
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_id: str = ""
 
     # Feature flags
     coaching_enabled: bool = False
@@ -61,7 +71,8 @@ class Settings(BaseSettings):
     premium_daily_lessons: int = Field(default=500, ge=1)
     guest_daily_lessons: int = Field(default=10, ge=1)
     max_daily_llm_calls: int = Field(default=5000, ge=1)
-    estimated_llm_cost_usd: float = Field(default=0.01, ge=0)
+    # Rough per-lesson estimate for Claude Haiku 4.5 at ~1k input + ~100 output tokens.
+    estimated_llm_cost_usd: float = Field(default=0.0015, ge=0)
 
     # Optional explicit CORS config for staging/preview environments
     allowed_origins_csv: str = Field(

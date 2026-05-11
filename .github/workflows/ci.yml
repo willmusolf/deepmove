@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, staging]
   pull_request:
-    branches: [main]
+    branches: [main, staging]
 
 jobs:
   frontend-ci:
@@ -20,15 +20,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version-file: "frontend/.nvmrc"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+      - name: Audit dependencies
+        run: npm audit --audit-level=moderate
+
+      - name: Lint
+        run: npm run lint
 
       - name: TypeScript check
         run: npm run typecheck
@@ -67,25 +70,48 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.13"
+          python-version-file: ".python-version"
           cache: "pip"
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Validate Alembic graph
+        run: python scripts/check_alembic_graph.py
+
       - name: Audit Python dependencies
         run: |
           pip install pip-audit
           python -m pip_audit -r requirements.txt
 
+      - name: Run Alembic migrations (upgrade)
+        run: alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/deepmove_test
+          ANTHROPIC_API_KEY: ""
+          ENVIRONMENT: test
+          SECRET_KEY: ci-test-secret-key-not-for-production
+
+      - name: Test Alembic downgrade roundtrip
+        run: alembic downgrade base && alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/deepmove_test
+          ANTHROPIC_API_KEY: ""
+          ENVIRONMENT: test
+          SECRET_KEY: ci-test-secret-key-not-for-production
+
       - name: Lint with ruff
         run: python -m ruff check app/ tests/
+
+      - name: Type-check with mypy
+        run: python -m mypy app/routes app/services
 
       - name: Run tests
         run: python -m pytest tests/ -v
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/deepmove_test
+          TEST_DATABASE_URL: postgresql://test:test@localhost:5432/deepmove_test
           ANTHROPIC_API_KEY: ""
           ENVIRONMENT: test
           SECRET_KEY: ci-test-secret-key-not-for-production
@@ -315,3 +341,16 @@ jobs:
       - name: Note backend deploy expectation
         if: steps.changes.outputs.backend != 'true'
         run: echo "No backend files changed in this push; backend smoke skipped deploy-version waiting."
+
+  secrets-scan:
+    name: Secrets — Gitleaks scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

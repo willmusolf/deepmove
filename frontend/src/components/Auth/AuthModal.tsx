@@ -1,6 +1,7 @@
 // AuthModal.tsx — Login / Sign Up modal with email+password and OAuth buttons.
 import { useState } from 'react'
 import { useAuthStore } from '../../stores/authStore'
+import { api } from '../../api/client'
 
 interface AuthModalProps {
   onClose: () => void
@@ -8,6 +9,7 @@ interface AuthModalProps {
 }
 
 type Tab = 'login' | 'signup'
+type Mode = 'auth' | 'forgot'
 type PasswordCredentialCtor = new (init: { id: string; password: string }) => Credential
 
 // Google "G" logo (official colors)
@@ -39,11 +41,16 @@ function LichessIcon() {
 
 export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   const [tab, setTab] = useState<Tab>('login')
+  const [mode, setMode] = useState<Mode>('auth')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [pwFocused, setPwFocused] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotSent, setForgotSent] = useState(false)
+  const [forgotError, setForgotError] = useState('')
 
   // Show OAuth error if we were redirected back from a failed OAuth attempt
   const [error, setError] = useState<string>(() => {
@@ -91,8 +98,72 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
     }
   }
 
+  async function handleForgotSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setForgotError('')
+    setForgotLoading(true)
+    try {
+      await api.post<{ message: string }>('/auth/forgot-password', { email: forgotEmail })
+      setForgotSent(true)
+    } catch (err) {
+      setForgotError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
   const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
   const showRequirements = tab === 'signup' && (pwFocused || (password.length > 0 && !pwValid))
+
+  if (mode === 'forgot') {
+    return (
+      <div className="auth-overlay" onClick={onClose}>
+        <div className="auth-modal" onClick={e => e.stopPropagation()}>
+          <button className="auth-close" onClick={onClose}>&times;</button>
+          <div className="auth-tabs">
+            <button className="auth-tab active">Reset password</button>
+          </div>
+          {forgotSent ? (
+            <div className="auth-form">
+              <p style={{ margin: '0 0 12px', fontSize: '0.9rem', color: 'var(--text-secondary, #aaa)' }}>
+                If an account with that email exists, a reset link has been sent. Check your inbox.
+              </p>
+              <button
+                className="auth-submit"
+                onClick={() => { setMode('auth'); setForgotSent(false); setForgotEmail('') }}
+              >
+                Back to login
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleForgotSubmit} className="auth-form">
+              <input
+                type="email"
+                placeholder="Your email"
+                value={forgotEmail}
+                onChange={e => setForgotEmail(e.target.value)}
+                required
+                autoFocus
+                autoComplete="email"
+                className="auth-input"
+              />
+              {forgotError && <div className="auth-error">{forgotError}</div>}
+              <button type="submit" className="auth-submit" disabled={forgotLoading}>
+                {forgotLoading ? '...' : 'Send reset link'}
+              </button>
+              <button
+                type="button"
+                className="auth-forgot"
+                onClick={() => { setMode('auth'); setForgotError('') }}
+              >
+                Back to login
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="auth-overlay" onClick={onClose}>
@@ -174,6 +245,15 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
           <button type="submit" className="auth-submit" disabled={loading}>
             {loading ? '...' : tab === 'login' ? 'Log In' : 'Create Account'}
           </button>
+          {tab === 'login' && (
+            <button
+              type="button"
+              className="auth-forgot"
+              onClick={() => { setForgotEmail(email); setForgotError(''); setMode('forgot') }}
+            >
+              Forgot password?
+            </button>
+          )}
         </form>
 
         <div className="auth-divider">

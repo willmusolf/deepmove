@@ -1,6 +1,6 @@
 import { api } from '../../api/client'
 
-export interface AdminCounts {
+interface AdminCounts {
   users: number
   games: number
   lessons: number
@@ -13,7 +13,7 @@ export interface AdminOpsStatus {
   counts: AdminCounts
 }
 
-export interface AdminActionResult {
+interface AdminActionResult {
   ok: boolean
   message: string
   coaching_enabled?: boolean | null

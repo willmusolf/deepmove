@@ -7,13 +7,29 @@ import { useAuthStore } from '../stores/authStore'
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+    public detail?: unknown,
+    public requestId?: string,
+  ) {
     super(message)
     this.name = 'ApiError'
   }
 }
 
 type RequestOptions = RequestInit & { timeoutMs?: number }
+const CONNECTION_ERROR_MESSAGE = 'Could not connect to the server — check your internet connection'
+
+function isRetryableConnectionError(error: unknown): error is ApiError {
+  return error instanceof ApiError
+    && error.status === 0
+    && error.message === CONNECTION_ERROR_MESSAGE
+}
+
+async function sleep(delayMs: number): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, delayMs))
+}
 
 async function fetchWithTimeout(
   url: string,
@@ -40,7 +56,7 @@ async function fetchWithTimeout(
       }
       throw new ApiError(0, 'Request timed out — the server took too long to respond')
     }
-    throw new ApiError(0, 'Could not connect to the server — check your internet connection')
+    throw new ApiError(0, CONNECTION_ERROR_MESSAGE)
   } finally {
     clearTimeout(timer)
   }
@@ -50,13 +66,24 @@ async function request<T>(path: string, options?: RequestOptions): Promise<T> {
   const token = useAuthStore.getState().accessToken
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'X-Request-ID': crypto.randomUUID(),
     ...(options?.headers as Record<string, string> | undefined),
   }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const res = await fetchWithTimeout(`${API_BASE}${path}`, options ?? {}, headers)
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${API_BASE}${path}`, options ?? {}, headers)
+  } catch (err) {
+    if (!isRetryableConnectionError(err)) {
+      throw err
+    }
+
+    await sleep(500)
+    res = await fetchWithTimeout(`${API_BASE}${path}`, options ?? {}, headers)
+  }
 
   // On 401, try to refresh and retry once
   if (res.status === 401 && token) {
@@ -68,7 +95,12 @@ async function request<T>(path: string, options?: RequestOptions): Promise<T> {
         const retry = await fetchWithTimeout(`${API_BASE}${path}`, options ?? {}, headers)
         if (!retry.ok) {
           const body = await retry.json().catch(() => ({ detail: `Error ${retry.status}` }))
-          throw new ApiError(retry.status, body.detail ?? `Error ${retry.status}`)
+          throw new ApiError(
+            retry.status,
+            getErrorMessage(body, retry.status),
+            body.detail ?? body,
+            retry.headers.get('X-Request-ID') ?? undefined,
+          )
         }
         return retry.json() as Promise<T>
       }
@@ -81,9 +113,29 @@ async function request<T>(path: string, options?: RequestOptions): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: `Error ${res.status}` }))
-    throw new ApiError(res.status, body.detail ?? `Error ${res.status}`)
+    throw new ApiError(
+      res.status,
+      getErrorMessage(body, res.status),
+      body.detail ?? body,
+      res.headers.get('X-Request-ID') ?? undefined,
+    )
   }
   return res.json() as Promise<T>
+}
+
+function getErrorMessage(body: { detail?: unknown }, status: number): string {
+  if (typeof body.detail === 'string') {
+    return body.detail
+  }
+  if (
+    body.detail
+    && typeof body.detail === 'object'
+    && 'detail' in body.detail
+    && typeof (body.detail as { detail?: unknown }).detail === 'string'
+  ) {
+    return (body.detail as { detail: string }).detail
+  }
+  return `Error ${status}`
 }
 
 export { ApiError }

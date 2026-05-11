@@ -9,8 +9,9 @@ import { enrichCriticalMoments } from '../chess/features'
 import { getCacheBand, classifyTimeControl } from '../chess/eloConfig'
 import { CATEGORIES } from '../chess/taxonomy'
 import { ApiError, api } from '../api/client'
+import { captureFrontendError } from '../services/monitoring'
 
-export interface LessonResponse {
+interface LessonResponse {
   lesson: string
   category: string | null
   confidence: number
@@ -127,22 +128,26 @@ export function useCoaching({
   }, [pgn])
 
   useEffect(() => {
-    if (!enabled) {
-      setLessons([])
-      setMoveComments([])
-      setEnrichedMoments([])
-      setCurrentIndex(0)
-      fetchedKeysRef.current = new Set()
-      return
-    }
+    if (!enabled) return
     if (!pgn || criticalMoments.length === 0 || moveEvals.length === 0) return
+
+    let cancelled = false
+    const timeoutIds: ReturnType<typeof setTimeout>[] = []
+    const schedule = (callback: () => void, delayMs: number) => {
+      const timeoutId = setTimeout(callback, delayMs)
+      timeoutIds.push(timeoutId)
+      return timeoutId
+    }
 
     // Step 1: Enrich moments with real features + analysis facts
     let enriched: CriticalMoment[]
     try {
       enriched = enrichCriticalMoments(criticalMoments, moveEvals, pgn, userElo)
     } catch (err) {
-      console.error('[useCoaching] enrichCriticalMoments failed:', err)
+      captureFrontendError(err, {
+        tags: { hook: 'useCoaching', stage: 'enrich_critical_moments' },
+        extra: { criticalMomentCount: criticalMoments.length },
+      })
       enriched = criticalMoments
     }
     // Sort chronologically so dot 1 = earliest lesson, dot 2 = next, etc.
@@ -220,7 +225,8 @@ export function useCoaching({
     // Stagger requests by 1.5s each so a cold Neon DB isn't slammed all at once.
     newMoments.forEach((moment, idx) => {
       fetchedKeysRef.current.add(`${moment.moveNumber}:${moment.color}`)
-      setTimeout(() => { try {
+      schedule(() => { try {
+        if (cancelled) return
         const analysisFacts = moment.analysisFacts ?? buildFallbackAnalysisFacts(moment)
         const eloBand = getCacheBand(userElo)
         const tcSeconds = parseInt(timeControl, 10) || 600
@@ -259,6 +265,7 @@ export function useCoaching({
         const fetchLesson = (attempt: number) =>
           api.post<LessonResponse>('/coaching/lesson', requestBody, { timeoutMs: 30000 })
             .then(res => {
+              if (cancelled) return
               setLessons(prev => prev.map(l =>
                 `${l.moment.moveNumber}:${l.moment.color}` === momentKey
                   ? {
@@ -272,6 +279,7 @@ export function useCoaching({
               ))
             })
             .catch(err => {
+              if (cancelled) return
               if (attempt === 0) {
                 // Show retrying state immediately so dots display numbers (not loading dots)
                 setLessons(prev => prev.map(l =>
@@ -279,7 +287,8 @@ export function useCoaching({
                     ? { ...l, isLoading: false, error: 'Retrying…' }
                     : l,
                 ))
-                setTimeout(() => {
+                schedule(() => {
+                  if (cancelled) return
                   setLessons(prev => prev.map(l =>
                     `${l.moment.moveNumber}:${l.moment.color}` === momentKey && l.error === 'Retrying…'
                       ? { ...l, isLoading: true, error: null }
@@ -290,18 +299,36 @@ export function useCoaching({
                 return
               }
               const message = err instanceof ApiError
-                ? (err.status === 0 ? err.message : `Failed to load lesson (${err.status})`)
+                ? (
+                    err.status === 0 || err.status === 429
+                      ? err.message
+                      : `Failed to load lesson (${err.status})`
+                  )
                 : 'Failed to load lesson'
               setLessons(prev => prev.map(l =>
                 `${l.moment.moveNumber}:${l.moment.color}` === momentKey
                   ? { ...l, isLoading: false, error: message }
                   : l,
               ))
-              console.error('[useCoaching] lesson fetch failed after retry:', err)
+              captureFrontendError(err, {
+                tags: { hook: 'useCoaching', stage: 'fetch_lesson' },
+                extra: {
+                  moveNumber: moment.moveNumber,
+                  color: moment.color,
+                  requestId: err instanceof ApiError ? err.requestId : undefined,
+                },
+              })
             })
         fetchLesson(0)
       } catch (err) {
-        console.error('[useCoaching] lesson setup failed synchronously:', err)
+        if (cancelled) return
+        captureFrontendError(err, {
+          tags: { hook: 'useCoaching', stage: 'prepare_lesson' },
+          extra: {
+            moveNumber: moment.moveNumber,
+            color: moment.color,
+          },
+        })
         const momentKey2 = `${moment.moveNumber}:${moment.color}`
         setLessons(prev => prev.map(l =>
           `${l.moment.moveNumber}:${l.moment.color}` === momentKey2
@@ -310,6 +337,11 @@ export function useCoaching({
         ))
       } }, idx * 2000)
     })
+
+    return () => {
+      cancelled = true
+      timeoutIds.forEach(clearTimeout)
+    }
   }, [enabled, pgn, criticalMoments, moveEvals, userElo, timeControl, backendGameId, platformGameId, platform])
 
   const currentLesson = lessons[currentIndex] ?? null

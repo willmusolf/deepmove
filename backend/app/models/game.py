@@ -1,5 +1,6 @@
 """game.py — SQLAlchemy Game model"""
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Integer, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
@@ -28,8 +29,8 @@ class Game(Base):
     end_time: Mapped[int | None] = mapped_column(BigInteger, nullable=True)  # unix ms
 
     # Analysis data (~15KB moveEvals + ~3KB criticalMoments as JSONB)
-    move_evals: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    critical_moments: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    move_evals: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
+    critical_moments: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
 
     analyzed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     synced_at: Mapped[datetime] = mapped_column(
@@ -54,4 +55,5 @@ class Game(Base):
             postgresql_where=text("platform_game_id IS NOT NULL"),
         ),
         Index("idx_games_user_id", "user_id"),
+        Index("idx_games_user_end_time", "user_id", text("end_time DESC")),
     )

@@ -1,5 +1,5 @@
 // ProfilePage.tsx — User profile & settings
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   clearAdminLessonCache,
   getAdminOpsStatus,
@@ -10,6 +10,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { usePrefsStore, type AppTheme, type BoardTheme } from '../../stores/prefsStore'
 import { clearAllAnalyses } from '../../services/gameDB'
 import { readCachedRatings, type DetectedRatings } from '../Import/normalizeGame'
+import UpgradeButton from './UpgradeButton'
 
 const REVIEW_USERNAME_STORAGE = {
   chesscom: 'deepmove_chesscom_username',
@@ -200,7 +201,7 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
     setTimeout(() => setClearMsg(''), 4000)
   }
 
-  async function loadAdminOps() {
+  const loadAdminOps = useCallback(async () => {
     if (!user?.is_admin) return
     setAdminLoading(true)
     setAdminErr('')
@@ -214,7 +215,7 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
     } finally {
       setAdminLoading(false)
     }
-  }
+  }, [user?.is_admin])
 
   useEffect(() => {
     if (user?.is_admin) {
@@ -224,7 +225,7 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
       setAdminErr('')
       setAdminMsg('')
     }
-  }, [user?.is_admin])
+  }, [loadAdminOps, user?.is_admin])
 
   async function handleSetCoachingEnabled(enabled: boolean) {
     setAdminBusy(true)
@@ -294,7 +295,13 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
             </div>
             <div className="profile-info-row">
               <span className="profile-info-label">Plan</span>
-              <span className="profile-info-value">{user.is_premium ? 'Premium' : 'Free'}</span>
+              <span className="profile-info-value">
+                {user.is_premium ? 'Premium' : 'Free'}
+              </span>
+            </div>
+            <div className="profile-info-row">
+              <span className="profile-info-label" />
+              <UpgradeButton />
             </div>
             {user.is_admin && (
               <div className="profile-info-row">

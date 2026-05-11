@@ -30,6 +30,7 @@ import BotPlayPage from './components/Play/BotPlayPage'
 import ErrorBoundary from './components/ErrorBoundary'
 import AboutPage from './components/AboutPage'
 import PrivacyPage from './components/PrivacyPage'
+import ResetPasswordPage from './components/Auth/ResetPasswordPage'
 import AdBanner from './components/AdBanner'
 import MobileAdBanner from './components/MobileAdBanner'
 import { useGameReview } from './hooks/useGameReview'
@@ -93,6 +94,31 @@ interface AppUiState {
 
 const TOUCH_NAV_REPEAT_DELAY_MS = 220
 const TOUCH_NAV_REPEAT_INTERVAL_MS = 110
+
+function renderBoundaryFallback(title: string, message: string) {
+  return (
+    <div
+      role="alert"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '14rem',
+        gap: '0.75rem',
+        padding: '1.5rem',
+        textAlign: 'center',
+        color: '#d9dde8',
+      }}
+    >
+      <strong>{title}</strong>
+      <span>{message}</span>
+      <button className="btn btn-secondary" onClick={() => window.location.reload()}>
+        Reload
+      </button>
+    </div>
+  )
+}
 
 function useTouchHoldNavigate(
   onStep: () => void,
@@ -182,6 +208,7 @@ function isPage(value: unknown): value is Page {
     || value === 'settings'
     || value === 'about'
     || value === 'privacy'
+    || value === 'reset-password'
 }
 
 function loadAppUiState(): AppUiState | null {
@@ -315,19 +342,12 @@ export default function App() {
 
   // Silent auth refresh on app load — non-blocking, app works without it
   const authRefresh = useAuthStore(s => s.refresh)
-  const bootstrapFromOAuth = useAuthStore(s => s.bootstrapFromOAuth)
   const reloadUser = useAuthStore(s => s.reloadUser)
   const authUser = useAuthStore(s => s.user)
   const isPremium = useAuthStore(s => s.isPremium)
   useEffect(() => {
-    const oauthToken = sessionStorage.getItem('dm_oauth_at')
-    if (oauthToken) {
-      sessionStorage.removeItem('dm_oauth_at')
-      void bootstrapFromOAuth(oauthToken)
-    } else {
-      void authRefresh()
-    }
-  }, [authRefresh, bootstrapFromOAuth])
+    void authRefresh()
+  }, [authRefresh])
 
   // After an account-link redirect, reload user to get updated oauth flags
   useEffect(() => {
@@ -335,6 +355,18 @@ export default function App() {
     if (linkSuccess) {
       sessionStorage.removeItem('dm_link_success')
       void reloadUser()
+    }
+  }, [reloadUser])
+
+  // After Stripe checkout success, reload user so is_premium reflects immediately
+  const [paymentSuccessMsg, setPaymentSuccessMsg] = useState('')
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('payment') === 'success') {
+      window.history.replaceState({}, '', window.location.pathname)
+      void reloadUser()
+      setPaymentSuccessMsg('You\'re now on Premium!')
+      setTimeout(() => setPaymentSuccessMsg(''), 5000)
     }
   }, [reloadUser])
 
@@ -368,6 +400,9 @@ export default function App() {
   // Tracks which game the current branchGrades belong to — used by the write effect so it
   // always writes to the correct sessionStorage key even if currentGameId changes async.
   const branchGradesKeyRef = useRef<string | null>(useGameStore.getState().currentGameId)
+  // Tracks the node ID of the most recently computed branch grade. Avoids reading a
+  // stale analysisPath[last] in the board badge when the user moves faster than the eval.
+  const lastGradedNodeIdRef = useRef<string | null>(null)
   const [pendingBranchNodes, setPendingBranchNodes] = useState<Set<string>>(new Set())
   // Tracks nodes with an eval already dispatched — prevents duplicate Stockfish calls
   // when nav handlers eagerly add to pendingBranchNodes before the safety-net effect fires.
@@ -397,6 +432,7 @@ export default function App() {
       const storedBg = bgGameId
         ? readSessionJson<Record<string, string>>(`deepmove_bg_${bgGameId}`)
         : null
+      lastGradedNodeIdRef.current = null
       setBranchGrades(
         storedBg && Object.keys(storedBg).length > 0
           ? new Map(Object.entries(storedBg) as [string, MoveGrade][])
@@ -418,6 +454,20 @@ export default function App() {
   const loadedGameKey = isLoaded ? (currentGameId ?? pgn ?? '__loaded-game__') : null
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
+  function mergeStreamingTopLines(incoming: TopLine[]): TopLine[] {
+    if (incoming.length === 0) return incoming
+    const existing = useGameStore.getState().currentPositionLines
+    if (existing.length <= incoming.length) return incoming
+
+    const mergedByRank = new Map<number, TopLine>()
+    for (const line of existing) mergedByRank.set(line.rank, line)
+    for (const line of incoming) mergedByRank.set(line.rank, line)
+
+    return Array.from(mergedByRank.values())
+      .sort((a, b) => a.rank - b.rank)
+      .slice(0, existing.length)
+  }
+
   // Opening name — detected from move sequence in both modes
   const [openingName, setOpeningName] = useState<string | null>(null)
 
@@ -435,6 +485,9 @@ export default function App() {
   const navHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // When true, the next displayFen change is from a piece move — skip the 180ms deferral
   const isPieceMoveRef = useRef(false)
+  const suppressPositionAnalysisRef = useRef(false)
+  const [isBestLineJumping, setBestLineJumping] = useState(false)
+  const playBestLineMoveRef = useRef<(uci: string, options?: { playSound?: boolean }) => boolean>(() => false)
 
   function triggerPositionAnalysis(fen: string, depth = POSITION_MAX_DEPTH) {
     // NOTE: callers are responsible for calling stopPositionAnalysis() before this.
@@ -466,9 +519,10 @@ export default function App() {
     analyzePositionLines(fen, depth, numLines, (lines, d) => {
       if (positionTokenRef.current !== token) return
       if (d <= resumeFromDepth) return  // skip already-seen depths
-      setCurrentPositionLines(lines)
+      const stableLines = mergeStreamingTopLines(lines)
+      setCurrentPositionLines(stableLines)
       setCurrentAnalysisDepth(d)
-      if (lines.length > 0) positionCache.current.set(fen, lines)
+      if (stableLines.length > 0) positionCache.current.set(fen, stableLines)
     })
       .then(lines => {
         if (positionTokenRef.current !== token) return
@@ -528,6 +582,10 @@ export default function App() {
 
     if (pauseLivePositionAnalysis) {
       setAnalyzingPosition(false)
+      return
+    }
+
+    if (suppressPositionAnalysisRef.current) {
       return
     }
 
@@ -838,6 +896,7 @@ export default function App() {
     setAnalyzingPosition(false)
     setPanelTab('analysis')
     analysisBoardReset()
+    lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
     setPendingBranchNodes(new Set())
 
@@ -999,6 +1058,7 @@ export default function App() {
     reset()
     lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
     positionCache.current.clear()
+    lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
     setPendingBranchNodes(new Set())
     analysisBoardReset()
@@ -1024,6 +1084,7 @@ export default function App() {
     }
 
     analysisBoardReset()
+    lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
     setPendingBranchNodes(new Set())
     setOpeningName(null)
@@ -1042,9 +1103,15 @@ export default function App() {
   }
 
   // Board move during game review: advance main line or create branch.
-  function handleBoardMove(from: string, to: string, san: string, newFen: string) {
+  function handleBoardMove(
+    from: string,
+    to: string,
+    san: string,
+    newFen: string,
+    options?: { playSound?: boolean },
+  ) {
     pathKeyRef.current++
-    playMoveSound(san)
+    if (options?.playSound !== false) playMoveSound(san)
     isPieceMoveRef.current = true
     const next = nextMainLineNode
     if (next && next.from === from && next.to === to && next.san === san) {
@@ -1085,7 +1152,7 @@ export default function App() {
       const afterResult = await analyzePositionSingleBranch(newFen, 14)
 
       if (!parentResult || !afterResult) {
-        console.warn('[branch eval] Stockfish returned null for', nodeId)
+        lastGradedNodeIdRef.current = nodeId
         setBranchGrades(prev => new Map(prev).set(nodeId, 'unknown' as MoveGrade))
         return  // finally still clears pendingBranchNodes
       }
@@ -1110,10 +1177,10 @@ export default function App() {
       const sacrifice = playedMove ? isSacrificeFn(playedMove, newFen) : false
 
       const grade = classifyMove(evalBefore, evalAfter, color, legalCount, sacrifice, null, isTopSuggested, false, inCheck)
+      lastGradedNodeIdRef.current = nodeId
       setBranchGrades(prev => new Map(prev).set(nodeId, grade))
     } catch (err) {
       if (isStockfishCancelledError(err)) return
-      console.warn('[branch eval] failed:', err)
     } finally {
       evalInFlightRef.current.delete(nodeId)
       setPendingBranchNodes(prev => { const s = new Set(prev); s.delete(nodeId); return s })
@@ -1146,8 +1213,8 @@ export default function App() {
         if (move) {
           addVariationMove(move.from, move.to, move.san, chess.fen())
         }
-      } catch (e) {
-        console.warn('[handleShowBestMove] failed:', e)
+      } catch {
+        // Invalid SAN should not break the review UI.
       }
     })
   }
@@ -1159,12 +1226,8 @@ export default function App() {
     navigateTo(path)
   }
 
-  // Enter first move of a best line (clicked in BestLines panel or via arrow).
-  // In game review mode: plays into the game's variation tree (same as dragging the piece).
-  // In sandbox mode: plays into the free-play analysis tree.
-  function handleAnalysisBestLineClick(line: TopLine) {
-    const uci = line.pv[0]
-    if (!uci || uci.length < 4) return
+  function playBestLineUci(uci: string, options?: { playSound?: boolean }): boolean {
+    if (!uci || uci.length < 4) return false
     const from = uci.slice(0, 2)
     const to = uci.slice(2, 4)
     const promotion = uci.length === 5 ? uci[4] : undefined
@@ -1173,17 +1236,17 @@ export default function App() {
       // Game review mode — delegate to handleBoardMove which handles main-line advance vs branch
       const chess = new Chess(currentFen)
       const result = chess.move({ from, to, promotion })
-      if (!result) return
-      playMoveSound(result.san)
+      if (!result) return false
       isPieceMoveRef.current = true
       pathKeyRef.current++
-      handleBoardMove(from, to, result.san, chess.fen())
+      handleBoardMove(from, to, result.san, chess.fen(), options)
+      return true
     } else {
       // Sandbox/free-play mode
       const chess = new Chess(analysisFen)
       const result = chess.move({ from, to, promotion })
-      if (!result) return
-      playMoveSound(result.san)
+      if (!result) return false
+      if (options?.playSound !== false) playMoveSound(result.san)
       pathKeyRef.current++
       const parentFen = analysisFen
       const newFen = chess.fen()
@@ -1194,7 +1257,79 @@ export default function App() {
         void evaluateBranchMove(nodeId, parentFen, newFen)
       }
       if (panelTab !== 'coach') setPanelTab('analysis')
+      return true
     }
+  }
+
+  playBestLineMoveRef.current = playBestLineUci
+
+  // Enter first move of a best line (clicked in BestLines panel or via arrow).
+  function handleAnalysisBestLineClick(line: TopLine) {
+    void playBestLineMoveRef.current(line.pv[0] ?? '')
+  }
+
+  async function handleAnalysisBestLineMoveClick(line: TopLine, plyCount: number) {
+    const sequence = line.pv.slice(0, plyCount)
+    let targetFen = displayFen
+    try {
+      const chess = new Chess(displayFen)
+      for (const uci of sequence) {
+        const result = chess.move({
+          from: uci.slice(0, 2),
+          to: uci.slice(2, 4),
+          promotion: uci.length === 5 ? uci[4] : undefined,
+        })
+        if (!result) break
+        targetFen = chess.fen()
+      }
+    } catch {
+      targetFen = displayFen
+    }
+
+    suppressPositionAnalysisRef.current = true
+    setBestLineJumping(true)
+    positionTokenRef.current++
+    stopPositionAnalysis()
+    if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
+    setCurrentPositionLines([])
+    setCurrentAnalysisDepth(0)
+    setAnalyzingPosition(true)
+
+    for (let i = 0; i < sequence.length; i += 1) {
+      const moved = playBestLineMoveRef.current(sequence[i])
+      if (!moved) break
+      if (i < sequence.length - 1) {
+        await new Promise<void>(resolve => {
+          window.setTimeout(() => requestAnimationFrame(() => resolve()), 110)
+        })
+      }
+    }
+
+    suppressPositionAnalysisRef.current = false
+
+    if (pauseLivePositionAnalysis || !isReady) {
+      setBestLineJumping(false)
+      setAnalyzingPosition(false)
+      return
+    }
+
+    const cached = positionCache.current.get(targetFen)
+    if (cached && cached.length > 0) {
+      setCurrentPositionLines(cached)
+      setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
+      if ((cached[0]?.depth ?? 0) >= POSITION_MAX_DEPTH) {
+        setBestLineJumping(false)
+        setAnalyzingPosition(false)
+        return
+      }
+      setAnalyzingPosition(true)
+    } else {
+      setCurrentPositionLines([])
+      setCurrentAnalysisDepth(0)
+    }
+
+    setBestLineJumping(false)
+    triggerPositionAnalysis(targetFen)
   }
 
 
@@ -1256,11 +1391,14 @@ export default function App() {
   const stableIsMate = evalCp !== undefined ? evalIsMate : lastEvalRef.current.isMate
   const stableMateIn = evalCp !== undefined ? evalMateIn : lastEvalRef.current.mateIn
   const showLoadingEvalPlaceholder = isLoaded && showAnalyzingBar && !inBranch && !mainEval && !posLine
-  const displayedEvalText = showLoadingEvalPlaceholder ? null : formatEval(stableEvalCp, stableIsMate, stableMateIn)
+  const displayedEvalText = (showLoadingEvalPlaceholder || isBestLineJumping)
+    ? null
+    : formatEval(stableEvalCp, stableIsMate, stableMateIn)
   const shouldRenderEvalDisplay = Boolean(
     displayedEvalText
     || currentAnalysisDepth > 0
     || isAnalyzingPosition
+    || isBestLineJumping
     || (mainEval && !inBranch)
   )
 
@@ -1272,6 +1410,7 @@ export default function App() {
   //   line 3: gap ≤ 50cp  (must be essentially equal — "excellent" or better)
   // This prevents inaccuracies/mistakes from appearing as "suggested" alternatives.
   const visibleLines = useMemo(() => {
+    if (isBestLineJumping) return []
     const lines = currentPositionLines
     if (lines.length === 0) return []
     const best = lines[0]
@@ -1300,7 +1439,7 @@ export default function App() {
       if (i === 2) return gap <= 50
       return false
     })
-  }, [currentPositionLines])
+  }, [currentPositionLines, isBestLineJumping])
 
   const boardShapes: DrawShape[] = useMemo(() => visibleLines
     .filter(l => l.pv.length >= 1)
@@ -1347,6 +1486,8 @@ export default function App() {
   // those pages until we replace them with a zoom-safe mobile treatment.
   const shouldShowMobileSponsor = !isFixedLayoutPage && !isPremium && mobileBannerAdEnabled && mobileSponsorPage !== null
   const shouldShowUtilityRail = isFixedLayoutPage && desktopRailPage !== null && !shouldShowDesktopRail && canShowUtilityRail
+  const reviewBoundaryKey = `${currentGameId ?? 'sandbox'}:${panelTab}:${importTab}:${isLoaded ? 'loaded' : 'sandbox'}`
+  const boardBoundaryKey = `${reviewBoundaryKey}:${orientation}`
 
   return (
     <ResponsiveLayout
@@ -1354,6 +1495,9 @@ export default function App() {
       onNavigate={goToPage}
       hasMobileBanner={shouldShowMobileSponsor}
     >
+      {paymentSuccessMsg && (
+        <div className="payment-success-banner">{paymentSuccessMsg}</div>
+      )}
       <div className={[
         'app-view',
         isScrollPage ? 'app-view--page' : '',
@@ -1366,6 +1510,14 @@ export default function App() {
         ].filter(Boolean).join(' ')}>
           {currentPage === 'review' && (
             <>
+              <ErrorBoundary
+                boundaryName="review-board"
+                resetKey={boardBoundaryKey}
+                fallback={renderBoundaryFallback(
+                  'Board unavailable',
+                  'The board view hit a problem. Reload or open another game to continue reviewing.',
+                )}
+              >
               <div className="board-col">
                 {/* board-with-eval wraps eval bar + the full board column (player boxes + board)
                     so the eval bar spans the full height and all left/right edges align */}
@@ -1437,23 +1589,22 @@ export default function App() {
                       pathKey={pathKeyRef.current}
                     />
                     {(() => {
-                      // Determine current branch node for pending/grade lookup
+                      // Determine current branch node for pending/grade lookup.
+                      // In free-play (!isLoaded) use lastGradedNodeIdRef so the badge
+                      // reflects the most recently computed eval even if analysisPath
+                      // has already advanced to the next move before this render.
                       const boardNodeId = isLoaded
                         ? (inBranch ? currentNodeId : null)
-                        : (analysisPath.length > 0 ? analysisPath[analysisPath.length - 1] : null)
+                        : (lastGradedNodeIdRef.current ?? (analysisPath.length > 0 ? analysisPath[analysisPath.length - 1] : null))
                       const grade = isLoaded
                         ? (hideLoadedReviewArtifacts
                             ? undefined
                             : (inBranch && currentNodeId ? branchGrades.get(currentNodeId) : mainEval?.grade))
-                        : (analysisPath.length > 0
-                          ? branchGrades.get(analysisPath[analysisPath.length - 1])
-                          : undefined)
+                        : (boardNodeId ? branchGrades.get(boardNodeId) : undefined)
                       const badgeMeta = showGrades ? getGradeBadgeMeta(grade) : null
                       const destSquare = isLoaded
                         ? (inBranch && currentNodeId ? moveTree[currentNodeId]?.to : boardLastMove?.[1])
-                        : (analysisPath.length > 0
-                          ? analysisTree[analysisPath[analysisPath.length - 1]]?.to
-                          : undefined)
+                        : (boardNodeId ? analysisTree[boardNodeId]?.to : undefined)
                       // Show pending spinner while branch eval is in flight.
                       // Also show for main-line moves while full-game analysis is still running
                       // (mainEval?.grade not yet populated for this move index).
@@ -1651,6 +1802,7 @@ export default function App() {
                   <div className="opening-label">{openingName}</div>
                 )}
               </div>
+              </ErrorBoundary>
 
               {/* ── Right panel ─────────────────────────────────────── */}
               <div className="side-col">
@@ -1678,6 +1830,22 @@ export default function App() {
                 </div>
 
                 <div className="side-panel-content">
+                  <ErrorBoundary
+                    boundaryName={`review-panel-${panelTab}`}
+                    resetKey={reviewBoundaryKey}
+                    fallback={renderBoundaryFallback(
+                      panelTab === 'load'
+                        ? 'Import unavailable'
+                        : panelTab === 'coach'
+                          ? 'Coach unavailable'
+                          : 'Analysis unavailable',
+                      panelTab === 'load'
+                        ? 'The import panel crashed. Switch tabs or reload to try again.'
+                        : panelTab === 'coach'
+                          ? 'The coaching panel crashed. Your game is still loaded and the board is safe.'
+                          : 'The analysis panel crashed. Switch tabs or reload to recover it.',
+                    )}
+                  >
                   {panelTab === 'analysis' && isLoaded && (
                     <>
                       {/* Engine / analyzing status */}
@@ -1716,6 +1884,8 @@ export default function App() {
                           lines={visibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
                           onLineClick={handleAnalysisBestLineClick}
+                          onLineMoveClick={handleAnalysisBestLineMoveClick}
+                          fen={displayFen}
                         />
                       )}
 
@@ -1735,6 +1905,11 @@ export default function App() {
                           moveEvals={moveEvals}
                           userColor={userColor}
                           analysisComplete={analysisComplete}
+                          whiteName={whitePlayer}
+                          blackName={blackPlayer}
+                          whiteElo={whiteElo}
+                          blackElo={blackElo}
+                          result={gameResult}
                         />
                       )}
 
@@ -2003,6 +2178,8 @@ export default function App() {
                         lines={visibleLines}
                         isAnalyzingPosition={isAnalyzingPosition}
                         onLineClick={handleAnalysisBestLineClick}
+                        onLineMoveClick={handleAnalysisBestLineMoveClick}
+                        fen={displayFen}
                       />
 
                       {/* Analysis board move tree */}
@@ -2041,6 +2218,7 @@ export default function App() {
                       )}
                     </>
                   )}
+                  </ErrorBoundary>
                 </div>
               </div>
               {shouldShowDesktopRail && (
@@ -2100,8 +2278,18 @@ export default function App() {
               onOpenAbout={() => goToPage('about')}
             />
           )}
+          {currentPage === 'reset-password' && (
+            <ResetPasswordPage onDone={() => goToPage('review')} />
+          )}
           {currentPage === 'play' && (
-            <ErrorBoundary>
+            <ErrorBoundary
+              boundaryName="play-page"
+              resetKey={currentPage}
+              fallback={renderBoundaryFallback(
+                'Play page unavailable',
+                'The bot play board crashed. Reload to start a new game.',
+              )}
+            >
               <BotPlayPage
                 onNavigateToReview={() => goToPage('review')}
               />
