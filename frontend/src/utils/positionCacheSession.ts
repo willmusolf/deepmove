@@ -107,7 +107,6 @@ export function makeThrottledWriter(
   key: string,
 ): ThrottledCacheWriter {
   let timerId: ReturnType<typeof setTimeout> | null = null
-  let pendingPayload: PersistedCachePayload = { version: CACHE_VERSION, entries: [] }
   let dirty = false
 
   function scheduleWrite() {
@@ -116,18 +115,14 @@ export function makeThrottledWriter(
       timerId = null
       if (!dirty) return
       dirty = false
-      writeSessionJson(key, pendingPayload)
+      // Snapshot the full live cache once at write time — avoids serializing on every flush
+      writeSessionJson(key, serializeCachePayload(getCache()))
     }, THROTTLE_MS)
   }
 
   return {
-    flush(fen: string, lines: TopLine[]) {
+    flush(_fen: string, lines: TopLine[]) {
       if (lines.length === 0) return
-      // Build full payload from live cache on first use or keep accumulating
-      // Re-derive from the live cache so we always persist the freshest state
-      pendingPayload = serializeCachePayload(getCache())
-      // Then upsert the just-written entry to ensure it's refreshed to newest
-      pendingPayload = upsertCacheEntry(pendingPayload, fen, lines)
       dirty = true
       scheduleWrite()
     },
