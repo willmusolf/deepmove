@@ -18,6 +18,7 @@ const MAX_LINES = 2
 const COLLAPSED_MAX_PLIES = 12
 const EXPANDED_MAX_PLIES = 16
 const MOBILE_BREAKPOINT = '(max-width: 640px)'
+const COLLAPSED_FIT_BUFFER_PX = 6
 
 function pvToSans(fen: string, pv: string[]): string[] {
   const sans: string[] = []
@@ -113,7 +114,7 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
         const totalSegments = pvData[i]?.collapsedSegments.length ?? 0
         if (!container || !measure || totalSegments === 0) return totalSegments
 
-        const availableWidth = container.clientWidth
+        const availableWidth = Math.max(0, container.clientWidth - COLLAPSED_FIT_BUFFER_PX)
         const segmentNodes = Array.from(measure.children) as HTMLElement[]
         let usedWidth = 0
         let count = 0
