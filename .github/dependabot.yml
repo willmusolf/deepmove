@@ -1,19 +1,122 @@
 version: 2
+
 updates:
   - package-ecosystem: "npm"
     directory: "/frontend"
+    target-branch: "staging"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+      day: "monday"
+      time: "06:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 3
+    groups:
+      frontend-react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+        update-types:
+          - "minor"
+          - "patch"
+      frontend-eslint:
+        patterns:
+          - "@typescript-eslint/*"
+          - "eslint"
+          - "eslint-*"
+        update-types:
+          - "minor"
+          - "patch"
+      frontend-vite:
+        patterns:
+          - "vite"
+          - "vitest"
+          - "@vitejs/*"
+        update-types:
+          - "minor"
+          - "patch"
+      frontend-testing:
+        patterns:
+          - "@testing-library/*"
+          - "jsdom"
+        update-types:
+          - "minor"
+          - "patch"
+      frontend-other:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+          - "@typescript-eslint/*"
+          - "eslint"
+          - "eslint-*"
+          - "vite"
+          - "vitest"
+          - "@vitejs/*"
+          - "@testing-library/*"
+          - "jsdom"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "pip"
     directory: "/backend"
+    target-branch: "staging"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+      day: "monday"
+      time: "06:15"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 3
+    groups:
+      backend-pydantic:
+        patterns:
+          - "pydantic"
+          - "pydantic-core"
+          - "pydantic-settings"
+        update-types:
+          - "minor"
+          - "patch"
+      backend-other:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "pydantic"
+          - "pydantic-core"
+          - "pydantic-settings"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "staging"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+      day: "monday"
+      time: "06:30"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 2
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
