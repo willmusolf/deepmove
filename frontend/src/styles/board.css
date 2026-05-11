@@ -2025,6 +2025,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .best-line-main {
+  position: relative;
   min-width: 0;
   flex: 1;
   display: flex;
@@ -2079,6 +2080,22 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   background: rgba(96, 165, 250, 0.14);
   color: #cfe3ff;
   outline: none;
+}
+
+.best-line-pv__move--measure {
+  display: inline-block;
+  pointer-events: none;
+}
+
+.best-line-pv__measure {
+  position: absolute;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+  height: 0;
+  overflow: hidden;
 }
 
 .best-line-expand {

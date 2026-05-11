@@ -2,7 +2,7 @@
 // Clicking a line enters variation mode to walk through the PV on the board.
 
 import { Chess } from 'chess.js'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { TopLine } from '../../engine/stockfish'
 import { formatEval } from '../../utils/format'
 
@@ -15,10 +15,7 @@ interface BestLinesProps {
 }
 
 const MAX_LINES = 2
-const COLLAPSED_MAX_PLIES_DESKTOP_WHITE_TO_MOVE = 8
-const COLLAPSED_MAX_PLIES_DESKTOP_BLACK_TO_MOVE = 6
-const COLLAPSED_MAX_PLIES_MOBILE_WHITE_TO_MOVE = 10
-const COLLAPSED_MAX_PLIES_MOBILE_BLACK_TO_MOVE = 7
+const COLLAPSED_MAX_PLIES = 12
 const EXPANDED_MAX_PLIES = 16
 const MOBILE_BREAKPOINT = '(max-width: 640px)'
 
@@ -74,32 +71,21 @@ function buildCollapsedSegments(
 export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onLineMoveClick, fen }: BestLinesProps) {
   const visibleLines = lines.slice(0, MAX_LINES)
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
+  const [visibleCollapsedCounts, setVisibleCollapsedCounts] = useState<number[]>([])
   const [isMobile, setIsMobile] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia(MOBILE_BREAKPOINT).matches
   ))
-  const collapsedMaxPlies = useMemo(() => {
-    const isWhiteToMove = fen.split(' ')[1] === 'w'
-    const fullMoveNumber = parseInt(fen.split(' ')[5] ?? '1', 10)
-    const moveNumberPenalty = fullMoveNumber >= 10 ? 1 : 0
-    const base = isMobile
-      ? (isWhiteToMove
-        ? COLLAPSED_MAX_PLIES_MOBILE_WHITE_TO_MOVE
-        : COLLAPSED_MAX_PLIES_MOBILE_BLACK_TO_MOVE)
-      : (isWhiteToMove
-        ? COLLAPSED_MAX_PLIES_DESKTOP_WHITE_TO_MOVE
-        : COLLAPSED_MAX_PLIES_DESKTOP_BLACK_TO_MOVE)
-
-    return Math.max(4, base - moveNumberPenalty)
-  }, [fen, isMobile])
+  const collapsedPvRefs = useRef<Array<HTMLSpanElement | null>>([])
+  const collapsedMeasureRefs = useRef<Array<HTMLDivElement | null>>([])
   const pvData = useMemo(
     () => visibleLines.map(line => {
       const sans = pvToSans(fen, line.pv)
       return {
-        collapsedSegments: buildCollapsedSegments(fen, sans, collapsedMaxPlies),
+        collapsedSegments: buildCollapsedSegments(fen, sans, COLLAPSED_MAX_PLIES),
         expandedSegments: buildCollapsedSegments(fen, sans, EXPANDED_MAX_PLIES),
       }
     }),
-    [collapsedMaxPlies, fen, visibleLines],
+    [fen, visibleLines],
   )
 
   useEffect(() => {
@@ -118,6 +104,52 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
   useEffect(() => {
     if (!isMobile) setExpandedIndex(null)
   }, [fen, isMobile])
+
+  useLayoutEffect(() => {
+    const computeVisibleCounts = () => {
+      const nextCounts = visibleLines.map((_, i) => {
+        const container = collapsedPvRefs.current[i]
+        const measure = collapsedMeasureRefs.current[i]
+        const totalSegments = pvData[i]?.collapsedSegments.length ?? 0
+        if (!container || !measure || totalSegments === 0) return totalSegments
+
+        const availableWidth = container.clientWidth
+        const segmentNodes = Array.from(measure.children) as HTMLElement[]
+        let usedWidth = 0
+        let count = 0
+
+        for (const node of segmentNodes) {
+          const segmentWidth = Math.ceil(node.getBoundingClientRect().width)
+          if (count > 0 && usedWidth + segmentWidth > availableWidth) break
+          usedWidth += segmentWidth
+          count += 1
+        }
+
+        return Math.max(1, count)
+      })
+
+      setVisibleCollapsedCounts(prev => {
+        if (prev.length === nextCounts.length && prev.every((value, index) => value === nextCounts[index])) {
+          return prev
+        }
+        return nextCounts
+      })
+    }
+
+    computeVisibleCounts()
+
+    if (typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver(() => {
+      computeVisibleCounts()
+    })
+
+    collapsedPvRefs.current.forEach(node => {
+      if (node) observer.observe(node)
+    })
+
+    return () => observer.disconnect()
+  }, [pvData, visibleLines])
 
   const expandedLine = expandedIndex !== null ? visibleLines[expandedIndex] : null
   const expandedSegments = expandedIndex !== null ? (pvData[expandedIndex]?.expandedSegments ?? []) : []
@@ -146,9 +178,14 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
             }}
           >
             <div className="best-line-main" title="Click to explore this line">
-              <span className="best-line-pv">
+              <span
+                className="best-line-pv"
+                ref={(node) => {
+                  collapsedPvRefs.current[i] = node
+                }}
+              >
                 {(pvData[i]?.collapsedSegments.length ?? 0) > 0
-                  ? pvData[i]!.collapsedSegments.map(segment => (
+                  ? pvData[i]!.collapsedSegments.slice(0, visibleCollapsedCounts[i] ?? pvData[i]!.collapsedSegments.length).map(segment => (
                     <span key={segment.key} className="best-line-pv__segment">
                       {segment.prefix && <span className="best-line-pv__prefix">{segment.prefix}</span>}
                       {isMobile ? (
@@ -171,6 +208,22 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
                   ))
                   : line.san}
               </span>
+              <div
+                className="best-line-pv__measure"
+                ref={(node) => {
+                  collapsedMeasureRefs.current[i] = node
+                }}
+                aria-hidden="true"
+              >
+                {(pvData[i]?.collapsedSegments ?? []).map(segment => (
+                  <span key={`measure-${segment.key}`} className="best-line-pv__segment">
+                    {segment.prefix && <span className="best-line-pv__prefix">{segment.prefix}</span>}
+                    <span className={isMobile ? 'best-line-pv__text' : 'best-line-pv__move best-line-pv__move--measure'}>
+                      {segment.san}
+                    </span>
+                  </span>
+                ))}
+              </div>
             </div>
             <button
               type="button"
