@@ -42,7 +42,7 @@ import { useSound } from './hooks/useSound'
 import { useAuthStore } from './stores/authStore'
 import { useGameStore } from './stores/gameStore'
 import { clearPlaySession } from './stores/playStore'
-import type { TopLine } from './engine/stockfish'
+import { evalResultToTopLines, type TopLine } from './engine/stockfish'
 import { classifyMove, isSacrificeFn } from './engine/analysis'
 import type { MoveGrade } from './engine/analysis'
 import type { Key } from 'chessground/types'
@@ -434,6 +434,7 @@ export default function App() {
   const lastSandboxMoveRef = useRef<string | null>(null)
   // Hold last valid eval so the bar never receives undefined (prevents 50/50 flash)
   const lastEvalRef = useRef({ cp: 0, isMate: false, mateIn: null as number | null })
+  const seededPositionCacheCountRef = useRef(0)
 
   // Trigger full-game analysis whenever a new game loads and the engine is ready
   const setSkipNextAnalysis = useGameStore(s => s.setSkipNextAnalysis)
@@ -443,6 +444,7 @@ export default function App() {
       // games where skipNextAnalysis is true — so stale per-position multi-PV
       // results from the previous game never bleed into the new one.
       positionCache.current.clear()
+      seededPositionCacheCountRef.current = 0
       // Restore branch grades from session if this is the same game (refresh),
       // otherwise clear for a new game load.
       const bgGameId = useGameStore.getState().currentGameId
@@ -472,6 +474,30 @@ export default function App() {
   const loadedGameKey = isLoaded ? (currentGameId ?? pgn ?? '__loaded-game__') : null
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
+  function mergeCachedTopLines(existing: TopLine[] | undefined, incoming: TopLine[]): TopLine[] {
+    if (!existing || existing.length === 0) return incoming
+    if (incoming.length === 0) return existing
+
+    const mergedByRank = new Map<number, TopLine>()
+    for (const line of existing) mergedByRank.set(line.rank, line)
+    for (const line of incoming) {
+      const previous = mergedByRank.get(line.rank)
+      if (!previous || line.depth >= previous.depth) {
+        mergedByRank.set(line.rank, line)
+      }
+    }
+
+    return Array.from(mergedByRank.values()).sort((a, b) => a.rank - b.rank)
+  }
+
+  function seedPositionCache(fen: string, lines: TopLine[]) {
+    if (lines.length === 0) return
+    positionCache.current.set(
+      fen,
+      mergeCachedTopLines(positionCache.current.get(fen), lines),
+    )
+  }
+
   function mergeStreamingTopLines(incoming: TopLine[]): TopLine[] {
     if (incoming.length === 0) return incoming
     const existing = useGameStore.getState().currentPositionLines
@@ -485,6 +511,18 @@ export default function App() {
       .sort((a, b) => a.rank - b.rank)
       .slice(0, existing.length)
   }
+
+  useEffect(() => {
+    if (seededPositionCacheCountRef.current > moveEvals.length) {
+      seededPositionCacheCountRef.current = 0
+    }
+
+    for (let i = seededPositionCacheCountRef.current; i < moveEvals.length; i++) {
+      seedPositionCache(moveEvals[i].fen, evalResultToTopLines(moveEvals[i].eval))
+    }
+
+    seededPositionCacheCountRef.current = moveEvals.length
+  }, [moveEvals])
 
   // Opening name — detected from move sequence in both modes
   const [openingName, setOpeningName] = useState<string | null>(null)
@@ -567,11 +605,11 @@ export default function App() {
       const stableLines = mergeStreamingTopLines(lines)
       setCurrentPositionLines(stableLines)
       setCurrentAnalysisDepth(d)
-      if (stableLines.length > 0) positionCache.current.set(fen, stableLines)
+      if (stableLines.length > 0) seedPositionCache(fen, stableLines)
     })
       .then(lines => {
         if (positionTokenRef.current !== token) return
-        if (lines.length > 0) positionCache.current.set(fen, lines)
+        if (lines.length > 0) seedPositionCache(fen, lines)
         setCurrentPositionLines(lines)
         setCurrentAnalysisDepth(lines[0]?.depth ?? 0)
         setAnalyzingPosition(false)
@@ -1199,16 +1237,25 @@ export default function App() {
       const color: 'white' | 'black' = parentFen.split(' ')[1] === 'w' ? 'white' : 'black'
 
       const cachedParentTopLine = positionCache.current.get(parentFen)?.[0] ?? null
+      const cachedAfterTopLine = positionCache.current.get(newFen)?.[0] ?? null
       const parentResult = cachedParentTopLine
         ? { score: cachedParentTopLine.score, pv: cachedParentTopLine.pv }
         : await analyzePositionSingleBranch(parentFen, 14)
-      // Single-PV on position after the branch move
-      const afterResult = await analyzePositionSingleBranch(newFen, 14)
+      const afterResult = cachedAfterTopLine
+        ? { score: cachedAfterTopLine.score, pv: cachedAfterTopLine.pv }
+        : await analyzePositionSingleBranch(newFen, 14)
 
       if (!parentResult || !afterResult) {
         lastGradedNodeIdRef.current = nodeId
         setBranchGrades(prev => new Map(prev).set(nodeId, 'unknown' as MoveGrade))
         return  // finally still clears pendingBranchNodes
+      }
+
+      if (!cachedParentTopLine && 'fen' in parentResult) {
+        seedPositionCache(parentFen, evalResultToTopLines(parentResult))
+      }
+      if (!cachedAfterTopLine && 'fen' in afterResult) {
+        seedPositionCache(newFen, evalResultToTopLines(afterResult))
       }
 
       // Discard result if the user already switched to a different game

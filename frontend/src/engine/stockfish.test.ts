@@ -51,25 +51,25 @@ describe('StockfishEngine single-PV normalization', () => {
 })
 
 describe('StockfishEngine multi-PV update gating', () => {
-  it('waits until depth 14 before streaming lines to the UI', async () => {
+  it('waits until depth 12 before streaming lines to the UI', async () => {
     const engine = createEngine()
     const onUpdate = vi.fn()
     const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
     const resultPromise = engine.analyzePositionMultiPV(fen, 18, 2, onUpdate)
-    ;(engine as any).onUciLine('info depth 13 multipv 1 score cp 30 pv e2e4 e7e5')
-    ;(engine as any).onUciLine('info depth 13 multipv 2 score cp 22 pv d2d4 d7d5')
+    ;(engine as any).onUciLine('info depth 11 multipv 1 score cp 30 pv e2e4 e7e5')
+    ;(engine as any).onUciLine('info depth 11 multipv 2 score cp 22 pv d2d4 d7d5')
     expect(onUpdate).not.toHaveBeenCalled()
 
-    ;(engine as any).onUciLine('info depth 14 multipv 1 score cp 35 pv e2e4 e7e5')
-    ;(engine as any).onUciLine('info depth 14 multipv 2 score cp 24 pv d2d4 d7d5')
+    ;(engine as any).onUciLine('info depth 12 multipv 1 score cp 35 pv e2e4 e7e5')
+    ;(engine as any).onUciLine('info depth 12 multipv 2 score cp 24 pv d2d4 d7d5')
 
     expect(onUpdate).toHaveBeenCalledTimes(1)
     const [lines, streamedDepth] = onUpdate.mock.calls[0]
-    expect(streamedDepth).toBe(14)
+    expect(streamedDepth).toBe(12)
     expect(lines).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ rank: 1, depth: 14, pv: ['e2e4', 'e7e5'] }),
+        expect.objectContaining({ rank: 1, depth: 12, pv: ['e2e4', 'e7e5'] }),
         expect.objectContaining({ rank: 2, pv: ['d2d4', 'd7d5'] }),
       ]),
     )

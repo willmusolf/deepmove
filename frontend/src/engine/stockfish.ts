@@ -9,7 +9,8 @@
 
 import { Chess } from 'chess.js'
 
-const MIN_MULTIPV_DISPLAY_DEPTH = 14
+const MIN_MULTIPV_DISPLAY_DEPTH = 12
+const STOCKFISH_ASSET_VERSION = '18-lite-single'
 
 export interface EvalResult {
   fen: string
@@ -29,6 +30,31 @@ export interface TopLine {
   pv: string[]        // UCI moves e.g. ["e2e4", "e7e5", ...]
   san: string         // SAN of the first move for display
   depth: number       // analysis depth at which this line was produced
+}
+
+export function uciToSanForFen(fen: string, uciMove: string): string {
+  try {
+    const chess = new Chess(fen)
+    const from = uciMove.slice(0, 2)
+    const to = uciMove.slice(2, 4)
+    const promo = uciMove[4]
+    const move = chess.move({ from, to, promotion: promo ?? 'q' })
+    return move?.san ?? uciMove
+  } catch {
+    return uciMove
+  }
+}
+
+export function evalResultToTopLines(result: EvalResult): TopLine[] {
+  return [{
+    rank: 1,
+    score: result.score,
+    isMate: result.isMate,
+    mateIn: result.mateIn,
+    pv: result.pv,
+    san: result.pv.length > 0 ? uciToSanForFen(result.fen, result.pv[0]) : '',
+    depth: result.depth,
+  }]
 }
 
 interface QueueItem {
@@ -94,7 +120,9 @@ export class StockfishEngine {
 
   async initialize(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.worker = new Worker('/stockfish/worker.js#/stockfish/stockfish.wasm')
+      this.worker = new Worker(
+        `/stockfish/worker.js?v=${STOCKFISH_ASSET_VERSION}#/stockfish/stockfish.wasm?v=${STOCKFISH_ASSET_VERSION}`,
+      )
 
       let settled = false
 
@@ -133,19 +161,6 @@ export class StockfishEngine {
 
       this.worker.postMessage('uci')
     })
-  }
-
-  private uciToSan(fen: string, uciMove: string): string {
-    try {
-      const chess = new Chess(fen)
-      const from = uciMove.slice(0, 2)
-      const to = uciMove.slice(2, 4)
-      const promo = uciMove[4]
-      const move = chess.move({ from, to, promotion: promo ?? 'q' })
-      return move?.san ?? uciMove
-    } catch {
-      return uciMove
-    }
   }
 
   private onUciLine(line: string) {
@@ -189,7 +204,7 @@ export class StockfishEngine {
         const score = this.normalizeScoreForWhite(rawScore)
         const whiteMateIn = isMate ? this.normalizeMateForWhite(mateIn) : null
 
-        const san = pv.length > 0 ? this.uciToSan(this.currentFen, pv[0]) : ''
+        const san = pv.length > 0 ? uciToSanForFen(this.currentFen, pv[0]) : ''
 
         this.latestMultiPvLines.set(rank, { rank, score, isMate, mateIn: whiteMateIn, pv, san, depth })
 

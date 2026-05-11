@@ -2,11 +2,11 @@ import { cpSync, existsSync, mkdirSync } from 'node:fs'
 
 mkdirSync('public/stockfish', { recursive: true })
 
-// Use the asm.js build — self-contained, no companion .wasm file needed.
-// The npm `stockfish` package does not ship .wasm binaries, so WASM loader
-// variants (stockfish-18-lite-single.js etc.) will always fail at runtime.
+// Prefer the lite single-threaded WASM build: much faster than asm.js while
+// staying small enough for browser delivery and not depending on SAB threads.
 const assetPairs = [
-  ['node_modules/stockfish/bin/stockfish-18-asm.js', 'public/stockfish/stockfish.js'],
+  ['node_modules/stockfish/bin/stockfish-18-lite-single.js', 'public/stockfish/stockfish.js'],
+  ['node_modules/stockfish/bin/stockfish-18-lite-single.wasm', 'public/stockfish/stockfish.wasm'],
 ]
 
 for (const [src, dst] of assetPairs) {
@@ -17,4 +17,8 @@ for (const [src, dst] of assetPairs) {
 
 if (!existsSync('public/stockfish/stockfish.js')) {
   throw new Error('Stockfish JavaScript bundle was not found in node_modules/stockfish')
+}
+
+if (!existsSync('public/stockfish/stockfish.wasm')) {
+  throw new Error('Stockfish WASM binary was not found in node_modules/stockfish')
 }
