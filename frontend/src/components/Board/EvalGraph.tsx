@@ -28,7 +28,9 @@ const TENSION = 0.3   // Catmull-Rom tension
 const DOT_R = 6       // radius of annotation circles
 const DOT_R_HOVER = 9 // radius when hovered
 const DOT_HIT_R = 13  // invisible hit target for easier mouse capture
-const PLOT_PAD_X = DOT_R - 2
+const DESKTOP_PLOT_PAD_X = DOT_R - 2
+const MOBILE_PLOT_PAD_X = 1
+const MOBILE_GRAPH_BREAKPOINT = 640
 const PLOT_PAD_Y = DOT_R_HOVER + 3
 const TOOLTIP_EDGE_THRESHOLD = 72
 const EDGE_GUIDE_INSET = 1
@@ -129,9 +131,10 @@ export default function EvalGraph({
   const clampTooltipX = (x: number) => Math.max(DOT_R_HOVER + 4, Math.min(svgWidth - DOT_R_HOVER - 4, x))
 
   const { colWidth, plotStartX, plotEndX, midY, points, annotations, criticalBands, curvePath } = useMemo(() => {
-    const plotWidth = Math.max(1, svgWidth - PLOT_PAD_X * 2)
+    const plotPadX = svgWidth <= MOBILE_GRAPH_BREAKPOINT ? MOBILE_PLOT_PAD_X : DESKTOP_PLOT_PAD_X
+    const plotWidth = Math.max(1, svgWidth - plotPadX * 2)
     const cw = plotWidth / total
-    const mx = (i: number) => PLOT_PAD_X + Math.min(plotWidth, i * cw)
+    const mx = (i: number) => plotPadX + Math.min(plotWidth, i * cw)
     const my = cpToY(0, HEIGHT)
 
     const pts: Point[] = [{ x: mx(0), y: my }]
@@ -167,8 +170,8 @@ export default function EvalGraph({
 
     return {
       colWidth: cw,
-      plotStartX: PLOT_PAD_X,
-      plotEndX: PLOT_PAD_X + plotWidth,
+      plotStartX: plotPadX,
+      plotEndX: plotPadX + plotWidth,
       midY: my,
       points: pts,
       annotations: anns,

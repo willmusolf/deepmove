@@ -454,6 +454,20 @@ export default function App() {
   const loadedGameKey = isLoaded ? (currentGameId ?? pgn ?? '__loaded-game__') : null
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
+  function mergeStreamingTopLines(incoming: TopLine[]): TopLine[] {
+    if (incoming.length === 0) return incoming
+    const existing = useGameStore.getState().currentPositionLines
+    if (existing.length <= incoming.length) return incoming
+
+    const mergedByRank = new Map<number, TopLine>()
+    for (const line of existing) mergedByRank.set(line.rank, line)
+    for (const line of incoming) mergedByRank.set(line.rank, line)
+
+    return Array.from(mergedByRank.values())
+      .sort((a, b) => a.rank - b.rank)
+      .slice(0, existing.length)
+  }
+
   // Opening name — detected from move sequence in both modes
   const [openingName, setOpeningName] = useState<string | null>(null)
 
@@ -471,6 +485,9 @@ export default function App() {
   const navHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // When true, the next displayFen change is from a piece move — skip the 180ms deferral
   const isPieceMoveRef = useRef(false)
+  const suppressPositionAnalysisRef = useRef(false)
+  const [isBestLineJumping, setBestLineJumping] = useState(false)
+  const playBestLineMoveRef = useRef<(uci: string, options?: { playSound?: boolean }) => boolean>(() => false)
 
   function triggerPositionAnalysis(fen: string, depth = POSITION_MAX_DEPTH) {
     // NOTE: callers are responsible for calling stopPositionAnalysis() before this.
@@ -502,9 +519,10 @@ export default function App() {
     analyzePositionLines(fen, depth, numLines, (lines, d) => {
       if (positionTokenRef.current !== token) return
       if (d <= resumeFromDepth) return  // skip already-seen depths
-      setCurrentPositionLines(lines)
+      const stableLines = mergeStreamingTopLines(lines)
+      setCurrentPositionLines(stableLines)
       setCurrentAnalysisDepth(d)
-      if (lines.length > 0) positionCache.current.set(fen, lines)
+      if (stableLines.length > 0) positionCache.current.set(fen, stableLines)
     })
       .then(lines => {
         if (positionTokenRef.current !== token) return
@@ -564,6 +582,10 @@ export default function App() {
 
     if (pauseLivePositionAnalysis) {
       setAnalyzingPosition(false)
+      return
+    }
+
+    if (suppressPositionAnalysisRef.current) {
       return
     }
 
@@ -1081,9 +1103,15 @@ export default function App() {
   }
 
   // Board move during game review: advance main line or create branch.
-  function handleBoardMove(from: string, to: string, san: string, newFen: string) {
+  function handleBoardMove(
+    from: string,
+    to: string,
+    san: string,
+    newFen: string,
+    options?: { playSound?: boolean },
+  ) {
     pathKeyRef.current++
-    playMoveSound(san)
+    if (options?.playSound !== false) playMoveSound(san)
     isPieceMoveRef.current = true
     const next = nextMainLineNode
     if (next && next.from === from && next.to === to && next.san === san) {
@@ -1198,12 +1226,8 @@ export default function App() {
     navigateTo(path)
   }
 
-  // Enter first move of a best line (clicked in BestLines panel or via arrow).
-  // In game review mode: plays into the game's variation tree (same as dragging the piece).
-  // In sandbox mode: plays into the free-play analysis tree.
-  function handleAnalysisBestLineClick(line: TopLine) {
-    const uci = line.pv[0]
-    if (!uci || uci.length < 4) return
+  function playBestLineUci(uci: string, options?: { playSound?: boolean }): boolean {
+    if (!uci || uci.length < 4) return false
     const from = uci.slice(0, 2)
     const to = uci.slice(2, 4)
     const promotion = uci.length === 5 ? uci[4] : undefined
@@ -1212,17 +1236,17 @@ export default function App() {
       // Game review mode — delegate to handleBoardMove which handles main-line advance vs branch
       const chess = new Chess(currentFen)
       const result = chess.move({ from, to, promotion })
-      if (!result) return
-      playMoveSound(result.san)
+      if (!result) return false
       isPieceMoveRef.current = true
       pathKeyRef.current++
-      handleBoardMove(from, to, result.san, chess.fen())
+      handleBoardMove(from, to, result.san, chess.fen(), options)
+      return true
     } else {
       // Sandbox/free-play mode
       const chess = new Chess(analysisFen)
       const result = chess.move({ from, to, promotion })
-      if (!result) return
-      playMoveSound(result.san)
+      if (!result) return false
+      if (options?.playSound !== false) playMoveSound(result.san)
       pathKeyRef.current++
       const parentFen = analysisFen
       const newFen = chess.fen()
@@ -1233,7 +1257,79 @@ export default function App() {
         void evaluateBranchMove(nodeId, parentFen, newFen)
       }
       if (panelTab !== 'coach') setPanelTab('analysis')
+      return true
     }
+  }
+
+  playBestLineMoveRef.current = playBestLineUci
+
+  // Enter first move of a best line (clicked in BestLines panel or via arrow).
+  function handleAnalysisBestLineClick(line: TopLine) {
+    void playBestLineMoveRef.current(line.pv[0] ?? '')
+  }
+
+  async function handleAnalysisBestLineMoveClick(line: TopLine, plyCount: number) {
+    const sequence = line.pv.slice(0, plyCount)
+    let targetFen = displayFen
+    try {
+      const chess = new Chess(displayFen)
+      for (const uci of sequence) {
+        const result = chess.move({
+          from: uci.slice(0, 2),
+          to: uci.slice(2, 4),
+          promotion: uci.length === 5 ? uci[4] : undefined,
+        })
+        if (!result) break
+        targetFen = chess.fen()
+      }
+    } catch {
+      targetFen = displayFen
+    }
+
+    suppressPositionAnalysisRef.current = true
+    setBestLineJumping(true)
+    positionTokenRef.current++
+    stopPositionAnalysis()
+    if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
+    setCurrentPositionLines([])
+    setCurrentAnalysisDepth(0)
+    setAnalyzingPosition(true)
+
+    for (let i = 0; i < sequence.length; i += 1) {
+      const moved = playBestLineMoveRef.current(sequence[i])
+      if (!moved) break
+      if (i < sequence.length - 1) {
+        await new Promise<void>(resolve => {
+          window.setTimeout(() => requestAnimationFrame(() => resolve()), 110)
+        })
+      }
+    }
+
+    suppressPositionAnalysisRef.current = false
+
+    if (pauseLivePositionAnalysis || !isReady) {
+      setBestLineJumping(false)
+      setAnalyzingPosition(false)
+      return
+    }
+
+    const cached = positionCache.current.get(targetFen)
+    if (cached && cached.length > 0) {
+      setCurrentPositionLines(cached)
+      setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
+      if ((cached[0]?.depth ?? 0) >= POSITION_MAX_DEPTH) {
+        setBestLineJumping(false)
+        setAnalyzingPosition(false)
+        return
+      }
+      setAnalyzingPosition(true)
+    } else {
+      setCurrentPositionLines([])
+      setCurrentAnalysisDepth(0)
+    }
+
+    setBestLineJumping(false)
+    triggerPositionAnalysis(targetFen)
   }
 
 
@@ -1295,11 +1391,14 @@ export default function App() {
   const stableIsMate = evalCp !== undefined ? evalIsMate : lastEvalRef.current.isMate
   const stableMateIn = evalCp !== undefined ? evalMateIn : lastEvalRef.current.mateIn
   const showLoadingEvalPlaceholder = isLoaded && showAnalyzingBar && !inBranch && !mainEval && !posLine
-  const displayedEvalText = showLoadingEvalPlaceholder ? null : formatEval(stableEvalCp, stableIsMate, stableMateIn)
+  const displayedEvalText = (showLoadingEvalPlaceholder || isBestLineJumping)
+    ? null
+    : formatEval(stableEvalCp, stableIsMate, stableMateIn)
   const shouldRenderEvalDisplay = Boolean(
     displayedEvalText
     || currentAnalysisDepth > 0
     || isAnalyzingPosition
+    || isBestLineJumping
     || (mainEval && !inBranch)
   )
 
@@ -1311,6 +1410,7 @@ export default function App() {
   //   line 3: gap ≤ 50cp  (must be essentially equal — "excellent" or better)
   // This prevents inaccuracies/mistakes from appearing as "suggested" alternatives.
   const visibleLines = useMemo(() => {
+    if (isBestLineJumping) return []
     const lines = currentPositionLines
     if (lines.length === 0) return []
     const best = lines[0]
@@ -1339,7 +1439,7 @@ export default function App() {
       if (i === 2) return gap <= 50
       return false
     })
-  }, [currentPositionLines])
+  }, [currentPositionLines, isBestLineJumping])
 
   const boardShapes: DrawShape[] = useMemo(() => visibleLines
     .filter(l => l.pv.length >= 1)
@@ -1784,6 +1884,8 @@ export default function App() {
                           lines={visibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
                           onLineClick={handleAnalysisBestLineClick}
+                          onLineMoveClick={handleAnalysisBestLineMoveClick}
+                          fen={displayFen}
                         />
                       )}
 
@@ -1803,6 +1905,11 @@ export default function App() {
                           moveEvals={moveEvals}
                           userColor={userColor}
                           analysisComplete={analysisComplete}
+                          whiteName={whitePlayer}
+                          blackName={blackPlayer}
+                          whiteElo={whiteElo}
+                          blackElo={blackElo}
+                          result={gameResult}
                         />
                       )}
 
@@ -2071,6 +2178,8 @@ export default function App() {
                         lines={visibleLines}
                         isAnalyzingPosition={isAnalyzingPosition}
                         onLineClick={handleAnalysisBestLineClick}
+                        onLineMoveClick={handleAnalysisBestLineMoveClick}
+                        fen={displayFen}
                       />
 
                       {/* Analysis board move tree */}

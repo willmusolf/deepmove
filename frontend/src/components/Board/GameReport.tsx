@@ -1,11 +1,16 @@
 import { useMemo } from 'react'
-import type { MoveEval } from '../../engine/analysis'
+import { computeAccuracy, type MoveEval } from '../../engine/analysis'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './gradeBadges'
 
 interface GameReportProps {
   moveEvals: MoveEval[]
   userColor?: 'white' | 'black' | null
   analysisComplete?: boolean
+  whiteName?: string | null
+  blackName?: string | null
+  whiteElo?: string | null
+  blackElo?: string | null
+  result?: string | null
 }
 
 interface SideStats {
@@ -39,14 +44,94 @@ interface SidePanelProps {
   label: string
   stats: SideStats | null
   isUser: boolean
+  accuracy: number | null
+  playerName?: string | null
+  rating?: string | null
 }
 
-function SidePanel({ label, stats, isUser }: SidePanelProps) {
+function accuracyToneClass(accuracy: number): string {
+  if (accuracy >= 80) return 'game-report-accuracy--green'
+  if (accuracy >= 60) return 'game-report-accuracy--yellow'
+  return 'game-report-accuracy--red'
+}
+
+function parseRating(rating: string | null | undefined): number | null {
+  if (!rating) return null
+  const parsed = parseInt(rating.replace(/[^\d]/g, ''), 10)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function expectedAccuracyForRating(rating: number): number {
+  return 50 + 45 / (1 + Math.exp(-(rating - 1500) / 700))
+}
+
+function roundToNearest50(value: number): number {
+  return Math.round(value / 50) * 50
+}
+
+function getSideResult(result: string | null | undefined, label: string): 'win' | 'loss' | 'draw' | null {
+  if (!result) return null
+  if (result === '1/2-1/2') return 'draw'
+  if (result === '1-0') return label === 'White' ? 'win' : 'loss'
+  if (result === '0-1') return label === 'Black' ? 'win' : 'loss'
+  return null
+}
+
+function estimatePerformanceRating(
+  accuracy: number | null,
+  rating: string | null | undefined,
+  sideResult: 'win' | 'loss' | 'draw' | null,
+): number | null {
+  if (accuracy === null) return null
+  const parsedRating = parseRating(rating)
+  if (parsedRating === null) return null
+
+  const expected = expectedAccuracyForRating(parsedRating)
+  let estimate = parsedRating + (accuracy - expected) * 5
+
+  if (sideResult === 'win') {
+    estimate += 50
+    if (accuracy < 70) estimate -= (70 - accuracy) * 3
+  } else if (sideResult === 'loss') {
+    estimate -= 175
+    if (accuracy < 80) estimate -= (80 - accuracy) * 7
+    estimate = Math.min(estimate, parsedRating - 25)
+  } else if (sideResult === 'draw') {
+    estimate = Math.max(parsedRating - 75, Math.min(parsedRating + 75, estimate))
+  }
+
+  return roundToNearest50(Math.max(100, Math.min(3200, estimate)))
+}
+
+function SidePanel({ label, stats, isUser, accuracy, playerName, rating, result }: SidePanelProps & { result?: string | null }) {
+  const displayName = playerName?.trim() || label
+  const performanceRating = estimatePerformanceRating(accuracy, rating, getSideResult(result, label))
+  const sideClass = label === 'White' ? 'game-report-player-dot--white' : 'game-report-player-dot--black'
+
   return (
     <div className={`game-report-side${isUser ? ' game-report-side--user' : ''}`}>
       <div className="game-report-header">
-        <span className="game-report-label">{label}</span>
+        <div className="game-report-player">
+          <span className={`game-report-player-dot ${sideClass}`} aria-hidden="true" />
+          <span className="game-report-player-name">{displayName}</span>
+        </div>
       </div>
+      {stats && (
+        <div className="game-report-metrics">
+          {accuracy !== null && (
+            <div className="game-report-metric">
+              <span className="game-report-metric-label">Accuracy:</span>
+              <span className={`game-report-accuracy ${accuracyToneClass(accuracy)}`}>{accuracy.toFixed(1)}%</span>
+            </div>
+          )}
+          {performanceRating !== null && (
+            <div className="game-report-metric">
+              <span className="game-report-metric-label">Game Rating:</span>
+              <span className="game-report-rating">{performanceRating}</span>
+            </div>
+          )}
+        </div>
+      )}
       <div className="game-report-grades">
         {stats
           ? GRADE_ORDER.map(grade => {
@@ -76,9 +161,16 @@ export default function GameReport({
   moveEvals,
   userColor,
   analysisComplete = true,
+  whiteName,
+  blackName,
+  whiteElo,
+  blackElo,
+  result,
 }: GameReportProps) {
   const white = useMemo(() => computeSideStats(moveEvals, 'white'), [moveEvals])
   const black = useMemo(() => computeSideStats(moveEvals, 'black'), [moveEvals])
+  const whiteAccuracy = useMemo(() => computeAccuracy(moveEvals, 'white'), [moveEvals])
+  const blackAccuracy = useMemo(() => computeAccuracy(moveEvals, 'black'), [moveEvals])
 
   if (!analysisComplete) return null
   if (!white && !black) return null
@@ -89,12 +181,20 @@ export default function GameReport({
         label="White"
         stats={white}
         isUser={userColor === 'white'}
+        accuracy={white ? whiteAccuracy : null}
+        playerName={whiteName}
+        rating={whiteElo}
+        result={result}
       />
       <div className="game-report-divider" />
       <SidePanel
         label="Black"
         stats={black}
         isUser={userColor === 'black'}
+        accuracy={black ? blackAccuracy : null}
+        playerName={blackName}
+        rating={blackElo}
+        result={result}
       />
     </div>
   )
