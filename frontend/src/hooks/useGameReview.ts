@@ -259,7 +259,11 @@ export function useGameReview() {
   const totalMoves = useMemo(() => {
     let count = 0
     let id: string | null = rootId
-    while (id) { count++; id = tree[id]?.childIds[0] ?? null }
+    while (id) {
+      count++
+      const next = tree[id]?.childIds[0] ?? null
+      id = next && tree[next]?.isMainLine ? next : null
+    }
     return count
   }, [tree, rootId])
 
@@ -280,7 +284,11 @@ export function useGameReview() {
   const moves = useMemo(() => {
     const result: string[] = []
     let id: string | null = rootId
-    while (id) { result.push(tree[id].san); id = tree[id].childIds[0] ?? null }
+    while (id) {
+      result.push(tree[id].san)
+      const next = tree[id].childIds[0] ?? null
+      id = next && tree[next]?.isMainLine ? next : null
+    }
     return result
   }, [tree, rootId])
 
