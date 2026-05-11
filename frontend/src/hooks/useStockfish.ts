@@ -60,7 +60,7 @@ export function useStockfish() {
     const ia = new StockfishEngine()
     backgroundRef.current = bg
     interactiveRef.current = ia
-    // branchRef is lazy-initialized and can be prewarmed on idle from the review page.
+    // branchRef is lazy-initialized on demand so review-page startup stays light.
     const initStartedAt = nowMs()
     reportFrontendPerf('engine_init_start', { workers: ['background', 'interactive'] })
 
@@ -105,7 +105,7 @@ export function useStockfish() {
   }
 
   const ensureBranchEngineReady = useCallback(async (
-    reason: 'prewarm' | 'branch-analysis',
+    reason: 'branch-analysis',
   ): Promise<StockfishEngine | null> => {
     if (!isReady) return null
     if (branchRef.current) return branchRef.current
@@ -376,10 +376,6 @@ export function useStockfish() {
     return engine.analyzePosition(fen, depth)
   }, [ensureBranchEngineReady])
 
-  const prewarmBranchAnalysis = useCallback(async (): Promise<void> => {
-    await ensureBranchEngineReady('prewarm')
-  }, [ensureBranchEngineReady])
-
   return {
     isReady,
     engineStatus,
@@ -388,7 +384,6 @@ export function useStockfish() {
     analyzePositionLines,
     analyzePositionSingle,
     analyzePositionSingleBranch,
-    prewarmBranchAnalysis,
     stopPositionAnalysis,
     stopBranchAnalysis,
   }

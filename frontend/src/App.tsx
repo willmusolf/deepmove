@@ -329,7 +329,6 @@ export default function App() {
     cancelGameAnalysis,
     analyzePositionLines,
     analyzePositionSingleBranch,
-    prewarmBranchAnalysis,
     stopPositionAnalysis,
     stopBranchAnalysis,
   } = useStockfish()
@@ -855,41 +854,6 @@ export default function App() {
       showGrades,
     } satisfies AppUiState)
   }, [currentPage, panelTab, importTab, orientation, showEvalBar, showArrows, showGrades])
-
-  useEffect(() => {
-    if (!isReady || currentPage !== 'review' || typeof window === 'undefined') return
-
-    let cancelled = false
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
-    let idleId: number | null = null
-    const win = window as Window & {
-      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
-      cancelIdleCallback?: (handle: number) => void
-    }
-
-    const kickOffPrewarm = () => {
-      if (cancelled) return
-      void prewarmBranchAnalysis()
-    }
-
-    if (typeof win.requestIdleCallback === 'function') {
-      idleId = win.requestIdleCallback(() => {
-        kickOffPrewarm()
-      }, { timeout: 1200 })
-    } else {
-      timeoutId = window.setTimeout(() => {
-        kickOffPrewarm()
-      }, 350)
-    }
-
-    return () => {
-      cancelled = true
-      if (timeoutId) window.clearTimeout(timeoutId)
-      if (idleId !== null && typeof win.cancelIdleCallback === 'function') {
-        win.cancelIdleCallback(idleId)
-      }
-    }
-  }, [currentPage, isReady, prewarmBranchAnalysis])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
