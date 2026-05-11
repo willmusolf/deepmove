@@ -1271,9 +1271,19 @@ export default function App() {
       const parentResult = cachedParentTopLine
         ? { score: cachedParentTopLine.score, pv: cachedParentTopLine.pv }
         : await analyzePositionSingleBranch(parentFen, 14)
-      const afterResult = cachedAfterTopLine
-        ? { score: cachedAfterTopLine.score, pv: cachedAfterTopLine.pv }
-        : await analyzePositionSingleBranch(newFen, 14)
+      // If newFen is a terminal position (checkmate/stalemate), Stockfish returns
+      // bestmove (none) which can hang or produce nonsense evals. Derive the score directly.
+      const afterChess = new Chess(newFen)
+      const afterLegalCount = afterChess.moves().length
+      const afterIsTerminal = afterLegalCount === 0
+      const afterResult = afterIsTerminal
+        ? { score: afterChess.isCheckmate()
+            ? (newFen.split(' ')[1] === 'w' ? -30000 : 30000)
+            : 0,
+            pv: [] }
+        : cachedAfterTopLine
+          ? { score: cachedAfterTopLine.score, pv: cachedAfterTopLine.pv }
+          : await analyzePositionSingleBranch(newFen, 14)
 
       if (!parentResult || !afterResult) {
         lastGradedNodeIdRef.current = nodeId
