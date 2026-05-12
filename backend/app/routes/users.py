@@ -8,6 +8,7 @@ from app.rate_limiting import limiter
 from app.routes.auth import _set_refresh_cookie, _validate_password
 from app.schemas.user import AuthResponse, PasswordChange, UserResponse, UserUpdate
 from app.utils.security import (
+    check_password_not_breached,
     create_access_token,
     create_refresh_token,
     hash_password,
@@ -159,6 +160,7 @@ async def change_password(
         )
 
     _validate_password(body.new_password)
+    await check_password_not_breached(body.new_password)
 
     user.hashed_password = hash_password(body.new_password)
     user.token_version += 1  # Invalidate all existing sessions
