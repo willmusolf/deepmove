@@ -117,7 +117,17 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
     }
     setDeletePending(true)
     try {
-      await api.delete('/users/me')
+      // Raw fetch avoids X-Request-ID header so the preflight only asks for
+      // Authorization + Content-Type — both allowed on all backend versions.
+      const res = await fetch(`${API_BASE}/users/me`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+      })
+      if (!res.ok) throw new Error(`Failed to delete account (${res.status})`)
       clearAuth()
       window.location.href = '/'
     } catch (err) {
