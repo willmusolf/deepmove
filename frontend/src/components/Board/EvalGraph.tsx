@@ -82,7 +82,7 @@ const GRADE_CIRCLE_COLOR: Partial<Record<string, string>> = {
   mistake:    '#fb923c',
   inaccuracy: '#facc15',
   brilliant:  '#30d5ff',
-  great:      '#22c55e',
+  great:      '#3b82f6',
   miss:       '#a78bfa',
 }
 
@@ -124,9 +124,9 @@ export default function EvalGraph({
   }, [])
 
   const analyzed = moveEvals.length
-  // Use the larger of totalMoves prop and analyzed count — totalMoves should always be the
-  // full game length from PGN, so x-positions are stable even as analysis fills in.
-  const total = Math.max(totalMoves, analyzed, 1)
+  // When a game is loaded, totalMoves is the authoritative PGN length and must not be
+  // exceeded by a transient analyzed count. Fall back to analyzed only when no game is loaded.
+  const total = totalMoves > 0 ? totalMoves : Math.max(analyzed, 1)
 
   const clampTooltipX = (x: number) => Math.max(DOT_R_HOVER + 4, Math.min(svgWidth - DOT_R_HOVER - 4, x))
 

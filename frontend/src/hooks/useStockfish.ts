@@ -6,17 +6,18 @@
 //   branchEngine      — branch badge grading so variation evals stay responsive
 
 function getAnalysisDepth(elo: number): number {
-  if (!elo || elo < 1200) return 10
-  if (elo < 1600) return 12
+  if (!elo || elo < 1200) return 12
+  if (elo < 1600) return 14
   return 16
 }
 
 const ANALYSIS_PROGRESS_FLUSH_MS = 180
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Chess } from 'chess.js'
 import { StockfishEngine } from '../engine/stockfish'
 import type { TopLine } from '../engine/stockfish'
+import { detectPerformanceTier, getEngineProfile } from '../utils/engineProfile'
 import { analyzeGame } from '../engine/analysis'
 import { cleanPgn } from '../chess/pgn'
 
@@ -24,15 +25,28 @@ import { detectCriticalMoments } from '../engine/criticalMoments'
 import { useGameStore } from '../stores/gameStore'
 import { saveAnalyzedGame } from '../services/gameDB'
 import { pushGame } from '../services/syncService'
-import { captureFrontendError } from '../services/monitoring'
+import { captureFrontendError, reportFrontendPerf } from '../services/monitoring'
 import { useAuthStore } from '../stores/authStore'
 
+function nowMs(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now()
+}
+
+function roundDuration(durationMs: number): number {
+  return Math.round(durationMs * 10) / 10
+}
+
 export type EngineStatus = 'loading' | 'ready' | 'error'
+
+// Detected once per page load — stable for the entire session
+const _sessionTier = detectPerformanceTier()
+const _sessionProfile = getEngineProfile(_sessionTier)
 
 export function useStockfish() {
   const backgroundRef = useRef<StockfishEngine | null>(null)
   const interactiveRef = useRef<StockfishEngine | null>(null)
   const branchRef = useRef<StockfishEngine | null>(null)
+  const branchInitPromiseRef = useRef<Promise<StockfishEngine | null> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const analysisRunIdRef = useRef(0)
   const [isReady, setIsReady] = useState(false)
@@ -51,18 +65,30 @@ export function useStockfish() {
     const ia = new StockfishEngine()
     backgroundRef.current = bg
     interactiveRef.current = ia
-    // branchRef is lazy-initialized on first use (review page only) — don't waste memory on play page
+    // branchRef is lazy-initialized on demand so review-page startup stays light.
+    const initStartedAt = nowMs()
+    reportFrontendPerf('engine_init_start', { workers: ['background', 'interactive'] })
 
-    Promise.all([bg.initialize(), ia.initialize()])
+    Promise.all([
+      bg.initialize({ hashMB: _sessionProfile.backgroundHashMB }),
+      ia.initialize({ hashMB: _sessionProfile.interactiveHashMB }),
+    ])
       .then(() => {
         setIsReady(true)
         setEngineStatus('ready')
+        reportFrontendPerf('engine_init_ready', {
+          durationMs: roundDuration(nowMs() - initStartedAt),
+          workers: ['background', 'interactive'],
+        })
       })
       .catch(err => {
         captureFrontendError(err, {
           tags: { hook: 'useStockfish', stage: 'initialize' },
         })
         setEngineStatus('error')
+        reportFrontendPerf('engine_init_error', {
+          durationMs: roundDuration(nowMs() - initStartedAt),
+        })
       })
 
     return () => {
@@ -72,6 +98,7 @@ export function useStockfish() {
       backgroundRef.current = null
       interactiveRef.current = null
       branchRef.current = null
+      branchInitPromiseRef.current = null
     }
   }, [])
 
@@ -84,6 +111,50 @@ export function useStockfish() {
     setAnalyzedCount(0)
     setTotalMovesCount(0)
   }
+
+  const ensureBranchEngineReady = useCallback(async (
+    reason: 'branch-analysis',
+  ): Promise<StockfishEngine | null> => {
+    if (!isReady) return null
+    if (branchRef.current) return branchRef.current
+    if (branchInitPromiseRef.current) return branchInitPromiseRef.current
+
+    const branchEngine = new StockfishEngine()
+    branchRef.current = branchEngine
+    const startedAt = nowMs()
+    reportFrontendPerf('branch_engine_init_start', { reason })
+
+    const initPromise = branchEngine.initialize({ hashMB: _sessionProfile.branchHashMB })
+      .then(() => {
+        reportFrontendPerf('branch_engine_init_ready', {
+          reason,
+          durationMs: roundDuration(nowMs() - startedAt),
+        })
+        return branchEngine
+      })
+      .catch(err => {
+        captureFrontendError(err, {
+          tags: { hook: 'useStockfish', stage: 'branch_initialize', reason },
+        })
+        reportFrontendPerf('branch_engine_init_error', {
+          reason,
+          durationMs: roundDuration(nowMs() - startedAt),
+        })
+        if (branchRef.current === branchEngine) {
+          branchRef.current = null
+        }
+        branchEngine.terminate()
+        return null
+      })
+      .finally(() => {
+        if (branchInitPromiseRef.current === initPromise) {
+          branchInitPromiseRef.current = null
+        }
+      })
+
+    branchInitPromiseRef.current = initPromise
+    return initPromise
+  }, [isReady])
 
   async function runAnalysis(pgn: string) {
     const engine = backgroundRef.current
@@ -100,6 +171,7 @@ export function useStockfish() {
       analysisRunIdRef.current === runId && abortRef.current === controller
 
     const color = userColor ?? 'white'
+    const analysisStartedAt = nowMs()
 
     // Resume support: read how many moves are already analyzed from the store
     const startFromIndex = useGameStore.getState().resumeFromIndex
@@ -223,6 +295,12 @@ export function useStockfish() {
       useGameStore.getState().setSkipNextAnalysis(true)
       const moments = detectCriticalMoments(results, color, userElo)
       setCriticalMoments(moments)
+      reportFrontendPerf('game_review_complete', {
+        depth,
+        durationMs: roundDuration(nowMs() - analysisStartedAt),
+        resumedFromIndex: startFromIndex,
+        moveCount: results.length,
+      })
 
       // Final save: partial: false (complete)
       const state = useGameStore.getState()
@@ -300,15 +378,11 @@ export function useStockfish() {
 
   /** Dedicated branch-analysis lane so branch badge grading does not queue
    *  behind full-game analysis or live per-position arrows. */
-  async function analyzePositionSingleBranch(fen: string, depth = 14): Promise<import('../engine/stockfish').EvalResult | null> {
-    if (!isReady) return null
-    if (!branchRef.current) {
-      const br = new StockfishEngine()
-      branchRef.current = br
-      await br.initialize()
-    }
-    return branchRef.current.analyzePosition(fen, depth)
-  }
+  const analyzePositionSingleBranch = useCallback(async (fen: string, depth = 14): Promise<import('../engine/stockfish').EvalResult | null> => {
+    const engine = await ensureBranchEngineReady('branch-analysis')
+    if (!engine) return null
+    return engine.analyzePosition(fen, depth)
+  }, [ensureBranchEngineReady])
 
   return {
     isReady,

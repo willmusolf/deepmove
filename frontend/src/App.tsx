@@ -42,7 +42,7 @@ import { useSound } from './hooks/useSound'
 import { useAuthStore } from './stores/authStore'
 import { useGameStore } from './stores/gameStore'
 import { clearPlaySession } from './stores/playStore'
-import type { TopLine } from './engine/stockfish'
+import { evalResultToTopLines, type TopLine } from './engine/stockfish'
 import { classifyMove, isSacrificeFn } from './engine/analysis'
 import type { MoveGrade } from './engine/analysis'
 import type { Key } from 'chessground/types'
@@ -50,6 +50,12 @@ import { cacheRatingsFromGameList, readCachedRatings } from './components/Import
 import { formatEval } from './utils/format'
 import { pruneReviewPendingNodes, shouldTrackReviewPendingNode } from './utils/reviewPending'
 import { readSessionJson, writeSessionJson } from './utils/sessionStorage'
+import {
+  positionCacheKey,
+  restorePositionCache,
+  makeThrottledWriter,
+  type ThrottledCacheWriter,
+} from './utils/positionCacheSession'
 import { Chess } from 'chess.js'
 import { getSquareOverlayPosition } from './chess/boardGeometry'
 import './styles/board.css'
@@ -65,6 +71,7 @@ import {
 } from './config/sponsor'
 import { SUPPORT_GITHUB_ISSUES_URL } from './config/contact'
 import { getPageFromPathname, getPageMeta, getPathForPage, isIndexablePage } from './utils/pageMeta'
+import { reportFrontendPerf } from './services/monitoring'
 
 // Lichess-style thickness brushes — all green, varying weight
 const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
@@ -120,6 +127,14 @@ function renderBoundaryFallback(title: string, message: string) {
   )
 }
 
+function nowMs(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now()
+}
+
+function roundDuration(durationMs: number): number {
+  return Math.round(durationMs * 10) / 10
+}
+
 function useTouchHoldNavigate(
   onStep: () => void,
   disabled: boolean,
@@ -145,6 +160,22 @@ function useTouchHoldNavigate(
   }, [])
 
   useEffect(() => clearRepeat, [clearRepeat])
+
+  const handleMouseDown = useCallback((e: ReactMouseEvent<HTMLButtonElement>) => {
+    if (disabled || e.button !== 0) return
+    clearRepeat()
+    timeoutRef.current = setTimeout(() => {
+      suppressClickRef.current = true
+      onStepRef.current()
+      intervalRef.current = setInterval(() => {
+        onStepRef.current()
+      }, TOUCH_NAV_REPEAT_INTERVAL_MS)
+    }, TOUCH_NAV_REPEAT_DELAY_MS)
+  }, [clearRepeat, disabled])
+
+  const handleMouseUp = useCallback(() => {
+    clearRepeat()
+  }, [clearRepeat])
 
   const handleTouchStart = useCallback((e: ReactTouchEvent<HTMLButtonElement>) => {
     if (disabled) return
@@ -185,6 +216,9 @@ function useTouchHoldNavigate(
 
   return {
     onClick: handleClick,
+    onMouseDown: handleMouseDown,
+    onMouseUp: handleMouseUp,
+    onMouseLeave: handleMouseUp,
     onTouchStart: handleTouchStart,
     onTouchEnd: handleTouchEnd,
     onTouchCancel: handleTouchEnd,
@@ -409,6 +443,15 @@ export default function App() {
   const evalInFlightRef = useRef<Set<string>>(new Set())
   // FEN → TopLine[] cache so revisiting a position never re-analyzes
   const positionCache = useRef<Map<string, TopLine[]>>(new Map())
+  const positionPerfRef = useRef<{
+    startedAt: number
+    cacheState: 'cold' | 'resume'
+    firstVisibleReported: boolean
+  } | null>(null)
+  const hasReportedPositionCacheHitRef = useRef(false)
+  const hasReportedPositionColdStartRef = useRef(false)
+  const hasReportedBestLineVisibleRef = useRef(false)
+  const hasReportedBranchGradeReadyRef = useRef(false)
   const pathKeyRef = useRef(0)
   // Keyed on (from+to+newFen) so the guard is immune to timing — if chessground
   // double-fires `after` for the same move (a known chessground quirk), the second
@@ -416,6 +459,15 @@ export default function App() {
   const lastSandboxMoveRef = useRef<string | null>(null)
   // Hold last valid eval so the bar never receives undefined (prevents 50/50 flash)
   const lastEvalRef = useRef({ cp: 0, isMate: false, mateIn: null as number | null })
+  const seededPositionCacheCountRef = useRef(0)
+  const positionCacheWriterRef = useRef<ThrottledCacheWriter | null>(null)
+
+  // Restore sandbox position cache on mount so free-play revisits are fast
+  useEffect(() => {
+    if (!useGameStore.getState().pgn) {
+      restorePositionCache(positionCache.current, null)
+    }
+  }, [])
 
   // Trigger full-game analysis whenever a new game loads and the engine is ready
   const setSkipNextAnalysis = useGameStore(s => s.setSkipNextAnalysis)
@@ -424,7 +476,9 @@ export default function App() {
       // Always clear the position cache when a new game loads — even for cached
       // games where skipNextAnalysis is true — so stale per-position multi-PV
       // results from the previous game never bleed into the new one.
+      positionCacheWriterRef.current?.cancel()
       positionCache.current.clear()
+      seededPositionCacheCountRef.current = 0
       // Restore branch grades from session if this is the same game (refresh),
       // otherwise clear for a new game load.
       const bgGameId = useGameStore.getState().currentGameId
@@ -440,6 +494,13 @@ export default function App() {
       )
       setPendingBranchNodes(new Set())
       lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
+      // Restore persisted position cache for this game (same-tab refresh fast path)
+      const positionCacheScopeId = bgGameId
+      restorePositionCache(positionCache.current, positionCacheScopeId)
+      positionCacheWriterRef.current = makeThrottledWriter(
+        () => positionCache.current,
+        positionCacheKey(positionCacheScopeId),
+      )
       if (useGameStore.getState().skipNextAnalysis) {
         setSkipNextAnalysis(false)
         return
@@ -454,6 +515,38 @@ export default function App() {
   const loadedGameKey = isLoaded ? (currentGameId ?? pgn ?? '__loaded-game__') : null
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
+  const mergeCachedTopLines = useCallback((existing: TopLine[] | undefined, incoming: TopLine[]): TopLine[] => {
+    if (!existing || existing.length === 0) return incoming
+    if (incoming.length === 0) return existing
+
+    const mergedByRank = new Map<number, TopLine>()
+    for (const line of existing) mergedByRank.set(line.rank, line)
+    for (const line of incoming) {
+      const previous = mergedByRank.get(line.rank)
+      if (!previous || line.depth >= previous.depth) {
+        mergedByRank.set(line.rank, line)
+      }
+    }
+
+    return Array.from(mergedByRank.values()).sort((a, b) => a.rank - b.rank)
+  }, [])
+
+  const seedPositionCache = useCallback((fen: string, lines: TopLine[]) => {
+    if (lines.length === 0) return
+    positionCache.current.set(
+      fen,
+      mergeCachedTopLines(positionCache.current.get(fen), lines),
+    )
+    // Lazily create a sandbox writer when no game-scoped writer exists yet
+    if (!positionCacheWriterRef.current) {
+      positionCacheWriterRef.current = makeThrottledWriter(
+        () => positionCache.current,
+        positionCacheKey(null),
+      )
+    }
+    positionCacheWriterRef.current.flush(fen, positionCache.current.get(fen) ?? lines)
+  }, [mergeCachedTopLines])
+
   function mergeStreamingTopLines(incoming: TopLine[]): TopLine[] {
     if (incoming.length === 0) return incoming
     const existing = useGameStore.getState().currentPositionLines
@@ -467,6 +560,18 @@ export default function App() {
       .sort((a, b) => a.rank - b.rank)
       .slice(0, existing.length)
   }
+
+  useEffect(() => {
+    if (seededPositionCacheCountRef.current > moveEvals.length) {
+      seededPositionCacheCountRef.current = 0
+    }
+
+    for (let i = seededPositionCacheCountRef.current; i < moveEvals.length; i++) {
+      seedPositionCache(moveEvals[i].fen, evalResultToTopLines(moveEvals[i].eval))
+    }
+
+    seededPositionCacheCountRef.current = moveEvals.length
+  }, [moveEvals, seedPositionCache])
 
   // Opening name — detected from move sequence in both modes
   const [openingName, setOpeningName] = useState<string | null>(null)
@@ -514,19 +619,46 @@ export default function App() {
     // onUpdate skips any depth ≤ resumeFromDepth so the counter never goes backward:
     // if we left at depth 12, we show 12 from cache, then continue at 13, 14...
     const resumeFromDepth = positionCache.current.get(fen)?.[0]?.depth ?? 0
+    positionPerfRef.current = {
+      startedAt: nowMs(),
+      cacheState: resumeFromDepth > 0 ? 'resume' : 'cold',
+      firstVisibleReported: false,
+    }
+    if (resumeFromDepth === 0 && !hasReportedPositionColdStartRef.current) {
+      hasReportedPositionColdStartRef.current = true
+      reportFrontendPerf('position_analysis_cold_start', {
+        mode: isLoaded ? 'review' : 'sandbox',
+        targetDepth: depth,
+      })
+    }
     if (resumeFromDepth === 0) setCurrentAnalysisDepth(0)
 
     analyzePositionLines(fen, depth, numLines, (lines, d) => {
       if (positionTokenRef.current !== token) return
       if (d <= resumeFromDepth) return  // skip already-seen depths
+      const perfState = positionPerfRef.current
+      if (
+        perfState
+        && !perfState.firstVisibleReported
+        && !hasReportedBestLineVisibleRef.current
+      ) {
+        perfState.firstVisibleReported = true
+        hasReportedBestLineVisibleRef.current = true
+        reportFrontendPerf('best_line_visible', {
+          cacheState: perfState.cacheState,
+          depth: d,
+          durationMs: roundDuration(nowMs() - perfState.startedAt),
+          mode: isLoaded ? 'review' : 'sandbox',
+        })
+      }
       const stableLines = mergeStreamingTopLines(lines)
       setCurrentPositionLines(stableLines)
       setCurrentAnalysisDepth(d)
-      if (stableLines.length > 0) positionCache.current.set(fen, stableLines)
+      if (stableLines.length > 0) seedPositionCache(fen, stableLines)
     })
       .then(lines => {
         if (positionTokenRef.current !== token) return
-        if (lines.length > 0) positionCache.current.set(fen, lines)
+        if (lines.length > 0) seedPositionCache(fen, lines)
         setCurrentPositionLines(lines)
         setCurrentAnalysisDepth(lines[0]?.depth ?? 0)
         setAnalyzingPosition(false)
@@ -595,6 +727,14 @@ export default function App() {
     if (cached && cached.length > 0) {
       setCurrentPositionLines(cached)
       setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
+      if (!hasReportedPositionCacheHitRef.current) {
+        hasReportedPositionCacheHitRef.current = true
+        reportFrontendPerf('position_analysis_cache_hit', {
+          complete: (cached[0]?.depth ?? 0) >= POSITION_MAX_DEPTH,
+          depth: cached[0]?.depth ?? 0,
+          mode: isLoaded ? 'review' : 'sandbox',
+        })
+      }
       if ((cached[0]?.depth ?? 0) >= POSITION_MAX_DEPTH) {
         // Full depth — no further analysis needed
         setAnalyzingPosition(false)
@@ -1136,6 +1276,7 @@ export default function App() {
   async function evaluateBranchMove(nodeId: string, parentFen: string, newFen: string) {
     if (!isReady || evalInFlightRef.current.has(nodeId) || branchGrades.has(nodeId)) return
     evalInFlightRef.current.add(nodeId)
+    const branchEvalStartedAt = nowMs()
     // Capture gameId at start — discard result if user switches games mid-eval
     const gameIdAtStart = branchGradesKeyRef.current
     try {
@@ -1145,16 +1286,35 @@ export default function App() {
       const color: 'white' | 'black' = parentFen.split(' ')[1] === 'w' ? 'white' : 'black'
 
       const cachedParentTopLine = positionCache.current.get(parentFen)?.[0] ?? null
+      const cachedAfterTopLine = positionCache.current.get(newFen)?.[0] ?? null
       const parentResult = cachedParentTopLine
         ? { score: cachedParentTopLine.score, pv: cachedParentTopLine.pv }
         : await analyzePositionSingleBranch(parentFen, 14)
-      // Single-PV on position after the branch move
-      const afterResult = await analyzePositionSingleBranch(newFen, 14)
+      // If newFen is a terminal position (checkmate/stalemate), Stockfish returns
+      // bestmove (none) which can hang or produce nonsense evals. Derive the score directly.
+      const afterChess = new Chess(newFen)
+      const afterLegalCount = afterChess.moves().length
+      const afterIsTerminal = afterLegalCount === 0
+      const afterResult = afterIsTerminal
+        ? { score: afterChess.isCheckmate()
+            ? (newFen.split(' ')[1] === 'w' ? -30000 : 30000)
+            : 0,
+            pv: [] }
+        : cachedAfterTopLine
+          ? { score: cachedAfterTopLine.score, pv: cachedAfterTopLine.pv }
+          : await analyzePositionSingleBranch(newFen, 14)
 
       if (!parentResult || !afterResult) {
         lastGradedNodeIdRef.current = nodeId
         setBranchGrades(prev => new Map(prev).set(nodeId, 'unknown' as MoveGrade))
         return  // finally still clears pendingBranchNodes
+      }
+
+      if (!cachedParentTopLine && 'fen' in parentResult) {
+        seedPositionCache(parentFen, evalResultToTopLines(parentResult))
+      }
+      if (!cachedAfterTopLine && 'fen' in afterResult) {
+        seedPositionCache(newFen, evalResultToTopLines(afterResult))
       }
 
       // Discard result if the user already switched to a different game
@@ -1179,6 +1339,14 @@ export default function App() {
       const grade = classifyMove(evalBefore, evalAfter, color, legalCount, sacrifice, null, isTopSuggested, false, inCheck)
       lastGradedNodeIdRef.current = nodeId
       setBranchGrades(prev => new Map(prev).set(nodeId, grade))
+      if (!hasReportedBranchGradeReadyRef.current) {
+        hasReportedBranchGradeReadyRef.current = true
+        reportFrontendPerf('branch_grade_ready', {
+          durationMs: roundDuration(nowMs() - branchEvalStartedAt),
+          grade,
+          parentUsedCache: Boolean(cachedParentTopLine),
+        })
+      }
     } catch (err) {
       if (isStockfishCancelledError(err)) return
     } finally {

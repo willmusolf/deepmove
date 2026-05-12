@@ -19,9 +19,9 @@ function createStorageMock(): Storage {
     removeItem(key) {
       store.delete(key)
     },
-    setItem(key, value) {
+    setItem: vi.fn((key, value) => {
       store.set(key, value)
-    },
+    }),
   }
 }
 
@@ -81,5 +81,30 @@ describe('gameStore', () => {
 
     expect(useGameStore.getState().pgn).toBeNull()
     expect(sessionStorage.getItem('deepmove_reviewGameSession')).toBeNull()
+  })
+
+  it('does not rewrite session storage for live position-analysis updates', async () => {
+    const { useGameStore } = await import('./gameStore')
+    const setItemSpy = vi.spyOn(sessionStorage, 'setItem')
+
+    useGameStore.getState().setPgn('1. e4 e5')
+    expect(setItemSpy).toHaveBeenCalledTimes(1)
+
+    useGameStore.getState().setCurrentPositionLines([
+      {
+        rank: 1,
+        score: 24,
+        isMate: false,
+        mateIn: null,
+        pv: ['e2e4', 'e7e5'],
+        san: 'e4',
+        depth: 14,
+      },
+    ])
+    useGameStore.getState().setAnalyzingPosition(true)
+    useGameStore.getState().setCurrentPositionLines([])
+    useGameStore.getState().setAnalyzingPosition(false)
+
+    expect(setItemSpy).toHaveBeenCalledTimes(1)
   })
 })
