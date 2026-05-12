@@ -298,8 +298,8 @@ export default function EvalGraph({
         >
           <defs>
             <linearGradient id="whiteGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="rgba(238,232,212,0.92)" />
-              <stop offset="100%" stopColor="rgba(218,210,185,0.68)" />
+              <stop offset="0%" stopColor="var(--eval-graph-fill-top-start, rgba(238,232,212,0.92))" />
+              <stop offset="100%" stopColor="var(--eval-graph-fill-top-end, rgba(218,210,185,0.68))" />
             </linearGradient>
             <clipPath id="clipAboveMid">
               <rect x="0" y="0" width={svgWidth} height={midY} />
@@ -313,7 +313,7 @@ export default function EvalGraph({
           </defs>
 
           {/* Background */}
-          <rect x="0" y="0" width={svgWidth} height={HEIGHT} fill="#0f1117" />
+          <rect x="0" y="0" width={svgWidth} height={HEIGHT} fill="var(--eval-graph-bg, #0f1117)" />
 
           {/* Critical moment golden bands (coach mode only) */}
           {viewMode === 'coach' && criticalBands.map(idx => (
@@ -323,7 +323,7 @@ export default function EvalGraph({
               y={0}
               width={colWidth * 1.4}
               height={HEIGHT}
-              fill="rgba(251,191,36,0.09)"
+              fill="var(--eval-graph-critical-band, rgba(251,191,36,0.09))"
               style={{ pointerEvents: 'none' }}
             />
           ))}
@@ -335,7 +335,7 @@ export default function EvalGraph({
               y={0}
               width={svgWidth - moveX(analyzed)}
               height={HEIGHT}
-              fill="rgba(255,255,255,0.025)"
+              fill="var(--eval-graph-future-fill, rgba(255,255,255,0.025))"
             />
           )}
 
@@ -352,7 +352,7 @@ export default function EvalGraph({
           {curvePath && (
             <path
               d={buildFillPath(curvePath, points, midY)}
-              fill="rgba(22,22,22,0.92)"
+              fill="var(--eval-graph-fill-bottom, rgba(22,22,22,0.92))"
               clipPath="url(#clipBelowMid)"
             />
           )}
@@ -360,7 +360,7 @@ export default function EvalGraph({
           {/* Center line */}
           <line
             x1="0" y1={midY} x2={svgWidth} y2={midY}
-            stroke="rgba(255,255,255,0.20)"
+            stroke="var(--eval-graph-midline, rgba(255,255,255,0.20))"
             strokeWidth="0.8"
           />
 
@@ -369,7 +369,7 @@ export default function EvalGraph({
             <path
               d={curvePath}
               fill="none"
-              stroke="rgba(255,255,255,0.35)"
+              stroke="var(--eval-graph-curve, rgba(255,255,255,0.35))"
               strokeWidth="1.2"
             />
           )}
@@ -381,7 +381,7 @@ export default function EvalGraph({
               y1={guideLineInset(hoveredIndex ?? -1)}
               x2={hoveredX}
               y2={HEIGHT - guideLineInset(hoveredIndex ?? -1)}
-              stroke="rgba(255,255,255,0.28)"
+              stroke="var(--eval-graph-guide, rgba(255,255,255,0.28))"
               strokeWidth="1"
               strokeDasharray="3,3"
             />
@@ -405,7 +405,9 @@ export default function EvalGraph({
                   cy={a.y}
                   r={isHovered ? DOT_R_HOVER : DOT_R}
                   fill={a.fill}
-                  stroke={isHovered ? 'rgba(255,255,255,0.85)' : 'rgba(15,17,23,0.7)'}
+                  stroke={isHovered
+                    ? 'var(--eval-graph-dot-stroke-hover, rgba(255,255,255,0.85))'
+                    : 'var(--eval-graph-dot-stroke, rgba(15,17,23,0.7))'}
                   strokeWidth={isHovered ? 2 : 1}
                   filter={isHovered ? 'url(#dotGlow)' : undefined}
                   style={{ transition: 'r 0.1s, stroke-width 0.1s' }}
@@ -429,7 +431,7 @@ export default function EvalGraph({
               <circle
                 cx={cursorX} cy={cursorY} r="2.8"
                 fill="var(--color-accent)"
-                stroke="rgba(255,255,255,0.6)"
+                stroke="var(--eval-graph-cursor-ring, rgba(255,255,255,0.6))"
                 strokeWidth="0.8"
                 opacity="0.95"
               />
