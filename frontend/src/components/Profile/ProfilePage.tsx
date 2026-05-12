@@ -119,14 +119,22 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
     try {
       // Raw fetch avoids X-Request-ID header so the preflight only asks for
       // Authorization + Content-Type — both allowed on all backend versions.
-      const res = await fetch(`${API_BASE}/users/me`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-      })
+      const attemptDelete = (token: string | null) =>
+        fetch(`${API_BASE}/users/me`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        })
+
+      let res = await attemptDelete(accessToken)
+      if (res.status === 401) {
+        // Access token expired — refresh and retry once, same pattern as client.ts
+        await useAuthStore.getState().refresh()
+        res = await attemptDelete(useAuthStore.getState().accessToken)
+      }
       if (!res.ok) throw new Error(`Failed to delete account (${res.status})`)
       clearAuth()
       window.location.href = '/'
