@@ -135,6 +135,30 @@ function roundDuration(durationMs: number): number {
   return Math.round(durationMs * 10) / 10
 }
 
+function getInitialClockFromTimeControl(timeControl: string | undefined): string | undefined {
+  if (!timeControl) return undefined
+
+  let tcSecs: number
+  if (timeControl.includes('h')) {
+    tcSecs = parseInt(timeControl, 10) * 3600
+  } else if (timeControl.includes('+')) {
+    const base = parseInt(timeControl, 10)
+    tcSecs = Number.isNaN(base) ? 0 : (base >= 60 ? base : base * 60)
+  } else if (timeControl.includes('min')) {
+    tcSecs = parseInt(timeControl, 10) * 60
+  } else {
+    const base = parseInt(timeControl, 10)
+    tcSecs = Number.isNaN(base) ? 0 : (base >= 60 ? base : base * 60)
+  }
+
+  if (tcSecs <= 0) return undefined
+
+  const h = Math.floor(tcSecs / 3600)
+  const m = Math.floor((tcSecs % 3600) / 60)
+  const s = tcSecs % 60
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
 function useTouchHoldNavigate(
   onStep: () => void,
   disabled: boolean,
@@ -1189,28 +1213,9 @@ export default function App() {
     if (bottomClock === undefined && node.color === bottomColor) bottomClock = node.clockTime
     if (topClock !== undefined && bottomClock !== undefined) break
   }
-  // At move 0, fall back to the game start time derived from time control
-  if (topClock === undefined && bottomClock === undefined && currentGameMeta?.timeControl) {
-    const tc = currentGameMeta.timeControl
-    let tcSecs: number
-    if (tc.includes('+')) {
-      const base = parseInt(tc, 10)
-      tcSecs = isNaN(base) ? 0 : (base >= 60 ? base : base * 60)
-    } else if (tc.includes('min')) {
-      tcSecs = parseInt(tc, 10) * 60
-    } else {
-      const base = parseInt(tc, 10)
-      tcSecs = isNaN(base) ? 0 : (base >= 60 ? base : base * 60)
-    }
-    if (tcSecs > 0) {
-      const h = Math.floor(tcSecs / 3600)
-      const m = Math.floor((tcSecs % 3600) / 60)
-      const s = tcSecs % 60
-      const initial = `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-      topClock = initial
-      bottomClock = initial
-    }
-  }
+  const initialClock = getInitialClockFromTimeControl(currentGameMeta?.timeControl)
+  if (topClock === undefined) topClock = initialClock
+  if (bottomClock === undefined) bottomClock = initialClock
 
 
   // ── Handlers ───────────────────────────────────────────────────────────────

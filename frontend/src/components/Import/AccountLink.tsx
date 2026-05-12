@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getRecentGames, getNewGames, resolveChessComUsername, type ChessComGame, type ChessComLoadResult } from '../../api/chesscom'
 import { getUserGames, getNewLichessGames, type LichessGame, type LichessLoadResult } from '../../api/lichess'
+import { hasClockAnnotations } from '../../chess/pgn'
 import { getMyUsername, setIdentity, isMe, isDismissed, dismiss } from '../../services/identity'
 import { useAuthStore } from '../../stores/authStore'
 
@@ -72,6 +73,10 @@ function getGameListCache(platform: Platform, username: string): GameListCache |
     if (!raw) return null
     const entry: GameListCache = JSON.parse(raw)
     if (Date.now() - entry.fetchedAt > GAMELIST_CACHE_TTL) return null
+    if (platform === 'lichess') {
+      const lichessGames = entry.games as LichessGame[]
+      if (lichessGames.some(game => !!game.clock && !hasClockAnnotations(game.pgn))) return null
+    }
     return entry
   } catch {
     return null

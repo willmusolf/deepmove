@@ -62,7 +62,7 @@ export async function searchGamesByOpponent(username: string, opponent: string, 
 }
 
 async function fetchLichessGames(username: string, limit: number, before?: number, vs?: string, since?: number): Promise<LichessGame[]> {
-  let url = `${LICHESS_BASE}/games/user/${username}?max=${limit}&pgnInJson=true&clocks=false&opening=false`
+  let url = `${LICHESS_BASE}/games/user/${username}?max=${limit}&pgnInJson=true&clocks=true&opening=false`
   if (before) url += `&until=${before}`
   if (since) url += `&since=${since}`
   if (vs) url += `&vs=${encodeURIComponent(vs)}`

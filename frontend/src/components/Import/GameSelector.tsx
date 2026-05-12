@@ -3,12 +3,13 @@ import { loadMoreGames, type ChessComGame } from '../../api/chesscom'
 import { loadMoreLichessGames, searchGamesByOpponent, type LichessGame } from '../../api/lichess'
 import type { PaginationState } from './AccountLink'
 import { useGameStore } from '../../stores/gameStore'
-import { cleanPgn } from '../../chess/pgn'
+import { cleanPgn, hasClockAnnotations } from '../../chess/pgn'
 import {
   getGameId,
   getAnalyzedGame,
   getAnalyzedGameIds,
   getCachedGamesForUser,
+  saveAnalyzedGame,
   type AnalyzedGameRecord,
 } from '../../services/gameDB'
 import { normalizeChessCom, normalizeLichess, tcToSeconds, formatTimeControl, type NormalizedGame } from './normalizeGame'
@@ -262,10 +263,25 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     setPlatform(platform)
 
     if (cached) {
+      const shouldPreferSelectedRawPgn =
+        platform === 'lichess'
+        && hasClockAnnotations(g.pgn)
+        && !hasClockAnnotations(cached.rawPgn)
+      const preferredRawPgn = shouldPreferSelectedRawPgn ? g.pgn : cached.rawPgn
+      const preferredCleanedPgn = cleanPgn(preferredRawPgn)
+
+      if (shouldPreferSelectedRawPgn) {
+        void saveAnalyzedGame({
+          ...cached,
+          rawPgn: preferredRawPgn,
+          cleanedPgn: preferredCleanedPgn,
+        } satisfies AnalyzedGameRecord)
+      }
+
       setBackendGameId(cached.backendGameId ?? null)
-      setRawPgn(cached.rawPgn)
-      setLoadedPgn(cached.rawPgn)
-      setPgn(cached.cleanedPgn)
+      setRawPgn(preferredRawPgn)
+      setLoadedPgn(preferredRawPgn)
+      setPgn(preferredCleanedPgn)
       setMoveEvals(cached.moveEvals)
       if (cached.partial) {
         // Partial analysis: restore evals, then let analysis resume from where it left off
