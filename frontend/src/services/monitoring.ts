@@ -5,6 +5,8 @@ type MonitoringContext = {
   tags?: Record<string, string | number | boolean>
 }
 
+type PerfContext = Record<string, unknown>
+
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN
 let monitoringInitialized = false
 
@@ -57,5 +59,28 @@ export function captureFrontendError(
 
   if (import.meta.env.DEV || !sentryDsn) {
     console.error('[frontend-monitoring]', normalizedError, context)
+  }
+}
+
+export function reportFrontendPerf(
+  name: string,
+  context: PerfContext = {},
+): void {
+  if (monitoringInitialized) {
+    Sentry.addBreadcrumb({
+      category: 'performance',
+      message: name,
+      level: 'info',
+      data: context,
+    })
+  }
+
+  const debugEnabled = import.meta.env.DEV || (
+    typeof window !== 'undefined'
+    && window.sessionStorage.getItem('deepmove_debug_perf') === 'true'
+  )
+
+  if (debugEnabled) {
+    console.info('[frontend-perf]', name, context)
   }
 }
