@@ -24,6 +24,7 @@ from app.rate_limiting import limiter
 from app.schemas.user import AuthResponse, UserCreate, UserResponse
 from app.services.email import send_password_reset_email
 from app.utils.security import (
+    check_password_not_breached,
     create_access_token,
     create_refresh_token,
     decode_token,
@@ -204,6 +205,7 @@ def _find_or_create_oauth_user(
 async def register(request: Request, body: UserCreate, response: Response, db: Session = Depends(get_db)):
     """Create a new account with email + password."""
     _validate_password(body.password)
+    await check_password_not_breached(body.password)
     email = body.email.lower()
 
     # Check for existing email (case-insensitive)
@@ -688,6 +690,7 @@ async def reset_password(
     """Complete a password reset using the token from the email link."""
     ip = client_ip_from_request(request)
     _validate_password(body.new_password)
+    await check_password_not_breached(body.new_password)
 
     token_hash = hashlib.sha256(body.token.encode()).hexdigest()
     token_row = db.query(PasswordResetToken).filter(
