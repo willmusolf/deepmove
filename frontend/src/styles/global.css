@@ -191,16 +191,19 @@ html.theme-light {
   --color-text: #1b2230;
   --color-text-muted: #5e6777;
   --color-surface-soft: rgba(27, 34, 48, 0.04);
-  --color-surface-soft-hover: rgba(27, 34, 48, 0.06);
-  --color-surface-soft-active: rgba(27, 34, 48, 0.08);
-  --color-overlay-line: rgba(27, 34, 48, 0.10);
-  --color-overlay-line-strong: rgba(27, 34, 48, 0.15);
-  --color-shadow-soft: 0 10px 28px rgba(27, 34, 48, 0.08);
-  --color-shadow-modal: 0 20px 50px rgba(27, 34, 48, 0.14);
+  --color-surface-soft-hover: rgba(27, 34, 48, 0.05);
+  --color-surface-soft-active: rgba(27, 34, 48, 0.07);
+  --color-overlay-line: rgba(27, 34, 48, 0.09);
+  --color-overlay-line-strong: rgba(27, 34, 48, 0.14);
+  --color-shadow-soft: 0 8px 24px rgba(27, 34, 48, 0.07);
+  --color-shadow-modal: 0 18px 44px rgba(27, 34, 48, 0.13);
   --shadow-color: rgba(27, 34, 48, 0.10);
   --shadow-color-strong: rgba(27, 34, 48, 0.16);
-  --color-tint-accent: rgba(47, 99, 191, 0.06);
-  --color-tint-accent-strong: rgba(47, 99, 191, 0.11);
+  --color-tint-accent: rgba(47, 99, 191, 0.05);
+  --color-tint-accent-strong: rgba(47, 99, 191, 0.09);
+  --color-bg-secondary: #f2ece0;
+  --color-bg-panel: #fbf7ef;
+  --color-bg-hover: rgba(27, 34, 48, 0.04);
   --gradient-doc-bg:
     radial-gradient(circle at top right, rgba(47, 99, 191, 0.08), transparent 32%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0)),
