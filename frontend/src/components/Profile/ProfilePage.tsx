@@ -10,6 +10,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { usePrefsStore, type AppTheme, type BoardTheme } from '../../stores/prefsStore'
 import { clearAllAnalyses } from '../../services/gameDB'
 import { readCachedRatings, type DetectedRatings } from '../Import/normalizeGame'
+import { api } from '../../api/client'
 
 const REVIEW_USERNAME_STORAGE = {
   chesscom: 'deepmove_chesscom_username',
@@ -28,7 +29,9 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   const accessToken = useAuthStore(s => s.accessToken)
   const updateProfile = useAuthStore(s => s.updateProfile)
   const logout = useAuthStore(s => s.logout)
+  const clearAuth = useAuthStore(s => s.clearAuth)
   const changePassword = useAuthStore(s => s.changePassword)
+  const isStaging = (import.meta.env.VITE_API_URL ?? '').includes('staging')
   const { appTheme, boardTheme, soundEnabled, setAppTheme, setBoardTheme, setSoundEnabled } = usePrefsStore()
 
   // Chess account fields
@@ -71,7 +74,13 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   const [adminMsg, setAdminMsg] = useState('')
   const [adminErr, setAdminErr] = useState('')
 
-  // Password change
+  // Security / account actions
+  const [resetEmailSending, setResetEmailSending] = useState(false)
+  const [resetEmailMsg, setResetEmailMsg] = useState('')
+  const [deleteStep, setDeleteStep] = useState<0 | 1>(0)
+  const [deletePending, setDeletePending] = useState(false)
+
+  // Change-password (staging only)
   const [currentPw, setCurrentPw] = useState('')
   const [newPw, setNewPw] = useState('')
   const [confirmPw, setConfirmPw] = useState('')
@@ -87,30 +96,58 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
     setLichessInput(user?.lichess_username ?? '')
   }, [user?.lichess_username])
 
+  async function handleSendResetEmail() {
+    if (!user) return
+    setResetEmailSending(true)
+    setResetEmailMsg('')
+    try {
+      await api.post('/auth/forgot-password', { email: user.email })
+      setResetEmailMsg('Check your email for a reset link.')
+    } catch {
+      setResetEmailMsg('Failed to send email — try again.')
+    } finally {
+      setResetEmailSending(false)
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteStep === 0) { setDeleteStep(1); return }
+    if (!window.confirm('Final warning: permanently delete your account and all your data? This cannot be undone.')) {
+      setDeleteStep(0); return
+    }
+    setDeletePending(true)
+    try {
+      // Raw fetch avoids X-Request-ID header so the preflight only asks for
+      // Authorization + Content-Type — both allowed on all backend versions.
+      const res = await fetch(`${API_BASE}/users/me`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+      })
+      if (!res.ok) throw new Error(`Failed to delete account (${res.status})`)
+      clearAuth()
+      window.location.href = '/'
+    } catch (err) {
+      setDeletePending(false)
+      setDeleteStep(0)
+      alert(err instanceof Error ? err.message : 'Failed to delete account — try again.')
+    }
+  }
+
   async function handleChangePassword(event?: FormEvent) {
     event?.preventDefault()
-    if (newPw !== confirmPw) {
-      setPwMsg('Passwords do not match')
-      setPwIsError(true)
-      return
-    }
-    if (newPw.length < 8) {
-      setPwMsg('New password must be at least 8 characters')
-      setPwIsError(true)
-      return
-    }
-    setPwSaving(true)
-    setPwMsg('')
+    if (newPw !== confirmPw) { setPwMsg('Passwords do not match'); setPwIsError(true); return }
+    if (newPw.length < 8) { setPwMsg('New password must be at least 8 characters'); setPwIsError(true); return }
+    setPwSaving(true); setPwMsg('')
     try {
       await changePassword(currentPw, newPw)
-      setPwMsg('Password changed!')
-      setPwIsError(false)
-      setCurrentPw('')
-      setNewPw('')
-      setConfirmPw('')
+      setPwMsg('Password changed!'); setPwIsError(false)
+      setCurrentPw(''); setNewPw(''); setConfirmPw('')
     } catch (err) {
-      setPwMsg(err instanceof Error ? err.message : 'Failed to change password')
-      setPwIsError(true)
+      setPwMsg(err instanceof Error ? err.message : 'Failed to change password'); setPwIsError(true)
     } finally {
       setPwSaving(false)
       setTimeout(() => setPwMsg(''), 4000)
@@ -315,57 +352,41 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
       {user && (
         <section className="profile-section">
           <h3 className="profile-section-title">Security</h3>
-          <form className="profile-field-group" onSubmit={handleChangePassword}>
-            {/* Hidden username field: required for password-manager autofill and browser accessibility */}
-            <input type="email" autoComplete="username" value={user?.email ?? ''} readOnly aria-hidden="true" style={{ display: 'none' }} />
-            <div className="profile-field">
-              <label className="profile-field-label">Current password</label>
-              <input
-                className="profile-input"
-                type="password"
-                name="current_password"
-                autoComplete="current-password"
-                value={currentPw}
-                onChange={e => setCurrentPw(e.target.value)}
-              />
+          {isStaging ? (
+            <form className="profile-field-group" onSubmit={handleChangePassword}>
+              <input type="email" autoComplete="username" value={user.email} readOnly aria-hidden="true" style={{ display: 'none' }} />
+              <div className="profile-field">
+                <label className="profile-field-label">Current password</label>
+                <input className="profile-input" type="password" name="current_password" autoComplete="current-password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} />
+              </div>
+              <div className="profile-field">
+                <label className="profile-field-label">New password</label>
+                <input className="profile-input" type="password" name="new_password" autoComplete="new-password" value={newPw} onChange={e => setNewPw(e.target.value)} />
+              </div>
+              <div className="profile-field">
+                <label className="profile-field-label">Confirm new password</label>
+                <input className="profile-input" type="password" name="confirm_new_password" autoComplete="new-password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} />
+              </div>
+              <div className="profile-field-row">
+                <button className="btn btn-primary" type="submit" disabled={pwSaving || !currentPw || !newPw || !confirmPw}>
+                  {pwSaving ? 'Changing…' : 'Change Password'}
+                </button>
+                {pwMsg && <span className={`profile-msg${pwIsError ? ' profile-msg--err' : ' profile-msg--ok'}`}>{pwMsg}</span>}
+              </div>
+            </form>
+          ) : (
+            <div className="profile-field-group">
+              <div className="profile-field">
+                <p className="profile-section-desc">We'll send a reset link to <strong>{user.email}</strong>.</p>
+                <div className="profile-field-row">
+                  <button className="btn btn-secondary" disabled={resetEmailSending} onClick={handleSendResetEmail}>
+                    {resetEmailSending ? 'Sending…' : 'Send password reset email'}
+                  </button>
+                  {resetEmailMsg && <span className="profile-msg profile-msg--ok">{resetEmailMsg}</span>}
+                </div>
+              </div>
             </div>
-            <div className="profile-field">
-              <label className="profile-field-label">New password</label>
-              <input
-                className="profile-input"
-                type="password"
-                name="new_password"
-                autoComplete="new-password"
-                value={newPw}
-                onChange={e => setNewPw(e.target.value)}
-              />
-            </div>
-            <div className="profile-field">
-              <label className="profile-field-label">Confirm new password</label>
-              <input
-                className="profile-input"
-                type="password"
-                name="confirm_new_password"
-                autoComplete="new-password"
-                value={confirmPw}
-                onChange={e => setConfirmPw(e.target.value)}
-              />
-            </div>
-            <div className="profile-field-row">
-              <button
-                className="btn btn-primary"
-                type="submit"
-                disabled={pwSaving || !currentPw || !newPw || !confirmPw}
-              >
-                {pwSaving ? 'Changing…' : 'Change Password'}
-              </button>
-              {pwMsg && (
-                <span className={`profile-msg${pwIsError ? ' profile-msg--err' : ' profile-msg--ok'}`}>
-                  {pwMsg}
-                </span>
-              )}
-            </div>
-          </form>
+          )}
         </section>
       )}
 
@@ -647,14 +668,43 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
 
       {/* ── Account ──────────────────────────────────────────────────── */}
       <section className="profile-section">
-        <h3 className="profile-section-title">Sign Out</h3>
+        <h3 className="profile-section-title">Account</h3>
         <div className="profile-field-group">
           <div className="profile-field">
             <div className="profile-field-row">
-              <button className="btn btn-secondary" onClick={() => { if (window.confirm('Log out of DeepMove?')) logout() }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => { if (window.confirm('Log out of DeepMove?')) logout() }}
+              >
                 Log Out
               </button>
+              <button
+                className="btn"
+                disabled={deletePending}
+                onClick={handleDeleteAccount}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  borderColor: 'rgba(239, 68, 68, 0.5)',
+                  color: '#dc2626',
+                }}
+              >
+                {deletePending ? 'Deleting…' : deleteStep === 1 ? 'Are you sure? No undo.' : 'Delete Account'}
+              </button>
+              {deleteStep === 1 && !deletePending && (
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setDeleteStep(0)}
+                  style={{ fontSize: '0.8rem' }}
+                >
+                  Cancel
+                </button>
+              )}
             </div>
+            {deleteStep === 1 && (
+              <p className="profile-section-desc" style={{ marginTop: '0.35rem', color: '#dc2626', fontSize: '0.75rem' }}>
+                All games, analysis, and data will be permanently deleted.
+              </p>
+            )}
           </div>
         </div>
       </section>
