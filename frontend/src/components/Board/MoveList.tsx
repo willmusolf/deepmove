@@ -157,15 +157,9 @@ function PairLine({ startId, ctx, depth }: { startId: string; ctx: RenderCtx; de
             <div className="move-pair-row">
               <span className="move-number">{numLabel}</span>
               <MoveToken node={primary} ctx={ctx} />
-              {secondary
-                ? <MoveToken node={secondary} ctx={ctx} />
-                : <span className="move-cell-empty" aria-hidden="true" />}
               {(ctx.moveDeltas || ctx.branchDeltas) && <EvalDelta node={primary} ctx={ctx} />}
-              {(ctx.moveDeltas || ctx.branchDeltas) && (
-                secondary
-                  ? <EvalDelta node={secondary} ctx={ctx} />
-                  : <span className="move-eval-delta" aria-hidden="true" />
-              )}
+              {secondary && <MoveToken node={secondary} ctx={ctx} />}
+              {secondary && (ctx.moveDeltas || ctx.branchDeltas) && <EvalDelta node={secondary} ctx={ctx} />}
             </div>
 
             {branches.length > 0 && (

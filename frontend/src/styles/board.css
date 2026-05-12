@@ -295,7 +295,7 @@ cg-board {
 /* ── Player Info Box (Chess.com-style two-line layout) ────────────────── */
 .player-info-box {
   height: 44px;
-  background: var(--color-surface-2);
+  background: #4d4d4d;
   box-sizing: border-box;
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) auto;
@@ -304,7 +304,7 @@ cg-board {
   padding: 4px 3px 4px 8px;
   flex-shrink: 0;
   overflow: hidden;
-  color: var(--color-text);
+  color: #ffffff;
   position: relative;
 }
 
@@ -342,7 +342,7 @@ cg-board {
 .avatar-fallback {
   width: 100%;
   height: 100%;
-  background: var(--color-accent);
+  background: #4a9eff;
   color: white;
   display: flex;
   align-items: center;
@@ -352,8 +352,8 @@ cg-board {
 }
 
 .avatar-fallback--neutral {
-  background: var(--color-surface-2);
-  color: var(--color-text-muted);
+  background: #555;
+  color: #aaa;
   font-size: 1.3rem;
 }
 
@@ -378,14 +378,14 @@ cg-board {
 .player-name {
   font-weight: 700;
   font-size: 0.92rem;
-  color: var(--color-text);
+  color: #ffffff;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .player-rating {
-  color: var(--color-text-muted);
+  color: #aaaaaa;
   font-size: 0.85rem;
   flex-shrink: 0;
 }
@@ -425,7 +425,7 @@ cg-board {
 .material-advantage {
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--color-text-muted);
+  color: #aaaaaa;
   margin-left: 3px;
   line-height: 1;
 }
@@ -439,8 +439,8 @@ cg-board {
   height: 38px;
   padding: 0 10px;
   border-radius: 6px;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
+  background: #333;
+  border: 1px solid #555;
   flex-shrink: 0;
   justify-self: end;
   margin-left: auto;
@@ -450,18 +450,17 @@ cg-board {
   font-family: var(--font-mono, 'Courier New', monospace);
   font-size: 1.35rem;
   font-weight: 700;
-  color: var(--color-text-muted);
+  color: #aaa;
   font-variant-numeric: tabular-nums;
 }
 
-/* Active clock — inverted contrast vs inactive */
+/* Active clock — bright white */
 .clock-box--active {
-  background: var(--color-text);
-  border-color: var(--color-text);
+  background: #ffffff;
 }
 
 .clock-box--active .clock-value {
-  color: var(--color-bg);
+  color: #1a1a1a;
 }
 
 
@@ -533,7 +532,7 @@ cg-board {
   padding: 0.42rem 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--color-text-muted);
   font-size: 0.78rem;
   font-weight: 500;
@@ -643,7 +642,7 @@ cg-board {
 
 .panel-tab:hover:not(:disabled) {
   color: var(--color-text);
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .panel-tab.active {
@@ -720,14 +719,10 @@ cg-board {
   display: block;
 }
 
-/* Pair row: move-number + white san + black san + delta gutter (white delta, black delta).
-   Deltas live in the last two `auto` columns so they hug the row's right edge — and since
-   .variation-block adds only left padding/margin (no right padding), the right edge is
-   identical across main-line and any nested variation depth. Result: all deltas align in
-   one vertical column regardless of indent. */
+/* Pair row: move-number + white san + black san on one line */
 .move-pair-row {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) minmax(0, 1fr) auto auto;
+  grid-template-columns: max-content minmax(0, 1fr) auto minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 2px;
   row-gap: 2px;
@@ -1066,7 +1061,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .nav-logo:hover {
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .nav-logo__img {
@@ -1099,7 +1094,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
 .nav-logo-toggle:hover {
   color: var(--color-text);
-  background: var(--color-surface-soft-hover);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .nav-sidebar {
@@ -1177,8 +1172,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   min-width: 0;
   max-width: 100%;
   width: min(880px, calc(100dvh - 164px), calc(100vw - var(--board-vw-offset)));
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-2);
+  border: 1px solid #505050;
+  background: #4d4d4d;
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -1775,7 +1770,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   border-radius: var(--radius);
   overflow: hidden;
   border: 1px solid var(--color-border);
-  background: var(--color-surface-2);
+  background: #0f1117;
   cursor: crosshair;
   touch-action: none;
 }
@@ -1862,7 +1857,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   height: 18px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: var(--color-surface-2);
+  background: #374151;
   position: relative;
 }
 .grade-pending::after {
@@ -1923,7 +1918,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   border-radius: 50%;
   transform: translateX(-100%);
   background: rgba(30, 30, 30, 0.75);
-  box-shadow: inset 0 0 0 2px var(--color-overlay-line-strong);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.15);
   pointer-events: none;
 }
 .board-grade-badge-pending::after {
@@ -2009,8 +2004,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   gap: 0.5rem;
   padding: 0.35rem 0.5rem;
   border-radius: 5px;
-  background: var(--color-surface-soft);
-  border: 1px solid var(--color-overlay-line);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
   cursor: pointer;
   width: 100%;
   text-align: left;
@@ -2020,8 +2015,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .best-line-row:hover {
-  background: var(--color-surface-soft-hover);
-  border-color: var(--color-overlay-line-strong);
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.14);
 }
 
 .best-line-row:focus-visible {
@@ -2120,7 +2115,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .best-line-expand:hover {
-  background: var(--color-surface-soft-hover);
+  background: rgba(255,255,255,0.08);
   color: var(--color-text);
 }
 
@@ -2145,9 +2140,9 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   justify-content: center;
   padding: 8px 30px 8px 8px;
   border-radius: 8px;
-  border: 1px solid var(--color-overlay-line-strong);
+  border: 1px solid rgba(255,255,255,0.12);
   background: rgba(14, 17, 24, 0.98);
-  box-shadow: 0 8px 24px var(--shadow-color);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.38);
   overflow: hidden;
 }
 
@@ -2160,7 +2155,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: var(--color-surface-soft-hover);
+  background: rgba(255,255,255,0.06);
   color: var(--color-text-muted);
   cursor: pointer;
 }
@@ -2185,7 +2180,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .best-lines-overlay__loading-line {
   height: 0.72rem;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--color-surface-soft-hover) 25%, var(--color-surface-soft-active) 50%, var(--color-surface-soft-hover) 75%);
+  background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.4s infinite;
 }
@@ -2310,7 +2305,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
 .best-line-skeleton {
   height: 32px;
-  background: linear-gradient(90deg, var(--color-surface-soft) 25%, var(--color-surface-soft-hover) 50%, var(--color-surface-soft) 75%);
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.4s infinite;
   cursor: default;
@@ -2337,7 +2332,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .lines-toggle-btn {
   align-self: flex-start;
   padding: 0.25rem 0.65rem;
-  background: var(--color-surface-soft);
+  background: rgba(255,255,255,0.05);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   color: var(--color-text-muted);
@@ -2348,7 +2343,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .lines-toggle-btn:hover {
-  background: var(--color-surface-soft-hover);
+  background: rgba(255,255,255,0.09);
   border-color: var(--color-accent);
   color: var(--color-text);
 }
@@ -2375,7 +2370,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   padding: 4px 8px;
   white-space: nowrap;
   gap: 1px;
-  box-shadow: 0 2px 8px var(--shadow-color);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 
 .eval-graph-tooltip-move {
@@ -2527,7 +2522,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   align-items: center;
   gap: 3px;
   border: 1px solid transparent;
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .game-report-pill-sym {
@@ -3064,7 +3059,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   position: absolute;
   width: 12.5%;
   display: flex;
-  box-shadow: 0 6px 28px var(--shadow-color-strong), 0 0 0 1px var(--color-surface-soft-hover);
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255,255,255,0.08);
   overflow: hidden;
   border-radius: 6px;
   backdrop-filter: blur(4px);
@@ -3080,7 +3075,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-muted);
+  color: #ccc;
   flex-shrink: 0;
   transition: background 0.12s;
 }
@@ -3123,13 +3118,13 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   gap: 8px;
   margin-top: 6px;
   font-size: 0.84rem;
-  color: var(--color-text-muted);
+  color: #999;
 }
 .identity-prompt__text {
   flex: 1;
 }
 .identity-prompt__yes {
-  background: var(--color-accent);
+  background: #4a7fa5;
   border: none;
   border-radius: 4px;
   color: #fff;
@@ -3137,12 +3132,12 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   font-size: 0.75rem;
   padding: 2px 10px;
 }
-.identity-prompt__yes:hover { background: var(--color-accent-hover); }
+.identity-prompt__yes:hover { background: #5a9abf; }
 .identity-prompt__no {
   background: none;
-  border: 1px solid var(--color-border);
+  border: 1px solid #555;
   border-radius: 4px;
-  color: var(--color-text-muted);
+  color: #888;
   cursor: pointer;
   font-size: 0.75rem;
   padding: 2px 10px;
@@ -3223,14 +3218,14 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .auth-modal {
-  background: var(--color-surface);
-  border: 1px solid var(--color-overlay-line-strong);
+  background: #1a1b23;
+  border: 1px solid rgba(255,255,255,0.1);
   border-radius: 12px;
   padding: 2rem;
   width: 380px;
   max-width: 90vw;
   position: relative;
-  box-shadow: 0 16px 48px var(--shadow-color-strong);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
 }
 
 .auth-close {
@@ -3239,7 +3234,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   right: 0.75rem;
   background: none;
   border: none;
-  color: var(--color-text-muted);
+  color: rgba(255,255,255,0.5);
   font-size: 1.5rem;
   cursor: pointer;
   line-height: 1;
@@ -3252,7 +3247,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   display: flex;
   gap: 1px;
   margin-bottom: 1.5rem;
-  border-bottom: 1px solid var(--color-overlay-line-strong);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
 .auth-tab {
@@ -3261,7 +3256,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   border: none;
   padding: 0.5rem 0;
   font-size: 0.9rem;
-  color: var(--color-text-muted);
+  color: rgba(255,255,255,0.5);
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: color 0.15s, border-color 0.15s;
@@ -3309,8 +3304,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
 .auth-input {
   padding: 0.6rem 0.75rem;
-  background: var(--color-surface-soft-hover);
-  border: 1px solid var(--color-overlay-line-strong);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
   border-radius: 6px;
   color: #fff;
   font-size: 0.9rem;
@@ -3343,7 +3338,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .auth-req-unmet {
-  color: var(--color-text-muted);
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .auth-req-met {
@@ -3352,7 +3347,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
 .auth-submit {
   padding: 0.6rem;
-  background: var(--color-accent);
+  background: #7c3aed;
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -3370,7 +3365,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   align-items: center;
   gap: 1rem;
   margin: 1.25rem 0;
-  color: var(--color-text-muted);
+  color: rgba(255,255,255,0.4);
   font-size: 0.8rem;
 }
 
@@ -3379,7 +3374,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--color-surface-soft-active);
+  background: rgba(255,255,255,0.1);
 }
 
 .auth-oauth {
@@ -3393,8 +3388,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   align-items: center;
   gap: 0.6rem;
   padding: 0.5rem 0.75rem;
-  background: var(--color-surface-soft-hover);
-  border: 1px solid var(--color-overlay-line-strong);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
   border-radius: 6px;
   color: #fff;
   font-size: 0.85rem;
@@ -3404,7 +3399,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   justify-content: center;
 }
 
-.auth-oauth-btn:hover { background: var(--color-surface-soft-active); }
+.auth-oauth-btn:hover { background: rgba(255,255,255,0.12); }
 
 .auth-forgot {
   background: none;
@@ -3448,7 +3443,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
 .nav-user-icon-btn:hover {
   color: var(--color-text);
-  background: var(--color-surface-soft-hover);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .nav-user--collapsed .nav-user-btn {
@@ -3488,11 +3483,11 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .nav-user-btn:hover {
-  background: var(--color-surface-soft-hover);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .nav-user-btn.active {
-  background: var(--color-surface-soft-active);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .nav-user-avatar-wrap {
@@ -4156,8 +4151,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   flex-direction: column;
   gap: 0.65rem;
   padding: 0.9rem 1rem;
-  background: var(--color-surface-soft);
-  border: 1px solid var(--color-overlay-line);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
 }
 
@@ -4198,7 +4193,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   flex-direction: column;
   gap: 0.3rem;
   padding: 0.7rem 0.8rem;
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.03);
   border-radius: 8px;
 }
 
@@ -4247,8 +4242,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   flex-direction: column;
   gap: 0.4rem;
   padding: 0.6rem 0.75rem;
-  background: var(--color-surface-soft);
-  border: 1px solid var(--color-overlay-line);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
 }
 
@@ -4298,7 +4293,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .transcript-pair:hover {
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.04);
   border-radius: 4px;
 }
 
@@ -4319,7 +4314,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .transcript-san:hover {
-  background: var(--color-surface-soft-active);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .transcript-san.transcript-active {
@@ -4367,7 +4362,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   background: var(--color-panel, #1e1e1e);
   border-radius: 14px;
   border: 1px solid var(--color-border, #333);
-  box-shadow: 0 20px 50px var(--shadow-color);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
 }
 
 .play-setup-title {
@@ -4516,7 +4511,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   padding: 0.9rem 1rem 0.8rem;
   border-bottom: 1px solid var(--color-border, #333);
   background:
-    linear-gradient(180deg, var(--color-surface-soft), rgba(255, 255, 255, 0)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
     var(--color-panel, #1e1e1e);
 }
 
@@ -4550,7 +4545,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 /* Bot thinking indicator */
 .bot-thinking-indicator {
   padding: 0.4rem 0.75rem;
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.04);
   border-radius: 6px;
   font-size: 0.82rem;
   color: var(--color-text-muted, #aaa);
@@ -4737,7 +4732,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 0.75rem;
-  background: var(--color-surface-2, var(--color-surface-soft));
+  background: var(--color-surface-2, rgba(255,255,255,0.04));
   border-bottom: 1px solid var(--color-border);
   font-size: 0.8rem;
   color: var(--color-text-muted);
@@ -4765,7 +4760,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .coach-narrative__row:hover {
-  background: var(--color-surface-2, var(--color-surface-soft));
+  background: var(--color-surface-2, rgba(255,255,255,0.03));
 }
 
 /* Critical moment rows get a colored left border */
@@ -4872,7 +4867,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .move-coach-comment {
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius);
-  background: var(--color-surface-2, var(--color-surface-soft));
+  background: var(--color-surface-2, rgba(255,255,255,0.03));
   border: 1px solid var(--color-border);
   margin: 0 0 0.5rem 0;
   min-height: 2.5rem;
@@ -4988,7 +4983,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .transcript-move--active {
-  background: var(--color-surface-active, var(--color-surface-soft-active));
+  background: var(--color-surface-active, rgba(255, 255, 255, 0.1));
 }
 
 .transcript-move--critical {
@@ -5065,7 +5060,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .transcript-move__lesson {
   margin-top: 0.4rem;
   padding: 0.5rem 0.6rem;
-  background: var(--color-surface-2, var(--color-surface-soft));
+  background: var(--color-surface-2, rgba(255,255,255,0.04));
   border-radius: 4px;
   border: 1px solid var(--color-border);
 }
@@ -5304,7 +5299,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   background: linear-gradient(180deg, rgba(23, 29, 43, 0.96) 0%, rgba(16, 20, 31, 0.96) 100%);
   border: 1px solid rgba(122, 137, 173, 0.18);
   border-radius: 20px;
-  box-shadow: 0 16px 36px var(--shadow-color);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
 }
 
 .practice-sidebar__section {
@@ -5375,7 +5370,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .practice-chip,
 .practice-mode-tab {
   border: 1px solid rgba(140, 155, 194, 0.18);
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.03);
   color: #eef2fb;
   transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
 }
@@ -5443,7 +5438,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .practice-coming-soon__item {
   padding: 0.7rem 0.8rem;
   border-radius: 14px;
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.035);
   color: #d6dcef;
 }
 
@@ -5475,7 +5470,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   min-width: 96px;
   padding: 0.75rem 0.9rem;
   border-radius: 16px;
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .practice-stat__value {
@@ -5561,7 +5556,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .practice-history__empty {
   padding: 0.35rem 0.55rem;
   border-radius: 999px;
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.05);
   color: #dce3f5;
   font-size: 0.88rem;
 }
@@ -5584,7 +5579,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   margin-top: 0.95rem;
   padding: 0.85rem 0.95rem;
   border-radius: 16px;
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.04);
   color: #d5dcf0;
   line-height: 1.5;
 }
@@ -5598,7 +5593,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   margin-top: 1rem;
   padding: 0.85rem;
   border-radius: 16px;
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .practice-alt-box__item {
@@ -5821,7 +5816,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .practice-feedback {
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--color-text-muted);
 }
 
@@ -5997,7 +5992,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   width: 160px;
   flex: 1;
   min-height: 160px;
-  background: var(--color-surface-soft);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px dashed var(--color-border);
   border-radius: var(--radius);
   display: flex;
