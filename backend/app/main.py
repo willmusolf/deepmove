@@ -118,6 +118,9 @@ app.add_middleware(
 
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next):
+    # Let CORS middleware handle preflight — don't intercept OPTIONS
+    if request.method == "OPTIONS":
+        return await call_next(request)
     request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
     token = set_request_id(request_id)
     request.state.request_id = request_id
