@@ -31,12 +31,43 @@ import { playSharedMoveSound } from './useSound'
 import type { MoveNode } from '../chess/types'
 import { applyPremoveForcefully } from '../components/Board/ChessBoard'
 
-/** Movetime per time control — scales with game pace */
-function getBotMovetime(tc: TimeControl): number {
-  if (tc === '5+0') return 100
-  if (tc === '10+0') return 300
-  if (tc === '15+10') return 500
-  return 300  // 'none' (untimed)
+interface BotStrengthProfile {
+  engineElo: number
+  movetime: number
+}
+
+function getCalibratedBotElo(botElo: number): number {
+  if (botElo <= 800) return Math.min(2850, botElo + 300)
+  if (botElo <= 1200) return Math.min(2850, botElo + 250)
+  if (botElo <= 1600) return Math.min(2850, botElo + 200)
+  if (botElo <= 2000) return Math.min(2850, botElo + 150)
+  if (botElo <= 2400) return Math.min(2850, botElo + 100)
+  return botElo
+}
+
+/** Browser bot calibration:
+ *  low UCI_Elo plus very short movetimes tends to produce cartoonish blunders.
+ *  We keep the user-facing slider value, but nudge the internal engine profile
+ *  upward and give weaker settings a bit more think time so club-level games
+ *  feel steadier and more realistic. */
+export function getBotStrengthProfile(botElo: number, tc: TimeControl): BotStrengthProfile {
+  const baseMovetime =
+    tc === '5+0' ? 250
+      : tc === '10+0' ? 450
+        : tc === '15+10' ? 650
+          : 900
+
+  const stabilityBonus =
+    botElo <= 900 ? 500
+      : botElo <= 1200 ? 350
+        : botElo <= 1600 ? 220
+          : botElo <= 2200 ? 120
+            : 0
+
+  return {
+    engineElo: getCalibratedBotElo(botElo),
+    movetime: baseMovetime + stabilityBonus,
+  }
 }
 
 /** Generate a PGN string from the play tree main line */
@@ -427,13 +458,13 @@ export function useBotPlay(onNavigateToReview: () => void) {
     }
 
     const config = store.getState().config!
-    const movetime = getBotMovetime(config.timeControl)
+    const profile = getBotStrengthProfile(config.botElo, config.timeControl)
 
     const BOT_MOVE_TIMEOUT_MS = 15_000
     let uci: string
     try {
       uci = await Promise.race([
-        botEngineRef.current.getBotMove(fen, config.botElo, movetime),
+        botEngineRef.current.getBotMove(fen, profile.engineElo, profile.movetime),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Bot move timed out')), BOT_MOVE_TIMEOUT_MS)
         ),
