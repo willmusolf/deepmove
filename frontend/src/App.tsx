@@ -161,6 +161,22 @@ function useTouchHoldNavigate(
 
   useEffect(() => clearRepeat, [clearRepeat])
 
+  const handleMouseDown = useCallback((e: ReactMouseEvent<HTMLButtonElement>) => {
+    if (disabled || e.button !== 0) return
+    clearRepeat()
+    timeoutRef.current = setTimeout(() => {
+      suppressClickRef.current = true
+      onStepRef.current()
+      intervalRef.current = setInterval(() => {
+        onStepRef.current()
+      }, TOUCH_NAV_REPEAT_INTERVAL_MS)
+    }, TOUCH_NAV_REPEAT_DELAY_MS)
+  }, [clearRepeat, disabled])
+
+  const handleMouseUp = useCallback(() => {
+    clearRepeat()
+  }, [clearRepeat])
+
   const handleTouchStart = useCallback((e: ReactTouchEvent<HTMLButtonElement>) => {
     if (disabled) return
     e.preventDefault()
@@ -200,6 +216,9 @@ function useTouchHoldNavigate(
 
   return {
     onClick: handleClick,
+    onMouseDown: handleMouseDown,
+    onMouseUp: handleMouseUp,
+    onMouseLeave: handleMouseUp,
     onTouchStart: handleTouchStart,
     onTouchEnd: handleTouchEnd,
     onTouchCancel: handleTouchEnd,
