@@ -35,7 +35,7 @@ export default class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return this.props.fallback ?? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#ccc', gap: '1rem', padding: '2rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-muted)', gap: '1rem', padding: '2rem' }}>
           <p style={{ margin: 0 }}>Something went wrong. Please reload.</p>
           <button onClick={() => window.location.reload()} style={{ padding: '0.5rem 1.5rem', cursor: 'pointer' }}>
             Reload
