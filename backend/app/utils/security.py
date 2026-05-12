@@ -45,7 +45,7 @@ async def check_password_not_breached(plain: str) -> None:
     # query). We never store or verify passwords with SHA-1 — bcrypt handles
     # that above. Only the first 5 hex chars of the digest are sent to HIBP;
     # the rest is compared locally and discarded when this function returns.
-    sha1 = hashlib.sha1(plain.encode("utf-8")).hexdigest().upper()  # lgtm[py/weak-sensitive-data-hashing]  # noqa: S324
+    sha1 = hashlib.sha1(plain.encode("utf-8"), usedforsecurity=False).hexdigest().upper()  # noqa: S324
     prefix, suffix = sha1[:5], sha1[5:]
     try:
         async with httpx.AsyncClient(timeout=3) as client:
