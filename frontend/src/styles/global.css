@@ -182,7 +182,6 @@ summary,
 /* Clean / intellectual / minimal palette — warm paper background, near-black
    text for max readability, sober editorial blue. */
 html.theme-light {
-<<<<<<< polish/light-mode-pass
   --color-bg: #f1ece2;
   --color-surface: #fbf8f2;
   --color-surface-2: #f2ede2;
@@ -206,30 +205,6 @@ html.theme-light {
     radial-gradient(circle at top right, rgba(47, 99, 191, 0.08), transparent 32%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0)),
     var(--color-bg);
-=======
-  --color-bg: #f7f6f3;            /* warm paper off-white */
-  --color-surface: #ffffff;       /* clean white panels */
-  --color-surface-2: #ecebe5;     /* warmer raised surface */
-  --color-border: #d8d4cc;        /* soft warm border */
-  --color-accent: #2563eb;        /* sober editorial blue */
-  --color-accent-hover: #1d4ed8;
-  --color-text: #15171c;          /* near-black for sharp readability */
-  --color-text-muted: #555a66;    /* readable quiet text */
-
-  /* Light-mode overlay tokens — dark tints on a light surface */
-  --color-surface-soft: rgba(15, 20, 35, 0.025);
-  --color-surface-soft-hover: rgba(15, 20, 35, 0.05);
-  --color-surface-soft-active: rgba(15, 20, 35, 0.07);
-  --color-overlay-line: rgba(15, 20, 35, 0.08);
-  --color-overlay-line-strong: rgba(15, 20, 35, 0.12);
-  --color-shadow-soft: 0 6px 28px rgba(15, 20, 35, 0.08);
-  --color-shadow-modal: 0 20px 50px rgba(15, 20, 35, 0.12);
-  --shadow-color: rgba(15, 20, 35, 0.10);
-  --shadow-color-strong: rgba(15, 20, 35, 0.14);
-  --color-tint-accent: rgba(37, 99, 235, 0.05);
-  --color-tint-accent-strong: rgba(37, 99, 235, 0.10);
-  --gradient-doc-bg: var(--color-bg);
->>>>>>> staging
 }
 
 html.theme-light body {
