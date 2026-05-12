@@ -158,8 +158,17 @@ function PairLine({ startId, ctx, depth }: { startId: string; ctx: RenderCtx; de
               <span className="move-number">{numLabel}</span>
               <MoveToken node={primary} ctx={ctx} />
               {(ctx.moveDeltas || ctx.branchDeltas) && <EvalDelta node={primary} ctx={ctx} />}
-              {secondary && <MoveToken node={secondary} ctx={ctx} />}
-              {secondary && (ctx.moveDeltas || ctx.branchDeltas) && <EvalDelta node={secondary} ctx={ctx} />}
+              {/* Always render placeholders for the secondary slot so the grid's
+                  `auto` delta column never collapses to 0 — keeps the primary
+                  delta at the same x whether or not a black move exists yet. */}
+              {secondary
+                ? <MoveToken node={secondary} ctx={ctx} />
+                : <span className="move-cell-empty" aria-hidden="true" />}
+              {(ctx.moveDeltas || ctx.branchDeltas) && (
+                secondary
+                  ? <EvalDelta node={secondary} ctx={ctx} />
+                  : <span className="move-eval-delta" aria-hidden="true" />
+              )}
             </div>
 
             {branches.length > 0 && (
