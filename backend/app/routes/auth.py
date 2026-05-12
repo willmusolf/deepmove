@@ -640,6 +640,11 @@ class _ResetPasswordBody(pydantic.BaseModel):
     new_password: str
 
 
+@router.options("/forgot-password")
+async def forgot_password_preflight():
+    return {}
+
+
 @router.post("/forgot-password")
 @limiter.limit("3/minute")
 async def forgot_password(
@@ -676,6 +681,11 @@ async def forgot_password(
     send_password_reset_email(user.email, raw_token)
     log_event(logger, logging.INFO, "auth.forgot_password.sent", email=email, ip=ip)
     return _ok
+
+
+@router.options("/reset-password")
+async def reset_password_preflight():
+    return {}
 
 
 @router.post("/reset-password")
