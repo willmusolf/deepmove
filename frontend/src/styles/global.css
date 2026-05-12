@@ -182,6 +182,31 @@ summary,
 /* Clean / intellectual / minimal palette — warm paper background, near-black
    text for max readability, sober editorial blue. */
 html.theme-light {
+<<<<<<< polish/light-mode-pass
+  --color-bg: #f1ece2;
+  --color-surface: #fbf8f2;
+  --color-surface-2: #f2ede2;
+  --color-border: #d2cab9;
+  --color-accent: #2f63bf;
+  --color-accent-hover: #254f99;
+  --color-text: #1b2230;
+  --color-text-muted: #5e6777;
+  --color-surface-soft: rgba(27, 34, 48, 0.04);
+  --color-surface-soft-hover: rgba(27, 34, 48, 0.06);
+  --color-surface-soft-active: rgba(27, 34, 48, 0.08);
+  --color-overlay-line: rgba(27, 34, 48, 0.10);
+  --color-overlay-line-strong: rgba(27, 34, 48, 0.15);
+  --color-shadow-soft: 0 10px 28px rgba(27, 34, 48, 0.08);
+  --color-shadow-modal: 0 20px 50px rgba(27, 34, 48, 0.14);
+  --shadow-color: rgba(27, 34, 48, 0.10);
+  --shadow-color-strong: rgba(27, 34, 48, 0.16);
+  --color-tint-accent: rgba(47, 99, 191, 0.06);
+  --color-tint-accent-strong: rgba(47, 99, 191, 0.11);
+  --gradient-doc-bg:
+    radial-gradient(circle at top right, rgba(47, 99, 191, 0.08), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0)),
+    var(--color-bg);
+=======
   --color-bg: #f7f6f3;            /* warm paper off-white */
   --color-surface: #ffffff;       /* clean white panels */
   --color-surface-2: #ecebe5;     /* warmer raised surface */
@@ -204,6 +229,7 @@ html.theme-light {
   --color-tint-accent: rgba(37, 99, 235, 0.05);
   --color-tint-accent-strong: rgba(37, 99, 235, 0.10);
   --gradient-doc-bg: var(--color-bg);
+>>>>>>> staging
 }
 
 html.theme-light body {
@@ -665,3 +691,77 @@ html.theme-light body {
 body.just-clicked .mobile-ad-banner__close:hover { background: transparent !important; }
 body.just-clicked .about-page__button:hover { background: var(--color-accent) !important; }
 body.just-clicked .about-page__link:hover { color: var(--color-text) !important; }
+
+/* === LIGHT MODE OVERRIDES === */
+html.theme-light .app-view--page {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0)),
+    var(--color-bg);
+}
+
+html.theme-light .nav-sidebar {
+  background: color-mix(in srgb, var(--color-surface) 96%, white 4%);
+  border-right-color: color-mix(in srgb, var(--color-border) 84%, white 16%);
+}
+
+html.theme-light .nav-logo,
+html.theme-light .nav-user {
+  border-color: color-mix(in srgb, var(--color-border) 88%, white 12%);
+}
+
+html.theme-light .nav-item.active {
+  background: rgba(47, 99, 191, 0.08);
+}
+
+html.theme-light .nav-signin-btn {
+  background: linear-gradient(180deg, #4a84e5 0%, var(--color-accent) 100%);
+  box-shadow: 0 8px 18px rgba(47, 99, 191, 0.16);
+}
+
+html.theme-light .app-footer {
+  background: color-mix(in srgb, var(--color-surface) 94%, var(--color-bg) 6%);
+  border-top-color: color-mix(in srgb, var(--color-border) 88%, white 12%);
+}
+
+html.theme-light .about-page__hero,
+html.theme-light .privacy-page__hero,
+html.theme-light .about-page__section,
+html.theme-light .privacy-page__section {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.04)),
+    var(--color-surface);
+  box-shadow: var(--color-shadow-soft);
+}
+
+html.theme-light .about-page__hero,
+html.theme-light .privacy-page__hero {
+  background:
+    radial-gradient(circle at top right, rgba(47, 99, 191, 0.11), transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.06)),
+    var(--color-surface);
+}
+
+html.theme-light .about-page__card {
+  background: color-mix(in srgb, var(--color-surface-2) 82%, white 18%);
+  border-color: color-mix(in srgb, var(--color-border) 82%, white 18%);
+}
+
+html.theme-light .about-page__button {
+  background: rgba(47, 99, 191, 0.08);
+  border-color: rgba(47, 99, 191, 0.4);
+}
+
+html.theme-light .privacy-page__section--highlight {
+  background:
+    linear-gradient(180deg, rgba(47, 99, 191, 0.08), rgba(47, 99, 191, 0.03)),
+    var(--color-surface);
+}
+
+html.theme-light .utility-rail__panel {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--color-border) 86%, white 14%);
+  background:
+    linear-gradient(180deg, rgba(47, 99, 191, 0.05), rgba(255, 255, 255, 0.14)),
+    color-mix(in srgb, var(--color-surface) 95%, var(--color-bg) 5%);
+  box-shadow: var(--color-shadow-soft);
+}
