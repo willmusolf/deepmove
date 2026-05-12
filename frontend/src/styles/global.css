@@ -15,6 +15,23 @@
   --color-accent-hover: #6ab4ff;
   --color-text: #eaeaea;
   --color-text-muted: #7a8aaa;
+
+  /* Semantic overlay tokens — adapt automatically per theme */
+  --color-surface-soft: rgba(255, 255, 255, 0.04);
+  --color-surface-soft-hover: rgba(255, 255, 255, 0.08);
+  --color-surface-soft-active: rgba(255, 255, 255, 0.10);
+  --color-overlay-line: rgba(255, 255, 255, 0.08);
+  --color-overlay-line-strong: rgba(255, 255, 255, 0.14);
+  --color-shadow-soft: 0 6px 28px rgba(0, 0, 0, 0.55);
+  --color-shadow-modal: 0 20px 50px rgba(0, 0, 0, 0.28);
+  --shadow-color: rgba(0, 0, 0, 0.45);
+  --shadow-color-strong: rgba(0, 0, 0, 0.55);
+  --color-tint-accent: rgba(74, 158, 255, 0.08);
+  --color-tint-accent-strong: rgba(74, 158, 255, 0.16);
+  --gradient-doc-bg:
+    radial-gradient(circle at top center, var(--color-tint-accent), transparent 34%),
+    var(--color-bg);
+
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
   --radius: 6px;
@@ -78,9 +95,7 @@ summary,
 }
 
 .app-view--document {
-  background:
-    radial-gradient(circle at top center, rgba(74, 158, 255, 0.08), transparent 34%),
-    var(--color-bg);
+  background: var(--gradient-doc-bg);
 }
 
 .app-main--document {
@@ -164,15 +179,31 @@ summary,
 }
 
 /* ── Light theme override ──────────────────────────────────────────────── */
+/* Clean / intellectual / minimal palette — warm paper background, near-black
+   text for max readability, sober editorial blue. */
 html.theme-light {
-  --color-bg: #f0f2f5;
-  --color-surface: #ffffff;
-  --color-surface-2: #e4e8ef;
-  --color-border: #ccd3e0;
-  --color-accent: #3a8eff;
-  --color-accent-hover: #2070dd;
-  --color-text: #1a1a2e;
-  --color-text-muted: #5a6a8a;
+  --color-bg: #f7f6f3;            /* warm paper off-white */
+  --color-surface: #ffffff;       /* clean white panels */
+  --color-surface-2: #ecebe5;     /* warmer raised surface */
+  --color-border: #d8d4cc;        /* soft warm border */
+  --color-accent: #2563eb;        /* sober editorial blue */
+  --color-accent-hover: #1d4ed8;
+  --color-text: #15171c;          /* near-black for sharp readability */
+  --color-text-muted: #555a66;    /* readable quiet text */
+
+  /* Light-mode overlay tokens — dark tints on a light surface */
+  --color-surface-soft: rgba(15, 20, 35, 0.025);
+  --color-surface-soft-hover: rgba(15, 20, 35, 0.05);
+  --color-surface-soft-active: rgba(15, 20, 35, 0.07);
+  --color-overlay-line: rgba(15, 20, 35, 0.08);
+  --color-overlay-line-strong: rgba(15, 20, 35, 0.12);
+  --color-shadow-soft: 0 6px 28px rgba(15, 20, 35, 0.08);
+  --color-shadow-modal: 0 20px 50px rgba(15, 20, 35, 0.12);
+  --shadow-color: rgba(15, 20, 35, 0.10);
+  --shadow-color-strong: rgba(15, 20, 35, 0.14);
+  --color-tint-accent: rgba(37, 99, 235, 0.05);
+  --color-tint-accent-strong: rgba(37, 99, 235, 0.10);
+  --gradient-doc-bg: var(--color-bg);
 }
 
 html.theme-light body {
@@ -424,8 +455,7 @@ html.theme-light body {
 .about-page__hero,
 .privacy-page__hero {
   background:
-    radial-gradient(circle at top right, rgba(74, 158, 255, 0.16), transparent 36%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01)),
+    radial-gradient(circle at top right, var(--color-tint-accent-strong), transparent 36%),
     var(--color-surface);
 }
 
@@ -495,7 +525,7 @@ html.theme-light body {
   padding: 1rem;
   border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--color-border) 78%, transparent);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--color-surface-soft);
 }
 
 .about-page__section--split {
@@ -543,7 +573,7 @@ html.theme-light body {
   padding: 0 1rem;
   border-radius: 999px;
   border: 1px solid var(--color-accent);
-  background: rgba(74, 158, 255, 0.14);
+  background: var(--color-tint-accent-strong);
 }
 
 .about-page__button:hover,
@@ -559,7 +589,7 @@ html.theme-light body {
 
 .privacy-page__section--highlight {
   background:
-    linear-gradient(180deg, rgba(74, 158, 255, 0.08), rgba(74, 158, 255, 0.03)),
+    linear-gradient(180deg, var(--color-tint-accent), transparent),
     var(--color-surface);
 }
 
@@ -592,7 +622,7 @@ html.theme-light body {
   border: 1px dashed color-mix(in srgb, var(--color-border) 88%, transparent);
   border-radius: 12px;
   background:
-    linear-gradient(180deg, rgba(74, 158, 255, 0.05), rgba(74, 158, 255, 0.01)),
+    linear-gradient(180deg, var(--color-tint-accent), transparent),
     color-mix(in srgb, var(--color-surface) 96%, transparent);
 }
 
