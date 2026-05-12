@@ -37,4 +37,11 @@ def get_trusted_client_ip(request: Request) -> str:
     return "unknown"
 
 
-limiter = Limiter(key_func=get_trusted_client_ip)
+def _rate_limit_key(request: Request) -> str:
+    # Exempt OPTIONS preflights from rate limiting so CORS middleware can respond
+    if request.method == "OPTIONS":
+        return "exempt-preflight"
+    return get_trusted_client_ip(request)
+
+
+limiter = Limiter(key_func=_rate_limit_key)
