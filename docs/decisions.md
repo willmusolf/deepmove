@@ -280,3 +280,16 @@ Raw centipawn-loss thresholds (ADR-011). Transparent and debuggable. 90% of the 
 **DB fields added (migration 006):** `stripe_customer_id TEXT UNIQUE`, `subscription_status TEXT DEFAULT 'none'`. `is_premium BOOLEAN` pre-existed.
 
 **Stripe env vars:** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID` (all default empty → 503 if unset, never 500).
+
+### ADR-030: CodeQL HIBP SHA-1 — Repo-Wide Query Exclusion + usedforsecurity=False
+**Status:** Implemented (2026-05-12)
+
+**Decision:** Silence the CodeQL `py/weak-sensitive-data-hashing` alert on `check_password_not_breached()` via a two-pronged approach: (1) pass `usedforsecurity=False` to `hashlib.sha1()` (Python 3.9+ canonical signal), and (2) exclude the query repo-wide via a new `.github/codeql/codeql-config.yml` referenced from `.github/workflows/codeql.yml`.
+
+**Why not an inline comment:** `# lgtm[py/weak-sensitive-data-hashing]` is the legacy lgtm.com syntax; CodeQL no longer honors it. CodeQL does not provide an in-code suppression mechanism for taint-tracking queries like `py/weak-sensitive-data-hashing`.
+
+**Why not just `usedforsecurity=False`:** `py/weak-sensitive-data-hashing` is a *data-flow* query (it cares that a password-tainted value reaches a weak hash), not an *algorithm-strength* query. `usedforsecurity=False` is documented to satisfy `py/weak-cryptographic-algorithm` but is NOT reliably respected by the data-flow variant. Belt-and-suspenders config exclusion guarantees the alert never re-fires.
+
+**Why a global (not per-file) exclusion:** The only SHA-1 usage in the codebase is the HIBP k-anonymity call. Passwords are stored with `passlib` bcrypt (13 rounds) — that's the security boundary. CodeQL doesn't support per-file query filters in a clean way; a global exclusion is the simplest correct answer.
+
+**Risk if a future contributor adds another SHA-1 use:** The exclusion will hide it. Code review must flag any new `hashlib.sha1` usage. Adding `# noqa: S324` (Bandit) on the existing line preserves a secondary lint gate.

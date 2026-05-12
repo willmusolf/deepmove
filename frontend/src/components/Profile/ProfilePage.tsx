@@ -32,7 +32,7 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   const clearAuth = useAuthStore(s => s.clearAuth)
   const changePassword = useAuthStore(s => s.changePassword)
   const isStaging = (import.meta.env.VITE_API_URL ?? '').includes('staging')
-  const { appTheme, boardTheme, soundEnabled, setAppTheme, setBoardTheme, setSoundEnabled } = usePrefsStore()
+  const { appTheme, boardTheme, soundEnabled, setAppTheme, setBoardTheme } = usePrefsStore()
 
   // Chess account fields
   const [chesscomInput, setChesscomInput] = useState(user?.chesscom_username ?? '')
@@ -232,11 +232,6 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   function handleBoardTheme(theme: BoardTheme) {
     setBoardTheme(theme)
     void handleSaveAppearance({ boardTheme: theme })
-  }
-
-  function handleSoundToggle(v: boolean) {
-    setSoundEnabled(v)
-    void handleSaveAppearance({ soundEnabled: v })
   }
 
   async function handleClearAnalyses() {
@@ -550,23 +545,6 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
             </div>
           </div>
 
-          <div className="profile-field">
-            <label className="profile-field-label">Move sounds</label>
-            <div className="profile-toggle-group">
-              <button
-                className={`profile-toggle-btn${soundEnabled ? ' active' : ''}`}
-                onClick={() => handleSoundToggle(true)}
-              >
-                On
-              </button>
-              <button
-                className={`profile-toggle-btn${!soundEnabled ? ' active' : ''}`}
-                onClick={() => handleSoundToggle(false)}
-              >
-                Off
-              </button>
-            </div>
-          </div>
         </div>
       </section>
 
