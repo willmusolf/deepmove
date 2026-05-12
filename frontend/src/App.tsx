@@ -431,6 +431,9 @@ export default function App() {
 
   const [currentAnalysisDepth, setCurrentAnalysisDepth] = useState(0)
   const [branchGrades, setBranchGrades] = useState<Map<string, MoveGrade>>(new Map())
+  // Eval delta (player-perspective cp) for each branch/variation node, keyed by node id.
+  // Populated when evaluateBranchMove completes. Not persisted — recomputed per session.
+  const [branchDeltas, setBranchDeltas] = useState<Map<string, number>>(new Map())
   // Tracks which game the current branchGrades belong to — used by the write effect so it
   // always writes to the correct sessionStorage key even if currentGameId changes async.
   const branchGradesKeyRef = useRef<string | null>(useGameStore.getState().currentGameId)
@@ -492,6 +495,7 @@ export default function App() {
           ? new Map(Object.entries(storedBg) as [string, MoveGrade][])
           : new Map()
       )
+      setBranchDeltas(new Map())
       setPendingBranchNodes(new Set())
       lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
       // Restore persisted position cache for this game (same-tab refresh fast path)
@@ -1337,8 +1341,13 @@ export default function App() {
       const sacrifice = playedMove ? isSacrificeFn(playedMove, newFen) : false
 
       const grade = classifyMove(evalBefore, evalAfter, color, legalCount, sacrifice, null, isTopSuggested, false, inCheck)
+      // Player-perspective delta in centipawns. Same convention as main-line moveDeltas:
+      // white = scoreAfter - scoreBefore; black = -(scoreAfter - scoreBefore).
+      const rawDelta = evalAfter - evalBefore
+      const playerDelta = color === 'white' ? rawDelta : -rawDelta
       lastGradedNodeIdRef.current = nodeId
       setBranchGrades(prev => new Map(prev).set(nodeId, grade))
+      setBranchDeltas(prev => new Map(prev).set(nodeId, playerDelta))
       if (!hasReportedBranchGradeReadyRef.current) {
         hasReportedBranchGradeReadyRef.current = true
         reportFrontendPerf('branch_grade_ready', {
@@ -2088,6 +2097,7 @@ export default function App() {
                         moveGrades={moveGrades}
                         moveDeltas={moveDeltas}
                         branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
+                        branchDeltas={showGrades && !hideLoadedReviewArtifacts ? branchDeltas : undefined}
                         pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
                         isAnalyzing={showAnalyzingBar || !showGrades}
@@ -2158,6 +2168,7 @@ export default function App() {
                         moveGrades={moveGrades}
                         moveDeltas={moveDeltas}
                         branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
+                        branchDeltas={showGrades && !hideLoadedReviewArtifacts ? branchDeltas : undefined}
                         pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
                         isAnalyzing={showAnalyzingBar || !showGrades}
@@ -2359,6 +2370,7 @@ export default function App() {
                             currentPath={analysisPath}
                             moveGrades={[]}
                             branchGrades={showGrades ? branchGrades : undefined}
+                            branchDeltas={showGrades ? branchDeltas : undefined}
                             pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
                             onNodeClick={(path) => {
                               pathKeyRef.current++

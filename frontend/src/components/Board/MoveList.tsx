@@ -40,6 +40,7 @@ interface RenderCtx {
   moveGrades: (MoveGrade | undefined)[]
   moveDeltas?: (number | undefined)[]
   branchGrades?: Map<string, MoveGrade>
+  branchDeltas?: Map<string, number>
   pendingBranchNodes?: Set<string>
   onNodeClick: (path: string[]) => void
   isAnalyzing: boolean
@@ -83,9 +84,14 @@ function MoveToken({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
 // Always renders a fixed-width span so columns stay aligned whether or not there's a value.
 
 function EvalDelta({ node, ctx }: { node: MoveNode; ctx: RenderCtx }) {
-  const { moveDeltas, isAnalyzing } = ctx
-  const mainIdx = node.isMainLine ? parseInt(node.id.slice(1), 10) : -1
-  const delta = (!isAnalyzing && mainIdx >= 0 && moveDeltas) ? moveDeltas[mainIdx] : undefined
+  const { moveDeltas, branchDeltas, isAnalyzing } = ctx
+  let delta: number | undefined
+  if (node.isMainLine) {
+    const mainIdx = parseInt(node.id.slice(1), 10)
+    delta = (!isAnalyzing && mainIdx >= 0 && moveDeltas) ? moveDeltas[mainIdx] : undefined
+  } else {
+    delta = branchDeltas?.get(node.id)
+  }
   const show = delta !== undefined && Math.abs(delta) >= 5
   return (
     <span className="move-eval-delta">
@@ -151,9 +157,9 @@ function PairLine({ startId, ctx, depth }: { startId: string; ctx: RenderCtx; de
             <div className="move-pair-row">
               <span className="move-number">{numLabel}</span>
               <MoveToken node={primary} ctx={ctx} />
-              {ctx.moveDeltas && <EvalDelta node={primary} ctx={ctx} />}
+              {(ctx.moveDeltas || ctx.branchDeltas) && <EvalDelta node={primary} ctx={ctx} />}
               {secondary && <MoveToken node={secondary} ctx={ctx} />}
-              {secondary && ctx.moveDeltas && <EvalDelta node={secondary} ctx={ctx} />}
+              {secondary && (ctx.moveDeltas || ctx.branchDeltas) && <EvalDelta node={secondary} ctx={ctx} />}
             </div>
 
             {branches.length > 0 && (
@@ -185,6 +191,7 @@ interface MoveListProps {
   moveGrades: (MoveGrade | undefined)[]
   moveDeltas?: (number | undefined)[]
   branchGrades?: Map<string, MoveGrade>
+  branchDeltas?: Map<string, number>
   pendingBranchNodes?: Set<string>
   onNodeClick: (path: string[]) => void
   isAnalyzing?: boolean
@@ -198,6 +205,7 @@ export default function MoveList({
   moveGrades,
   moveDeltas,
   branchGrades,
+  branchDeltas,
   pendingBranchNodes,
   onNodeClick,
   isAnalyzing = false,
@@ -240,7 +248,7 @@ export default function MoveList({
 
   if (!rootId) return <div className="move-list" />
 
-  const ctx: RenderCtx = { tree, currentPath, moveGrades, moveDeltas, branchGrades, pendingBranchNodes, onNodeClick, isAnalyzing }
+  const ctx: RenderCtx = { tree, currentPath, moveGrades, moveDeltas, branchGrades, branchDeltas, pendingBranchNodes, onNodeClick, isAnalyzing }
 
   return (
     <div className="move-list" ref={containerRef}>
