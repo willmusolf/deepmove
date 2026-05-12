@@ -1,0 +1,10 @@
+name: "DeepMove CodeQL Config"
+
+# We exclude py/weak-sensitive-data-hashing because the only SHA-1 usage in
+# this codebase is inside check_password_not_breached() — required by the
+# HIBP Pwned Passwords API (k-anonymity range query is keyed on SHA-1 only).
+# Passwords are stored with bcrypt; the SHA-1 digest is never persisted,
+# logged, or compared against our DB.
+query-filters:
+  - exclude:
+      id: py/weak-sensitive-data-hashing
