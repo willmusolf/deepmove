@@ -720,10 +720,14 @@ cg-board {
   display: block;
 }
 
-/* Pair row: move-number + white san + black san on one line */
+/* Pair row: move-number + white san + black san + delta gutter (white delta, black delta).
+   Deltas live in the last two `auto` columns so they hug the row's right edge — and since
+   .variation-block adds only left padding/margin (no right padding), the right edge is
+   identical across main-line and any nested variation depth. Result: all deltas align in
+   one vertical column regardless of indent. */
 .move-pair-row {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  grid-template-columns: max-content minmax(0, 1fr) minmax(0, 1fr) auto auto;
   align-items: center;
   column-gap: 2px;
   row-gap: 2px;

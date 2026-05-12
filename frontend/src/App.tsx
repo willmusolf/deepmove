@@ -495,7 +495,14 @@ export default function App() {
           ? new Map(Object.entries(storedBg) as [string, MoveGrade][])
           : new Map()
       )
-      setBranchDeltas(new Map())
+      const storedBd = bgGameId
+        ? readSessionJson<Record<string, number>>(`deepmove_bd_${bgGameId}`)
+        : null
+      setBranchDeltas(
+        storedBd && Object.keys(storedBd).length > 0
+          ? new Map(Object.entries(storedBd))
+          : new Map()
+      )
       setPendingBranchNodes(new Set())
       lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
       // Restore persisted position cache for this game (same-tab refresh fast path)
@@ -869,6 +876,17 @@ export default function App() {
     writeSessionJson(`deepmove_bg_${gameId}`, Object.fromEntries(branchGrades))
   }, [branchGrades])
 
+  // Persist branch deltas alongside grades. Without this, evaluateBranchMove's
+  // early-return on `branchGrades.has(nodeId)` would skip writing the delta for
+  // any move whose grade was restored from session — leaving the eval cell blank
+  // on the very first variation move from a prior session.
+  useEffect(() => {
+    if (branchDeltas.size === 0) return
+    const gameId = branchGradesKeyRef.current
+    if (!gameId) return
+    writeSessionJson(`deepmove_bd_${gameId}`, Object.fromEntries(branchDeltas))
+  }, [branchDeltas])
+
   // Recovery effect: on refresh, currentGameId may be restored by Zustand after pgn+isReady
   // fires. If branchGradesKeyRef was null at that point, the restore was skipped. Retry here.
   useEffect(() => {
@@ -879,6 +897,10 @@ export default function App() {
     const storedBg = readSessionJson<Record<string, string>>(`deepmove_bg_${currentGameId}`)
     if (storedBg && Object.keys(storedBg).length > 0) {
       setBranchGrades(new Map(Object.entries(storedBg) as [string, MoveGrade][]))
+    }
+    const storedBd = readSessionJson<Record<string, number>>(`deepmove_bd_${currentGameId}`)
+    if (storedBd && Object.keys(storedBd).length > 0) {
+      setBranchDeltas(new Map(Object.entries(storedBd)))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentGameId])
