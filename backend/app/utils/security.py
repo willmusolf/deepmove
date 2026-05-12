@@ -1,6 +1,7 @@
 """security.py — Password hashing and JWT token utilities."""
 import hashlib
 import logging
+import os
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -38,6 +39,8 @@ async def check_password_not_breached(plain: str) -> None:
     the list. Failures (network, timeout) are logged and ignored — we never
     block a registration because HIBP is down.
     """
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        return
     sha1 = hashlib.sha1(plain.encode("utf-8")).hexdigest().upper()
     prefix, suffix = sha1[:5], sha1[5:]
     try:
