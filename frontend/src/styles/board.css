@@ -1180,6 +1180,17 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   box-sizing: border-box;
 }
 
+@media (min-width: 1024px) and (max-height: 840px) {
+  .app-main--fixed-layout {
+    overflow-y: visible;
+    overflow-x: visible;
+  }
+
+  .app-main--fixed-layout .board-and-players {
+    width: min(880px, calc(100vw - var(--board-vw-offset)));
+  }
+}
+
 .player-info-box {
   width: 100%;
 }

@@ -71,6 +71,7 @@ import {
 } from './config/sponsor'
 import { SUPPORT_GITHUB_ISSUES_URL } from './config/contact'
 import { getPageFromPathname, getPageMeta, getPathForPage, isIndexablePage } from './utils/pageMeta'
+import { normalizeRestoredPage } from './utils/navigation'
 import { reportFrontendPerf } from './services/monitoring'
 
 // Lichess-style thickness brushes — all green, varying weight
@@ -273,7 +274,7 @@ function loadAppUiState(): AppUiState | null {
   const parsed = readSessionJson<Partial<AppUiState>>(APP_UI_SESSION_KEY)
   if (parsed && typeof parsed === 'object') {
     return {
-      currentPage: isPage(parsed.currentPage) ? parsed.currentPage : 'review',
+      currentPage: isPage(parsed.currentPage) ? normalizeRestoredPage(parsed.currentPage) : 'review',
       panelTab: isPanelTab(parsed.panelTab) ? parsed.panelTab : 'load',
       importTab: isImportTab(parsed.importTab) ? parsed.importTab : 'chesscom',
       orientation: parsed.orientation === 'black' ? 'black' : 'white',
@@ -288,7 +289,7 @@ function loadAppUiState(): AppUiState | null {
     : null
   return legacyPage && isPage(legacyPage)
     ? {
-        currentPage: legacyPage,
+        currentPage: normalizeRestoredPage(legacyPage),
         panelTab: 'load',
         importTab: 'chesscom',
         orientation: 'white',
@@ -1705,10 +1706,12 @@ export default function App() {
       <div className={[
         'app-view',
         isScrollPage ? 'app-view--page' : '',
+        isFixedLayoutPage ? 'app-view--fixed-layout' : '',
         isDocumentPage ? 'app-view--document' : '',
       ].filter(Boolean).join(' ')}>
         <div className={[
           'app-main',
+          isFixedLayoutPage ? 'app-main--fixed-layout' : '',
           isDocumentPage ? 'app-main--document' : '',
           !isFixedLayoutPage && !isDocumentPage ? 'app-main--page' : '',
         ].filter(Boolean).join(' ')}>
