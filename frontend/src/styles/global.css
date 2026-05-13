@@ -269,7 +269,12 @@ html.theme-light body {
     flex-direction: column;
   }
 
-  .app-content,
+  .app-shell--fixed-page {
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+
   .app-view--page,
   .app-main--page,
   .app-view--document,
@@ -284,6 +289,11 @@ html.theme-light body {
 
   .app-view--fixed-layout,
   .app-main--fixed-layout {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .app-shell--fixed-page .app-content {
     min-height: 0;
     overflow: hidden;
   }

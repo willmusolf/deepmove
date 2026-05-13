@@ -80,11 +80,13 @@ export default function ResponsiveLayout({ currentPage, onNavigate, children, ha
   }
 
   const collapsed = !isCompactNav && navCollapsed
+  const isFixedLayoutPage = currentPage === 'review' || currentPage === 'play'
 
   return (
     <div className={[
       'app app-shell',
       isCompactNav ? 'app-shell--compact-nav' : '',
+      isFixedLayoutPage ? 'app-shell--fixed-page' : '',
       navOpen ? 'app-shell--nav-open' : '',
       collapsed ? 'app-shell--nav-collapsed' : '',
     ].filter(Boolean).join(' ')}>
