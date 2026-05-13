@@ -780,6 +780,7 @@ export default function App() {
     </div>
   ) : null
 
+  const prevEngineLinesRef = useRef(engineLines)
   useEffect(() => {
     // Always cancel in-flight analysis and pending timers first — even if the new
     // position is cached.  Without this, a deferred 180ms timer for position A can
@@ -797,6 +798,16 @@ export default function App() {
 
     if (suppressPositionAnalysisRef.current) {
       return
+    }
+
+    // If line count changed since last run, drop the cached entry for this
+    // FEN so the cache lookup below misses and we re-dispatch with the new
+    // MultiPV setting. Done inline (not in a separate effect) because effect
+    // ordering otherwise lets this effect read the stale cache and exit early
+    // when the cached depth is already complete.
+    if (prevEngineLinesRef.current !== engineLines) {
+      positionCache.current.delete(displayFen)
+      prevEngineLinesRef.current = engineLines
     }
 
     const cached = positionCache.current.get(displayFen)
@@ -880,17 +891,6 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayFen, isReady, pauseLivePositionAnalysis, autoAnalyze, engineLines, engineDepth])
-
-  // When the user changes line count, the cached entry for the current FEN
-  // may have fewer lines than requested — drop it so the next analysis
-  // effect run starts fresh with the new MultiPV setting.
-  const prevEngineLinesRef = useRef(engineLines)
-  useEffect(() => {
-    if (prevEngineLinesRef.current !== engineLines) {
-      positionCache.current.delete(displayFen)
-      prevEngineLinesRef.current = engineLines
-    }
-  }, [engineLines, displayFen])
 
   // When engine becomes ready, retroactively grade any sandbox nodes that were
   // played before Stockfish finished loading (common for eager users).

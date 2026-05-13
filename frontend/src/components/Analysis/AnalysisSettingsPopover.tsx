@@ -181,6 +181,12 @@ export default function AnalysisSettingsPopover({
           >
             {clearArmed ? 'Click to confirm' : 'Clear variations'}
           </button>
+        </div>
+      </section>
+
+      <section className="analysis-settings-popover__section">
+        <div className="analysis-settings-popover__label">Export</div>
+        <div className="analysis-settings-popover__actions">
           <button
             type="button"
             className="btn btn-secondary analysis-settings-popover__action"
@@ -188,7 +194,7 @@ export default function AnalysisSettingsPopover({
             disabled={!canExport}
             title={canExport ? 'Copy PGN with all variations' : 'No game loaded'}
           >
-            {exportFeedback ?? 'Export PGN'}
+            {exportFeedback ?? 'Copy PGN'}
           </button>
         </div>
       </section>

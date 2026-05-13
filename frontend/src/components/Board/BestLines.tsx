@@ -179,10 +179,9 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
   return (
     <div className="best-lines">
       {isAnalyzingPosition && lines.length === 0 ? (
-        <>
-          <div className="best-line-row best-line-skeleton" />
-          <div className="best-line-row best-line-skeleton" />
-        </>
+        Array.from({ length: maxLines }).map((_, i) => (
+          <div key={`skeleton-${i}`} className="best-line-row best-line-skeleton" />
+        ))
       ) : (
         visibleLines.map((line, i) => (
           <div
