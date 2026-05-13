@@ -6,6 +6,7 @@ import { cleanPgn, extractClockTimes } from '../chess/pgn'
 import { STARTING_FEN } from '../chess/constants'
 import type { MoveNode, MoveTree } from '../chess/types'
 import { readSessionJson, removeSessionValue, writeSessionJson } from '../utils/sessionStorage'
+import { getAnalyzedGame, updateBranchState, type SerializedBranchState } from '../services/gameDB'
 
 
 interface ParsedGame {
@@ -176,9 +177,27 @@ function persistBranchState(state: BranchState) {
   writeSessionJson(REVIEW_BRANCH_SESSION_KEY, state)
 }
 
+function serializeBranch(state: BranchState): SerializedBranchState | null {
+  if (!state.pgnKey) return null
+  return {
+    pgnKey: state.pgnKey,
+    nodes: state.nodes,
+    extraChildren: state.extraChildren,
+    currentPath: state.currentPath,
+    branchCounter: state.branchCounter,
+  }
+}
+
+function hasAnyBranches(state: BranchState): boolean {
+  return Object.keys(state.nodes).length > 0
+    || Object.keys(state.extraChildren).length > 0
+    || state.branchCounter > 0
+}
+
 export function useGameReview() {
   const pgn = useGameStore(s => s.pgn)
   const rawPgn = useGameStore(s => s.rawPgn)
+  const currentGameId = useGameStore(s => s.currentGameId)
 
   // Base tree rebuilt synchronously whenever pgn changes
   const baseData = useMemo<ParsedGame>(() => {
@@ -232,6 +251,82 @@ export function useGameReview() {
   useEffect(() => {
     persistBranchState({ ...activeBranch, currentPath })
   }, [activeBranch, currentPath])
+
+  // Hydrate variations from IndexedDB on game load.
+  // Runs after the synchronous sessionStorage hydrate above. If the session
+  // already has matching branches (same-tab refresh) we still merge, but the
+  // IndexedDB copy wins as the authoritative store for cross-session restore.
+  useEffect(() => {
+    if (!pgn || !currentGameId) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const record = await getAnalyzedGame(currentGameId)
+        if (cancelled) return
+        const stored = record?.branchState
+        if (!stored || stored.pgnKey !== pgn) return
+        // Only overwrite if the in-memory state for this pgn is empty —
+        // otherwise we'd clobber a session that has fresher edits than the
+        // last debounced write.
+        setBranchState(prev => {
+          if (prev.pgnKey !== pgn) return prev
+          if (hasAnyBranches(prev)) return prev
+          return {
+            pgnKey: pgn,
+            nodes: sanitizeBranchNodes(stored.nodes),
+            extraChildren: sanitizeExtraChildren(stored.extraChildren),
+            currentPath: sanitizeStoredPath(stored.currentPath),
+            branchCounter: typeof stored.branchCounter === 'number' ? stored.branchCounter : 0,
+          }
+        })
+      } catch {
+        // IndexedDB unavailable — silent fallback to session-only persistence
+      }
+    })()
+    return () => { cancelled = true }
+  }, [pgn, currentGameId])
+
+  // Debounced write to IndexedDB so explored branches survive across sessions.
+  // sessionStorage above already handles same-tab refresh; this covers the
+  // come-back-later case for games imported into the IndexedDB store.
+  useEffect(() => {
+    if (!pgn || !currentGameId) return
+    if (activeBranch.pgnKey !== pgn) return
+    const handle = setTimeout(() => {
+      const payload = serializeBranch({ ...activeBranch, currentPath })
+      if (!payload) return
+      void updateBranchState(currentGameId, payload).catch(() => { /* silent */ })
+    }, 500)
+    return () => clearTimeout(handle)
+  }, [activeBranch, currentPath, pgn, currentGameId])
+
+  // Reset all user-explored variations for the current game.
+  // Clears in-memory tree, sessionStorage, and the IndexedDB record's branchState.
+  // Main-line grades/deltas are untouched (they live in separate sessionStorage keys).
+  const resetBranches = useCallback(() => {
+    setBranchState(prev => {
+      if (!prev.pgnKey) return prev
+      // Trim currentPath to the leading mainline prefix so the user doesn't get
+      // teleported to the start — branch nodes always have "-b" in their id.
+      const trimmedPath: string[] = []
+      for (const id of prev.currentPath) {
+        if (id.includes('-b')) break
+        trimmedPath.push(id)
+      }
+      return {
+        pgnKey: prev.pgnKey,
+        nodes: {},
+        extraChildren: {},
+        currentPath: trimmedPath,
+        branchCounter: 0,
+      }
+    })
+    lastAddedNodeIdRef.current = null
+    removeSessionValue(REVIEW_BRANCH_SESSION_KEY)
+    if (currentGameId) {
+      void updateBranchState(currentGameId, null).catch(() => { /* silent */ })
+    }
+  }, [currentGameId])
 
   // ── Derived values ──────────────────────────────────────────────────────────
 
@@ -430,6 +525,7 @@ export function useGameReview() {
     goBack,
     navigateTo,
     addVariationMove,
+    resetBranches,
     lastAddedNodeIdRef,
     nextMainLineNode,
     isLoaded,
@@ -439,6 +535,7 @@ export function useGameReview() {
     whiteElo: baseData.headers['WhiteElo'] ?? null,
     blackElo: baseData.headers['BlackElo'] ?? null,
     result: baseData.headers['Result'] ?? null,
+    headers: baseData.headers,
     rootId,
     totalMoves,
     moves,

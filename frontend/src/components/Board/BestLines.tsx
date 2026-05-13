@@ -12,9 +12,11 @@ interface BestLinesProps {
   onLineClick: (line: TopLine) => void
   onLineMoveClick: (line: TopLine, plyCount: number) => void
   fen: string
+  /** Max rows to render. Defaults to 3 so the engine's MultiPV output is shown as-is. */
+  maxLines?: number
 }
 
-const MAX_LINES = 2
+const DEFAULT_MAX_LINES = 3
 const COLLAPSED_MAX_PLIES = 12
 const EXPANDED_MAX_PLIES = 16
 const MOBILE_BREAKPOINT = '(max-width: 640px)'
@@ -70,8 +72,8 @@ function buildCollapsedSegments(
   return segments
 }
 
-export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onLineMoveClick, fen }: BestLinesProps) {
-  const visibleLines = useMemo(() => lines.slice(0, MAX_LINES), [lines])
+export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onLineMoveClick, fen, maxLines = DEFAULT_MAX_LINES }: BestLinesProps) {
+  const visibleLines = useMemo(() => lines.slice(0, maxLines), [lines, maxLines])
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
   const [visibleCollapsedCounts, setVisibleCollapsedCounts] = useState<number[]>([])
   const [isMobile, setIsMobile] = useState(() => (

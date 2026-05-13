@@ -36,6 +36,8 @@ import MobileAdBanner from './components/MobileAdBanner'
 import { useGameReview } from './hooks/useGameReview'
 import { useAnalysisBoard } from './hooks/useAnalysisBoard'
 import BestLines from './components/Board/BestLines'
+import EvalDisplay from './components/Analysis/EvalDisplay'
+import { exportPgnWithVariations } from './chess/pgnExport'
 import { useCoaching } from './hooks/useCoaching'
 import { useStockfish } from './hooks/useStockfish'
 import { useSound } from './hooks/useSound'
@@ -79,7 +81,6 @@ const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
 // Max depth for per-position multi-PV analysis. Analysis runs continuously to this
 // depth and caches partial results at each depth — so interrupting and returning
 // resumes visually from the last reached depth.
-const POSITION_MAX_DEPTH = 27
 const UTILITY_RAIL_MEDIA_QUERY = '(min-width: 1330px)'
 
 type PanelTab = "analysis" | "load" | "coach"
@@ -90,6 +91,19 @@ type ImportTab = "chesscom" | "lichess" | "pgn"
 
 const APP_UI_SESSION_KEY = 'deepmove_appUi'
 
+export type EngineDepthPreset = 'fast' | 'standard' | 'max'
+export type EngineLineCount = 1 | 2 | 3
+
+const DEPTH_FOR_PRESET: Record<EngineDepthPreset, number> = {
+  fast: 20,
+  standard: 25,
+  max: 27,
+}
+
+export function depthForPreset(preset: EngineDepthPreset): number {
+  return DEPTH_FOR_PRESET[preset]
+}
+
 interface AppUiState {
   currentPage: Page
   panelTab: PanelTab
@@ -98,6 +112,9 @@ interface AppUiState {
   showEvalBar: boolean
   showArrows: boolean
   showGrades: boolean
+  engineLines: EngineLineCount
+  engineDepth: EngineDepthPreset
+  autoAnalyze: boolean
 }
 
 const TOUCH_NAV_REPEAT_DELAY_MS = 220
@@ -270,6 +287,14 @@ function isPage(value: unknown): value is Page {
     || value === 'reset-password'
 }
 
+function isEngineLineCount(v: unknown): v is EngineLineCount {
+  return v === 1 || v === 2 || v === 3
+}
+
+function isDepthPreset(v: unknown): v is EngineDepthPreset {
+  return v === 'fast' || v === 'standard' || v === 'max'
+}
+
 function loadAppUiState(): AppUiState | null {
   const parsed = readSessionJson<Partial<AppUiState>>(APP_UI_SESSION_KEY)
   if (parsed && typeof parsed === 'object') {
@@ -281,6 +306,9 @@ function loadAppUiState(): AppUiState | null {
       showEvalBar: parsed.showEvalBar !== false,
       showArrows: parsed.showArrows !== false,
       showGrades: parsed.showGrades !== false,
+      engineLines: isEngineLineCount(parsed.engineLines) ? parsed.engineLines : 2,
+      engineDepth: isDepthPreset(parsed.engineDepth) ? parsed.engineDepth : 'max',
+      autoAnalyze: parsed.autoAnalyze !== false,
     }
   }
 
@@ -296,6 +324,9 @@ function loadAppUiState(): AppUiState | null {
         showEvalBar: true,
         showArrows: true,
         showGrades: true,
+        engineLines: 2,
+        engineDepth: 'max',
+        autoAnalyze: true,
       }
     : null
 }
@@ -319,6 +350,7 @@ export default function App() {
     goForward,
     goBack,
     addVariationMove,
+    resetBranches,
     lastAddedNodeIdRef,
     nextMainLineNode,
     navigateTo,
@@ -331,6 +363,7 @@ export default function App() {
     totalMoves,
     parseError,
     result: gameResult,
+    headers: gameHeaders,
   } = useGameReview()
 
   const {
@@ -455,6 +488,14 @@ export default function App() {
   }, [setUserElo])
 
   const [currentAnalysisDepth, setCurrentAnalysisDepth] = useState(0)
+  const [engineLines, setEngineLines] = useState<EngineLineCount>(savedUiState?.engineLines ?? 2)
+  const [engineDepth, setEngineDepth] = useState<EngineDepthPreset>(savedUiState?.engineDepth ?? 'max')
+  const [autoAnalyze, setAutoAnalyze] = useState(savedUiState?.autoAnalyze ?? true)
+  const positionMaxDepth = depthForPreset(engineDepth)
+  const positionMaxDepthRef = useRef(positionMaxDepth)
+  positionMaxDepthRef.current = positionMaxDepth
+  const engineLinesRef = useRef(engineLines)
+  engineLinesRef.current = engineLines
   const [branchGrades, setBranchGrades] = useState<Map<string, MoveGrade>>(new Map())
   // Eval delta (player-perspective cp) for each branch/variation node, keyed by node id.
   // Populated when evaluateBranchMove completes. Not persisted — recomputed per session.
@@ -630,13 +671,14 @@ export default function App() {
   const [isBestLineJumping, setBestLineJumping] = useState(false)
   const playBestLineMoveRef = useRef<(uci: string, options?: { playSound?: boolean }) => boolean>(() => false)
 
-  function triggerPositionAnalysis(fen: string, depth = POSITION_MAX_DEPTH) {
+  function triggerPositionAnalysis(fen: string, depth = positionMaxDepthRef.current) {
     // NOTE: callers are responsible for calling stopPositionAnalysis() before this.
     // Do NOT call stopPositionAnalysis() here — it would send a second 'stop' command
     // to the worker, which races with the new analysis dispatch and kills it at low depth.
 
     // Cap multi-PV to legal move count (avoids duplicate arrows on forced moves)
-    let numLines = 2
+    const requestedLines = engineLinesRef.current
+    let numLines: number = requestedLines
     try {
       const chess = new Chess(fen)
       const legalMoveCount = chess.moves().length
@@ -646,8 +688,8 @@ export default function App() {
         setAnalyzingPosition(false)
         return
       }
-      numLines = Math.min(2, legalMoveCount)
-    } catch { /* invalid FEN — fall through with default 2 */ }
+      numLines = Math.min(requestedLines, legalMoveCount)
+    } catch { /* invalid FEN — fall through with requested line count */ }
 
     const token = ++positionTokenRef.current
     setAnalyzingPosition(true)
@@ -766,12 +808,12 @@ export default function App() {
       if (!hasReportedPositionCacheHitRef.current) {
         hasReportedPositionCacheHitRef.current = true
         reportFrontendPerf('position_analysis_cache_hit', {
-          complete: (cached[0]?.depth ?? 0) >= POSITION_MAX_DEPTH,
+          complete: (cached[0]?.depth ?? 0) >= positionMaxDepth,
           depth: cached[0]?.depth ?? 0,
           mode: isLoaded ? 'review' : 'sandbox',
         })
       }
-      if ((cached[0]?.depth ?? 0) >= POSITION_MAX_DEPTH) {
+      if ((cached[0]?.depth ?? 0) >= positionMaxDepth) {
         // Full depth — no further analysis needed
         setAnalyzingPosition(false)
         return
@@ -781,6 +823,17 @@ export default function App() {
     }
 
     if (!isReady) return  // engine not ready yet — isReady effect will seed analysis
+
+    // Manual mode: user disabled auto-analyze. Keep cached results visible but
+    // don't kick off new work — they trigger via the popover's Analyze button.
+    if (!autoAnalyze) {
+      if (!(cached && cached.length > 0)) {
+        setCurrentPositionLines([])
+        setCurrentAnalysisDepth(0)
+      }
+      setAnalyzingPosition(false)
+      return
+    }
 
     const hasPartialCache = (cached?.length ?? 0) > 0
 
@@ -826,7 +879,18 @@ export default function App() {
       if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayFen, isReady, pauseLivePositionAnalysis])
+  }, [displayFen, isReady, pauseLivePositionAnalysis, autoAnalyze, engineLines, engineDepth])
+
+  // When the user changes line count, the cached entry for the current FEN
+  // may have fewer lines than requested — drop it so the next analysis
+  // effect run starts fresh with the new MultiPV setting.
+  const prevEngineLinesRef = useRef(engineLines)
+  useEffect(() => {
+    if (prevEngineLinesRef.current !== engineLines) {
+      positionCache.current.delete(displayFen)
+      prevEngineLinesRef.current = engineLines
+    }
+  }, [engineLines, displayFen])
 
   // When engine becomes ready, retroactively grade any sandbox nodes that were
   // played before Stockfish finished loading (common for eager users).
@@ -990,8 +1054,11 @@ export default function App() {
       showEvalBar,
       showArrows,
       showGrades,
+      engineLines,
+      engineDepth,
+      autoAnalyze,
     } satisfies AppUiState)
-  }, [currentPage, panelTab, importTab, orientation, showEvalBar, showArrows, showGrades])
+  }, [currentPage, panelTab, importTab, orientation, showEvalBar, showArrows, showGrades, engineLines, engineDepth, autoAnalyze])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1522,7 +1589,7 @@ export default function App() {
     if (cached && cached.length > 0) {
       setCurrentPositionLines(cached)
       setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
-      if ((cached[0]?.depth ?? 0) >= POSITION_MAX_DEPTH) {
+      if ((cached[0]?.depth ?? 0) >= positionMaxDepth) {
         setBestLineJumping(false)
         setAnalyzingPosition(false)
         return
@@ -1606,6 +1673,48 @@ export default function App() {
     || isBestLineJumping
     || (mainEval && !inBranch)
   )
+
+  const evalDisplayFallback = mainEval && !inBranch ? `depth ${mainEval.eval.depth}` : null
+  const hasReviewVariations = isLoaded && rootBranchIds.length > 0
+  const canExportPgn = isLoaded && rootId !== null
+
+  const handleAnalyzeNow = useCallback(() => {
+    stopPositionAnalysis()
+    triggerPositionAnalysis(displayFen)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayFen, stopPositionAnalysis])
+
+  const handleExportPgn = useCallback(() => {
+    if (!rootId) return
+    const pgnText = exportPgnWithVariations({
+      tree: moveTree,
+      rootId,
+      rootBranchIds,
+      headers: gameHeaders ?? {},
+    })
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(pgnText).catch(() => { /* silent — clipboard may be blocked */ })
+    }
+  }, [moveTree, rootId, rootBranchIds, gameHeaders])
+
+  const evalDisplayProps = {
+    displayedEvalText,
+    currentAnalysisDepth,
+    positionMaxDepth,
+    isAnalyzingPosition,
+    fallbackDepthLabel: evalDisplayFallback,
+    engineLines,
+    setEngineLines,
+    engineDepth,
+    setEngineDepth,
+    autoAnalyze,
+    setAutoAnalyze,
+    onAnalyzeNow: handleAnalyzeNow,
+    onClearVariations: resetBranches,
+    onExportPgn: handleExportPgn,
+    hasVariations: hasReviewVariations,
+    canExport: canExportPgn,
+  }
 
   // ── Arrow shapes ───────────────────────────────────────────────────────────
 
@@ -2070,26 +2179,14 @@ export default function App() {
                       {analysisStatusBar}
 
                       {!hideLoadedReviewArtifacts && shouldRenderEvalDisplay && (
-                        <div className="eval-display">
-                          {displayedEvalText && (
-                            <span className="eval-display-value">
-                              {displayedEvalText}
-                            </span>
-                          )}
-                          {currentAnalysisDepth > 0 ? (
-                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
-                          ) : isAnalyzingPosition ? (
-                            <span className="eval-display-depth">analyzing…</span>
-                          ) : mainEval && !inBranch ? (
-                            <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
-                          ) : null}
-                        </div>
+                        <EvalDisplay {...evalDisplayProps} />
                       )}
-                      
+
                       {!hideLoadedReviewArtifacts && (
                         <BestLines
                           lines={visibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
+                          maxLines={engineLines}
                           onLineClick={handleAnalysisBestLineClick}
                           onLineMoveClick={handleAnalysisBestLineMoveClick}
                           fen={displayFen}
@@ -2161,21 +2258,7 @@ export default function App() {
 
                       {/* Eval display */}
                       {!hideLoadedReviewArtifacts && shouldRenderEvalDisplay && (
-                        <div className="eval-display">
-                            {displayedEvalText && (
-                              <span className="eval-display-value">
-                                {displayedEvalText}
-                              </span>
-                            )}
-                            {currentAnalysisDepth > 0 ? (
-                              <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
-                            ) : isAnalyzingPosition ? (
-                              <span className="eval-display-depth">analyzing…</span>
-                            ) : mainEval && !inBranch ? (
-                              <span className="eval-display-depth">depth {mainEval.eval.depth}</span>
-                            ) : null}
-
-                          </div>
+                        <EvalDisplay {...evalDisplayProps} />
                       )}
 
                       {/* Coach comment box — where the graph/report was */}
@@ -2368,24 +2451,13 @@ export default function App() {
 
                       {/* Eval display + best lines — works in free-play/analysis mode */}
                       {(posLine || isAnalyzingPosition || isReady) && shouldRenderEvalDisplay && (
-                        <div className="eval-display">
-                          {displayedEvalText && (
-                            <span className="eval-display-value">
-                              {displayedEvalText}
-                            </span>
-                          )}
-                          {currentAnalysisDepth > 0 ? (
-                            <span className="eval-display-depth">depth: {currentAnalysisDepth} / {POSITION_MAX_DEPTH}{isAnalyzingPosition ? ' …' : ''}</span>
-                          ) : isAnalyzingPosition ? (
-                            <span className="eval-display-depth">analyzing…</span>
-                          ) : null}
-
-                        </div>
+                        <EvalDisplay {...evalDisplayProps} />
                       )}
 
                       <BestLines
                         lines={visibleLines}
                         isAnalyzingPosition={isAnalyzingPosition}
+                        maxLines={engineLines}
                         onLineClick={handleAnalysisBestLineClick}
                         onLineMoveClick={handleAnalysisBestLineMoveClick}
                         fen={displayFen}
