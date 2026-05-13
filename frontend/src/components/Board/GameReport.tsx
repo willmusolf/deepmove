@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { computeAccuracy, type MoveEval } from '../../engine/analysis'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './gradeBadges'
 
@@ -20,6 +20,8 @@ interface GameReportProps {
 interface SideStats {
   counts: Partial<Record<string, number>>
 }
+
+type CalibrationExportPlatform = 'chesscom' | 'lichess' | 'pgn-paste' | null
 
 const GRADE_ORDER = ['brilliant', 'great', 'best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder', 'miss'] as const
 
@@ -107,7 +109,7 @@ export function estimatePerformanceRating(
   return roundToNearest50(Math.max(100, Math.min(3200, estimate)))
 }
 
-function buildSourceUrl(platform: GameReportProps['platform'], gameId: string | null | undefined): string | null {
+function buildSourceUrl(platform: CalibrationExportPlatform, gameId: string | null | undefined): string | null {
   if (!gameId) return null
   if (platform === 'chesscom' && gameId.startsWith('http')) return gameId
   if (platform === 'lichess' && gameId.startsWith('lichess:')) return `https://lichess.org/${gameId.slice('lichess:'.length)}`
@@ -124,7 +126,7 @@ export interface CalibrationSnapshotSide {
 
 export interface CalibrationSnapshot {
   sourceUrl: string | null
-  platform: GameReportProps['platform']
+  platform: CalibrationExportPlatform
   gameId: string | null
   result: string | null
   timeControl: string | null
@@ -145,7 +147,7 @@ export interface CalibrationSnapshot {
 }
 
 interface BuildCalibrationSnapshotArgs {
-  platform?: GameReportProps['platform']
+  platform?: CalibrationExportPlatform
   gameId?: string | null
   timeControl?: string | null
   endTime?: number | null
@@ -213,35 +215,6 @@ export function buildCalibrationSnapshot({
   }
 }
 
-async function copyText(text: string): Promise<boolean> {
-  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text)
-      return true
-    } catch {
-      // Fall through to the textarea fallback.
-    }
-  }
-
-  if (typeof document === 'undefined') return false
-  const textarea = document.createElement('textarea')
-  textarea.value = text
-  textarea.setAttribute('readonly', 'true')
-  textarea.style.position = 'fixed'
-  textarea.style.opacity = '0'
-  textarea.style.pointerEvents = 'none'
-  document.body.appendChild(textarea)
-  textarea.select()
-
-  try {
-    return document.execCommand('copy')
-  } catch {
-    return false
-  } finally {
-    document.body.removeChild(textarea)
-  }
-}
-
 function SidePanel({ label, stats, isUser, accuracy, playerName, rating, result }: SidePanelProps & { result?: string | null }) {
   const displayName = playerName?.trim() || label
   const performanceRating = estimatePerformanceRating(accuracy, rating, getSideResult(result, label))
@@ -305,97 +278,36 @@ export default function GameReport({
   whiteElo,
   blackElo,
   result,
-  platform = null,
-  gameId = null,
-  timeControl = null,
-  endTime = null,
 }: GameReportProps) {
   const white = useMemo(() => computeSideStats(moveEvals, 'white'), [moveEvals])
   const black = useMemo(() => computeSideStats(moveEvals, 'black'), [moveEvals])
   const whiteAccuracy = useMemo(() => computeAccuracy(moveEvals, 'white'), [moveEvals])
   const blackAccuracy = useMemo(() => computeAccuracy(moveEvals, 'black'), [moveEvals])
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
-
-  const calibrationSnapshot = useMemo(
-    () => buildCalibrationSnapshot({
-      platform,
-      gameId,
-      timeControl,
-      endTime,
-      result,
-      whiteName,
-      blackName,
-      whiteElo,
-      blackElo,
-      whiteStats: white,
-      blackStats: black,
-      whiteAccuracy: white ? whiteAccuracy : null,
-      blackAccuracy: black ? blackAccuracy : null,
-    }),
-    [
-      platform,
-      gameId,
-      timeControl,
-      endTime,
-      result,
-      whiteName,
-      blackName,
-      whiteElo,
-      blackElo,
-      white,
-      black,
-      whiteAccuracy,
-      blackAccuracy,
-    ],
-  )
 
   if (!analysisComplete) return null
   if (!white && !black) return null
 
-  async function handleCopyCalibrationSnapshot() {
-    const ok = await copyText(JSON.stringify(calibrationSnapshot, null, 2))
-    setCopyState(ok ? 'copied' : 'error')
-    window.setTimeout(() => {
-      setCopyState(prev => (prev === (ok ? 'copied' : 'error') ? 'idle' : prev))
-    }, 2500)
-  }
-
   return (
-    <div className="game-report-wrap">
-      <div className="game-report">
-        <SidePanel
-          label="White"
-          stats={white}
-          isUser={userColor === 'white'}
-          accuracy={white ? whiteAccuracy : null}
-          playerName={whiteName}
-          rating={whiteElo}
-          result={result}
-        />
-        <div className="game-report-divider" />
-        <SidePanel
-          label="Black"
-          stats={black}
-          isUser={userColor === 'black'}
-          accuracy={black ? blackAccuracy : null}
-          playerName={blackName}
-          rating={blackElo}
-          result={result}
-        />
-      </div>
-      <div className="game-report-actions">
-        <button
-          type="button"
-          className="btn btn-secondary game-report-copy-btn"
-          onClick={handleCopyCalibrationSnapshot}
-        >
-          Copy DeepMove Stats
-        </button>
-        <span className="game-report-copy-status" aria-live="polite">
-          {copyState === 'copied' ? 'Copied JSON snapshot for comparison.' : ''}
-          {copyState === 'error' ? 'Copy failed. Try again.' : ''}
-        </span>
-      </div>
+    <div className="game-report">
+      <SidePanel
+        label="White"
+        stats={white}
+        isUser={userColor === 'white'}
+        accuracy={white ? whiteAccuracy : null}
+        playerName={whiteName}
+        rating={whiteElo}
+        result={result}
+      />
+      <div className="game-report-divider" />
+      <SidePanel
+        label="Black"
+        stats={black}
+        isUser={userColor === 'black'}
+        accuracy={black ? blackAccuracy : null}
+        playerName={blackName}
+        rating={blackElo}
+        result={result}
+      />
     </div>
   )
 }

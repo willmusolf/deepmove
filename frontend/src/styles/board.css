@@ -1925,6 +1925,10 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   gap: 0.4rem;
 }
 
+.analysis-settings-popover__actions--stacked {
+  flex-direction: column;
+}
+
 .analysis-settings-popover__action {
   flex: 1;
   padding: 0.35rem 0.55rem;
