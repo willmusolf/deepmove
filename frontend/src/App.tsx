@@ -12,7 +12,7 @@ import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
 import { useIsPhone } from './components/Board/MoveRail'
 import EvalGraph from './components/Board/EvalGraph'
-import GameReport from './components/Board/GameReport'
+import GameReport, { buildCalibrationSnapshot, computeSideStats } from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
 import PlayerInfoBox from './components/Board/PlayerInfoBox'
 import ImportPanel from './components/Import/ImportPanel'
@@ -45,7 +45,7 @@ import { useAuthStore } from './stores/authStore'
 import { useGameStore } from './stores/gameStore'
 import { clearPlaySession } from './stores/playStore'
 import { evalResultToTopLines, type TopLine } from './engine/stockfish'
-import { classifyMove, isSacrificeFn } from './engine/analysis'
+import { classifyMove, computeAccuracy, isSacrificeFn } from './engine/analysis'
 import type { MoveGrade } from './engine/analysis'
 import type { Key } from 'chessground/types'
 import { cacheRatingsFromGameList, readCachedRatings } from './components/Import/normalizeGame'
@@ -151,6 +151,35 @@ function nowMs(): number {
 
 function roundDuration(durationMs: number): number {
   return Math.round(durationMs * 10) / 10
+}
+
+async function copyText(text: string): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // Fall through to the textarea fallback.
+    }
+  }
+
+  if (typeof document === 'undefined') return false
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', 'true')
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  textarea.style.pointerEvents = 'none'
+  document.body.appendChild(textarea)
+  textarea.select()
+
+  try {
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    document.body.removeChild(textarea)
+  }
 }
 
 function getInitialClockFromTimeControl(timeControl: string | undefined): string | undefined {
@@ -1715,6 +1744,42 @@ export default function App() {
     }
   }, [moveTree, rootId, rootBranchIds, gameHeaders])
 
+  const handleExportDeepMoveStats = useCallback(async () => {
+    if (!isLoaded || moveEvals.length === 0) return false
+
+    const whiteStats = computeSideStats(moveEvals, 'white')
+    const blackStats = computeSideStats(moveEvals, 'black')
+    const snapshot = buildCalibrationSnapshot({
+      platform: platform ?? 'pgn-paste',
+      gameId: currentGameId,
+      timeControl: currentGameMeta?.timeControl ?? null,
+      endTime: currentGameMeta?.endTime ?? null,
+      result: gameResult,
+      whiteName: whitePlayer,
+      blackName: blackPlayer,
+      whiteElo,
+      blackElo,
+      whiteStats,
+      blackStats,
+      whiteAccuracy: whiteStats ? computeAccuracy(moveEvals, 'white') : null,
+      blackAccuracy: blackStats ? computeAccuracy(moveEvals, 'black') : null,
+    })
+
+    return copyText(JSON.stringify(snapshot, null, 2))
+  }, [
+    isLoaded,
+    moveEvals,
+    platform,
+    currentGameId,
+    currentGameMeta?.timeControl,
+    currentGameMeta?.endTime,
+    gameResult,
+    whitePlayer,
+    blackPlayer,
+    whiteElo,
+    blackElo,
+  ])
+
   const evalDisplayProps = {
     displayedEvalText,
     currentAnalysisDepth,
@@ -1736,6 +1801,7 @@ export default function App() {
     onAnalyzeNow: handleAnalyzeNow,
     onClearVariations: resetBranches,
     onExportPgn: handleExportPgn,
+    onExportDeepMoveStats: handleExportDeepMoveStats,
     hasVariations: hasReviewVariations,
     canExport: canExportPgn,
   }
@@ -2217,10 +2283,6 @@ export default function App() {
                           whiteElo={whiteElo}
                           blackElo={blackElo}
                           result={gameResult}
-                          platform={platform ?? 'pgn-paste'}
-                          gameId={currentGameId}
-                          timeControl={currentGameMeta?.timeControl ?? null}
-                          endTime={currentGameMeta?.endTime ?? null}
                         />
                       )}
 
