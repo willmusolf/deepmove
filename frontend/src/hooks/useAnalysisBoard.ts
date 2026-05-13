@@ -159,7 +159,7 @@ export function useAnalysisBoard() {
         startFen: prev.startFen,
       }
     })
-  }, [state.branchCounter])
+  }, [state.branchCounter, state.currentPath, state.rootBranchIds, state.rootId, state.tree])
 
   const goBack = useCallback(() => {
     setState(prev => {
