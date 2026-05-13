@@ -2597,6 +2597,12 @@ html.theme-light .analysis-settings-popover {
 }
 
 /* ── Game Report ──────────────────────────────────────────────────────── */
+.game-report-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
 .game-report {
   display: flex;
   flex-direction: row;
@@ -2746,6 +2752,24 @@ html.theme-light .analysis-settings-popover {
 
 .game-report-pill-count {
   font-variant-numeric: tabular-nums;
+}
+
+.game-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.game-report-copy-btn {
+  min-height: 1.9rem;
+  padding-inline: 0.75rem;
+  font-size: 0.72rem;
+}
+
+.game-report-copy-status {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
 }
 
 .gr-brilliant  { background: rgba(48, 213, 255, 0.16); color: #30d5ff; border-color: rgba(48, 213, 255, 0.34); }
@@ -6788,6 +6812,10 @@ html.theme-light .game-report-accuracy--yellow {
 html.theme-light .game-report-accuracy--red {
   color: #8c3434;
   background: rgba(191, 75, 75, 0.14);
+}
+
+html.theme-light .game-report-copy-status {
+  color: rgba(15, 23, 42, 0.68);
 }
 
 html.theme-light .move-list,
