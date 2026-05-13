@@ -2217,6 +2217,10 @@ export default function App() {
                           whiteElo={whiteElo}
                           blackElo={blackElo}
                           result={gameResult}
+                          platform={platform ?? 'pgn-paste'}
+                          gameId={currentGameId}
+                          timeControl={currentGameMeta?.timeControl ?? null}
+                          endTime={currentGameMeta?.endTime ?? null}
                         />
                       )}
 
