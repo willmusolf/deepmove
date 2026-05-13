@@ -47,6 +47,7 @@ export function extractClockTimes(rawPgn: string): (string | undefined)[] {
   const times: (string | undefined)[] = []
   let halfMoveIndex = -1
   let variationDepth = 0
+  let foundClock = false
 
   for (let i = 0; i < mainlinePgn.length;) {
     const char = mainlinePgn[i]
@@ -98,6 +99,7 @@ export function extractClockTimes(rawPgn: string): (string | undefined)[] {
       const comment = end === -1 ? mainlinePgn.slice(i + 1) : mainlinePgn.slice(i + 1, end)
       const match = comment.match(CLOCK_COMMENT_CONTENT_REGEX)
       if (match && halfMoveIndex >= 0) {
+        foundClock = true
         times[halfMoveIndex] = match[1]
       }
       i = end === -1 ? mainlinePgn.length : end + 1
@@ -122,7 +124,7 @@ export function extractClockTimes(rawPgn: string): (string | undefined)[] {
     i = end
   }
 
-  return times
+  return foundClock ? times : []
 }
 
 export function hasClockAnnotations(rawPgn: string): boolean {
