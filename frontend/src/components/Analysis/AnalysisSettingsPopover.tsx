@@ -10,6 +10,10 @@ interface Props {
   onClose: () => void
   anchorRef: React.RefObject<HTMLButtonElement>
 
+  showBestLines: boolean
+  setShowBestLines: (v: boolean) => void
+  showEvalGraph: boolean
+  setShowEvalGraph: (v: boolean) => void
   engineLines: EngineLineCount
   setEngineLines: (n: EngineLineCount) => void
   engineDepth: EngineDepthPreset
@@ -36,6 +40,10 @@ export default function AnalysisSettingsPopover({
   open,
   onClose,
   anchorRef,
+  showBestLines,
+  setShowBestLines,
+  showEvalGraph,
+  setShowEvalGraph,
   engineLines,
   setEngineLines,
   engineDepth,
@@ -108,21 +116,30 @@ export default function AnalysisSettingsPopover({
       aria-label="Analysis settings"
     >
       <section className="analysis-settings-popover__section">
-        <div className="analysis-settings-popover__label">Lines shown</div>
-        <div className="analysis-settings-popover__segmented" role="radiogroup">
-          {LINE_OPTIONS.map(n => (
-            <button
-              key={n}
-              type="button"
-              role="radio"
-              aria-checked={engineLines === n}
-              className={`analysis-settings-popover__seg${engineLines === n ? ' analysis-settings-popover__seg--active' : ''}`}
-              onClick={() => setEngineLines(n)}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
+        <label className="analysis-settings-popover__toggle">
+          <input
+            type="checkbox"
+            checked={showBestLines}
+            onChange={e => setShowBestLines(e.target.checked)}
+          />
+          <span>Show engine lines</span>
+        </label>
+        {showBestLines && (
+          <div className="analysis-settings-popover__segmented analysis-settings-popover__nested" role="radiogroup" aria-label="Number of engine lines">
+            {LINE_OPTIONS.map(n => (
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={engineLines === n}
+                className={`analysis-settings-popover__seg${engineLines === n ? ' analysis-settings-popover__seg--active' : ''}`}
+                onClick={() => setEngineLines(n)}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="analysis-settings-popover__section">
@@ -143,6 +160,17 @@ export default function AnalysisSettingsPopover({
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="analysis-settings-popover__section">
+        <label className="analysis-settings-popover__toggle">
+          <input
+            type="checkbox"
+            checked={showEvalGraph}
+            onChange={e => setShowEvalGraph(e.target.checked)}
+          />
+          <span>Show graph</span>
+        </label>
       </section>
 
       <section className="analysis-settings-popover__section">

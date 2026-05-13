@@ -112,6 +112,8 @@ interface AppUiState {
   showEvalBar: boolean
   showArrows: boolean
   showGrades: boolean
+  showBestLines: boolean
+  showEvalGraph: boolean
   engineLines: EngineLineCount
   engineDepth: EngineDepthPreset
   autoAnalyze: boolean
@@ -306,6 +308,8 @@ function loadAppUiState(): AppUiState | null {
       showEvalBar: parsed.showEvalBar !== false,
       showArrows: parsed.showArrows !== false,
       showGrades: parsed.showGrades !== false,
+      showBestLines: parsed.showBestLines !== false,
+      showEvalGraph: parsed.showEvalGraph !== false,
       engineLines: isEngineLineCount(parsed.engineLines) ? parsed.engineLines : 2,
       engineDepth: isDepthPreset(parsed.engineDepth) ? parsed.engineDepth : 'max',
       autoAnalyze: parsed.autoAnalyze !== false,
@@ -324,6 +328,8 @@ function loadAppUiState(): AppUiState | null {
         showEvalBar: true,
         showArrows: true,
         showGrades: true,
+        showBestLines: true,
+        showEvalGraph: true,
         engineLines: 2,
         engineDepth: 'max',
         autoAnalyze: true,
@@ -1037,6 +1043,8 @@ export default function App() {
   const viewMode = panelTab === 'coach' ? 'coach' : 'classic'
   const [showArrows, setShowArrows] = useState(savedUiState?.showArrows ?? true)
   const [showGrades, setShowGrades] = useState(savedUiState?.showGrades ?? true)
+  const [showBestLines, setShowBestLines] = useState(savedUiState?.showBestLines ?? true)
+  const [showEvalGraph, setShowEvalGraph] = useState(savedUiState?.showEvalGraph ?? true)
   const [resetConfirmArmed, setResetConfirmArmed] = useState(false)
 
   useEffect(() => {
@@ -1054,11 +1062,13 @@ export default function App() {
       showEvalBar,
       showArrows,
       showGrades,
+      showBestLines,
+      showEvalGraph,
       engineLines,
       engineDepth,
       autoAnalyze,
     } satisfies AppUiState)
-  }, [currentPage, panelTab, importTab, orientation, showEvalBar, showArrows, showGrades, engineLines, engineDepth, autoAnalyze])
+  }, [currentPage, panelTab, importTab, orientation, showEvalBar, showArrows, showGrades, showBestLines, showEvalGraph, engineLines, engineDepth, autoAnalyze])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1703,6 +1713,10 @@ export default function App() {
     positionMaxDepth,
     isAnalyzingPosition,
     fallbackDepthLabel: evalDisplayFallback,
+    showBestLines,
+    setShowBestLines,
+    showEvalGraph,
+    setShowEvalGraph,
     engineLines,
     setEngineLines,
     engineDepth,
@@ -2182,7 +2196,7 @@ export default function App() {
                         <EvalDisplay {...evalDisplayProps} />
                       )}
 
-                      {!hideLoadedReviewArtifacts && (
+                      {!hideLoadedReviewArtifacts && showBestLines && (
                         <BestLines
                           lines={visibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
@@ -2193,7 +2207,7 @@ export default function App() {
                         />
                       )}
 
-                      {!showAnalyzingBar && moveEvals.length > 0 && (
+                      {!showAnalyzingBar && showEvalGraph && moveEvals.length > 0 && (
                         <EvalGraph
                           moveEvals={moveEvals}
                           totalMoves={totalMoves}
@@ -2454,14 +2468,16 @@ export default function App() {
                         <EvalDisplay {...evalDisplayProps} />
                       )}
 
-                      <BestLines
-                        lines={visibleLines}
-                        isAnalyzingPosition={isAnalyzingPosition}
-                        maxLines={engineLines}
-                        onLineClick={handleAnalysisBestLineClick}
-                        onLineMoveClick={handleAnalysisBestLineMoveClick}
-                        fen={displayFen}
-                      />
+                      {showBestLines && (
+                        <BestLines
+                          lines={visibleLines}
+                          isAnalyzingPosition={isAnalyzingPosition}
+                          maxLines={engineLines}
+                          onLineClick={handleAnalysisBestLineClick}
+                          onLineMoveClick={handleAnalysisBestLineMoveClick}
+                          fen={displayFen}
+                        />
+                      )}
 
                       {/* Analysis board move tree */}
                       {analysisRootId ? (

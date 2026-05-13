@@ -13,6 +13,10 @@ interface Props {
   fallbackDepthLabel?: string | null   // e.g. "depth 22" when no live analysis is running
 
   // Popover wiring
+  showBestLines: boolean
+  setShowBestLines: (v: boolean) => void
+  showEvalGraph: boolean
+  setShowEvalGraph: (v: boolean) => void
   engineLines: EngineLineCount
   setEngineLines: (n: EngineLineCount) => void
   engineDepth: EngineDepthPreset
@@ -32,6 +36,10 @@ export default function EvalDisplay({
   positionMaxDepth,
   isAnalyzingPosition,
   fallbackDepthLabel,
+  showBestLines,
+  setShowBestLines,
+  showEvalGraph,
+  setShowEvalGraph,
   engineLines,
   setEngineLines,
   engineDepth,
@@ -82,6 +90,10 @@ export default function EvalDisplay({
           open={open}
           onClose={() => setOpen(false)}
           anchorRef={triggerRef}
+          showBestLines={showBestLines}
+          setShowBestLines={setShowBestLines}
+          showEvalGraph={showEvalGraph}
+          setShowEvalGraph={setShowEvalGraph}
           engineLines={engineLines}
           setEngineLines={setEngineLines}
           engineDepth={engineDepth}

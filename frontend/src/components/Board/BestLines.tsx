@@ -72,8 +72,12 @@ function buildCollapsedSegments(
   return segments
 }
 
+const ROW_HEIGHT_PX = 32
+const ROW_GAP_PX = 2
+
 export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onLineMoveClick, fen, maxLines = DEFAULT_MAX_LINES }: BestLinesProps) {
   const visibleLines = useMemo(() => lines.slice(0, maxLines), [lines, maxLines])
+  const containerHeight = maxLines * ROW_HEIGHT_PX + Math.max(0, maxLines - 1) * ROW_GAP_PX
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
   const [visibleCollapsedCounts, setVisibleCollapsedCounts] = useState<number[]>([])
   const [isMobile, setIsMobile] = useState(() => (
@@ -177,7 +181,7 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
   const showExpandedOverlay = expandedIndex !== null
 
   return (
-    <div className="best-lines">
+    <div className="best-lines" style={{ height: containerHeight }}>
       {isAnalyzingPosition && lines.length === 0 ? (
         Array.from({ length: maxLines }).map((_, i) => (
           <div key={`skeleton-${i}`} className="best-line-row best-line-skeleton" />
