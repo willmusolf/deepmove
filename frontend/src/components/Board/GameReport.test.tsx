@@ -2,7 +2,7 @@ import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { MoveEval } from '../../engine/analysis'
 import GameReport from './GameReport'
-import { computeSideStats } from './GameReport'
+import { buildCalibrationSnapshot, computeSideStats } from './GameReport'
 
 function makeEval(
   moveNumber: number,
@@ -123,5 +123,45 @@ describe('GameReport rendering', () => {
     expect(container.textContent).toContain('Game Rating:')
     expect(container.textContent).not.toContain('(1500)')
     expect(container.textContent).not.toContain('(1400)')
+  })
+})
+
+describe('buildCalibrationSnapshot', () => {
+  it('builds a copyable comparison snapshot with source URL, stats, and blank Chess.com placeholders', () => {
+    const moveEvals: MoveEval[] = [
+      makeEval(1, 'white', 30, 'best'),
+      makeEval(1, 'black', 20, 'mistake'),
+      makeEval(2, 'white', 40, 'good'),
+      makeEval(2, 'black', 10, 'blunder'),
+    ]
+
+    const whiteStats = computeSideStats(moveEvals, 'white')
+    const blackStats = computeSideStats(moveEvals, 'black')
+
+    const snapshot = buildCalibrationSnapshot({
+      platform: 'chesscom',
+      gameId: 'https://www.chess.com/game/live/123',
+      timeControl: '10 min',
+      endTime: Date.UTC(2026, 4, 13, 16, 0, 0),
+      result: '1-0',
+      whiteName: 'Alice',
+      blackName: 'Bob',
+      whiteElo: '1500',
+      blackElo: '1400',
+      whiteStats,
+      blackStats,
+      whiteAccuracy: 91.2,
+      blackAccuracy: 62.5,
+    })
+
+    expect(snapshot.sourceUrl).toBe('https://www.chess.com/game/live/123')
+    expect(snapshot.players.white.deepmoveAccuracy).toBe(91.2)
+    expect(snapshot.players.white.deepmoveGameRating).toBeGreaterThan(1500)
+    expect(snapshot.players.white.deepmoveBadges.best).toBe(1)
+    expect(snapshot.players.white.deepmoveBadges.good).toBe(1)
+    expect(snapshot.players.black.deepmoveBadges.mistake).toBe(1)
+    expect(snapshot.players.black.deepmoveBadges.blunder).toBe(1)
+    expect(snapshot.chesscomReview.whiteAccuracy).toBeNull()
+    expect(snapshot.chesscomReview.notableDifferences).toBe('')
   })
 })
