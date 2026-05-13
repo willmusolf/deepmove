@@ -143,6 +143,15 @@ summary,
   }
 }
 
+@media (min-width: 1024px) {
+  .nav-sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    align-self: flex-start;
+  }
+}
+
 .app-shell__backdrop,
 .app-header {
   display: none;
