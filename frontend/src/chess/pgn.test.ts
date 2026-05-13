@@ -13,6 +13,11 @@ describe('extractClockTimes', () => {
     expect(extractClockTimes(pgn)).toEqual([])
   })
 
+  it('preserves missing clock annotations as gaps', () => {
+    const pgn = '1. e4 e5 { [%clk 0:09:55] } 2. Nf3 { [%clk 0:09:50] } Nc6'
+    expect(extractClockTimes(pgn)).toEqual([undefined, '0:09:55', '0:09:50', undefined])
+  })
+
   it('handles decimal seconds in clock', () => {
     const pgn = '1. e4 { [%clk 0:09:57.2] } e5 { [%clk 0:09:55.8] }'
     const times = extractClockTimes(pgn)
@@ -23,6 +28,11 @@ describe('extractClockTimes', () => {
     const pgn = '1. e4 { some note } { [%clk 0:09:57] } e5 { [%clk 0:09:55] }'
     const times = extractClockTimes(pgn)
     expect(times).toEqual(['0:09:57', '0:09:55'])
+  })
+
+  it('ignores clock annotations inside variations', () => {
+    const pgn = '1. e4 (1. d4 { [%clk 0:09:58] } d5) e5 { [%clk 0:09:55] }'
+    expect(extractClockTimes(pgn)).toEqual([undefined, '0:09:55'])
   })
 
   it('can detect clock annotations repeatedly without corrupting later extraction', () => {

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Chess } from 'chess.js'
 import { useGameStore } from '../../stores/gameStore'
+import { cleanPgn } from '../../chess/pgn'
 
 interface ImportPanelProps {
   onFenLoad: (fen: string) => void
@@ -12,6 +13,8 @@ export default function ImportPanel({ onFenLoad }: ImportPanelProps) {
   const [fenError, setFenError] = useState<string | null>(null)
 
   const setPgn = useGameStore(s => s.setPgn)
+  const setRawPgn = useGameStore(s => s.setRawPgn)
+  const setLoadedPgn = useGameStore(s => s.setLoadedPgn)
   const setUserColor = useGameStore(s => s.setUserColor)
   const reset = useGameStore(s => s.reset)
 
@@ -20,7 +23,9 @@ export default function ImportPanel({ onFenLoad }: ImportPanelProps) {
     if (!trimmed) return
     reset()
     setUserColor(null)
-    setPgn(trimmed)
+    setRawPgn(trimmed)
+    setLoadedPgn(trimmed)
+    setPgn(cleanPgn(trimmed))
   }
 
   function handleLoadFen() {

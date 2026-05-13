@@ -207,6 +207,15 @@ describe('buildTreeFromPgn', () => {
     expect(result.headers['White']).toBe('Alice')
     expect(result.headers['Black']).toBe('Bob')
   })
+
+  it('keeps sparse clock annotations aligned to the correct moves', () => {
+    const rawPgn = '1. e4 e5 { [%clk 0:09:55] } 2. Nf3 { [%clk 0:09:50] } Nc6'
+    const result = buildTreeFromPgn(rawPgn, rawPgn)
+    expect(result.tree['m0'].clockTime).toBeUndefined()
+    expect(result.tree['m1'].clockTime).toBe('0:09:55')
+    expect(result.tree['m2'].clockTime).toBe('0:09:50')
+    expect(result.tree['m3'].clockTime).toBeUndefined()
+  })
 })
 
 describe('getPathToNode', () => {
