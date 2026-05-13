@@ -12,9 +12,11 @@ interface BestLinesProps {
   onLineClick: (line: TopLine) => void
   onLineMoveClick: (line: TopLine, plyCount: number) => void
   fen: string
+  /** Max rows to render. Defaults to 3 so the engine's MultiPV output is shown as-is. */
+  maxLines?: number
 }
 
-const MAX_LINES = 2
+const DEFAULT_MAX_LINES = 3
 const COLLAPSED_MAX_PLIES = 12
 const EXPANDED_MAX_PLIES = 16
 const MOBILE_BREAKPOINT = '(max-width: 640px)'
@@ -70,8 +72,12 @@ function buildCollapsedSegments(
   return segments
 }
 
-export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onLineMoveClick, fen }: BestLinesProps) {
-  const visibleLines = useMemo(() => lines.slice(0, MAX_LINES), [lines])
+const ROW_HEIGHT_PX = 32
+const ROW_GAP_PX = 2
+
+export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onLineMoveClick, fen, maxLines = DEFAULT_MAX_LINES }: BestLinesProps) {
+  const visibleLines = useMemo(() => lines.slice(0, maxLines), [lines, maxLines])
+  const containerHeight = maxLines * ROW_HEIGHT_PX + Math.max(0, maxLines - 1) * ROW_GAP_PX
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
   const [visibleCollapsedCounts, setVisibleCollapsedCounts] = useState<number[]>([])
   const [isMobile, setIsMobile] = useState(() => (
@@ -175,12 +181,11 @@ export default function BestLines({ lines, isAnalyzingPosition, onLineClick, onL
   const showExpandedOverlay = expandedIndex !== null
 
   return (
-    <div className="best-lines">
+    <div className="best-lines" style={{ height: containerHeight }}>
       {isAnalyzingPosition && lines.length === 0 ? (
-        <>
-          <div className="best-line-row best-line-skeleton" />
-          <div className="best-line-row best-line-skeleton" />
-        </>
+        Array.from({ length: maxLines }).map((_, i) => (
+          <div key={`skeleton-${i}`} className="best-line-row best-line-skeleton" />
+        ))
       ) : (
         visibleLines.map((line, i) => (
           <div

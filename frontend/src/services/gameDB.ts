@@ -4,11 +4,21 @@
 
 import { openDB, type IDBPDatabase } from 'idb'
 import type { MoveEval } from '../engine/analysis'
-import type { CriticalMoment } from '../chess/types'
+import type { CriticalMoment, MoveNode } from '../chess/types'
 import type { ChessComGame } from '../api/chesscom'
 import type { LichessGame } from '../api/lichess'
 
 // ─── Schema ────────────────────────────────────────────────────────────────
+
+/** Serialized variation tree state for a game, persisted so explored
+ *  branches survive reload and reopening the game later. */
+export interface SerializedBranchState {
+  pgnKey: string                                  // PGN this state belongs to — guards against stale carry-over
+  nodes: Record<string, MoveNode>                 // user-created branch nodes
+  extraChildren: Record<string, string[]>         // parentId → extra child ids beyond base tree
+  currentPath: string[]                           // last-viewed path (best-effort restore)
+  branchCounter: number                           // monotonic counter for unique branch ids
+}
 
 export interface AnalyzedGameRecord {
   id: string                              // canonical game ID
@@ -29,6 +39,7 @@ export interface AnalyzedGameRecord {
   endTime: number                         // unix ms, for sorting
   backendGameId: number | null            // DB primary key after sync (null until uploaded)
   partial?: boolean                         // true = analysis incomplete, safe to resume
+  branchState?: SerializedBranchState        // user-explored variations, persisted across sessions
 }
 
 // ─── DB setup ──────────────────────────────────────────────────────────────
@@ -75,6 +86,21 @@ export async function saveAnalyzedGame(record: AnalyzedGameRecord): Promise<void
 export async function getAnalyzedGame(id: string): Promise<AnalyzedGameRecord | undefined> {
   const db = await getDB()
   return db.get(STORE, id)
+}
+
+/** Update only the branchState field on an existing analyzed game.
+ *  Pass null to clear. No-op if the game isn't in IndexedDB (e.g. unimported sandbox). */
+export async function updateBranchState(
+  id: string,
+  branchState: SerializedBranchState | null,
+): Promise<void> {
+  const db = await getDB()
+  const existing = await db.get(STORE, id) as AnalyzedGameRecord | undefined
+  if (!existing) return
+  const next: AnalyzedGameRecord = { ...existing }
+  if (branchState) next.branchState = branchState
+  else delete next.branchState
+  await db.put(STORE, next)
 }
 
 /** Returns the set of game IDs that have completed cached analysis for a given user+platform */
