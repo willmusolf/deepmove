@@ -2439,6 +2439,7 @@ export default function App() {
                           onFenLoad={(fen) => {
                             reset()
                             analysisBoardReset(fen)
+                            setPanelTab('analysis')
                           }}
                         />
                       )}
