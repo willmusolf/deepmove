@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useBotPlay } from './useBotPlay'
+import { getBotStrengthProfile, useBotPlay } from './useBotPlay'
 import { useGameStore } from '../stores/gameStore'
 import { usePlayStore } from '../stores/playStore'
 import type { MoveNode } from '../chess/types'
@@ -159,5 +159,21 @@ describe('useBotPlay review handoff', () => {
     expect(useGameStore.getState().pgn).toBeNull()
 
     unmount()
+  })
+})
+
+describe('getBotStrengthProfile', () => {
+  it('gives club-level settings a steadier internal engine profile', () => {
+    expect(getBotStrengthProfile(1200, '10+0')).toEqual({
+      engineElo: 1450,
+      movetime: 800,
+    })
+  })
+
+  it('does not inflate top-end settings beyond the selected strength', () => {
+    expect(getBotStrengthProfile(2800, '5+0')).toEqual({
+      engineElo: 2800,
+      movetime: 250,
+    })
   })
 })

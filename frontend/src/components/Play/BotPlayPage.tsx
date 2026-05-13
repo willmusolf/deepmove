@@ -381,6 +381,14 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   const boardSurface = useMemo(() => (
     <div
       className="board-overlay-host"
+      onMouseDownCapture={(event) => {
+        if (isCoarsePointer) return
+        if (event.button !== 2) return
+        if (premoveQueue.length === 0) return
+        event.preventDefault()
+        event.stopPropagation()
+        cancelPremoveQueue()
+      }}
       onContextMenu={(event) => {
         event.preventDefault()
         cancelPremoveQueue()
