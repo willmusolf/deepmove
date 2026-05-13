@@ -141,6 +141,25 @@ summary,
     align-items: flex-start;
     padding-bottom: 1rem;
   }
+
+  .app-shell--fixed-page {
+    height: 100vh;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  .app-shell--fixed-page .app-content,
+  .app-shell--fixed-page .app-view--fixed-layout,
+  .app-shell--fixed-page .app-main--fixed-layout {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .app-shell--fixed-page .app-main--fixed-layout {
+    flex: 1 1 auto;
+    align-items: stretch;
+    padding-bottom: 0.75rem;
+  }
 }
 
 @media (min-width: 1024px) {
@@ -269,14 +288,33 @@ html.theme-light body {
     flex-direction: column;
   }
 
-  .app-content,
-  .app-view,
-  .app-main {
+  .app-shell--fixed-page {
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+
+  .app-view--page,
+  .app-main--page,
+  .app-view--document,
+  .app-main--document {
     overflow: visible;
   }
 
-  .app-main {
+  .app-main--page,
+  .app-main--document {
     min-height: auto;
+  }
+
+  .app-view--fixed-layout,
+  .app-main--fixed-layout {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .app-shell--fixed-page .app-content {
+    min-height: 0;
+    overflow: hidden;
   }
 
   .app-shell--compact-nav .app-shell__backdrop {

@@ -1185,6 +1185,10 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
     overflow-y: visible;
     overflow-x: visible;
   }
+
+  .app-shell--fixed-page .app-main--fixed-layout {
+    overflow: hidden;
+  }
 }
 
 .player-info-box {
@@ -1287,9 +1291,14 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 @media (max-width: 1180px) {
   .app-main {
     flex-direction: column;
-    overflow-y: auto;
     align-items: stretch;
     padding: 1rem;
+  }
+
+  .app-view--fixed-layout,
+  .app-main--fixed-layout {
+    min-height: 0;
+    overflow: hidden;
   }
 
   .board-col {
@@ -1315,11 +1324,15 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   }
 
   .side-col {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    min-height: 360px;
+    min-height: 0;
+  }
+
+  .side-panel-content {
+    min-height: 0;
   }
 
   .board-controls {
@@ -1361,6 +1374,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 /* ── Narrow screens ────────────────────────────────────────────────────── */
 @media (max-width: 860px) {
   .app-main {
+    overflow-y: auto;
     padding: 0.75rem;
     gap: 0.75rem;
   }
@@ -1391,6 +1405,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
   .side-col {
     min-height: 320px;
+    max-height: none;
   }
 }
 
@@ -1762,6 +1777,172 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   font-family: var(--font-mono);
 }
 
+.eval-display-settings {
+  position: relative;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.eval-display-gear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.eval-display-gear:hover {
+  color: var(--color-text);
+  background: var(--color-surface-2);
+}
+
+.eval-display-gear--open {
+  color: var(--color-text);
+  background: var(--color-surface-2);
+  border-color: var(--color-border);
+}
+
+.analysis-settings-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 220px;
+  padding: 0.65rem 0.75rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  color: var(--color-text);
+}
+
+.analysis-settings-popover__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.analysis-settings-popover__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.analysis-settings-popover__segmented {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.analysis-settings-popover__nested {
+  margin-left: 1.5rem;
+  width: calc(100% - 1.5rem);
+}
+
+.analysis-settings-popover__seg {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 0.35rem 0.25rem;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.analysis-settings-popover__seg:last-child {
+  border-right: none;
+}
+
+.analysis-settings-popover__seg:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.analysis-settings-popover__seg--active {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.analysis-settings-popover__seg-sub {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+}
+
+.analysis-settings-popover__seg--active .analysis-settings-popover__seg-sub {
+  color: var(--color-text);
+}
+
+.analysis-settings-popover__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.analysis-settings-popover__toggle input[type="checkbox"] {
+  margin: 0;
+}
+
+.analysis-settings-popover__manual {
+  margin-top: 0.4rem;
+  align-self: flex-start;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.analysis-settings-popover__divider {
+  margin: 0;
+  border: none;
+  border-top: 1px solid var(--color-border);
+  opacity: 0.7;
+}
+
+.analysis-settings-popover__actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.analysis-settings-popover__action {
+  flex: 1;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.analysis-settings-popover__action--armed {
+  border-color: var(--color-warning, #d4a64a);
+  color: var(--color-warning, #d4a64a);
+}
+
+html.theme-light .analysis-settings-popover {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  box-shadow: 0 6px 16px rgba(40, 30, 20, 0.18);
+}
+
 /* ── Eval Graph ────────────────────────────────────────────────────────── */
 .eval-graph-wrap {
   flex-shrink: 0;
@@ -2007,12 +2188,13 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 /* ── Best lines panel ─────────────────────────────────────────────────── */
+/* Height is set inline from BestLines.tsx based on the user's "lines shown"
+ * setting (1/2/3) so the move transcript below reflows correctly. */
 .best-lines {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  height: 66px;  /* 2 rows × 32px + 2px gap */
   flex-shrink: 0;
   overflow: visible;
 }

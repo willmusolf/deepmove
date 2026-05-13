@@ -29,6 +29,7 @@ const MAIN_ITEMS = [
 
 const SECONDARY_ITEMS = [
   { id: 'about' as const, label: 'About', icon: 'ⓘ' },
+  { id: 'privacy' as const, label: 'Privacy', icon: '◫' },
 ]
 
 export default function NavSidebar({ currentPage, onNavigate, collapsed = false, onToggleCollapse }: NavSidebarProps) {
