@@ -49,6 +49,43 @@ export function useAnalysisBoard() {
   // ── Mutations ─────────────────────────────────────────────────────────────
 
   const addMove = useCallback((from: string, to: string, san: string, newFen: string) => {
+    const parentId = state.currentPath.length > 0
+      ? state.currentPath[state.currentPath.length - 1]
+      : null
+
+    // Re-entering an existing node must update the ref synchronously because
+    // callers read lastAddedNodeIdRef.current immediately after addMove().
+    if (parentId !== null) {
+      const existingId = state.tree[parentId]?.childIds.find(cid => {
+        const n = state.tree[cid]
+        return n && n.from === from && n.to === to && n.san === san
+      })
+      if (existingId) {
+        lastAddedNodeIdRef.current = existingId
+        setState(prev => ({ ...prev, currentPath: [...prev.currentPath, existingId] }))
+        return
+      }
+    } else {
+      if (state.rootId) {
+        const root = state.tree[state.rootId]
+        if (root && root.from === from && root.to === to && root.san === san) {
+          lastAddedNodeIdRef.current = state.rootId
+          setState(prev => prev.rootId ? { ...prev, currentPath: [prev.rootId] } : prev)
+          return
+        }
+      }
+
+      const existingRootBranch = state.rootBranchIds.find(bid => {
+        const n = state.tree[bid]
+        return n && n.from === from && n.to === to && n.san === san
+      })
+      if (existingRootBranch) {
+        lastAddedNodeIdRef.current = existingRootBranch
+        setState(prev => ({ ...prev, currentPath: [existingRootBranch] }))
+        return
+      }
+    }
+
     // Compute the new node ID synchronously from the current branchCounter so that
     // callers can read lastAddedNodeIdRef.current immediately after this call returns
     // (before React processes the setState batch). This matches the same pattern used
@@ -63,36 +100,6 @@ export function useAnalysisBoard() {
       const parentId = prev.currentPath.length > 0
         ? prev.currentPath[prev.currentPath.length - 1]
         : null
-
-      // Sit B: re-enter an existing child (same from/to/san)
-      if (parentId !== null) {
-        const existingId = prev.tree[parentId]?.childIds.find(cid => {
-          const n = prev.tree[cid]
-          return n && n.from === from && n.to === to && n.san === san
-        })
-        if (existingId) {
-          lastAddedNodeIdRef.current = existingId
-          return { ...prev, currentPath: [...prev.currentPath, existingId] }
-        }
-      } else {
-        // Root-level re-entry: check if rootId's move matches
-        if (prev.rootId) {
-          const root = prev.tree[prev.rootId]
-          if (root && root.from === from && root.to === to && root.san === san) {
-            lastAddedNodeIdRef.current = prev.rootId
-            return { ...prev, currentPath: [prev.rootId] }
-          }
-        }
-        // Also check existing root branches
-        const existingRootBranch = prev.rootBranchIds.find(bid => {
-          const n = prev.tree[bid]
-          return n && n.from === from && n.to === to && n.san === san
-        })
-        if (existingRootBranch) {
-          lastAddedNodeIdRef.current = existingRootBranch
-          return { ...prev, currentPath: [existingRootBranch] }
-        }
-      }
 
       // Derive color and moveNumber from parent's FEN
       const parentNode = parentId ? prev.tree[parentId] : null
