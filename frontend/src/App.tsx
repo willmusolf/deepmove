@@ -633,8 +633,9 @@ export default function App() {
 
   function mergeStreamingTopLines(incoming: TopLine[]): TopLine[] {
     if (incoming.length === 0) return incoming
-    const existing = useGameStore.getState().currentPositionLines
-    if (existing.length <= incoming.length) return incoming
+    const targetCount = engineLinesRef.current
+    const existing = useGameStore.getState().currentPositionLines.slice(0, targetCount)
+    if (existing.length <= incoming.length) return incoming.slice(0, targetCount)
 
     const mergedByRank = new Map<number, TopLine>()
     for (const line of existing) mergedByRank.set(line.rank, line)
@@ -642,7 +643,7 @@ export default function App() {
 
     return Array.from(mergedByRank.values())
       .sort((a, b) => a.rank - b.rank)
-      .slice(0, existing.length)
+      .slice(0, targetCount)
   }
 
   useEffect(() => {
@@ -807,13 +808,15 @@ export default function App() {
       return
     }
 
-    // If line count changed since last run, drop the cached entry for this
-    // FEN so the cache lookup below misses and we re-dispatch with the new
-    // MultiPV setting. Done inline (not in a separate effect) because effect
-    // ordering otherwise lets this effect read the stale cache and exit early
-    // when the cached depth is already complete.
+    // Line count changes invalidate the full per-position cache because the
+    // cache is keyed by FEN only. Reusing cached 1-line output after switching
+    // to 3 lines (or vice versa) leaves BestLines in an inconsistent state.
     if (prevEngineLinesRef.current !== engineLines) {
-      positionCache.current.delete(displayFen)
+      positionCacheWriterRef.current?.cancel()
+      positionCache.current.clear()
+      lastNavTimeRef.current = 0
+      setCurrentPositionLines([])
+      setCurrentAnalysisDepth(0)
       prevEngineLinesRef.current = engineLines
     }
 
