@@ -1739,6 +1739,7 @@ export default function App() {
     hasVariations: hasReviewVariations,
     canExport: canExportPgn,
   }
+  const bestLinesComponentKey = `${displayFen}:${engineLines}:${showBestLines ? 'on' : 'off'}`
 
   // ── Arrow shapes ───────────────────────────────────────────────────────────
 
@@ -2185,6 +2186,7 @@ export default function App() {
 
                       {!hideLoadedReviewArtifacts && showBestLines && (
                         <BestLines
+                          key={bestLinesComponentKey}
                           lines={visibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
                           maxLines={engineLines}
@@ -2457,6 +2459,7 @@ export default function App() {
 
                       {showBestLines && (
                         <BestLines
+                          key={bestLinesComponentKey}
                           lines={visibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
                           maxLines={engineLines}
