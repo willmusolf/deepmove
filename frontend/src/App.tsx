@@ -71,6 +71,7 @@ import {
 } from './config/sponsor'
 import { SUPPORT_GITHUB_ISSUES_URL } from './config/contact'
 import { getPageFromPathname, getPageMeta, getPathForPage, isIndexablePage } from './utils/pageMeta'
+import { normalizeRestoredPage } from './utils/navigation'
 import { reportFrontendPerf } from './services/monitoring'
 
 // Lichess-style thickness brushes — all green, varying weight
@@ -133,6 +134,30 @@ function nowMs(): number {
 
 function roundDuration(durationMs: number): number {
   return Math.round(durationMs * 10) / 10
+}
+
+function getInitialClockFromTimeControl(timeControl: string | undefined): string | undefined {
+  if (!timeControl) return undefined
+
+  let tcSecs: number
+  if (timeControl.includes('h')) {
+    tcSecs = parseInt(timeControl, 10) * 3600
+  } else if (timeControl.includes('+')) {
+    const base = parseInt(timeControl, 10)
+    tcSecs = Number.isNaN(base) ? 0 : (base >= 60 ? base : base * 60)
+  } else if (timeControl.includes('min')) {
+    tcSecs = parseInt(timeControl, 10) * 60
+  } else {
+    const base = parseInt(timeControl, 10)
+    tcSecs = Number.isNaN(base) ? 0 : (base >= 60 ? base : base * 60)
+  }
+
+  if (tcSecs <= 0) return undefined
+
+  const h = Math.floor(tcSecs / 3600)
+  const m = Math.floor((tcSecs % 3600) / 60)
+  const s = tcSecs % 60
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
 function useTouchHoldNavigate(
@@ -249,7 +274,7 @@ function loadAppUiState(): AppUiState | null {
   const parsed = readSessionJson<Partial<AppUiState>>(APP_UI_SESSION_KEY)
   if (parsed && typeof parsed === 'object') {
     return {
-      currentPage: isPage(parsed.currentPage) ? parsed.currentPage : 'review',
+      currentPage: isPage(parsed.currentPage) ? normalizeRestoredPage(parsed.currentPage) : 'review',
       panelTab: isPanelTab(parsed.panelTab) ? parsed.panelTab : 'load',
       importTab: isImportTab(parsed.importTab) ? parsed.importTab : 'chesscom',
       orientation: parsed.orientation === 'black' ? 'black' : 'white',
@@ -264,7 +289,7 @@ function loadAppUiState(): AppUiState | null {
     : null
   return legacyPage && isPage(legacyPage)
     ? {
-        currentPage: legacyPage,
+        currentPage: normalizeRestoredPage(legacyPage),
         panelTab: 'load',
         importTab: 'chesscom',
         orientation: 'white',
@@ -1189,28 +1214,9 @@ export default function App() {
     if (bottomClock === undefined && node.color === bottomColor) bottomClock = node.clockTime
     if (topClock !== undefined && bottomClock !== undefined) break
   }
-  // At move 0, fall back to the game start time derived from time control
-  if (topClock === undefined && bottomClock === undefined && currentGameMeta?.timeControl) {
-    const tc = currentGameMeta.timeControl
-    let tcSecs: number
-    if (tc.includes('+')) {
-      const base = parseInt(tc, 10)
-      tcSecs = isNaN(base) ? 0 : (base >= 60 ? base : base * 60)
-    } else if (tc.includes('min')) {
-      tcSecs = parseInt(tc, 10) * 60
-    } else {
-      const base = parseInt(tc, 10)
-      tcSecs = isNaN(base) ? 0 : (base >= 60 ? base : base * 60)
-    }
-    if (tcSecs > 0) {
-      const h = Math.floor(tcSecs / 3600)
-      const m = Math.floor((tcSecs % 3600) / 60)
-      const s = tcSecs % 60
-      const initial = `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-      topClock = initial
-      bottomClock = initial
-    }
-  }
+  const initialClock = getInitialClockFromTimeControl(currentGameMeta?.timeControl)
+  if (topClock === undefined) topClock = initialClock
+  if (bottomClock === undefined) bottomClock = initialClock
 
 
   // ── Handlers ───────────────────────────────────────────────────────────────
@@ -1700,10 +1706,12 @@ export default function App() {
       <div className={[
         'app-view',
         isScrollPage ? 'app-view--page' : '',
+        isFixedLayoutPage ? 'app-view--fixed-layout' : '',
         isDocumentPage ? 'app-view--document' : '',
       ].filter(Boolean).join(' ')}>
         <div className={[
           'app-main',
+          isFixedLayoutPage ? 'app-main--fixed-layout' : '',
           isDocumentPage ? 'app-main--document' : '',
           !isFixedLayoutPage && !isDocumentPage ? 'app-main--page' : '',
         ].filter(Boolean).join(' ')}>

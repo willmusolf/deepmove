@@ -92,6 +92,9 @@ export default function PlaySetupPanel({ orientation, onOrientationChange, onSta
           <span>1500</span>
           <span>3000</span>
         </div>
+        <div className="play-setup-help">
+          Calibrated for steadier browser play, especially around club-level ratings.
+        </div>
       </div>
 
       <div className="play-setup-section">

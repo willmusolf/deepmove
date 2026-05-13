@@ -1,5 +1,7 @@
 // pgn.ts — PGN cleaning utilities
 
+const CLOCK_COMMENT_REGEX = /\{\s*\[%clk\s+(\d+:\d{2}:\d{2}(?:\.\d+)?)\]\s*\}/g
+
 /**
  * Strip all {...} comments from a PGN string before passing to chess.js.
  * Chess.com embeds clock times, move effects, and other metadata in comments:
@@ -29,10 +31,15 @@ export function cleanPgn(pgn: string): string {
  */
 export function extractClockTimes(rawPgn: string): (string | undefined)[] {
   const times: (string | undefined)[] = []
-  const regex = /\{\s*\[%clk\s+(\d+:\d{2}:\d{2}(?:\.\d+)?)\]\s*\}/g
+  CLOCK_COMMENT_REGEX.lastIndex = 0
   let match: RegExpExecArray | null
-  while ((match = regex.exec(rawPgn)) !== null) {
+  while ((match = CLOCK_COMMENT_REGEX.exec(rawPgn)) !== null) {
     times.push(match[1])
   }
   return times
+}
+
+export function hasClockAnnotations(rawPgn: string): boolean {
+  CLOCK_COMMENT_REGEX.lastIndex = 0
+  return CLOCK_COMMENT_REGEX.test(rawPgn)
 }

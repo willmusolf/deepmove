@@ -114,6 +114,35 @@ summary,
   overflow: visible;
 }
 
+@media (min-width: 1024px) and (max-height: 720px) {
+  html, body {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: auto;
+  }
+
+  .app {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .app-content,
+  .app-view--fixed-layout,
+  .app-main--fixed-layout {
+    overflow: visible;
+  }
+
+  .app-main--fixed-layout {
+    flex: 0 0 auto;
+    min-height: auto;
+    align-items: flex-start;
+    padding-bottom: 1rem;
+  }
+}
+
 .app-shell__backdrop,
 .app-header {
   display: none;

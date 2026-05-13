@@ -27,11 +27,6 @@ const MAIN_ITEMS = [
   { id: 'play'   as const, label: 'Play',   icon: '▶' },
 ]
 
-const SOON_ITEMS = [
-  { id: 'practice'  as const, label: 'Practice',  icon: '◎' },
-  { id: 'dashboard' as const, label: 'Dashboard', icon: '▨' },
-]
-
 const SECONDARY_ITEMS = [
   { id: 'about' as const, label: 'About', icon: 'ⓘ' },
 ]
@@ -73,19 +68,6 @@ export default function NavSidebar({ currentPage, onNavigate, collapsed = false,
       ))}
 
       <div className="nav-divider" />
-
-      {SOON_ITEMS.map(item => (
-        <div
-          key={item.id}
-          className={`nav-item${currentPage === item.id ? ' active' : ''}`}
-          onClick={() => onNavigate(item.id)}
-          title={collapsed ? item.label : undefined}
-        >
-          <span className="nav-icon">{item.icon}</span>
-          {!collapsed && <span>{item.label}</span>}
-          {!collapsed && <span className="nav-soon">Soon</span>}
-        </div>
-      ))}
 
       {SECONDARY_ITEMS.map(item => (
         <div

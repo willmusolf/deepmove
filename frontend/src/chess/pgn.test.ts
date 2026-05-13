@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cleanPgn, extractClockTimes } from './pgn'
+import { cleanPgn, extractClockTimes, hasClockAnnotations } from './pgn'
 
 describe('extractClockTimes', () => {
   it('extracts clock times in move order', () => {
@@ -23,6 +23,13 @@ describe('extractClockTimes', () => {
     const pgn = '1. e4 { some note } { [%clk 0:09:57] } e5 { [%clk 0:09:55] }'
     const times = extractClockTimes(pgn)
     expect(times).toEqual(['0:09:57', '0:09:55'])
+  })
+
+  it('can detect clock annotations repeatedly without corrupting later extraction', () => {
+    const pgn = '1. e4 { [%clk 0:09:57] } e5 { [%clk 0:09:55] }'
+    expect(hasClockAnnotations(pgn)).toBe(true)
+    expect(hasClockAnnotations(pgn)).toBe(true)
+    expect(extractClockTimes(pgn)).toEqual(['0:09:57', '0:09:55'])
   })
 })
 

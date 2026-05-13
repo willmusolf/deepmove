@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AccountLink from './AccountLink'
+import type { LichessGame } from '../../api/lichess'
 
 const mocks = vi.hoisted(() => ({
   getRecentGames: vi.fn(),
@@ -68,5 +69,41 @@ describe('AccountLink', () => {
     await waitFor(() => {
       expect(localStorage.getItem('deepmove_chesscom_username')).toBe('mobileuser')
     })
+  })
+
+  it('ignores stale Lichess cache entries that are missing clock annotations', () => {
+    const staleLichessGame: LichessGame = {
+      id: 'abc123',
+      rated: true,
+      variant: 'standard',
+      speed: 'rapid',
+      perf: 'rapid',
+      createdAt: 1700000000000,
+      lastMoveAt: 1700001000000,
+      status: 'mate',
+      players: {
+        white: { user: { name: 'alice' }, rating: 1600 },
+        black: { user: { name: 'bob' }, rating: 1550 },
+      },
+      pgn: '1. e4 e5 2. Nf3 Nc6',
+      clock: { initial: 600, increment: 0 },
+    }
+
+    localStorage.setItem('deepmove_lichess_username', 'alice')
+    localStorage.setItem('deepmove_gamelist_lichess_alice', JSON.stringify({
+      games: [staleLichessGame],
+      pagination: { platform: 'lichess', hasMore: false },
+      fetchedAt: Date.now(),
+    }))
+
+    const onGamesLoaded = vi.fn()
+    render(
+      <AccountLink
+        platform="lichess"
+        onGamesLoaded={onGamesLoaded}
+      />
+    )
+
+    expect(onGamesLoaded).not.toHaveBeenCalled()
   })
 })
