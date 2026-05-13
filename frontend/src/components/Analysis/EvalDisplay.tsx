@@ -28,6 +28,7 @@ interface Props {
   onAnalyzeNow?: () => void
   onClearVariations?: () => void
   onExportPgn?: () => void
+  onExportDeepMoveStats?: () => Promise<boolean> | boolean
   hasVariations: boolean
   canExport: boolean
 }
@@ -53,6 +54,7 @@ export default function EvalDisplay({
   onAnalyzeNow,
   onClearVariations,
   onExportPgn,
+  onExportDeepMoveStats,
   hasVariations,
   canExport,
 }: Props) {
@@ -109,6 +111,7 @@ export default function EvalDisplay({
           onAnalyzeNow={onAnalyzeNow}
           onClearVariations={onClearVariations}
           onExportPgn={onExportPgn}
+          onExportDeepMoveStats={onExportDeepMoveStats}
           hasVariations={hasVariations}
           canExport={canExport}
         />
