@@ -1185,6 +1185,10 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
     overflow-y: visible;
     overflow-x: visible;
   }
+
+  .app-shell--fixed-page .app-main--fixed-layout {
+    overflow: hidden;
+  }
 }
 
 .player-info-box {
