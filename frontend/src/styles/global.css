@@ -270,13 +270,22 @@ html.theme-light body {
   }
 
   .app-content,
-  .app-view,
-  .app-main {
+  .app-view--page,
+  .app-main--page,
+  .app-view--document,
+  .app-main--document {
     overflow: visible;
   }
 
-  .app-main {
+  .app-main--page,
+  .app-main--document {
     min-height: auto;
+  }
+
+  .app-view--fixed-layout,
+  .app-main--fixed-layout {
+    min-height: 0;
+    overflow: hidden;
   }
 
   .app-shell--compact-nav .app-shell__backdrop {
