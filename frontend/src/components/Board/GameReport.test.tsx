@@ -2,7 +2,9 @@ import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { MoveEval } from '../../engine/analysis'
 import GameReport from './GameReport'
-import { buildCalibrationSnapshot, computeSideStats } from './GameReport'
+import calibrationData from './gameRatingCalibrationData.json'
+import { buildCalibrationSnapshot, computeSideStats, estimatePerformanceRating } from './GameReport'
+import { estimatePerformanceRatingFromInputs, type SideResult } from './gameRatingModel'
 
 function makeEval(
   moveNumber: number,
@@ -26,6 +28,36 @@ function makeEval(
     },
     grade,
   }
+}
+
+function legacyEstimatePerformanceRating(
+  accuracy: number | null,
+  rating: number | null,
+  sideResult: SideResult,
+): number | null {
+  if (accuracy === null || rating === null) return null
+
+  const expected = 50 + 45 / (1 + Math.exp(-(rating - 1500) / 700))
+  let estimate = rating + (accuracy - expected) * 5
+
+  if (sideResult === 'win') {
+    estimate += 50
+    if (accuracy < 70) estimate -= (70 - accuracy) * 3
+  } else if (sideResult === 'loss') {
+    estimate -= 175
+    if (accuracy < 80) estimate -= (80 - accuracy) * 7
+    estimate = Math.min(estimate, rating - 25)
+  } else if (sideResult === 'draw') {
+    estimate = Math.max(rating - 75, Math.min(rating + 75, estimate))
+  }
+
+  return Math.round(Math.max(100, Math.min(3200, estimate)) / 50) * 50
+}
+
+function getSideResult(result: string, color: 'white' | 'black'): SideResult {
+  if (result === '1-0') return color === 'white' ? 'win' : 'loss'
+  if (result === '0-1') return color === 'black' ? 'win' : 'loss'
+  return 'draw'
 }
 
 describe('computeSideStats', () => {
@@ -163,5 +195,79 @@ describe('buildCalibrationSnapshot', () => {
     expect(snapshot.players.black.deepmoveBadges.blunder).toBe(1)
     expect(snapshot.chesscomReview.whiteAccuracy).toBeNull()
     expect(snapshot.chesscomReview.notableDifferences).toBe('')
+  })
+})
+
+describe('game rating calibration', () => {
+  it('raises compressed high-end performances closer to the Chess.com sample set', () => {
+    const sampleCases = [
+      { gameId: '168331799352', color: 'white' as const },
+      { gameId: '168331799352', color: 'black' as const },
+      { gameId: '168559744704', color: 'white' as const },
+      { gameId: '167814796476', color: 'white' as const },
+      { gameId: '167144755286', color: 'black' as const },
+    ]
+
+    for (const sampleCase of sampleCases) {
+      const game = calibrationData.find(entry => entry.gameId === sampleCase.gameId)
+      expect(game).toBeTruthy()
+
+      const side = game!.players[sampleCase.color]
+      const opponent = sampleCase.color === 'white' ? game!.players.black : game!.players.white
+      const sideResult = getSideResult(game!.result, sampleCase.color)
+
+      const calibrated = estimatePerformanceRatingFromInputs(
+        side.deepmoveAccuracy,
+        side.rating,
+        opponent.rating,
+        sideResult,
+      )
+      const legacy = legacyEstimatePerformanceRating(side.deepmoveAccuracy, side.rating, sideResult)
+
+      expect(calibrated).not.toBeNull()
+      expect(legacy).not.toBeNull()
+      expect(Math.abs((calibrated ?? 0) - side.chesscomGameRating)).toBeLessThanOrEqual(
+        Math.abs((legacy ?? 0) - side.chesscomGameRating),
+      )
+    }
+  })
+
+  it('improves aggregate fit across the calibration dataset without inflating low-quality losses', () => {
+    let calibratedError = 0
+    let legacyError = 0
+    let lowQualityLossCount = 0
+
+    for (const game of calibrationData) {
+      for (const color of ['white', 'black'] as const) {
+        const side = game.players[color]
+        const opponent = color === 'white' ? game.players.black : game.players.white
+        const sideResult = getSideResult(game.result, color)
+        const calibrated = estimatePerformanceRatingFromInputs(
+          side.deepmoveAccuracy,
+          side.rating,
+          opponent.rating,
+          sideResult,
+        )
+        const legacy = legacyEstimatePerformanceRating(side.deepmoveAccuracy, side.rating, sideResult)
+
+        calibratedError += Math.abs((calibrated ?? 0) - side.chesscomGameRating)
+        legacyError += Math.abs((legacy ?? 0) - side.chesscomGameRating)
+
+        if (sideResult === 'loss' && side.deepmoveAccuracy <= 70) {
+          lowQualityLossCount += 1
+          expect(calibrated).not.toBeNull()
+          expect(calibrated).toBeLessThanOrEqual(opponent.rating + 100)
+        }
+      }
+    }
+
+    expect(lowQualityLossCount).toBeGreaterThan(0)
+    expect(calibratedError).toBeLessThan(legacyError)
+  })
+
+  it('uses both player and opponent ratings when estimating a side performance', () => {
+    expect(estimatePerformanceRating(91.8, '1312', '1709', 'win')).toBe(
+      estimatePerformanceRatingFromInputs(91.8, 1312, 1709, 'win'),
+    )
   })
 })
