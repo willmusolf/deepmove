@@ -114,6 +114,7 @@ interface AppUiState {
   showGrades: boolean
   showBestLines: boolean
   showEvalGraph: boolean
+  showReport: boolean
   engineLines: EngineLineCount
   engineDepth: EngineDepthPreset
   autoAnalyze: boolean
@@ -310,6 +311,7 @@ function loadAppUiState(): AppUiState | null {
       showGrades: parsed.showGrades !== false,
       showBestLines: parsed.showBestLines !== false,
       showEvalGraph: parsed.showEvalGraph !== false,
+      showReport: parsed.showReport !== false,
       engineLines: isEngineLineCount(parsed.engineLines) ? parsed.engineLines : 2,
       engineDepth: isDepthPreset(parsed.engineDepth) ? parsed.engineDepth : 'max',
       autoAnalyze: parsed.autoAnalyze !== false,
@@ -330,6 +332,7 @@ function loadAppUiState(): AppUiState | null {
         showGrades: true,
         showBestLines: true,
         showEvalGraph: true,
+        showReport: true,
         engineLines: 2,
         engineDepth: 'max',
         autoAnalyze: true,
@@ -360,6 +363,7 @@ export default function App() {
     lastAddedNodeIdRef,
     nextMainLineNode,
     navigateTo,
+    hasVariations: hasVariationsFromHook,
     rootBranchIds,
     isLoaded,
     whitePlayer,
@@ -1045,6 +1049,7 @@ export default function App() {
   const [showGrades, setShowGrades] = useState(savedUiState?.showGrades ?? true)
   const [showBestLines, setShowBestLines] = useState(savedUiState?.showBestLines ?? true)
   const [showEvalGraph, setShowEvalGraph] = useState(savedUiState?.showEvalGraph ?? true)
+  const [showReport, setShowReport] = useState(savedUiState?.showReport ?? true)
   const [resetConfirmArmed, setResetConfirmArmed] = useState(false)
 
   useEffect(() => {
@@ -1064,11 +1069,12 @@ export default function App() {
       showGrades,
       showBestLines,
       showEvalGraph,
+      showReport,
       engineLines,
       engineDepth,
       autoAnalyze,
     } satisfies AppUiState)
-  }, [currentPage, panelTab, importTab, orientation, showEvalBar, showArrows, showGrades, showBestLines, showEvalGraph, engineLines, engineDepth, autoAnalyze])
+  }, [currentPage, panelTab, importTab, orientation, showEvalBar, showArrows, showGrades, showBestLines, showEvalGraph, showReport, engineLines, engineDepth, autoAnalyze])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1577,17 +1583,19 @@ export default function App() {
     setCurrentAnalysisDepth(0)
     setAnalyzingPosition(true)
 
-    for (let i = 0; i < sequence.length; i += 1) {
-      const moved = playBestLineMoveRef.current(sequence[i])
-      if (!moved) break
-      if (i < sequence.length - 1) {
-        await new Promise<void>(resolve => {
-          window.setTimeout(() => requestAnimationFrame(() => resolve()), 110)
-        })
+    try {
+      for (let i = 0; i < sequence.length; i += 1) {
+        const moved = playBestLineMoveRef.current(sequence[i])
+        if (!moved) break
+        if (i < sequence.length - 1) {
+          await new Promise<void>(resolve => {
+            window.setTimeout(() => requestAnimationFrame(() => resolve()), 110)
+          })
+        }
       }
+    } finally {
+      suppressPositionAnalysisRef.current = false
     }
-
-    suppressPositionAnalysisRef.current = false
 
     if (pauseLivePositionAnalysis || !isReady) {
       setBestLineJumping(false)
@@ -1685,7 +1693,7 @@ export default function App() {
   )
 
   const evalDisplayFallback = mainEval && !inBranch ? `depth ${mainEval.eval.depth}` : null
-  const hasReviewVariations = isLoaded && rootBranchIds.length > 0
+  const hasReviewVariations = isLoaded && hasVariationsFromHook
   const canExportPgn = isLoaded && rootId !== null
 
   const handleAnalyzeNow = useCallback(() => {
@@ -1717,6 +1725,8 @@ export default function App() {
     setShowBestLines,
     showEvalGraph,
     setShowEvalGraph,
+    showReport,
+    setShowReport,
     engineLines,
     setEngineLines,
     engineDepth,
@@ -2218,7 +2228,7 @@ export default function App() {
                         />
                       )}
 
-                      {!showAnalyzingBar && (
+                      {!showAnalyzingBar && showReport && (
                         <GameReport
                           moveEvals={moveEvals}
                           userColor={userColor}

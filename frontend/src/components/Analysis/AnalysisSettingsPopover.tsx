@@ -14,6 +14,8 @@ interface Props {
   setShowBestLines: (v: boolean) => void
   showEvalGraph: boolean
   setShowEvalGraph: (v: boolean) => void
+  showReport: boolean
+  setShowReport: (v: boolean) => void
   engineLines: EngineLineCount
   setEngineLines: (n: EngineLineCount) => void
   engineDepth: EngineDepthPreset
@@ -44,6 +46,8 @@ export default function AnalysisSettingsPopover({
   setShowBestLines,
   showEvalGraph,
   setShowEvalGraph,
+  showReport,
+  setShowReport,
   engineLines,
   setEngineLines,
   engineDepth,
@@ -170,6 +174,17 @@ export default function AnalysisSettingsPopover({
             onChange={e => setShowEvalGraph(e.target.checked)}
           />
           <span>Show graph</span>
+        </label>
+      </section>
+
+      <section className="analysis-settings-popover__section">
+        <label className="analysis-settings-popover__toggle">
+          <input
+            type="checkbox"
+            checked={showReport}
+            onChange={e => setShowReport(e.target.checked)}
+          />
+          <span>Show report</span>
         </label>
       </section>
 

@@ -539,6 +539,7 @@ export function useGameReview() {
     rootId,
     totalMoves,
     moves,
+    hasVariations: hasAnyBranches(activeBranch),
     rootBranchIds: activeBranch.extraChildren['__root__'] ?? [],
   }
 }

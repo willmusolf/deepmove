@@ -17,6 +17,8 @@ interface Props {
   setShowBestLines: (v: boolean) => void
   showEvalGraph: boolean
   setShowEvalGraph: (v: boolean) => void
+  showReport: boolean
+  setShowReport: (v: boolean) => void
   engineLines: EngineLineCount
   setEngineLines: (n: EngineLineCount) => void
   engineDepth: EngineDepthPreset
@@ -40,6 +42,8 @@ export default function EvalDisplay({
   setShowBestLines,
   showEvalGraph,
   setShowEvalGraph,
+  showReport,
+  setShowReport,
   engineLines,
   setEngineLines,
   engineDepth,
@@ -94,6 +98,8 @@ export default function EvalDisplay({
           setShowBestLines={setShowBestLines}
           showEvalGraph={showEvalGraph}
           setShowEvalGraph={setShowEvalGraph}
+          showReport={showReport}
+          setShowReport={setShowReport}
           engineLines={engineLines}
           setEngineLines={setEngineLines}
           engineDepth={engineDepth}
