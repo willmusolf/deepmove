@@ -376,6 +376,21 @@ html.theme-light body {
   .app-header__page {
     display: none;
   }
+
+  /* On phones, review/play need to expand naturally so the browser can own
+     vertical scrolling instead of trapping it inside the fixed shell. */
+  .app-shell--fixed-page {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .app-shell--fixed-page .app-content,
+  .app-shell--fixed-page .app-view--fixed-layout,
+  .app-shell--fixed-page .app-main--fixed-layout {
+    min-height: auto;
+    overflow: visible;
+  }
 }
 
 /* ── Collapsed desktop nav ─────────────────────────────────────────────── */
