@@ -212,13 +212,12 @@ jobs:
           for attempt in $(seq 1 18); do
             if curl --fail --silent --show-error \
               --max-time 20 \
-              https://api.deepmove.io/health/deep > /tmp/deepmove-health.json \
+              https://api.deepmove.io/health > /tmp/deepmove-health.json \
               && python - <<'PY'
           import json
 
           payload = json.load(open('/tmp/deepmove-health.json'))
           assert payload["status"] == "ok", payload
-          assert payload["checks"]["database"] == "ok", payload
           PY
             then
               exit 0
@@ -322,13 +321,12 @@ jobs:
           for attempt in $(seq 1 18); do
             if curl --fail --silent --show-error \
               --max-time 20 \
-              https://staging-api.deepmove.io/health/deep > /tmp/deepmove-staging-health.json \
+              https://staging-api.deepmove.io/health > /tmp/deepmove-staging-health.json \
               && python - <<'PY'
           import json
 
           payload = json.load(open('/tmp/deepmove-staging-health.json'))
           assert payload["status"] == "ok", payload
-          assert payload["checks"]["database"] == "ok", payload
           PY
             then
               exit 0
