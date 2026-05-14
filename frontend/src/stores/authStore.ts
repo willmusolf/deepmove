@@ -1,6 +1,6 @@
 // authStore.ts — Authentication state (Zustand)
 import { create } from 'zustand'
-import { usePrefsStore } from './prefsStore'
+import { extractValidAppearancePrefs, usePrefsStore } from './prefsStore'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
@@ -47,6 +47,16 @@ interface AuthState {
 
 let refreshInFlight: Promise<void> | null = null
 
+class AuthFetchError extends Error {
+  status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'AuthFetchError'
+    this.status = status
+  }
+}
+
 function hasStoredSessionHint(): boolean {
   if (typeof window === 'undefined') return false
   try {
@@ -73,16 +83,59 @@ async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
       ...restOptions,
       signal: controller.signal,
     })
-  } catch {
-    throw new Error('Could not reach the server. Is the backend running?')
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new AuthFetchError(0, 'The server took too long to respond')
+    }
+    throw new AuthFetchError(0, 'Could not reach the server. Is the backend running?')
   } finally {
     clearTimeout(timer)
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: `Error ${res.status}` }))
-    throw new Error(body.detail ?? `Error ${res.status}`)
+    throw new AuthFetchError(res.status, body.detail ?? `Error ${res.status}`)
   }
   return res.json() as Promise<T>
+}
+
+function shouldClearSessionHint(err: unknown): boolean {
+  return err instanceof AuthFetchError && (err.status === 401 || err.status === 403)
+}
+
+function getMissingAppearancePrefs(userPrefs: Record<string, unknown>) {
+  const validPrefs = extractValidAppearancePrefs(userPrefs)
+  const currentPrefs = usePrefsStore.getState()
+  const missing: Record<string, unknown> = {}
+
+  if (validPrefs.appTheme == null) missing.appTheme = currentPrefs.appTheme
+  if (validPrefs.boardTheme == null) missing.boardTheme = currentPrefs.boardTheme
+  if (validPrefs.soundEnabled == null) missing.soundEnabled = currentPrefs.soundEnabled
+
+  return missing
+}
+
+async function syncMissingAppearancePrefs(
+  userPrefs: Record<string, unknown>,
+  accessToken: string,
+  set: (partial: Partial<AuthState>) => void,
+) {
+  const missingPrefs = getMissingAppearancePrefs(userPrefs)
+  if (Object.keys(missingPrefs).length === 0) return
+
+  try {
+    const updated = await authFetch<UserResponse>('/users/me', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ preferences: missingPrefs }),
+    })
+    set({ user: updated, isPremium: updated.is_premium })
+    usePrefsStore.getState().loadFromUser(updated.preferences)
+  } catch {
+    // Best-effort only — login/refresh should still succeed even if the sync misses.
+  }
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -104,6 +157,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     })
     localStorage.setItem('dm_has_session', '1')
     usePrefsStore.getState().loadFromUser(data.user.preferences)
+    void syncMissingAppearancePrefs(data.user.preferences, data.access_token, set)
   },
 
   login: async (email, password) => {
@@ -119,6 +173,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     })
     localStorage.setItem('dm_has_session', '1')
     usePrefsStore.getState().loadFromUser(data.user.preferences)
+    void syncMissingAppearancePrefs(data.user.preferences, data.access_token, set)
   },
 
   logout: async () => {
@@ -150,7 +205,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     set({ isLoading: true })
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 5000)
+    const timer = setTimeout(() => controller.abort(), 10_000)
     refreshInFlight = (async () => {
       try {
         const data = await authFetch<AuthResponse>('/auth/refresh', {
@@ -165,12 +220,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isLoading: false,
         })
         usePrefsStore.getState().loadFromUser(data.user.preferences)
-      } catch {
+        void syncMissingAppearancePrefs(data.user.preferences, data.access_token, set)
+      } catch (err) {
         clearTimeout(timer)
-        // Refresh token expired or invalid — clear the session hint so future
-        // page loads don't hit the endpoint again until the user logs in.
-        localStorage.removeItem('dm_has_session')
-        set({ user: null, accessToken: null, isPremium: false, isLoading: false })
+        if (shouldClearSessionHint(err)) {
+          // Refresh token expired or invalid — clear the session hint so future
+          // page loads don't hit the endpoint again until the user logs in.
+          localStorage.removeItem('dm_has_session')
+          set({ user: null, accessToken: null, isPremium: false, isLoading: false })
+        } else {
+          // Preserve the session hint on transient failures (cold start/network).
+          set({ isLoading: false })
+        }
       } finally {
         refreshInFlight = null
       }
