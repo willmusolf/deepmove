@@ -53,6 +53,10 @@ body {
   line-height: 1.6;
 }
 
+body.auth-modal-open {
+  overflow: hidden;
+}
+
 button,
 input,
 select,

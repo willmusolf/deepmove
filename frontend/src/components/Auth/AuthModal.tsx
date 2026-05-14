@@ -1,5 +1,6 @@
 // AuthModal.tsx — Login / Sign Up modal with email+password and OAuth buttons.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuthStore } from '../../stores/authStore'
 import { api } from '../../api/client'
 
@@ -115,59 +116,79 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
   const showRequirements = tab === 'signup' && (pwFocused || (password.length > 0 && !pwValid))
 
-  if (mode === 'forgot') {
-    return (
-      <div className="auth-overlay" onClick={onClose}>
-        <div className="auth-modal" onClick={e => e.stopPropagation()}>
-          <button className="auth-close" onClick={onClose}>&times;</button>
-          <div className="auth-tabs">
-            <button className="auth-tab active">Reset password</button>
-          </div>
-          {forgotSent ? (
-            <div className="auth-form">
-              <p style={{ margin: '0 0 12px', fontSize: '0.9rem', color: 'var(--text-secondary, #aaa)' }}>
-                If an account with that email exists, a reset link has been sent. Check your inbox.
-              </p>
-              <button
-                className="auth-submit"
-                onClick={() => { setMode('auth'); setForgotSent(false); setForgotEmail('') }}
-              >
-                Back to login
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleForgotSubmit} className="auth-form">
-              <input
-                type="email"
-                placeholder="Your email"
-                value={forgotEmail}
-                onChange={e => setForgotEmail(e.target.value)}
-                required
-                autoFocus
-                autoComplete="email"
-                className="auth-input"
-              />
-              {forgotError && <div className="auth-error">{forgotError}</div>}
-              <button type="submit" className="auth-submit" disabled={forgotLoading}>
-                {forgotLoading ? '...' : 'Send reset link'}
-              </button>
-              <button
-                type="button"
-                className="auth-forgot"
-                onClick={() => { setMode('auth'); setForgotError('') }}
-              >
-                Back to login
-              </button>
-            </form>
-          )}
-        </div>
-      </div>
-    )
-  }
+  useEffect(() => {
+    document.body.classList.add('auth-modal-open')
+    const activeElement = document.activeElement
+    if (activeElement instanceof HTMLElement) activeElement.blur()
 
-  return (
+    return () => {
+      document.body.classList.remove('auth-modal-open')
+    }
+  }, [])
+
+  const forgotContent = (
     <div className="auth-overlay" onClick={onClose}>
-      <div className="auth-modal" onClick={e => e.stopPropagation()}>
+      <div
+        className="auth-modal"
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Reset password"
+      >
+        <button className="auth-close" onClick={onClose}>&times;</button>
+        <div className="auth-tabs">
+          <button className="auth-tab active">Reset password</button>
+        </div>
+        {forgotSent ? (
+          <div className="auth-form">
+            <p style={{ margin: '0 0 12px', fontSize: '0.9rem', color: 'var(--text-secondary, #aaa)' }}>
+              If an account with that email exists, a reset link has been sent. Check your inbox.
+            </p>
+            <button
+              className="auth-submit"
+              onClick={() => { setMode('auth'); setForgotSent(false); setForgotEmail('') }}
+            >
+              Back to login
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleForgotSubmit} className="auth-form">
+            <input
+              type="email"
+              placeholder="Your email"
+              value={forgotEmail}
+              onChange={e => setForgotEmail(e.target.value)}
+              required
+              autoFocus
+              autoComplete="email"
+              className="auth-input"
+            />
+            {forgotError && <div className="auth-error">{forgotError}</div>}
+            <button type="submit" className="auth-submit" disabled={forgotLoading}>
+              {forgotLoading ? '...' : 'Send reset link'}
+            </button>
+            <button
+              type="button"
+              className="auth-forgot"
+              onClick={() => { setMode('auth'); setForgotError('') }}
+            >
+              Back to login
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+
+  const authContent = (
+    <div className="auth-overlay" onClick={onClose}>
+      <div
+        className="auth-modal"
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={tab === 'login' ? 'Log in' : 'Sign up'}
+      >
         <button className="auth-close" onClick={onClose}>&times;</button>
 
         <div className="auth-tabs">
@@ -273,4 +294,10 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
       </div>
     </div>
   )
+
+  if (mode === 'forgot') {
+    return createPortal(forgotContent, document.body)
+  }
+
+  return createPortal(authContent, document.body)
 }
