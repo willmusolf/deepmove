@@ -1900,6 +1900,7 @@ export default function App() {
           'app-main',
           isFixedLayoutPage ? 'app-main--fixed-layout' : '',
           isDocumentPage ? 'app-main--document' : '',
+          isPhone && isReviewPage && !isLoaded ? 'app-main--mobile-load-priority' : '',
           !isFixedLayoutPage && !isDocumentPage ? 'app-main--page' : '',
         ].filter(Boolean).join(' ')}>
           {currentPage === 'review' && (
@@ -2379,7 +2380,10 @@ export default function App() {
                     />
                   )}
 
-                  <div className="load-panel" style={{ display: panelTab === 'load' ? undefined : 'none' }}>
+                  <div
+                    className="load-panel"
+                    style={{ display: panelTab === 'load' ? undefined : 'none' }}
+                  >
                       <div className="import-tabs">
                         <button
                           className={`import-tab${importTab === 'chesscom' ? ' active' : ''}`}
