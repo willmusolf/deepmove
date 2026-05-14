@@ -45,7 +45,7 @@ import { useAuthStore } from './stores/authStore'
 import { useGameStore } from './stores/gameStore'
 import { clearPlaySession } from './stores/playStore'
 import { evalResultToTopLines, type TopLine } from './engine/stockfish'
-import { classifyMove, computeAccuracy, isSacrificeFn } from './engine/analysis'
+import { classifyMove, computeAccuracy, cpToWinPct, isSacrificeFn } from './engine/analysis'
 import type { MoveGrade } from './engine/analysis'
 import type { Key } from 'chessground/types'
 import { cacheRatingsFromGameList, readCachedRatings } from './components/Import/normalizeGame'
@@ -1479,8 +1479,18 @@ export default function App() {
 
       // Sacrifice detection (requires the move + position after)
       const sacrifice = playedMove ? isSacrificeFn(playedMove, newFen) : false
+      const playerWinBefore = color === 'white' ? cpToWinPct(evalBefore) : cpToWinPct(-evalBefore)
+      const topWinAfter = color === 'white'
+        ? cpToWinPct(parentResult.score)
+        : cpToWinPct(-parentResult.score)
+      const actualWinAfter = color === 'white' ? cpToWinPct(evalAfter) : cpToWinPct(-evalAfter)
 
-      const grade = classifyMove(evalBefore, evalAfter, color, legalCount, sacrifice, null, isTopSuggested, false, inCheck)
+      const grade = classifyMove(evalBefore, evalAfter, color, legalCount, sacrifice, null, isTopSuggested, false, inCheck, false, {
+        availableChanceWinPct: Math.max(0, topWinAfter - playerWinBefore),
+        missedChanceWinPct: Math.max(0, topWinAfter - actualWinAfter),
+        isCheckingMove: Boolean(playedMove?.san.includes('+') || playedMove?.san.includes('#')),
+        isPromotionMove: Boolean(playedMove?.promotion),
+      })
       // Player-perspective delta in centipawns. Same convention as main-line moveDeltas:
       // white = scoreAfter - scoreBefore; black = -(scoreAfter - scoreBefore).
       const rawDelta = evalAfter - evalBefore

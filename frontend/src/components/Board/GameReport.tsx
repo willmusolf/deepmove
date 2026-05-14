@@ -1,6 +1,11 @@
 import { useMemo } from 'react'
 import { computeAccuracy, type MoveEval } from '../../engine/analysis'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './gradeBadges'
+import {
+  estimatePerformanceRatingFromInputs,
+  parseRating,
+  type SideResult,
+} from './gameRatingModel'
 
 interface GameReportProps {
   moveEvals: MoveEval[]
@@ -53,6 +58,7 @@ interface SidePanelProps {
   accuracy: number | null
   playerName?: string | null
   rating?: string | null
+  opponentRating?: string | null
 }
 
 function accuracyToneClass(accuracy: number): string {
@@ -61,21 +67,7 @@ function accuracyToneClass(accuracy: number): string {
   return 'game-report-accuracy--red'
 }
 
-function parseRating(rating: string | null | undefined): number | null {
-  if (!rating) return null
-  const parsed = parseInt(rating.replace(/[^\d]/g, ''), 10)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function expectedAccuracyForRating(rating: number): number {
-  return 50 + 45 / (1 + Math.exp(-(rating - 1500) / 700))
-}
-
-function roundToNearest50(value: number): number {
-  return Math.round(value / 50) * 50
-}
-
-function getSideResult(result: string | null | undefined, label: string): 'win' | 'loss' | 'draw' | null {
+function getSideResult(result: string | null | undefined, label: string): SideResult {
   if (!result) return null
   if (result === '1/2-1/2') return 'draw'
   if (result === '1-0') return label === 'White' ? 'win' : 'loss'
@@ -86,27 +78,12 @@ function getSideResult(result: string | null | undefined, label: string): 'win' 
 export function estimatePerformanceRating(
   accuracy: number | null,
   rating: string | null | undefined,
+  opponentRating: string | null | undefined,
   sideResult: 'win' | 'loss' | 'draw' | null,
 ): number | null {
-  if (accuracy === null) return null
   const parsedRating = parseRating(rating)
-  if (parsedRating === null) return null
-
-  const expected = expectedAccuracyForRating(parsedRating)
-  let estimate = parsedRating + (accuracy - expected) * 5
-
-  if (sideResult === 'win') {
-    estimate += 50
-    if (accuracy < 70) estimate -= (70 - accuracy) * 3
-  } else if (sideResult === 'loss') {
-    estimate -= 175
-    if (accuracy < 80) estimate -= (80 - accuracy) * 7
-    estimate = Math.min(estimate, parsedRating - 25)
-  } else if (sideResult === 'draw') {
-    estimate = Math.max(parsedRating - 75, Math.min(parsedRating + 75, estimate))
-  }
-
-  return roundToNearest50(Math.max(100, Math.min(3200, estimate)))
+  const parsedOpponentRating = parseRating(opponentRating)
+  return estimatePerformanceRatingFromInputs(accuracy, parsedRating, parsedOpponentRating, sideResult)
 }
 
 function buildSourceUrl(platform: CalibrationExportPlatform, gameId: string | null | undefined): string | null {
@@ -177,8 +154,8 @@ export function buildCalibrationSnapshot({
   whiteAccuracy,
   blackAccuracy,
 }: BuildCalibrationSnapshotArgs): CalibrationSnapshot {
-  const whiteGameRating = estimatePerformanceRating(whiteAccuracy, whiteElo, getSideResult(result, 'White'))
-  const blackGameRating = estimatePerformanceRating(blackAccuracy, blackElo, getSideResult(result, 'Black'))
+  const whiteGameRating = estimatePerformanceRating(whiteAccuracy, whiteElo, blackElo, getSideResult(result, 'White'))
+  const blackGameRating = estimatePerformanceRating(blackAccuracy, blackElo, whiteElo, getSideResult(result, 'Black'))
 
   return {
     sourceUrl: buildSourceUrl(platform, gameId),
@@ -215,9 +192,14 @@ export function buildCalibrationSnapshot({
   }
 }
 
-function SidePanel({ label, stats, isUser, accuracy, playerName, rating, result }: SidePanelProps & { result?: string | null }) {
+function SidePanel({ label, stats, isUser, accuracy, playerName, rating, opponentRating, result }: SidePanelProps & { result?: string | null }) {
   const displayName = playerName?.trim() || label
-  const performanceRating = estimatePerformanceRating(accuracy, rating, getSideResult(result, label))
+  const performanceRating = estimatePerformanceRating(
+    accuracy,
+    rating,
+    opponentRating,
+    getSideResult(result, label),
+  )
   const sideClass = label === 'White' ? 'game-report-player-dot--white' : 'game-report-player-dot--black'
 
   return (
@@ -296,6 +278,7 @@ export default function GameReport({
         accuracy={white ? whiteAccuracy : null}
         playerName={whiteName}
         rating={whiteElo}
+        opponentRating={blackElo}
         result={result}
       />
       <div className="game-report-divider" />
@@ -306,6 +289,7 @@ export default function GameReport({
         accuracy={black ? blackAccuracy : null}
         playerName={blackName}
         rating={blackElo}
+        opponentRating={whiteElo}
         result={result}
       />
     </div>
