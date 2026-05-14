@@ -1073,7 +1073,6 @@ export default function App() {
   }
   const [showEvalBar, setShowEvalBar] = useState(savedUiState?.showEvalBar ?? true)
   const isPhone = useIsPhone()
-  const loadPanelRef = useRef<HTMLDivElement>(null)
   const viewMode = panelTab === 'coach' ? 'coach' : 'classic'
   const [showArrows, setShowArrows] = useState(savedUiState?.showArrows ?? true)
   const [showGrades, setShowGrades] = useState(savedUiState?.showGrades ?? true)
@@ -1081,13 +1080,6 @@ export default function App() {
   const [showEvalGraph, setShowEvalGraph] = useState(savedUiState?.showEvalGraph ?? true)
   const [showReport, setShowReport] = useState(savedUiState?.showReport ?? true)
   const [resetConfirmArmed, setResetConfirmArmed] = useState(false)
-
-  const scrollToLoadPanel = useCallback(() => {
-    setPanelTab('load')
-    window.setTimeout(() => {
-      loadPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 0)
-  }, [])
 
   useEffect(() => {
     if (!resetConfirmArmed) return
@@ -1880,12 +1872,6 @@ export default function App() {
   const isDocumentPage = currentPage === 'about' || currentPage === 'privacy'
   const isFixedLayoutPage = isReviewPage || isPlayPage
   const isScrollPage = !isFixedLayoutPage
-  const selectedImportHasGames = importTab === 'chesscom'
-    ? chesscomGames.length > 0
-    : importTab === 'lichess'
-      ? lichessGames.length > 0
-      : false
-  const showMobileLoadGuide = isPhone && !isLoaded && panelTab === 'load' && !selectedImportHasGames
   const mobileSponsorPage = MOBILE_BANNER_PAGE_SET.has(currentPage) ? currentPage : null
   const shouldShowDesktopRail = isFixedLayoutPage && !isPremium && desktopRailAdEnabled
   // iPhone Safari is still unstable when a fixed bottom ad is combined with the
@@ -1914,6 +1900,7 @@ export default function App() {
           'app-main',
           isFixedLayoutPage ? 'app-main--fixed-layout' : '',
           isDocumentPage ? 'app-main--document' : '',
+          isPhone && isReviewPage && !isLoaded ? 'app-main--mobile-load-priority' : '',
           !isFixedLayoutPage && !isDocumentPage ? 'app-main--page' : '',
         ].filter(Boolean).join(' ')}>
           {currentPage === 'review' && (
@@ -2209,21 +2196,6 @@ export default function App() {
                 {openingName && (
                   <div className="opening-label">{openingName}</div>
                 )}
-                {isPhone && !isLoaded && (
-                  <div className="mobile-load-callout">
-                    <div className="mobile-load-callout__copy">
-                      <strong>Load a real game</strong>
-                      <span>Review works best once you import a Chess.com game, a Lichess game, or a PGN.</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-primary mobile-load-callout__btn"
-                      onClick={scrollToLoadPanel}
-                    >
-                      Load Games
-                    </button>
-                  </div>
-                )}
               </div>
               </ErrorBoundary>
 
@@ -2409,34 +2381,9 @@ export default function App() {
                   )}
 
                   <div
-                    ref={loadPanelRef}
                     className="load-panel"
                     style={{ display: panelTab === 'load' ? undefined : 'none' }}
                   >
-                      {showMobileLoadGuide && (
-                        <div className="mobile-load-guide">
-                          <strong className="mobile-load-guide__title">
-                            {importTab === 'pgn' ? 'Paste a game or position' : 'Load your recent games'}
-                          </strong>
-                          <p className="mobile-load-guide__text">
-                            {importTab === 'chesscom'
-                              ? 'Enter your Chess.com username, then tap Load. DeepMove will pull in your recent games automatically.'
-                              : importTab === 'lichess'
-                                ? 'Enter your Lichess username, then tap Load. DeepMove will pull in your recent games automatically.'
-                                : 'Paste a PGN to review a full game, or switch to FEN when you only want to inspect one position.'}
-                          </p>
-                          {importTab !== 'pgn' && (
-                            <p className="mobile-load-guide__subtext">
-                              Prefer a single copied game? Switch to the PGN tab instead.
-                            </p>
-                          )}
-                          {!authUser && (
-                            <p className="mobile-load-guide__subtext">
-                              Sign in from the menu if you want linked accounts and settings remembered across visits.
-                            </p>
-                          )}
-                        </div>
-                      )}
                       <div className="import-tabs">
                         <button
                           className={`import-tab${importTab === 'chesscom' ? ' active' : ''}`}

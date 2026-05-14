@@ -356,6 +356,19 @@ html.theme-light body {
     padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   }
 
+  .app-shell--compact-nav .nav-spacer {
+    display: none;
+  }
+
+  .app-shell--compact-nav .nav-user {
+    position: sticky;
+    bottom: 0;
+    margin-top: auto;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    background: inherit;
+    z-index: 1;
+  }
+
   .app-shell--compact-nav.app-shell--nav-open .nav-sidebar {
     transform: translateX(0);
   }

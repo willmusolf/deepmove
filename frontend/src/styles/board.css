@@ -1530,6 +1530,14 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 @media (max-width: 639px) {
   /* On phones, let the review side panel grow with its content so the load
      tab can use normal page scrolling instead of clipping inside a flex pane. */
+  .app-main--mobile-load-priority .side-col {
+    order: -1;
+  }
+
+  .app-main--mobile-load-priority .board-col {
+    order: 1;
+  }
+
   .side-col {
     flex: 0 0 auto;
     min-height: auto;
@@ -2817,68 +2825,6 @@ html.theme-light .analysis-settings-popover {
   height: 100%;
 }
 
-.mobile-load-callout {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-  padding: 0.8rem 0.9rem;
-  border: 1px solid rgba(74, 158, 255, 0.28);
-  border-radius: 12px;
-  background:
-    radial-gradient(circle at top right, rgba(74, 158, 255, 0.12), transparent 45%),
-    rgba(255, 255, 255, 0.04);
-}
-
-.mobile-load-callout__copy {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 0;
-}
-
-.mobile-load-callout__copy strong {
-  font-size: 0.92rem;
-  color: var(--color-text);
-}
-
-.mobile-load-callout__copy span {
-  font-size: 0.76rem;
-  line-height: 1.45;
-  color: var(--color-text-muted);
-}
-
-.mobile-load-callout__btn {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.mobile-load-guide {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding: 0.85rem 0.9rem;
-  border: 1px solid rgba(74, 158, 255, 0.22);
-  border-radius: 12px;
-  background:
-    radial-gradient(circle at top right, rgba(74, 158, 255, 0.10), transparent 44%),
-    rgba(255, 255, 255, 0.035);
-  scroll-margin-top: 0.75rem;
-}
-
-.mobile-load-guide__title {
-  font-size: 0.9rem;
-  color: var(--color-text);
-}
-
-.mobile-load-guide__text,
-.mobile-load-guide__subtext {
-  font-size: 0.77rem;
-  line-height: 1.5;
-  color: var(--color-text-muted);
-}
-
 .import-tabs {
   display: flex;
   gap: 2px;
@@ -3301,15 +3247,6 @@ html.theme-light .analysis-settings-popover {
 
   .game-sort-select {
     font-size: 0.72rem;
-  }
-
-  .mobile-load-callout {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .mobile-load-callout__btn {
-    width: 100%;
   }
 }
 
