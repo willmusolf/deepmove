@@ -14,6 +14,7 @@ interface Prefs {
 }
 
 const PREFS_KEY = 'deepmove_prefs'
+const VALID_BOARD_THEMES = new Set<BoardTheme>(['brown', 'blue', 'green', 'purple'])
 
 function loadPrefs(): Prefs {
   const soundEnabled = localStorage.getItem('soundEnabled') !== 'false'
@@ -29,6 +30,26 @@ export function applyTheme(prefs: Prefs) {
   const root = document.documentElement
   root.classList.toggle('theme-light', prefs.appTheme === 'light')
   root.setAttribute('data-board', prefs.boardTheme)
+}
+
+export interface PersistedAppearancePrefs {
+  appTheme?: AppTheme
+  boardTheme?: BoardTheme
+  soundEnabled?: boolean
+}
+
+export function extractValidAppearancePrefs(userPrefs: Record<string, unknown>): PersistedAppearancePrefs {
+  const update: PersistedAppearancePrefs = {}
+  if (userPrefs.appTheme === 'light' || userPrefs.appTheme === 'dark') {
+    update.appTheme = userPrefs.appTheme
+  }
+  if (VALID_BOARD_THEMES.has(userPrefs.boardTheme as BoardTheme)) {
+    update.boardTheme = userPrefs.boardTheme as BoardTheme
+  }
+  if (typeof userPrefs.soundEnabled === 'boolean') {
+    update.soundEnabled = userPrefs.soundEnabled
+  }
+  return update
 }
 
 interface PrefsState extends Prefs {
@@ -74,21 +95,7 @@ export const usePrefsStore = create<PrefsState>((set, get) => {
 
     // Called on login to merge server preferences into local state
     loadFromUser: (userPrefs) => {
-      const defaults: Prefs = { appTheme: 'dark', boardTheme: 'blue', soundEnabled: true }
-      const update: Partial<Prefs> = {}
-      if (userPrefs.appTheme === 'light' || userPrefs.appTheme === 'dark') {
-        update.appTheme = userPrefs.appTheme as AppTheme
-      } else {
-        update.appTheme = defaults.appTheme
-      }
-      if (['brown', 'blue', 'green', 'purple'].includes(userPrefs.boardTheme as string)) {
-        update.boardTheme = userPrefs.boardTheme as BoardTheme
-      } else {
-        update.boardTheme = defaults.boardTheme
-      }
-      if (typeof userPrefs.soundEnabled === 'boolean') {
-        update.soundEnabled = userPrefs.soundEnabled
-      }
+      const update = extractValidAppearancePrefs(userPrefs)
       const merged = { ...get(), ...update }
       set(merged)
       persist(update)

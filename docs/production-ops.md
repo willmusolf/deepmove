@@ -57,7 +57,7 @@ curl -sf https://api.deepmove.io/health/deep | jq .
 curl -sf https://api.deepmove.io/version | jq .
 ```
 
-Use `/health` for platform health probes and `/health/deep` for human verification or external monitors.
+Use `/health` for platform health probes and `/health/deep` for human verification, deploy smoke checks, or occasional diagnostics.
 
 ### Auto-deploy expectations
 
@@ -114,9 +114,13 @@ JWT secret:
 
 Minimum setup:
 
-- Monitor `https://api.deepmove.io/health/deep` every 5 minutes
-- Monitor `https://staging-api.deepmove.io/health/deep` every 5 minutes
+- Monitor `https://api.deepmove.io/health` every 5 minutes
+- Monitor `https://staging-api.deepmove.io/health` every 5 minutes
 - Send alerts to email at minimum
+
+Do not poll `/health/deep` on a tight interval. It performs a live DB check and
+can keep Neon compute awake on the free tier. Reserve `/health/deep` for deploy
+smoke checks, manual verification, or occasional diagnostics.
 
 Good free options:
 
