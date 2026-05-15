@@ -10,7 +10,7 @@ import {
 import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
-import { useIsPhone } from './components/Board/MoveRail'
+import MoveRail, { useIsPhone } from './components/Board/MoveRail'
 import EvalGraph from './components/Board/EvalGraph'
 import GameReport, { buildCalibrationSnapshot, computeSideStats } from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
@@ -1272,6 +1272,19 @@ export default function App() {
     analysisBoardGoForward()
   }, [analysisPath, analysisTree, analysisRootId, branchGrades, analysisBoardGoForward, playMoveSound])
 
+  const handleAnalysisNavigateTo = useCallback((path: string[]) => {
+    pathKeyRef.current++
+    const destId = path[path.length - 1]
+    if (destId && !branchGrades.has(destId)) {
+      setPendingBranchNodes(prev => {
+        const next = new Set(prev)
+        next.add(destId)
+        return next
+      })
+    }
+    analysisBoardNavigateTo(path)
+  }, [analysisBoardNavigateTo, branchGrades])
+
   const reviewBackDisabled = currentPath.length === 0
   const reviewForwardDisabled = currentPath.length === 0
     ? !rootId
@@ -2196,6 +2209,33 @@ export default function App() {
                 {openingName && (
                   <div className="opening-label">{openingName}</div>
                 )}
+                {isPhone && isLoaded && rootId && (
+                  <MoveRail
+                    tree={moveTree}
+                    rootId={rootId}
+                    currentPath={currentPath}
+                    moveGrades={moveGrades}
+                    moveDeltas={moveDeltas}
+                    branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
+                    pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
+                    onNodeClick={handleNavigateTo}
+                    isAnalyzing={showAnalyzingBar || !showGrades}
+                    rootBranchIds={rootBranchIds}
+                  />
+                )}
+                {isPhone && !isLoaded && analysisRootId && (
+                  <MoveRail
+                    tree={analysisTree}
+                    rootId={analysisRootId}
+                    currentPath={analysisPath}
+                    moveGrades={[]}
+                    branchGrades={showGrades ? branchGrades : undefined}
+                    pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
+                    onNodeClick={handleAnalysisNavigateTo}
+                    isAnalyzing={!showGrades}
+                    rootBranchIds={analysisRootBranchIds}
+                  />
+                )}
               </div>
               </ErrorBoundary>
 
@@ -2561,14 +2601,7 @@ export default function App() {
                             branchGrades={showGrades ? branchGrades : undefined}
                             branchDeltas={showGrades ? branchDeltas : undefined}
                             pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
-                            onNodeClick={(path) => {
-                              pathKeyRef.current++
-                              const destId = path[path.length - 1]
-                              if (destId && !branchGrades.has(destId)) {
-                                setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
-                              }
-                              analysisBoardNavigateTo(path)
-                            }}
+                            onNodeClick={handleAnalysisNavigateTo}
                             isAnalyzing={!showGrades}
                             rootBranchIds={analysisRootBranchIds}
                           />

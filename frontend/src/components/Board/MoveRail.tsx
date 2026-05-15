@@ -103,8 +103,17 @@ export default function MoveRail({
     return result
   }, [nodes])
 
+  const mainLineIdSet = useMemo(() => new Set(nodes.map(node => node.id)), [nodes])
+
   // Auto-scroll active chip into view
-  const activeId = currentPath[currentPath.length - 1]
+  const activeId = useMemo(() => {
+    for (let i = currentPath.length - 1; i >= 0; i -= 1) {
+      const id = currentPath[i]
+      if (mainLineIdSet.has(id)) return id
+    }
+    return currentPath[currentPath.length - 1]
+  }, [currentPath, mainLineIdSet])
+
   useEffect(() => {
     const rail = railRef.current
     if (!rail || !activeId) return

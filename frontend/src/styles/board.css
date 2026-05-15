@@ -6482,6 +6482,11 @@ html.theme-light .analysis-settings-popover {
   scrollbar-width: none;
 }
 
+.board-col > .move-rail {
+  width: 100%;
+  margin-top: 0.55rem;
+}
+
 .move-rail::-webkit-scrollbar {
   display: none;
 }
