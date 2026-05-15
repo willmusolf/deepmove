@@ -75,6 +75,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
   const setCurrentGameMeta = useGameStore(s => s.setCurrentGameMeta)
   const setSkipNextAnalysis = useGameStore(s => s.setSkipNextAnalysis)
   const setResumeFromIndex = useGameStore(s => s.setResumeFromIndex)
+  const bumpLoadRequestId = useGameStore(s => s.bumpLoadRequestId)
   const reset = useGameStore(s => s.reset)
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -276,6 +277,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
         setCriticalMoments(cached.criticalMoments)
         setSkipNextAnalysis(true)
       }
+      bumpLoadRequestId()
       onGameLoaded()
       return
     }
@@ -283,8 +285,9 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     setRawPgn(g.pgn)
     setLoadedPgn(g.pgn)
     setPgn(cleanPgn(g.pgn))
+    bumpLoadRequestId()
     onGameLoaded()
-  }, [reset, setCurrentGameId, setBackendGameId, setCurrentGameMeta, setSkipNextAnalysis, setResumeFromIndex, setUserColor, setUserElo, setPlatform, setRawPgn, setLoadedPgn, setPgn, setMoveEvals, setCriticalMoments, onBeforeGameLoad, onGameLoaded, platform])
+  }, [reset, setCurrentGameId, setBackendGameId, setCurrentGameMeta, setSkipNextAnalysis, setResumeFromIndex, setUserColor, setUserElo, setPlatform, setRawPgn, setLoadedPgn, setPgn, setMoveEvals, setCriticalMoments, bumpLoadRequestId, onBeforeGameLoad, onGameLoaded, platform])
 
   // Uses paginationRef for async safety — JSX uses pagination prop for rendering
   const handleLoadMore = useCallback(async (): Promise<boolean> => {
@@ -356,7 +359,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     : null
 
   const oppInputTrimmed = opponentInput.trim()
-  const showOpponentHint = isLoadingAll && oppInputTrimmed.length > 0
+  const showOpponentHint = platform === 'chesscom' && isLoadingAll && oppInputTrimmed.length > 0
 
   return (
     <>

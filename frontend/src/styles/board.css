@@ -6678,6 +6678,20 @@ html.theme-light .analysis-settings-popover {
   }
 }
 
+@media (max-width: 1180px) and (min-width: 640px) and (hover: hover) and (pointer: fine) {
+  .app-view--fixed-layout,
+  .app-main--fixed-layout {
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .side-col,
+  .side-panel-content {
+    min-height: auto;
+    overflow: visible;
+  }
+}
+
 /* === LIGHT MODE OVERRIDES === */
 html.theme-light .panel-tabs {
   background:

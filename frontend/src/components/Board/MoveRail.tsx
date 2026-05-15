@@ -9,7 +9,7 @@ import { getPathToNode } from '../../hooks/useGameReview'
 import { GRADE_BADGE_CONFIG } from './gradeBadges'
 import type { KnownMoveGrade } from './gradeBadges'
 
-const PHONE_QUERY = '(max-width: 639px)'
+const PHONE_QUERY = '(max-width: 639px) and (pointer: coarse)'
 
 // ─── Shared hook: is the viewport phone-sized? ─────────────────────────────
 
