@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Key } from 'chessground/types'
 import { usePlayStore, STARTING_FEN } from '../../stores/playStore'
-import { useBotPlay } from '../../hooks/useBotPlay'
+import { useBotPlay, type BotReviewPayload } from '../../hooks/useBotPlay'
 import { useSound } from '../../hooks/useSound'
 import ChessBoard from '../Board/ChessBoard'
 import PlayerInfoBox from '../Board/PlayerInfoBox'
@@ -17,6 +17,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { Chess } from 'chess.js'
 import { getSquareOverlayPosition } from '../../chess/boardGeometry'
 import { readSessionJson, writeSessionJson } from '../../utils/sessionStorage'
+import { getSelfDisplayName } from '../../utils/selfDisplayName'
 
 const PLAY_UI_SESSION_KEY = 'deepmove_playUi'
 
@@ -44,7 +45,7 @@ function loadPlayUiState(): PlayUiState | null {
 }
 
 interface Props {
-  onNavigateToReview: () => void
+  onNavigateToReview: (payload: BotReviewPayload) => void
 }
 
 export default function BotPlayPage({ onNavigateToReview }: Props) {
@@ -79,7 +80,7 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
 
   // Auth (for display name)
   const authUser = useAuthStore(s => s.user)
-  const displayName = authUser?.chesscom_username ?? authUser?.lichess_username ?? 'You'
+  const displayName = getSelfDisplayName(authUser)
 
   // Board orientation (local state — user can flip any time)
   const [orientation, setOrientation] = useState<'white' | 'black'>(savedUiState?.orientation ?? 'white')

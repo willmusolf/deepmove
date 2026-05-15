@@ -1,6 +1,11 @@
 import { useMemo } from 'react'
 import { computeAccuracy, type MoveEval } from '../../engine/analysis'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './gradeBadges'
+import {
+  estimatePerformanceRatingFromInputs,
+  parseRating,
+  type SideResult,
+} from './gameRatingModel'
 
 interface GameReportProps {
   moveEvals: MoveEval[]
@@ -16,6 +21,8 @@ interface GameReportProps {
 interface SideStats {
   counts: Partial<Record<string, number>>
 }
+
+type CalibrationExportPlatform = 'chesscom' | 'lichess' | 'pgn-paste' | null
 
 const GRADE_ORDER = ['brilliant', 'great', 'best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder', 'miss'] as const
 
@@ -47,6 +54,7 @@ interface SidePanelProps {
   accuracy: number | null
   playerName?: string | null
   rating?: string | null
+  opponentRating?: string | null
 }
 
 function accuracyToneClass(accuracy: number): string {
@@ -55,21 +63,7 @@ function accuracyToneClass(accuracy: number): string {
   return 'game-report-accuracy--red'
 }
 
-function parseRating(rating: string | null | undefined): number | null {
-  if (!rating) return null
-  const parsed = parseInt(rating.replace(/[^\d]/g, ''), 10)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function expectedAccuracyForRating(rating: number): number {
-  return 50 + 45 / (1 + Math.exp(-(rating - 1500) / 700))
-}
-
-function roundToNearest50(value: number): number {
-  return Math.round(value / 50) * 50
-}
-
-function getSideResult(result: string | null | undefined, label: string): 'win' | 'loss' | 'draw' | null {
+function getSideResult(result: string | null | undefined, label: string): SideResult {
   if (!result) return null
   if (result === '1/2-1/2') return 'draw'
   if (result === '1-0') return label === 'White' ? 'win' : 'loss'
@@ -77,35 +71,131 @@ function getSideResult(result: string | null | undefined, label: string): 'win' 
   return null
 }
 
-function estimatePerformanceRating(
+export function estimatePerformanceRating(
   accuracy: number | null,
   rating: string | null | undefined,
+  opponentRating: string | null | undefined,
   sideResult: 'win' | 'loss' | 'draw' | null,
 ): number | null {
-  if (accuracy === null) return null
   const parsedRating = parseRating(rating)
-  if (parsedRating === null) return null
-
-  const expected = expectedAccuracyForRating(parsedRating)
-  let estimate = parsedRating + (accuracy - expected) * 5
-
-  if (sideResult === 'win') {
-    estimate += 50
-    if (accuracy < 70) estimate -= (70 - accuracy) * 3
-  } else if (sideResult === 'loss') {
-    estimate -= 175
-    if (accuracy < 80) estimate -= (80 - accuracy) * 7
-    estimate = Math.min(estimate, parsedRating - 25)
-  } else if (sideResult === 'draw') {
-    estimate = Math.max(parsedRating - 75, Math.min(parsedRating + 75, estimate))
-  }
-
-  return roundToNearest50(Math.max(100, Math.min(3200, estimate)))
+  const parsedOpponentRating = parseRating(opponentRating)
+  return estimatePerformanceRatingFromInputs(accuracy, parsedRating, parsedOpponentRating, sideResult)
 }
 
-function SidePanel({ label, stats, isUser, accuracy, playerName, rating, result }: SidePanelProps & { result?: string | null }) {
+function buildSourceUrl(platform: CalibrationExportPlatform, gameId: string | null | undefined): string | null {
+  if (!gameId) return null
+  if (platform === 'chesscom' && gameId.startsWith('http')) return gameId
+  if (platform === 'lichess' && gameId.startsWith('lichess:')) return `https://lichess.org/${gameId.slice('lichess:'.length)}`
+  return null
+}
+
+export interface CalibrationSnapshotSide {
+  name: string
+  rating: number | null
+  deepmoveAccuracy: number | null
+  deepmoveGameRating: number | null
+  deepmoveBadges: Partial<Record<string, number>>
+}
+
+export interface CalibrationSnapshot {
+  sourceUrl: string | null
+  platform: CalibrationExportPlatform
+  gameId: string | null
+  result: string | null
+  timeControl: string | null
+  endTimeIso: string | null
+  players: {
+    white: CalibrationSnapshotSide
+    black: CalibrationSnapshotSide
+  }
+  chesscomReview: {
+    whiteAccuracy: number | null
+    blackAccuracy: number | null
+    whiteGameRating: number | null
+    blackGameRating: number | null
+    whiteBadgeNotes: string
+    blackBadgeNotes: string
+    notableDifferences: string
+  }
+}
+
+interface BuildCalibrationSnapshotArgs {
+  platform?: CalibrationExportPlatform
+  gameId?: string | null
+  timeControl?: string | null
+  endTime?: number | null
+  result?: string | null
+  whiteName?: string | null
+  blackName?: string | null
+  whiteElo?: string | null
+  blackElo?: string | null
+  whiteStats: SideStats | null
+  blackStats: SideStats | null
+  whiteAccuracy: number | null
+  blackAccuracy: number | null
+}
+
+export function buildCalibrationSnapshot({
+  platform = null,
+  gameId = null,
+  timeControl = null,
+  endTime = null,
+  result = null,
+  whiteName,
+  blackName,
+  whiteElo,
+  blackElo,
+  whiteStats,
+  blackStats,
+  whiteAccuracy,
+  blackAccuracy,
+}: BuildCalibrationSnapshotArgs): CalibrationSnapshot {
+  const whiteGameRating = estimatePerformanceRating(whiteAccuracy, whiteElo, blackElo, getSideResult(result, 'White'))
+  const blackGameRating = estimatePerformanceRating(blackAccuracy, blackElo, whiteElo, getSideResult(result, 'Black'))
+
+  return {
+    sourceUrl: buildSourceUrl(platform, gameId),
+    platform,
+    gameId,
+    result,
+    timeControl,
+    endTimeIso: typeof endTime === 'number' ? new Date(endTime).toISOString() : null,
+    players: {
+      white: {
+        name: whiteName?.trim() || 'White',
+        rating: parseRating(whiteElo),
+        deepmoveAccuracy: whiteAccuracy,
+        deepmoveGameRating: whiteGameRating,
+        deepmoveBadges: whiteStats?.counts ?? {},
+      },
+      black: {
+        name: blackName?.trim() || 'Black',
+        rating: parseRating(blackElo),
+        deepmoveAccuracy: blackAccuracy,
+        deepmoveGameRating: blackGameRating,
+        deepmoveBadges: blackStats?.counts ?? {},
+      },
+    },
+    chesscomReview: {
+      whiteAccuracy: null,
+      blackAccuracy: null,
+      whiteGameRating: null,
+      blackGameRating: null,
+      whiteBadgeNotes: '',
+      blackBadgeNotes: '',
+      notableDifferences: '',
+    },
+  }
+}
+
+function SidePanel({ label, stats, isUser, accuracy, playerName, rating, opponentRating, result }: SidePanelProps & { result?: string | null }) {
   const displayName = playerName?.trim() || label
-  const performanceRating = estimatePerformanceRating(accuracy, rating, getSideResult(result, label))
+  const performanceRating = estimatePerformanceRating(
+    accuracy,
+    rating,
+    opponentRating,
+    getSideResult(result, label),
+  )
   const sideClass = label === 'White' ? 'game-report-player-dot--white' : 'game-report-player-dot--black'
 
   return (
@@ -184,6 +274,7 @@ export default function GameReport({
         accuracy={white ? whiteAccuracy : null}
         playerName={whiteName}
         rating={whiteElo}
+        opponentRating={blackElo}
         result={result}
       />
       <div className="game-report-divider" />
@@ -194,6 +285,7 @@ export default function GameReport({
         accuracy={black ? blackAccuracy : null}
         playerName={blackName}
         rating={blackElo}
+        opponentRating={whiteElo}
         result={result}
       />
     </div>

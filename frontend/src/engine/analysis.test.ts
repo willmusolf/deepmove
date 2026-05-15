@@ -1,6 +1,30 @@
 import { describe, it, expect, vi } from 'vitest'
-import { analyzeGame, classifyMove, isSacrificeFn } from './analysis'
+import { analyzeGame, classifyMove, computeAccuracy, cpToWinPct, isSacrificeFn, type MoveEval } from './analysis'
 import type { TopLine } from './stockfish'
+
+function makeEval(
+  moveNumber: number,
+  color: 'white' | 'black',
+  score: number,
+  grade: MoveEval['grade'] = null,
+): MoveEval {
+  return {
+    moveNumber,
+    color,
+    san: 'e4',
+    fen: 'stub-fen',
+    eval: {
+      score,
+      depth: 18,
+      fen: 'stub-fen',
+      isMate: false,
+      mateIn: null,
+      bestMove: '',
+      pv: [],
+    },
+    grade,
+  }
+}
 
 describe('classifyMove', () => {
   it('returns forced when only one legal move', () => {
@@ -339,5 +363,105 @@ describe('analyzeGame – mate finish grading', () => {
     expect(results).toHaveLength(1)
     expect(results[0].san).toBe('Qh4#')
     expect(results[0].grade).toBe('best')
+  })
+})
+
+describe('calibration regressions – miss and great handling', () => {
+  it('mattea5: 7.c3-style missed chance becomes miss instead of a soft inaccuracy', () => {
+    expect(classifyMove(50, 45, 'white', 25, false, null, false, false, false, false, {
+      availableChanceWinPct: 8,
+      missedChanceWinPct: 8,
+    })).toBe('miss')
+  })
+
+  it('KingWald: a forcing checking move in an already-winning position stays best, not great', () => {
+    expect(classifyMove(-700, -690, 'black', 20, false, null, true, true, false, false, {
+      isCheckingMove: true,
+    })).toBe('best')
+  })
+
+  it('mattea5: a winning promotion conversion in an already-winning position stays best, not great', () => {
+    expect(classifyMove(800, 790, 'white', 20, false, null, true, true, false, false, {
+      isPromotionMove: true,
+    })).toBe('best')
+  })
+
+  it('mattea5: 33...Rc2+-style tactical check can still be great when the side was not already winning', () => {
+    expect(classifyMove(-60, -58, 'black', 20, false, null, true, true, false, false, {
+      isCheckingMove: true,
+    })).toBe('great')
+  })
+
+  it('VTRAJ007: a missed tactical conversion stays miss instead of falling through to blunder', () => {
+    expect(classifyMove(220, -120, 'black', 24, false, null, false, false, false, false, {
+      availableChanceWinPct: 10,
+      missedChanceWinPct: 12,
+    })).toBe('miss')
+  })
+
+  it('KingWald: previous-opponent-mistake context can still produce a miss without a large fresh opportunity swing', () => {
+    expect(classifyMove(40, 36, 'white', 20, false, 'mistake', false, false, false, false, {
+      availableChanceWinPct: 3,
+      missedChanceWinPct: 7,
+    })).toBe('miss')
+  })
+
+  it('mattea5: a major collapse without missed-chance context still grades as a blunder', () => {
+    expect(classifyMove(200, -200, 'white', 20, false, null, false, false, false, false, {
+      availableChanceWinPct: 2,
+      missedChanceWinPct: 3,
+    })).toBe('blunder')
+  })
+})
+
+describe('computeAccuracy calibration', () => {
+  function deriveMoveAccuracies(moveEvals: MoveEval[], color: 'white' | 'black'): number[] {
+    const accs: number[] = []
+    let prevScore = 0
+    for (const moveEval of moveEvals) {
+      const score = moveEval.eval.score
+      if (moveEval.color !== color) {
+        prevScore = score
+        continue
+      }
+      const winBefore = color === 'white' ? cpToWinPct(prevScore) : cpToWinPct(-prevScore)
+      const winAfter = color === 'white' ? cpToWinPct(score) : cpToWinPct(-score)
+      const loss = Math.max(0, winBefore - winAfter)
+      accs.push(Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * loss) - 3.1669)))
+      prevScore = score
+    }
+    return accs
+  }
+
+  it('uses a blended harmonic/arithmetic mean so chaotic games do not collapse as harshly', () => {
+    const moveEvals: MoveEval[] = [
+      makeEval(1, 'white', -850),
+      makeEval(1, 'black', -400),
+      makeEval(2, 'white', -980),
+      makeEval(2, 'black', -450),
+      makeEval(3, 'white', -700),
+      makeEval(3, 'black', -300),
+      makeEval(4, 'white', -900),
+    ]
+
+    const accs = deriveMoveAccuracies(moveEvals, 'white')
+    const harmonic = accs.length / accs.reduce((sum, accuracy) => sum + 1 / Math.max(1, accuracy), 0)
+    const arithmetic = accs.reduce((sum, accuracy) => sum + accuracy, 0) / accs.length
+    const expected = Math.round((0.65 * harmonic + 0.35 * arithmetic) * 10) / 10
+
+    expect(computeAccuracy(moveEvals, 'white')).toBe(expected)
+    expect(computeAccuracy(moveEvals, 'white')).toBeGreaterThan(Math.round(harmonic * 10) / 10)
+  })
+
+  it('keeps clean games effectively perfect', () => {
+    const moveEvals: MoveEval[] = [
+      makeEval(1, 'white', 0),
+      makeEval(1, 'black', 0),
+      makeEval(2, 'white', 0),
+      makeEval(2, 'black', 0),
+      makeEval(3, 'white', 0),
+    ]
+
+    expect(computeAccuracy(moveEvals, 'white')).toBe(100)
   })
 })

@@ -26,6 +26,7 @@ interface Props {
   onAnalyzeNow?: () => void
   onClearVariations?: () => void
   onExportPgn?: () => void
+  onExportDeepMoveStats?: () => Promise<boolean> | boolean
   hasVariations: boolean
   canExport: boolean
 }
@@ -57,12 +58,13 @@ export default function AnalysisSettingsPopover({
   onAnalyzeNow,
   onClearVariations,
   onExportPgn,
+  onExportDeepMoveStats,
   hasVariations,
   canExport,
 }: Props) {
   const popoverRef = useRef<HTMLDivElement | null>(null)
   const [clearArmed, setClearArmed] = useState(false)
-  const [exportFeedback, setExportFeedback] = useState<string | null>(null)
+  const [exportFeedback, setExportFeedback] = useState<'pgn' | 'stats' | null>(null)
 
   useEffect(() => {
     if (!open) {
@@ -108,7 +110,14 @@ export default function AnalysisSettingsPopover({
 
   const handleExportClick = () => {
     onExportPgn?.()
-    setExportFeedback('Copied!')
+    setExportFeedback('pgn')
+    window.setTimeout(() => setExportFeedback(null), 1600)
+  }
+
+  const handleExportStatsClick = async () => {
+    const copied = await onExportDeepMoveStats?.()
+    if (!copied) return
+    setExportFeedback('stats')
     window.setTimeout(() => setExportFeedback(null), 1600)
   }
 
@@ -229,7 +238,7 @@ export default function AnalysisSettingsPopover({
 
       <section className="analysis-settings-popover__section">
         <div className="analysis-settings-popover__label">Export</div>
-        <div className="analysis-settings-popover__actions">
+        <div className="analysis-settings-popover__actions analysis-settings-popover__actions--stacked">
           <button
             type="button"
             className="btn btn-secondary analysis-settings-popover__action"
@@ -237,7 +246,16 @@ export default function AnalysisSettingsPopover({
             disabled={!canExport}
             title={canExport ? 'Copy PGN with all variations' : 'No game loaded'}
           >
-            {exportFeedback ?? 'Copy PGN'}
+            {exportFeedback === 'pgn' ? 'Copied!' : 'Copy PGN'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary analysis-settings-popover__action"
+            onClick={() => { void handleExportStatsClick() }}
+            disabled={!canExport}
+            title={canExport ? 'Copy DeepMove stats JSON for calibration comparisons' : 'No game loaded'}
+          >
+            {exportFeedback === 'stats' ? 'Copied!' : 'Copy Stats JSON'}
           </button>
         </div>
       </section>

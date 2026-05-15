@@ -28,8 +28,6 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
     })
   }, [user?.chesscom_username, user?.lichess_username])
 
-  if (isLoading) return null
-
   function handleAuthSuccess() {
     setShowAuth(false)
     // If the user confirmed their chess account before logging in, sync it to
@@ -51,6 +49,7 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
             className="nav-user-icon-btn"
             onClick={() => setShowAuth(true)}
             title="Sign In"
+            aria-busy={isLoading}
           >
             ⊙
           </button>
@@ -66,8 +65,12 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
     return (
       <>
         <div className="nav-user">
-          <button className="nav-signin-btn" onClick={() => setShowAuth(true)}>
-            Sign In
+          <button
+            className="nav-signin-btn"
+            onClick={() => setShowAuth(true)}
+            aria-busy={isLoading}
+          >
+            {isLoading ? 'Checking...' : 'Sign In'}
           </button>
         </div>
         {showAuth && (
@@ -94,9 +97,9 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
     return (
       <div className="nav-user nav-user--collapsed">
         <button
-          className={`nav-user-btn${currentPage === 'settings' ? ' active' : ''}`}
-          onClick={() => onNavigate('settings')}
-          title={displayName + ' — Profile & Settings'}
+          className={`nav-user-btn${currentPage === 'profile' ? ' active' : ''}`}
+          onClick={() => onNavigate('profile')}
+          title={displayName + ' — Profile'}
         >
           <span className="nav-user-avatar-wrap">
             {avatarUrl ? (
@@ -117,9 +120,9 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
   return (
     <div className="nav-user">
       <button
-        className={`nav-user-btn${currentPage === 'settings' ? ' active' : ''}`}
-        onClick={() => onNavigate('settings')}
-        title="Profile & Settings"
+        className={`nav-user-btn${currentPage === 'profile' ? ' active' : ''}`}
+        onClick={() => onNavigate('profile')}
+        title="Profile"
       >
         <span className="nav-user-avatar-wrap">
           {avatarUrl ? (

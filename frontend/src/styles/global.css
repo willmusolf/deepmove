@@ -53,6 +53,10 @@ body {
   line-height: 1.6;
 }
 
+body.auth-modal-open {
+  overflow: hidden;
+}
+
 button,
 input,
 select,
@@ -114,60 +118,27 @@ summary,
   overflow: visible;
 }
 
-@media (min-width: 1024px) and (max-height: 720px) {
-  html, body {
-    height: auto;
-    min-height: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: auto;
-  }
-
-  .app {
-    height: auto;
-    min-height: 100vh;
-    overflow: visible;
-  }
-
-  .app-content,
-  .app-view--fixed-layout,
-  .app-main--fixed-layout {
-    overflow: visible;
-  }
-
-  .app-main--fixed-layout {
-    flex: 0 0 auto;
-    min-height: auto;
-    align-items: flex-start;
-    padding-bottom: 1rem;
-  }
-
-  .app-shell--fixed-page {
-    height: 100vh;
-    min-height: 100vh;
-    overflow: hidden;
-  }
-
-  .app-shell--fixed-page .app-content,
-  .app-shell--fixed-page .app-view--fixed-layout,
-  .app-shell--fixed-page .app-main--fixed-layout {
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .app-shell--fixed-page .app-main--fixed-layout {
-    flex: 1 1 auto;
-    align-items: stretch;
-    padding-bottom: 0.75rem;
-  }
-}
-
 @media (min-width: 1024px) {
   .nav-sidebar {
-    position: sticky;
+    position: fixed;
     top: 0;
-    height: 100vh;
-    align-self: flex-start;
+    left: 0;
+    bottom: 0;
+    height: 100dvh;
+    overflow-y: auto;
+    z-index: 10;
+  }
+
+  .app-content {
+    margin-left: var(--layout-nav-width);
+  }
+
+  .app-shell--nav-collapsed {
+    --board-vw-offset: 416px;
+  }
+
+  .app-shell--nav-collapsed .app-content {
+    margin-left: 48px;
   }
 }
 
@@ -347,6 +318,22 @@ html.theme-light body {
     transition: transform 0.18s ease;
     box-shadow: 24px 0 48px rgba(0, 0, 0, 0.34);
     z-index: 30;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell--compact-nav .nav-spacer {
+    display: none;
+  }
+
+  .app-shell--compact-nav .nav-user {
+    position: sticky;
+    bottom: 0.45rem;
+    margin-top: auto;
+    padding-bottom: calc(0.25rem + env(safe-area-inset-bottom, 0px));
+    background: inherit;
+    z-index: 1;
   }
 
   .app-shell--compact-nav.app-shell--nav-open .nav-sidebar {
@@ -371,6 +358,21 @@ html.theme-light body {
 
   .app-header__page {
     display: none;
+  }
+
+  /* On phones, review/play need to expand naturally so the browser can own
+     vertical scrolling instead of trapping it inside the fixed shell. */
+  .app-shell--fixed-page {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .app-shell--fixed-page .app-content,
+  .app-shell--fixed-page .app-view--fixed-layout,
+  .app-shell--fixed-page .app-main--fixed-layout {
+    min-height: auto;
+    overflow: visible;
   }
 }
 

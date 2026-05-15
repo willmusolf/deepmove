@@ -11,5 +11,6 @@ describe('normalizeRestoredPage', () => {
     expect(normalizeRestoredPage('review')).toBe('review')
     expect(normalizeRestoredPage('play')).toBe('play')
     expect(normalizeRestoredPage('settings')).toBe('settings')
+    expect(normalizeRestoredPage('profile')).toBe('profile')
   })
 })

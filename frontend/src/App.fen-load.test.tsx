@@ -56,8 +56,20 @@ vi.mock('./components/Layout/ResponsiveLayout', () => ({
   default: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
 
+vi.mock('./components/Profile/SettingsPage', () => ({
+  default: () => <div data-testid="settingspage" />,
+}))
+
 vi.mock('./components/Profile/ProfilePage', () => ({
-  default: () => <div data-testid="profilepage" />,
+  default: ({
+    onLoggedOut,
+  }: {
+    onLoggedOut?: () => void
+  }) => (
+    <div data-testid="profilepage">
+      <button onClick={() => onLoggedOut?.()}>Mock Logout</button>
+    </div>
+  ),
 }))
 
 vi.mock('./components/Coach/MoveCoachComment', () => ({
@@ -241,5 +253,32 @@ describe('App FEN loading', () => {
 
     expect(mocks.analysisBoardReset).toHaveBeenCalledWith('8/8/8/8/8/8/8/K6k w - - 0 1')
     expect(screen.getByText('Move pieces on the board to start an analysis.')).toBeInTheDocument()
+  })
+
+  it('renders settings for guests via the public settings route', () => {
+    window.history.replaceState({}, '', '/settings')
+
+    render(<App />)
+
+    expect(screen.getByTestId('settingspage')).toBeInTheDocument()
+  })
+
+  it('renders profile for guests via the public profile route', () => {
+    window.history.replaceState({}, '', '/profile')
+
+    render(<App />)
+
+    expect(screen.getByTestId('profilepage')).toBeInTheDocument()
+  })
+
+  it('returns to review after logging out from profile', () => {
+    window.history.replaceState({}, '', '/profile')
+
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Mock Logout' }))
+
+    expect(window.location.pathname).toBe('/')
+    expect(screen.queryByTestId('profilepage')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PGN' })).toBeInTheDocument()
   })
 })
