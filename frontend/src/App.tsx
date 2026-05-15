@@ -831,23 +831,6 @@ export default function App() {
       </div>
     </div>
   ) : null
-  const mobilePanelStatusBar = isPhone && isLoaded ? (
-    <>
-      {engineStatus === 'error' && (
-        <div className="analyzing-bar analyzing-bar--error">
-          <span className="analyzing-text">⚠ Engine failed to load</span>
-        </div>
-      )}
-      {engineStatus === 'loading' && !isReady && (
-        <div className="analyzing-bar">
-          <span className="analyzing-dot" />
-          <span className="analyzing-text">Engine loading…</span>
-        </div>
-      )}
-      {analysisStatusBar}
-    </>
-  ) : null
-
   const prevEngineLinesRef = useRef(engineLines)
   useEffect(() => {
     // Always cancel in-flight analysis and pending timers first — even if the new
@@ -1104,6 +1087,22 @@ export default function App() {
   }
   const [showEvalBar, setShowEvalBar] = useState(savedUiState?.showEvalBar ?? true)
   const isPhone = useIsPhone()
+  const mobilePanelStatusBar = isPhone && isLoaded ? (
+    <>
+      {engineStatus === 'error' && (
+        <div className="analyzing-bar analyzing-bar--error">
+          <span className="analyzing-text">⚠ Engine failed to load</span>
+        </div>
+      )}
+      {engineStatus === 'loading' && !isReady && (
+        <div className="analyzing-bar">
+          <span className="analyzing-dot" />
+          <span className="analyzing-text">Engine loading…</span>
+        </div>
+      )}
+      {analysisStatusBar}
+    </>
+  ) : null
   const viewMode = panelTab === 'coach' ? 'coach' : 'classic'
   const [showArrows, setShowArrows] = useState(savedUiState?.showArrows ?? true)
   const [showGrades, setShowGrades] = useState(savedUiState?.showGrades ?? true)
