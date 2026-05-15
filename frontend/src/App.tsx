@@ -1079,6 +1079,7 @@ export default function App() {
     savedUiState?.orientation ?? savedReviewColor ?? 'white'
   )
   const previousPgnRef = useRef(pgn)
+  const preparedLoadedGameKeyRef = useRef<string | null>(null)
 
   // Auto-orient board when a new game loads
   useEffect(() => {
@@ -1238,14 +1239,22 @@ export default function App() {
 
   useEffect(() => {
     if (!loadedGameKey) {
+      preparedLoadedGameKeyRef.current = null
       if (panelTab === 'coach') setPanelTab('analysis')
       return
     }
 
+    if (preparedLoadedGameKeyRef.current === loadedGameKey) {
+      return
+    }
+    preparedLoadedGameKeyRef.current = loadedGameKey
+
     // Clear any arrows that were showing in free-play mode so they don't flash
     // on the first position of the newly loaded game.
     resetPositionAnalysisState()
-    setPanelTab('analysis')
+    if (panelTab !== 'analysis') {
+      setPanelTab('analysis')
+    }
     analysisBoardReset()
     lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
