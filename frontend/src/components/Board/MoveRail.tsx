@@ -103,14 +103,28 @@ export default function MoveRail({
     return result
   }, [nodes])
 
+  const mainLineIdSet = useMemo(() => new Set(nodes.map(node => node.id)), [nodes])
+
   // Auto-scroll active chip into view
-  const activeId = currentPath[currentPath.length - 1]
+  const activeId = useMemo(() => {
+    for (let i = currentPath.length - 1; i >= 0; i -= 1) {
+      const id = currentPath[i]
+      if (mainLineIdSet.has(id)) return id
+    }
+    return currentPath[currentPath.length - 1]
+  }, [currentPath, mainLineIdSet])
+
   useEffect(() => {
     const rail = railRef.current
     if (!rail || !activeId) return
     const el = rail.querySelector<HTMLElement>(`[data-node-id="${activeId}"]`)
     if (!el) return
-    el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+
+    const maxScrollLeft = Math.max(0, rail.scrollWidth - rail.clientWidth)
+    const targetLeft = el.offsetLeft - ((rail.clientWidth - el.offsetWidth) / 2)
+    const clampedLeft = Math.max(0, Math.min(maxScrollLeft, targetLeft))
+    if (Math.abs(rail.scrollLeft - clampedLeft) < 1) return
+    rail.scrollTo({ left: clampedLeft, behavior: 'smooth' })
   }, [activeId])
 
   if (!rootId) return <div className="move-rail" />

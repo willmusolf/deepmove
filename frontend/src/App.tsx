@@ -10,7 +10,7 @@ import {
 import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
-import { useIsPhone } from './components/Board/MoveRail'
+import MoveRail, { useIsPhone } from './components/Board/MoveRail'
 import EvalGraph from './components/Board/EvalGraph'
 import GameReport, { buildCalibrationSnapshot, computeSideStats } from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
@@ -151,6 +151,21 @@ function nowMs(): number {
 
 function roundDuration(durationMs: number): number {
   return Math.round(durationMs * 10) / 10
+}
+
+function renderNavChevron(direction: 'left' | 'right') {
+  return (
+    <svg
+      className="nav-btn__icon"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {direction === 'left'
+        ? <path d="M9.75 3.25 5 8l4.75 4.75" />
+        : <path d="M6.25 3.25 11 8l-4.75 4.75" />}
+    </svg>
+  )
 }
 
 async function copyText(text: string): Promise<boolean> {
@@ -816,7 +831,6 @@ export default function App() {
       </div>
     </div>
   ) : null
-
   const prevEngineLinesRef = useRef(engineLines)
   useEffect(() => {
     // Always cancel in-flight analysis and pending timers first — even if the new
@@ -1073,6 +1087,22 @@ export default function App() {
   }
   const [showEvalBar, setShowEvalBar] = useState(savedUiState?.showEvalBar ?? true)
   const isPhone = useIsPhone()
+  const mobilePanelStatusBar = isPhone && isLoaded ? (
+    <>
+      {engineStatus === 'error' && (
+        <div className="analyzing-bar analyzing-bar--error">
+          <span className="analyzing-text">⚠ Engine failed to load</span>
+        </div>
+      )}
+      {engineStatus === 'loading' && !isReady && (
+        <div className="analyzing-bar">
+          <span className="analyzing-dot" />
+          <span className="analyzing-text">Engine loading…</span>
+        </div>
+      )}
+      {analysisStatusBar}
+    </>
+  ) : null
   const viewMode = panelTab === 'coach' ? 'coach' : 'classic'
   const [showArrows, setShowArrows] = useState(savedUiState?.showArrows ?? true)
   const [showGrades, setShowGrades] = useState(savedUiState?.showGrades ?? true)
@@ -1271,6 +1301,19 @@ export default function App() {
     if (destId) playMoveSound(analysisTree[destId]?.san ?? '')
     analysisBoardGoForward()
   }, [analysisPath, analysisTree, analysisRootId, branchGrades, analysisBoardGoForward, playMoveSound])
+
+  const handleAnalysisNavigateTo = useCallback((path: string[]) => {
+    pathKeyRef.current++
+    const destId = path[path.length - 1]
+    if (destId && !branchGrades.has(destId)) {
+      setPendingBranchNodes(prev => {
+        const next = new Set(prev)
+        next.add(destId)
+        return next
+      })
+    }
+    analysisBoardNavigateTo(path)
+  }, [analysisBoardNavigateTo, branchGrades])
 
   const reviewBackDisabled = currentPath.length === 0
   const reviewForwardDisabled = currentPath.length === 0
@@ -2105,7 +2148,7 @@ export default function App() {
                           disabled={reviewBackDisabled}
                           {...reviewBackTouchHandlers}
                         >
-                          ←
+                          {renderNavChevron('left')}
                         </button>
                         <span className="move-counter">
                           {pathDepth} / {displayTotalDepth}
@@ -2115,7 +2158,7 @@ export default function App() {
                           disabled={reviewForwardDisabled}
                           {...reviewForwardTouchHandlers}
                         >
-                          →
+                          {renderNavChevron('right')}
                         </button>
                       </>
                     ) : (
@@ -2125,7 +2168,7 @@ export default function App() {
                           disabled={analysisBackDisabled}
                           {...analysisBackTouchHandlers}
                         >
-                          ←
+                          {renderNavChevron('left')}
                         </button>
                         <span className="move-counter">
                           {analysisPath.length} / {analysisMainLineSans.length}
@@ -2135,7 +2178,7 @@ export default function App() {
                           disabled={analysisForwardDisabled}
                           {...analysisForwardTouchHandlers}
                         >
-                          →
+                          {renderNavChevron('right')}
                         </button>
                       </>
                     )}
@@ -2196,11 +2239,43 @@ export default function App() {
                 {openingName && (
                   <div className="opening-label">{openingName}</div>
                 )}
+                {isPhone && isLoaded && rootId && (
+                  <MoveRail
+                    tree={moveTree}
+                    rootId={rootId}
+                    currentPath={currentPath}
+                    moveGrades={moveGrades}
+                    moveDeltas={moveDeltas}
+                    branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
+                    pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
+                    onNodeClick={handleNavigateTo}
+                    isAnalyzing={showAnalyzingBar || !showGrades}
+                    rootBranchIds={rootBranchIds}
+                  />
+                )}
+                {isPhone && !isLoaded && analysisRootId && (
+                  <MoveRail
+                    tree={analysisTree}
+                    rootId={analysisRootId}
+                    currentPath={analysisPath}
+                    moveGrades={[]}
+                    branchGrades={showGrades ? branchGrades : undefined}
+                    pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
+                    onNodeClick={handleAnalysisNavigateTo}
+                    isAnalyzing={!showGrades}
+                    rootBranchIds={analysisRootBranchIds}
+                  />
+                )}
               </div>
               </ErrorBoundary>
 
               {/* ── Right panel ─────────────────────────────────────── */}
               <div className="side-col">
+                {mobilePanelStatusBar ? (
+                  <div className="mobile-panel-status-bar">
+                    {mobilePanelStatusBar}
+                  </div>
+                ) : null}
                 <div className="panel-tabs">
                   <button
                     className={`panel-tab${panelTab === 'load' ? ' active' : ''}`}
@@ -2244,18 +2319,18 @@ export default function App() {
                   {panelTab === 'analysis' && isLoaded && (
                     <>
                       {/* Engine / analyzing status */}
-                      {engineStatus === 'error' && (
+                      {!isPhone && engineStatus === 'error' && (
                         <div className="analyzing-bar analyzing-bar--error">
                           <span className="analyzing-text">⚠ Engine failed to load</span>
                         </div>
                       )}
-                      {engineStatus === 'loading' && !isReady && (
+                      {!isPhone && engineStatus === 'loading' && !isReady && (
                         <div className="analyzing-bar">
                           <span className="analyzing-dot" />
                           <span className="analyzing-text">Engine loading…</span>
                         </div>
                       )}
-                      {analysisStatusBar}
+                      {!isPhone && analysisStatusBar}
 
                       {!hideLoadedReviewArtifacts && shouldRenderEvalDisplay && (
                         <EvalDisplay {...evalDisplayProps} />
@@ -2323,18 +2398,18 @@ export default function App() {
                   {panelTab === 'coach' && isLoaded && COACHING_ENABLED && (
                     <>
                       {/* Engine / analyzing status */}
-                      {engineStatus === 'error' && (
+                      {!isPhone && engineStatus === 'error' && (
                         <div className="analyzing-bar analyzing-bar--error">
                           <span className="analyzing-text">⚠ Engine failed to load</span>
                         </div>
                       )}
-                      {engineStatus === 'loading' && !isReady && (
+                      {!isPhone && engineStatus === 'loading' && !isReady && (
                         <div className="analyzing-bar">
                           <span className="analyzing-dot" />
                           <span className="analyzing-text">Engine loading…</span>
                         </div>
                       )}
-                      {analysisStatusBar}
+                      {!isPhone && analysisStatusBar}
 
                       {/* Eval display */}
                       {!hideLoadedReviewArtifacts && shouldRenderEvalDisplay && (
@@ -2561,14 +2636,7 @@ export default function App() {
                             branchGrades={showGrades ? branchGrades : undefined}
                             branchDeltas={showGrades ? branchDeltas : undefined}
                             pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
-                            onNodeClick={(path) => {
-                              pathKeyRef.current++
-                              const destId = path[path.length - 1]
-                              if (destId && !branchGrades.has(destId)) {
-                                setPendingBranchNodes(prev => { const s = new Set(prev); s.add(destId); return s })
-                              }
-                              analysisBoardNavigateTo(path)
-                            }}
+                            onNodeClick={handleAnalysisNavigateTo}
                             isAnalyzing={!showGrades}
                             rootBranchIds={analysisRootBranchIds}
                           />
