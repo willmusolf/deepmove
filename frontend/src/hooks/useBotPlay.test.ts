@@ -134,24 +134,31 @@ describe('useBotPlay review handoff', () => {
       result.current.reviewGame()
     })
 
-    const state = useGameStore.getState()
     expect(onNavigateToReview).toHaveBeenCalledOnce()
-    expect(state.pgn).toContain('[Event "DeepMove Bot Game"]')
-    expect(state.pgn).toContain('[White "KnightRider"]')
-    expect(state.rawPgn).toBe(state.pgn)
-    expect(state.loadedPgn).toBe(state.pgn)
-    expect(state.moveEvals).toEqual([])
-    expect(state.criticalMoments).toEqual([])
-    expect(state.skipNextAnalysis).toBe(false)
-    expect(state.platform).toBeNull()
-    expect(state.userColor).toBe('white')
-    expect(state.userElo).toBe(1675)
-    expect(state.currentGameMeta).toEqual({
+    expect(onNavigateToReview).toHaveBeenCalledWith({
+      pgn: expect.stringContaining('[Event "DeepMove Bot Game"]'),
+      userColor: 'white',
+      userElo: 1675,
       opponent: 'Stockfish (1500)',
       opponentRating: 1500,
       result: 'W',
       timeControl: '10+0',
       endTime: 1_717_000_000_000,
+    })
+    const payload = onNavigateToReview.mock.calls[0]?.[0]
+    expect(payload.pgn).toContain('[White "KnightRider"]')
+
+    const state = useGameStore.getState()
+    expect(state.pgn).toBe('1. d4 d5')
+    expect(state.rawPgn).toBe('1. d4 d5')
+    expect(state.loadedPgn).toBe('1. d4 d5')
+    expect(state.moveEvals).toHaveLength(1)
+    expect(state.currentGameMeta).toEqual({
+      opponent: 'Old Opponent',
+      opponentRating: 1800,
+      result: 'L',
+      timeControl: '600',
+      endTime: 123,
     })
 
     unmount()

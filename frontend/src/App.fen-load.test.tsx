@@ -56,6 +56,10 @@ vi.mock('./components/Layout/ResponsiveLayout', () => ({
   default: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
 
+vi.mock('./components/Profile/SettingsPage', () => ({
+  default: () => <div data-testid="settingspage" />,
+}))
+
 vi.mock('./components/Profile/ProfilePage', () => ({
   default: ({
     onLoggedOut,
@@ -256,11 +260,19 @@ describe('App FEN loading', () => {
 
     render(<App />)
 
+    expect(screen.getByTestId('settingspage')).toBeInTheDocument()
+  })
+
+  it('renders profile for guests via the public profile route', () => {
+    window.history.replaceState({}, '', '/profile')
+
+    render(<App />)
+
     expect(screen.getByTestId('profilepage')).toBeInTheDocument()
   })
 
-  it('returns to review after logging out from settings', () => {
-    window.history.replaceState({}, '', '/settings')
+  it('returns to review after logging out from profile', () => {
+    window.history.replaceState({}, '', '/profile')
 
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Mock Logout' }))

@@ -1193,17 +1193,6 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   box-sizing: border-box;
 }
 
-@media (min-width: 1024px) and (max-height: 720px) {
-  .app-main--fixed-layout {
-    overflow-y: visible;
-    overflow-x: visible;
-  }
-
-  .app-shell--fixed-page .app-main--fixed-layout {
-    overflow: hidden;
-  }
-}
-
 .player-info-box {
   width: 100%;
 }

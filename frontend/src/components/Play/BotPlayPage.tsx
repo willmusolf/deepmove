@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Key } from 'chessground/types'
 import { usePlayStore, STARTING_FEN } from '../../stores/playStore'
-import { useBotPlay } from '../../hooks/useBotPlay'
+import { useBotPlay, type BotReviewPayload } from '../../hooks/useBotPlay'
 import { useSound } from '../../hooks/useSound'
 import ChessBoard from '../Board/ChessBoard'
 import PlayerInfoBox from '../Board/PlayerInfoBox'
@@ -45,7 +45,7 @@ function loadPlayUiState(): PlayUiState | null {
 }
 
 interface Props {
-  onNavigateToReview: () => void
+  onNavigateToReview: (payload: BotReviewPayload) => void
 }
 
 export default function BotPlayPage({ onNavigateToReview }: Props) {

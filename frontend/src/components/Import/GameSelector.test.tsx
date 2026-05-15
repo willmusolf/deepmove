@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import GameSelector from './GameSelector'
 import type { ChessComGame } from '../../api/chesscom'
+import type { LichessGame } from '../../api/lichess'
 
 const loadMoreGamesMock = vi.fn()
 const onGamesAppendedMock = vi.fn()
@@ -12,7 +13,6 @@ vi.mock('../../api/chesscom', () => ({
 
 vi.mock('../../api/lichess', () => ({
   loadMoreLichessGames: vi.fn(),
-  searchGamesByOpponent: vi.fn(),
 }))
 
 vi.mock('../../services/gameDB', () => ({
@@ -58,6 +58,25 @@ function makeChessComGame(): ChessComGame {
     rated: true,
     white: { username: 'Alice', rating: 1500, result: 'win' },
     black: { username: 'Bob', rating: 1480, result: 'checkmated' },
+  }
+}
+
+function makeLichessGame(): LichessGame {
+  return {
+    id: 'lichess-123',
+    rated: true,
+    variant: 'standard',
+    createdAt: 1_717_000_000_000,
+    lastMoveAt: 1_717_000_100_000,
+    speed: 'rapid',
+    perf: 'rapid',
+    status: 'mate',
+    players: {
+      white: { user: { name: 'Alice' }, rating: 1500 },
+      black: { user: { name: 'BobTheBuilder' }, rating: 1480 },
+    },
+    pgn: '[Event "?"]\n\n1. e4 e5 2. Nf3 Nc6',
+    clock: { initial: 600, increment: 0 },
   }
 }
 
@@ -124,5 +143,27 @@ describe('GameSelector Chess.com opponent hint', () => {
     fireEvent.change(screen.getByPlaceholderText('vs opponent…'), { target: { value: 'Bob' } })
 
     expect(screen.queryByText('Searching loaded games only — loading all now…')).not.toBeInTheDocument()
+  })
+})
+
+describe('GameSelector Lichess opponent filtering', () => {
+  it('filters locally as you type without showing a search-all button', async () => {
+    render(
+      <GameSelector
+        games={[makeLichessGame()]}
+        username="Alice"
+        platform="lichess"
+        onGameLoaded={() => {}}
+        pagination={{ platform: 'lichess', hasMore: true }}
+        onGamesAppended={onGamesAppendedMock}
+      />,
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('vs opponent…'), { target: { value: 'builder' } })
+
+    await waitFor(() => {
+      expect(screen.getByText(/1 of 1/)).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Search all')).not.toBeInTheDocument()
   })
 })

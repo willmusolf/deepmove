@@ -33,6 +33,17 @@ import type { MoveNode } from '../chess/types'
 import { applyPremoveForcefully } from '../components/Board/ChessBoard'
 import { getSelfDisplayName } from '../utils/selfDisplayName'
 
+export interface BotReviewPayload {
+  pgn: string
+  userColor: 'white' | 'black'
+  userElo: number | null
+  opponent: string
+  opponentRating: number
+  result: 'W' | 'L' | 'D'
+  timeControl: string
+  endTime: number
+}
+
 interface BotStrengthProfile {
   engineElo: number
   movetime: number
@@ -176,7 +187,7 @@ function applyMoveToStore(
   return node
 }
 
-export function useBotPlay(onNavigateToReview: () => void) {
+export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => void) {
   const botEngineRef = useRef<StockfishEngine | null>(null)
   const clockRafRef = useRef<number | null>(null)
   const lastTickRef = useRef<number>(0)
@@ -238,7 +249,6 @@ export function useBotPlay(onNavigateToReview: () => void) {
   }
 
   const store = usePlayStore
-  const gameStore = useGameStore
 
   /** Clear the premove queue in the Zustand store. */
   const clearPremoveQueue = useCallback(() => {
@@ -663,31 +673,24 @@ export function useBotPlay(onNavigateToReview: () => void) {
 
     const displayName = getSelfDisplayName(useAuthStore.getState().user)
     const pgn = generatePgn(state.tree, state.rootId, state.config, state.result, displayName)
-    const previousUserElo = gameStore.getState().userElo
+    const previousUserElo = useGameStore.getState().userElo
     const reviewResult = state.result === 'user-win'
       ? 'W'
       : state.result === 'user-loss'
         ? 'L'
         : 'D'
 
-    const gs = gameStore.getState()
-    gs.reset()
-    gs.setRawPgn(pgn)
-    gs.setLoadedPgn(pgn)
-    gs.setPgn(pgn)
-    gs.setUserColor(state.config.userColor)
-    if (previousUserElo > 0) gs.setUserElo(previousUserElo)
-    gs.setPlatform(null)
-    gs.setCurrentGameMeta({
+    onNavigateToReview({
+      pgn,
+      userColor: state.config.userColor,
+      userElo: previousUserElo && previousUserElo > 0 ? previousUserElo : null,
       opponent: `Stockfish (${state.config.botElo})`,
       opponentRating: state.config.botElo,
       result: reviewResult,
       timeControl: state.config.timeControl,
       endTime: Date.now(),
     })
-
-    onNavigateToReview()
-  }, [gameStore, onNavigateToReview, store])
+  }, [onNavigateToReview, store])
 
   // ── Clock display helpers (exported for BotPlayPage) ─────────────────────
   const getWhiteClockDisplay = useCallback((): string | undefined => {

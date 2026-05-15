@@ -1,6 +1,6 @@
 import { useEffect, useRef, useMemo, useState, useCallback } from 'react'
 import { loadMoreGames, type ChessComGame } from '../../api/chesscom'
-import { loadMoreLichessGames, searchGamesByOpponent, type LichessGame } from '../../api/lichess'
+import { loadMoreLichessGames, type LichessGame } from '../../api/lichess'
 import type { PaginationState } from './AccountLink'
 import { useGameStore } from '../../stores/gameStore'
 import { cleanPgn, hasClockAnnotations } from '../../chess/pgn'
@@ -116,11 +116,6 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     return () => clearTimeout(t)
   }, [opponentInput])
 
-  // Lichess opponent API search
-  const [lichessOppResults, setLichessOppResults] = useState<NormalizedGame[] | null>(null)
-  const [lichessOppLoading, setLichessOppLoading] = useState(false)
-  const [lichessOppQuery, setLichessOppQuery] = useState('')
-
   // Reset everything on username change
   useEffect(() => {
     setSortKey('date-desc')
@@ -129,8 +124,6 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     setTCFilter('all')
     setOpponentInput('')
     setOpponentSearch('')
-    setLichessOppResults(null)
-    setLichessOppQuery('')
     setDisplayLimit(DISPLAY_PAGE)
     cancelLoadAllRef.current = true
     setIsLoadingAll(false)
@@ -142,14 +135,6 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
   useEffect(() => {
     setDisplayLimit(DISPLAY_PAGE)
   }, [resultFilter, colorFilter, tcFilter, opponentSearch, sortKey])
-
-  // Clear Lichess opponent results when search is cleared
-  useEffect(() => {
-    if (!opponentInput.trim()) {
-      setLichessOppResults(null)
-      setLichessOppQuery('')
-    }
-  }, [opponentInput])
 
   // Load analyzed IDs + cached-only games
   useEffect(() => {
@@ -208,12 +193,11 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
   }, [normalized, cachedOnlyGames])
 
   const displayedGames = useMemo(() => {
-    const base = lichessOppResults ?? allGames
-    let list = base
+    let list = allGames
     if (resultFilter !== 'all') list = list.filter(g => g.result === resultFilter)
     if (colorFilter !== 'all') list = list.filter(g => (colorFilter === 'white') === g.isWhite)
     if (tcFilter !== 'all') list = list.filter(g => tcCategory(g.timeControl) === tcFilter)
-    if (opponentSearch.trim() && !lichessOppResults) {
+    if (opponentSearch.trim()) {
       const q = opponentSearch.trim().toLowerCase()
       list = list.filter(g => g.opponent.toLowerCase().includes(q))
     }
@@ -227,7 +211,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
       case 'user-asc':  sorted.sort((a, b) => a.userRating - b.userRating); break
     }
     return sorted
-  }, [allGames, lichessOppResults, resultFilter, colorFilter, tcFilter, opponentSearch, sortKey])
+  }, [allGames, resultFilter, colorFilter, tcFilter, opponentSearch, sortKey])
 
   const visibleGames = useMemo(
     () => displayedGames.slice(0, displayLimit),
@@ -360,22 +344,6 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagination?.hasMore, games.length])
 
-  const handleLichessOppSearch = useCallback(async () => {
-    const q = opponentInput.trim()
-    if (!q || platform !== 'lichess') return
-    setLichessOppLoading(true)
-    setLichessOppQuery(q)
-    try {
-      const result = await searchGamesByOpponent(username, q, 200)
-      const norm = result.games.map(g => normalizeLichess(g as LichessGame, username))
-      setLichessOppResults(norm)
-    } catch {
-      setLichessOppResults([])
-    } finally {
-      setLichessOppLoading(false)
-    }
-  }, [opponentInput, platform, username])
-
   if (games.length === 0 && cachedOnlyGames.length === 0) {
     return <div className="game-list-empty">No games found.</div>
   }
@@ -388,9 +356,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     : null
 
   const oppInputTrimmed = opponentInput.trim()
-  const showChessComHint = platform === 'chesscom' && isLoadingAll && oppInputTrimmed.length > 0
-  const showLichessOppBtn = platform === 'lichess' && oppInputTrimmed && !lichessOppResults
-  const showLichessOppActive = lichessOppResults !== null
+  const showOpponentHint = isLoadingAll && oppInputTrimmed.length > 0
 
   return (
     <>
@@ -398,11 +364,9 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     {/* Count + loading status at top */}
     <div className="game-list-header">
       <span className="game-list-count">
-        {showLichessOppActive
-          ? `${displayedGames.length} vs ${lichessOppQuery}`
-          : isFiltered
-            ? `${displayedGames.length} of ${allGames.length}`
-            : `${allGames.length} game${allGames.length !== 1 ? 's' : ''}`
+        {isFiltered
+          ? `${displayedGames.length} of ${allGames.length}`
+          : `${allGames.length} game${allGames.length !== 1 ? 's' : ''}`
         }
         {isLoadingAll && (remaining == null || remaining > 0) && (
           <span className="game-list-loading-status"> · loading…</span>
@@ -439,28 +403,10 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
           placeholder="vs opponent…"
           value={opponentInput}
           onChange={e => setOpponentInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && showLichessOppBtn) void handleLichessOppSearch() }}
           autoComplete="off"
         />
-        {showLichessOppBtn && (
-          <button
-            className="game-filter-btn game-opponent-search-btn"
-            onClick={() => void handleLichessOppSearch()}
-            disabled={lichessOppLoading}
-          >
-            {lichessOppLoading ? '…' : 'Search all'}
-          </button>
-        )}
-        {showLichessOppActive && (
-          <button
-            className="game-filter-btn game-opponent-clear-btn"
-            onClick={() => { setLichessOppResults(null); setLichessOppQuery('') }}
-          >
-            ✕ Clear
-          </button>
-        )}
       </div>
-      {showChessComHint && (
+      {showOpponentHint && (
         <div className="game-opponent-hint">
           Searching loaded games only — loading all now…
         </div>
@@ -506,7 +452,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     <div className="game-list" ref={listRef}>
       {displayedGames.length === 0 && (
         <div className="game-list-empty">
-          {showLichessOppActive ? `No Lichess games found vs "${lichessOppQuery}".` : 'No games match these filters.'}
+          No games match these filters.
         </div>
       )}
       {visibleGames.map((g) => (

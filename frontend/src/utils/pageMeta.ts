@@ -8,6 +8,7 @@ const PAGE_PATHS: Record<Page, string> = {
   play: '/play',
   dashboard: '/dashboard',
   settings: '/settings',
+  profile: '/profile',
   about: '/about',
   privacy: '/privacy',
   'reset-password': '/reset-password',
@@ -34,7 +35,11 @@ const PAGE_META: Record<Page, { title: string, description: string }> = {
   },
   settings: {
     title: 'DeepMove | Settings',
-    description: 'Manage your DeepMove account and connected chess profiles.',
+    description: 'Manage your DeepMove preferences, appearance, sound, and local data.',
+  },
+  profile: {
+    title: 'DeepMove | Profile',
+    description: 'Manage your DeepMove account, linked chess profiles, ratings, and security.',
   },
   about: {
     title: 'About DeepMove | Chess Improvement Through Game Review',

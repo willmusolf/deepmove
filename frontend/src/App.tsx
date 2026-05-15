@@ -23,6 +23,7 @@ import type { ChessComGame } from './api/chesscom'
 import type { LichessGame } from './api/lichess'
 import type { Page } from './components/Layout/NavSidebar'
 import ResponsiveLayout from './components/Layout/ResponsiveLayout'
+import SettingsPage from './components/Profile/SettingsPage'
 import ProfilePage from './components/Profile/ProfilePage'
 import MoveCoachComment from './components/Coach/MoveCoachComment'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './components/Board/gradeBadges'
@@ -35,6 +36,7 @@ import AdBanner from './components/AdBanner'
 import MobileAdBanner from './components/MobileAdBanner'
 import { useGameReview } from './hooks/useGameReview'
 import { useAnalysisBoard } from './hooks/useAnalysisBoard'
+import type { BotReviewPayload } from './hooks/useBotPlay'
 import BestLines from './components/Board/BestLines'
 import EvalDisplay from './components/Analysis/EvalDisplay'
 import { exportPgnWithVariations } from './chess/pgnExport'
@@ -327,6 +329,7 @@ function isPage(value: unknown): value is Page {
     || value === 'play'
     || value === 'dashboard'
     || value === 'settings'
+    || value === 'profile'
     || value === 'about'
     || value === 'privacy'
     || value === 'reset-password'
@@ -724,6 +727,7 @@ export default function App() {
   const [isBestLineJumping, setBestLineJumping] = useState(false)
   const playBestLineMoveRef = useRef<(uci: string, options?: { playSound?: boolean }) => boolean>(() => false)
   const bestLineJumpTokenRef = useRef(0)
+  const reviewHandoffRef = useRef(false)
 
   const cancelBestLineJump = useCallback(() => {
     bestLineJumpTokenRef.current += 1
@@ -853,6 +857,7 @@ export default function App() {
       </div>
     </div>
   ) : null
+
   const prevEngineLinesRef = useRef(engineLines)
   useEffect(() => {
     // Always cancel in-flight analysis and pending timers first — even if the new
@@ -864,7 +869,7 @@ export default function App() {
     stopPositionAnalysis()
     if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
 
-    if (pauseLivePositionAnalysis) {
+    if (pauseLivePositionAnalysis || currentPage === 'play' || reviewHandoffRef.current) {
       setAnalyzingPosition(false)
       return
     }
@@ -965,7 +970,7 @@ export default function App() {
       if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayFen, isReady, loadedGameKey, pauseLivePositionAnalysis, autoAnalyze, engineLines, engineDepth])
+  }, [currentPage, displayFen, isReady, loadedGameKey, pauseLivePositionAnalysis, autoAnalyze, engineLines, engineDepth])
 
   // When engine becomes ready, retroactively grade any sandbox nodes that were
   // played before Stockfish finished loading (common for eager users).
@@ -1097,8 +1102,16 @@ export default function App() {
   const [chesscomPagination, setChesscomPagination] = useState<PaginationState | null>(null)
   const [lichessPagination, setLichessPagination] = useState<PaginationState | null>(null)
   const [currentPage, setCurrentPage] = useState<Page>(() => routePage ?? savedUiState?.currentPage ?? 'review')
-  const goToPage = (page: Page) => {
-    if (page !== 'play') clearPlaySession()
+  const goToPage = useCallback((page: Page) => {
+    if (page === 'play') {
+      reviewHandoffRef.current = false
+      suppressPositionAnalysisRef.current = false
+      cancelGameAnalysis()
+      stopBranchAnalysis()
+      resetPositionAnalysisState()
+    } else {
+      clearPlaySession()
+    }
     if (typeof window !== 'undefined') {
       const nextPath = getPathForPage(page)
       if (window.location.pathname !== nextPath) {
@@ -1106,25 +1119,9 @@ export default function App() {
       }
     }
     setCurrentPage(page)
-  }
+  }, [cancelGameAnalysis, resetPositionAnalysisState, stopBranchAnalysis])
   const [showEvalBar, setShowEvalBar] = useState(savedUiState?.showEvalBar ?? true)
   const isPhone = useIsPhone()
-  const mobilePanelStatusBar = isPhone && isLoaded ? (
-    <>
-      {engineStatus === 'error' && (
-        <div className="analyzing-bar analyzing-bar--error">
-          <span className="analyzing-text">⚠ Engine failed to load</span>
-        </div>
-      )}
-      {engineStatus === 'loading' && !isReady && (
-        <div className="analyzing-bar">
-          <span className="analyzing-dot" />
-          <span className="analyzing-text">Engine loading…</span>
-        </div>
-      )}
-      {analysisStatusBar}
-    </>
-  ) : null
   const viewMode = panelTab === 'coach' ? 'coach' : 'classic'
   const [showArrows, setShowArrows] = useState(savedUiState?.showArrows ?? true)
   const [showGrades, setShowGrades] = useState(savedUiState?.showGrades ?? true)
@@ -1953,6 +1950,36 @@ export default function App() {
   const reviewBoundaryKey = `${currentGameId ?? 'sandbox'}:${panelTab}:${importTab}:${isLoaded ? 'loaded' : 'sandbox'}`
   const boardBoundaryKey = `${reviewBoundaryKey}:${orientation}`
   const selfDisplayName = useMemo(() => getSelfDisplayName(authUser), [authUser])
+  const handleBotReviewReady = useCallback((payload: BotReviewPayload) => {
+    reviewHandoffRef.current = true
+    suppressPositionAnalysisRef.current = true
+    cancelGameAnalysis()
+    stopBranchAnalysis()
+    resetPositionAnalysisState({ keepBestLineJump: true })
+    lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
+
+    const gs = useGameStore.getState()
+    gs.reset()
+    gs.setRawPgn(payload.pgn)
+    gs.setLoadedPgn(payload.pgn)
+    gs.setPgn(payload.pgn)
+    gs.setUserColor(payload.userColor)
+    if (payload.userElo && payload.userElo > 0) gs.setUserElo(payload.userElo)
+    gs.setPlatform(null)
+    gs.setCurrentGameMeta({
+      opponent: payload.opponent,
+      opponentRating: payload.opponentRating,
+      result: payload.result,
+      timeControl: payload.timeControl,
+      endTime: payload.endTime,
+    })
+
+    goToPage('review')
+    requestAnimationFrame(() => {
+      reviewHandoffRef.current = false
+      suppressPositionAnalysisRef.current = false
+    })
+  }, [cancelGameAnalysis, goToPage, resetPositionAnalysisState, stopBranchAnalysis])
 
   return (
     <ResponsiveLayout
@@ -2301,11 +2328,6 @@ export default function App() {
 
               {/* ── Right panel ─────────────────────────────────────── */}
               <div className="side-col">
-                {mobilePanelStatusBar ? (
-                  <div className="mobile-panel-status-bar">
-                    {mobilePanelStatusBar}
-                  </div>
-                ) : null}
                 <div className="panel-tabs">
                   <button
                     className={`panel-tab${panelTab === 'load' ? ' active' : ''}`}
@@ -2349,18 +2371,18 @@ export default function App() {
                   {panelTab === 'analysis' && isLoaded && (
                     <>
                       {/* Engine / analyzing status */}
-                      {!isPhone && engineStatus === 'error' && (
+                      {engineStatus === 'error' && (
                         <div className="analyzing-bar analyzing-bar--error">
                           <span className="analyzing-text">⚠ Engine failed to load</span>
                         </div>
                       )}
-                      {!isPhone && engineStatus === 'loading' && !isReady && (
+                      {engineStatus === 'loading' && !isReady && (
                         <div className="analyzing-bar">
                           <span className="analyzing-dot" />
                           <span className="analyzing-text">Engine loading…</span>
                         </div>
                       )}
-                      {!isPhone && analysisStatusBar}
+                      {analysisStatusBar}
 
                       {!hideLoadedReviewArtifacts && shouldRenderEvalDisplay && (
                         <EvalDisplay {...evalDisplayProps} />
@@ -2428,18 +2450,18 @@ export default function App() {
                   {panelTab === 'coach' && isLoaded && COACHING_ENABLED && (
                     <>
                       {/* Engine / analyzing status */}
-                      {!isPhone && engineStatus === 'error' && (
+                      {engineStatus === 'error' && (
                         <div className="analyzing-bar analyzing-bar--error">
                           <span className="analyzing-text">⚠ Engine failed to load</span>
                         </div>
                       )}
-                      {!isPhone && engineStatus === 'loading' && !isReady && (
+                      {engineStatus === 'loading' && !isReady && (
                         <div className="analyzing-bar">
                           <span className="analyzing-dot" />
                           <span className="analyzing-text">Engine loading…</span>
                         </div>
                       )}
-                      {!isPhone && analysisStatusBar}
+                      {analysisStatusBar}
 
                       {/* Eval display */}
                       {!hideLoadedReviewArtifacts && shouldRenderEvalDisplay && (
@@ -2721,6 +2743,9 @@ export default function App() {
             </div>
           )}
           {currentPage === 'settings' && (
+            <SettingsPage />
+          )}
+          {currentPage === 'profile' && (
             <ProfilePage
               onUsernameLinked={(platform, username) => {
                 if (platform === 'chesscom') {
@@ -2759,7 +2784,7 @@ export default function App() {
               )}
             >
               <BotPlayPage
-                onNavigateToReview={() => goToPage('review')}
+                onNavigateToReview={handleBotReviewReady}
               />
             </ErrorBoundary>
           )}
