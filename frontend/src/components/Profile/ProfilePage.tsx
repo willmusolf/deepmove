@@ -6,6 +6,7 @@ import {
   setAdminCoachingEnabled,
   type AdminOpsStatus,
 } from './adminApi'
+import AuthModal from '../Auth/AuthModal'
 import { useAuthStore } from '../../stores/authStore'
 import { usePrefsStore, type AppTheme, type BoardTheme } from '../../stores/prefsStore'
 import { clearAllAnalyses } from '../../services/gameDB'
@@ -20,11 +21,12 @@ const REVIEW_USERNAME_STORAGE = {
 interface ProfilePageProps {
   /** Called when user saves a chess platform username so the Review tab can pre-fill it */
   onUsernameLinked?: (platform: 'chesscom' | 'lichess', username: string) => void
+  onLoggedOut?: () => void
 }
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
-export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
+export default function ProfilePage({ onUsernameLinked, onLoggedOut }: ProfilePageProps) {
   const user = useAuthStore(s => s.user)
   const accessToken = useAuthStore(s => s.accessToken)
   const updateProfile = useAuthStore(s => s.updateProfile)
@@ -87,6 +89,7 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   const [pwSaving, setPwSaving] = useState(false)
   const [pwMsg, setPwMsg] = useState('')
   const [pwIsError, setPwIsError] = useState(false)
+  const [showAuth, setShowAuth] = useState(false)
 
   useEffect(() => {
     setChesscomInput(user?.chesscom_username ?? '')
@@ -95,6 +98,10 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
   useEffect(() => {
     setLichessInput(user?.lichess_username ?? '')
   }, [user?.lichess_username])
+
+  function handleAuthSuccess() {
+    setShowAuth(false)
+  }
 
   async function handleSendResetEmail() {
     if (!user) return
@@ -346,16 +353,21 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
             )}
           </div>
         ) : (
-          <p className="profile-guest-note">Sign in to save your settings and link chess accounts.</p>
+          <div className="profile-guest-note">
+            <p>You're using DeepMove as a guest. Local settings still work here.</p>
+            <button className="btn btn-primary" type="button" onClick={() => setShowAuth(true)}>
+              Sign In
+            </button>
+          </div>
         )}
       </section>
 
 
       {/* ── Security ─────────────────────────────────────────────────── */}
-      {user && (
-        <section className="profile-section">
-          <h3 className="profile-section-title">Security</h3>
-          {isStaging ? (
+      <section className="profile-section">
+        <h3 className="profile-section-title">Security</h3>
+        {user ? (
+          isStaging ? (
             <form className="profile-field-group" onSubmit={handleChangePassword}>
               <input type="email" autoComplete="username" value={user.email} readOnly aria-hidden="true" style={{ display: 'none' }} />
               <div className="profile-field">
@@ -390,13 +402,28 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
               </div>
             </div>
           )}
-        </section>
-      )}
+        ) : (
+          <div className="profile-field-group">
+            <p className="profile-section-desc">Sign in to manage your password and recovery options.</p>
+            <button className="btn btn-secondary" type="button" onClick={() => setShowAuth(true)}>
+              Sign In to Manage Security
+            </button>
+          </div>
+        )}
+      </section>
 
       {/* ── Chess Accounts ───────────────────────────────────────────── */}
       <section className="profile-section">
         <h3 className="profile-section-title">Chess Accounts</h3>
         <p className="profile-section-desc">Link your accounts to auto-load your games in the Review tab.</p>
+        {!user && (
+          <div className="profile-field-row" style={{ marginBottom: '0.85rem' }}>
+            <span className="profile-section-desc">Sign in to save linked usernames and sync them between sessions.</span>
+            <button className="btn btn-secondary" type="button" onClick={() => setShowAuth(true)}>
+              Sign In to Link Accounts
+            </button>
+          </div>
+        )}
         <form className="profile-field-group" onSubmit={handleSaveAccounts} autoComplete="off">
           <div className="profile-field">
             <label className="profile-field-label">Chess.com username</label>
@@ -655,45 +682,66 @@ export default function ProfilePage({ onUsernameLinked }: ProfilePageProps) {
       {/* ── Account ──────────────────────────────────────────────────── */}
       <section className="profile-section">
         <h3 className="profile-section-title">Account</h3>
-        <div className="profile-field-group">
-          <div className="profile-field">
-            <div className="profile-field-row">
-              <button
-                className="btn btn-secondary"
-                onClick={() => { if (window.confirm('Log out of DeepMove?')) logout() }}
-              >
-                Log Out
-              </button>
-              <button
-                className="btn"
-                disabled={deletePending}
-                onClick={handleDeleteAccount}
-                style={{
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  borderColor: 'rgba(239, 68, 68, 0.5)',
-                  color: '#dc2626',
-                }}
-              >
-                {deletePending ? 'Deleting…' : deleteStep === 1 ? 'Are you sure? No undo.' : 'Delete Account'}
-              </button>
-              {deleteStep === 1 && !deletePending && (
+        {user ? (
+          <div className="profile-field-group">
+            <div className="profile-field">
+              <div className="profile-field-row">
                 <button
                   className="btn btn-secondary"
-                  onClick={() => setDeleteStep(0)}
-                  style={{ fontSize: '0.8rem' }}
+                  type="button"
+                  onClick={() => {
+                    if (!window.confirm('Log out of DeepMove?')) return
+                    void logout().finally(() => onLoggedOut?.())
+                  }}
                 >
-                  Cancel
+                  Log Out
                 </button>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={deletePending}
+                  onClick={handleDeleteAccount}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    borderColor: 'rgba(239, 68, 68, 0.5)',
+                    color: '#dc2626',
+                  }}
+                >
+                  {deletePending ? 'Deleting…' : deleteStep === 1 ? 'Are you sure? No undo.' : 'Delete Account'}
+                </button>
+                {deleteStep === 1 && !deletePending && (
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    onClick={() => setDeleteStep(0)}
+                    style={{ fontSize: '0.8rem' }}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+              {deleteStep === 1 && (
+                <p className="profile-section-desc" style={{ marginTop: '0.35rem', color: '#dc2626', fontSize: '0.75rem' }}>
+                  All games, analysis, and data will be permanently deleted.
+                </p>
               )}
             </div>
-            {deleteStep === 1 && (
-              <p className="profile-section-desc" style={{ marginTop: '0.35rem', color: '#dc2626', fontSize: '0.75rem' }}>
-                All games, analysis, and data will be permanently deleted.
-              </p>
-            )}
           </div>
-        </div>
+        ) : (
+          <div className="profile-field-group">
+            <p className="profile-section-desc">Sign in to access account actions like logout, password reset, and account deletion.</p>
+            <button className="btn btn-secondary" type="button" onClick={() => setShowAuth(true)}>
+              Sign In to Manage Account
+            </button>
+          </div>
+        )}
       </section>
+      {showAuth && (
+        <AuthModal
+          onClose={() => setShowAuth(false)}
+          onSuccess={handleAuthSuccess}
+        />
+      )}
     </div>
   )
 }

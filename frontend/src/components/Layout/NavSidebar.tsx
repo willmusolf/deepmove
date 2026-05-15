@@ -28,6 +28,7 @@ const MAIN_ITEMS = [
 ]
 
 const SECONDARY_ITEMS = [
+  { id: 'settings' as const, label: 'Settings', icon: '⚙' },
   { id: 'about' as const, label: 'About', icon: 'ⓘ' },
   { id: 'privacy' as const, label: 'Privacy', icon: '◫' },
 ]

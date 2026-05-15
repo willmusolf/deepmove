@@ -50,7 +50,7 @@ import type { MoveGrade } from './engine/analysis'
 import type { Key } from 'chessground/types'
 import { cacheRatingsFromGameList, readCachedRatings } from './components/Import/normalizeGame'
 import { formatEval } from './utils/format'
-import { pruneReviewPendingNodes, shouldTrackReviewPendingNode } from './utils/reviewPending'
+import { prunePendingNodes, pruneReviewPendingNodes, shouldTrackReviewPendingNode } from './utils/reviewPending'
 import { readSessionJson, writeSessionJson } from './utils/sessionStorage'
 import {
   positionCacheKey,
@@ -58,6 +58,7 @@ import {
   makeThrottledWriter,
   type ThrottledCacheWriter,
 } from './utils/positionCacheSession'
+import { getSelfDisplayName } from './utils/selfDisplayName'
 import { Chess } from 'chess.js'
 import { getSquareOverlayPosition } from './chess/boardGeometry'
 import './styles/board.css'
@@ -722,6 +723,27 @@ export default function App() {
   const suppressPositionAnalysisRef = useRef(false)
   const [isBestLineJumping, setBestLineJumping] = useState(false)
   const playBestLineMoveRef = useRef<(uci: string, options?: { playSound?: boolean }) => boolean>(() => false)
+  const bestLineJumpTokenRef = useRef(0)
+
+  const cancelBestLineJump = useCallback(() => {
+    bestLineJumpTokenRef.current += 1
+    suppressPositionAnalysisRef.current = false
+    setBestLineJumping(false)
+  }, [])
+
+  const resetPositionAnalysisState = useCallback((options?: { keepBestLineJump?: boolean }) => {
+    positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
+    stopPositionAnalysis()
+    if (navHoldTimerRef.current) {
+      clearTimeout(navHoldTimerRef.current)
+      navHoldTimerRef.current = null
+    }
+    positionPerfRef.current = null
+    setCurrentPositionLines([])
+    setCurrentAnalysisDepth(0)
+    setAnalyzingPosition(false)
+    if (!options?.keepBestLineJump) cancelBestLineJump()
+  }, [cancelBestLineJump, setAnalyzingPosition, setCurrentPositionLines, stopPositionAnalysis])
 
   function triggerPositionAnalysis(fen: string, depth = positionMaxDepthRef.current) {
     // NOTE: callers are responsible for calling stopPositionAnalysis() before this.
@@ -943,7 +965,7 @@ export default function App() {
       if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayFen, isReady, pauseLivePositionAnalysis, autoAnalyze, engineLines, engineDepth])
+  }, [displayFen, isReady, loadedGameKey, pauseLivePositionAnalysis, autoAnalyze, engineLines, engineDepth])
 
   // When engine becomes ready, retroactively grade any sandbox nodes that were
   // played before Stockfish finished loading (common for eager users).
@@ -1225,25 +1247,28 @@ export default function App() {
 
     // Clear any arrows that were showing in free-play mode so they don't flash
     // on the first position of the newly loaded game.
-    setCurrentPositionLines([])
-    setAnalyzingPosition(false)
+    resetPositionAnalysisState()
     setPanelTab('analysis')
     analysisBoardReset()
     lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
     setPendingBranchNodes(new Set())
 
-    // Re-seed best-lines when the loaded game changes, even if the displayed FEN
-    // stays identical (for example move 0 in consecutive standard games).
-    handleBeforeGameLoad()
-    if (isReady) triggerPositionAnalysis(displayFen)
-  }, [loadedGameKey]) // eslint-disable-line react-hooks/exhaustive-deps
+    // loadedGameKey is included in the position-analysis effect dependencies, so
+    // move-0 analysis restarts there once the review artifacts are renderable.
+  }, [analysisBoardReset, loadedGameKey, resetPositionAnalysisState])
 
   useEffect(() => {
     if (!isLoaded) return
 
     setPendingBranchNodes(prev => pruneReviewPendingNodes(prev, moveTree, branchGrades))
   }, [isLoaded, moveTree, branchGrades])
+
+  useEffect(() => {
+    if (isLoaded) return
+
+    setPendingBranchNodes(prev => prunePendingNodes(prev, analysisTree, branchGrades, { allowMainLine: true }))
+  }, [analysisTree, branchGrades, isLoaded])
 
   // ── Keyboard navigation ────────────────────────────────────────────────────
 
@@ -1378,10 +1403,7 @@ export default function App() {
 
   function handleNewGame() {
     cancelGameAnalysis()
-    positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
-    stopPositionAnalysis()
-    positionTokenRef.current++
-    if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
+    resetPositionAnalysisState()
     reset()
     lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
     positionCache.current.clear()
@@ -1398,6 +1420,7 @@ export default function App() {
     const chess = new Chess()
     for (const san of analysisMainLineSans) chess.move(san)
     cancelGameAnalysis()
+    resetPositionAnalysisState()
     reset()
     setStoredUserColor(null)
     setPgn(chess.pgn())
@@ -1410,6 +1433,7 @@ export default function App() {
       return
     }
 
+    resetPositionAnalysisState()
     analysisBoardReset()
     lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
@@ -1423,10 +1447,7 @@ export default function App() {
   function handleBeforeGameLoad() {
     cancelGameAnalysis()
     stopBranchAnalysis()
-    positionTokenRef.current++  // Invalidate any in-flight onUpdate callbacks immediately
-    stopPositionAnalysis()
-    positionTokenRef.current++
-    if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
+    resetPositionAnalysisState()
   }
 
   // Board move during game review: advance main line or create branch.
@@ -1640,6 +1661,7 @@ export default function App() {
 
   async function handleAnalysisBestLineMoveClick(line: TopLine, plyCount: number) {
     const sequence = line.pv.slice(0, plyCount)
+    const targetFens: string[] = []
     let targetFen = displayFen
     try {
       const chess = new Chess(displayFen)
@@ -1651,24 +1673,26 @@ export default function App() {
         })
         if (!result) break
         targetFen = chess.fen()
+        targetFens.push(targetFen)
       }
     } catch {
       targetFen = displayFen
     }
 
+    const jumpToken = bestLineJumpTokenRef.current + 1
+    bestLineJumpTokenRef.current = jumpToken
     suppressPositionAnalysisRef.current = true
     setBestLineJumping(true)
-    positionTokenRef.current++
-    stopPositionAnalysis()
-    if (navHoldTimerRef.current) clearTimeout(navHoldTimerRef.current)
-    setCurrentPositionLines([])
-    setCurrentAnalysisDepth(0)
+    resetPositionAnalysisState({ keepBestLineJump: true })
     setAnalyzingPosition(true)
+    let resolvedTargetFen = displayFen
 
     try {
       for (let i = 0; i < sequence.length; i += 1) {
+        if (bestLineJumpTokenRef.current !== jumpToken) return
         const moved = playBestLineMoveRef.current(sequence[i])
         if (!moved) break
+        resolvedTargetFen = targetFens[i] ?? resolvedTargetFen
         if (i < sequence.length - 1) {
           await new Promise<void>(resolve => {
             window.setTimeout(() => requestAnimationFrame(() => resolve()), 110)
@@ -1676,8 +1700,12 @@ export default function App() {
         }
       }
     } finally {
-      suppressPositionAnalysisRef.current = false
+      if (bestLineJumpTokenRef.current === jumpToken) {
+        suppressPositionAnalysisRef.current = false
+      }
     }
+
+    if (bestLineJumpTokenRef.current !== jumpToken) return
 
     if (pauseLivePositionAnalysis || !isReady) {
       setBestLineJumping(false)
@@ -1685,7 +1713,8 @@ export default function App() {
       return
     }
 
-    const cached = positionCache.current.get(targetFen)
+    const finalTargetFen = resolvedTargetFen || targetFen
+    const cached = positionCache.current.get(finalTargetFen)
     if (cached && cached.length > 0) {
       setCurrentPositionLines(cached)
       setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
@@ -1701,7 +1730,7 @@ export default function App() {
     }
 
     setBestLineJumping(false)
-    triggerPositionAnalysis(targetFen)
+    triggerPositionAnalysis(finalTargetFen)
   }
 
 
@@ -1923,6 +1952,7 @@ export default function App() {
   const shouldShowMobileSponsor = !isFixedLayoutPage && !isPremium && mobileBannerAdEnabled && mobileSponsorPage !== null
   const reviewBoundaryKey = `${currentGameId ?? 'sandbox'}:${panelTab}:${importTab}:${isLoaded ? 'loaded' : 'sandbox'}`
   const boardBoundaryKey = `${reviewBoundaryKey}:${orientation}`
+  const selfDisplayName = useMemo(() => getSelfDisplayName(authUser), [authUser?.chesscom_username, authUser?.lichess_username])
 
   return (
     <ResponsiveLayout
@@ -2127,7 +2157,7 @@ export default function App() {
                       />
                     ) : (
                       <PlayerInfoBox
-                        username={authUser?.chesscom_username ?? authUser?.lichess_username ?? 'You'}
+                        username={selfDisplayName}
                         elo={authUser?.elo_estimate ? String(authUser.elo_estimate) : null}
                         isWhite={orientation === 'white'}
                         isToMove={false}
@@ -2701,6 +2731,7 @@ export default function App() {
                   setImportTab('lichess')
                 }
               }}
+              onLoggedOut={() => goToPage('review')}
             />
           )}
           {currentPage === 'about' && (

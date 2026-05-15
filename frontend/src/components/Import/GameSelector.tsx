@@ -388,7 +388,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     : null
 
   const oppInputTrimmed = opponentInput.trim()
-  const showChessComHint = platform === 'chesscom' && hasMore && oppInputTrimmed && !lichessOppResults
+  const showChessComHint = platform === 'chesscom' && isLoadingAll && oppInputTrimmed.length > 0
   const showLichessOppBtn = platform === 'lichess' && oppInputTrimmed && !lichessOppResults
   const showLichessOppActive = lichessOppResults !== null
 

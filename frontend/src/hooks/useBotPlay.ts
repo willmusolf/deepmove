@@ -27,9 +27,11 @@ import { StockfishEngine } from '../engine/stockfish'
 import { usePlayStore, STARTING_FEN, type PlayConfig, type TimeControl } from '../stores/playStore'
 import { msToHHMMSS } from '../utils/format'
 import { useGameStore } from '../stores/gameStore'
+import { useAuthStore } from '../stores/authStore'
 import { playSharedMoveSound } from './useSound'
 import type { MoveNode } from '../chess/types'
 import { applyPremoveForcefully } from '../components/Board/ChessBoard'
+import { getSelfDisplayName } from '../utils/selfDisplayName'
 
 interface BotStrengthProfile {
   engineElo: number
@@ -659,7 +661,7 @@ export function useBotPlay(onNavigateToReview: () => void) {
     const state = store.getState()
     if (!state.rootId || !state.config) return
 
-    const displayName = 'You'
+    const displayName = getSelfDisplayName(useAuthStore.getState().user)
     const pgn = generatePgn(state.tree, state.rootId, state.config, state.result, displayName)
     const previousUserElo = gameStore.getState().userElo
     const reviewResult = state.result === 'user-win'

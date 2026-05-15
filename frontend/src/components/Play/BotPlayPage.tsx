@@ -17,6 +17,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { Chess } from 'chess.js'
 import { getSquareOverlayPosition } from '../../chess/boardGeometry'
 import { readSessionJson, writeSessionJson } from '../../utils/sessionStorage'
+import { getSelfDisplayName } from '../../utils/selfDisplayName'
 
 const PLAY_UI_SESSION_KEY = 'deepmove_playUi'
 
@@ -79,7 +80,7 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
 
   // Auth (for display name)
   const authUser = useAuthStore(s => s.user)
-  const displayName = authUser?.chesscom_username ?? authUser?.lichess_username ?? 'You'
+  const displayName = getSelfDisplayName(authUser)
 
   // Board orientation (local state — user can flip any time)
   const [orientation, setOrientation] = useState<'white' | 'black'>(savedUiState?.orientation ?? 'white')

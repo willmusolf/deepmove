@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pruneReviewPendingNodes, shouldTrackReviewPendingNode } from './reviewPending'
+import { prunePendingNodes, pruneReviewPendingNodes, shouldTrackReviewPendingNode } from './reviewPending'
 import type { MoveTree } from '../chess/types'
 
 const tree: MoveTree = {
@@ -65,5 +65,19 @@ describe('reviewPending', () => {
     const pending = new Set(['m0-b0'])
 
     expect(pruneReviewPendingNodes(pending, tree, new Map())).toBe(pending)
+  })
+
+  it('keeps sandbox main-line pending nodes until they are graded', () => {
+    const pending = new Set(['m0'])
+
+    expect(prunePendingNodes(pending, tree, new Map(), { allowMainLine: true })).toBe(pending)
+    expect(
+      prunePendingNodes(
+        pending,
+        tree,
+        new Map([['m0', 'good' as const]]),
+        { allowMainLine: true },
+      ),
+    ).toEqual(new Set())
   })
 })

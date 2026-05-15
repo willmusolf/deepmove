@@ -18,6 +18,17 @@ vi.mock('../engine/stockfish', () => ({
   },
 }))
 
+vi.mock('../stores/authStore', () => ({
+  useAuthStore: {
+    getState: () => ({
+      user: {
+        chesscom_username: 'KnightRider',
+        lichess_username: null,
+      },
+    }),
+  },
+}))
+
 function createStorageMock(): Storage {
   const store = new Map<string, string>()
 
@@ -126,6 +137,7 @@ describe('useBotPlay review handoff', () => {
     const state = useGameStore.getState()
     expect(onNavigateToReview).toHaveBeenCalledOnce()
     expect(state.pgn).toContain('[Event "DeepMove Bot Game"]')
+    expect(state.pgn).toContain('[White "KnightRider"]')
     expect(state.rawPgn).toBe(state.pgn)
     expect(state.loadedPgn).toBe(state.pgn)
     expect(state.moveEvals).toEqual([])
