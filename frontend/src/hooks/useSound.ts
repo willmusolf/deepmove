@@ -29,30 +29,58 @@ const SOUND_PATHS: Record<SoundEvent, string> = {
   illegal: '/sounds/illegal.mp3',
 }
 
-const sharedAudioCache: Partial<Record<SoundEvent, HTMLAudioElement>> = {}
+const FALLBACK_AUDIO_POOL_SIZE = 3
+const sharedAudioCache: Partial<Record<SoundEvent, HTMLAudioElement[]>> = {}
 const decodedBufferCache: Partial<Record<SoundEvent, AudioBuffer>> = {}
 const decodedBufferLoads: Partial<Record<SoundEvent, Promise<void>>> = {}
 let sharedAudioContext: BrowserAudioContext | null = null
 let hasAttemptedAudioContextInit = false
 let hasUnlockedFallbackCache = false
 let hasRegisteredUnlockListeners = false
+let hasRegisteredLifecycleListeners = false
 
 function getStoredSoundEnabled(): boolean {
   if (typeof window === 'undefined') return true
   return localStorage.getItem('soundEnabled') !== 'false'
 }
 
-function getOrCreateAudio(event: SoundEvent): HTMLAudioElement | null {
+function createAudioElement(event: SoundEvent): HTMLAudioElement | null {
   if (typeof Audio === 'undefined') return null
-  let audio = sharedAudioCache[event]
-  if (audio) return audio
-
-  audio = new Audio(SOUND_PATHS[event])
+  const audio = new Audio(SOUND_PATHS[event])
   audio.preload = 'auto'
   audio.setAttribute('playsinline', '')
   audio.setAttribute('webkit-playsinline', '')
-  sharedAudioCache[event] = audio
   return audio
+}
+
+function getAudioPool(event: SoundEvent): HTMLAudioElement[] {
+  let pool = sharedAudioCache[event]
+  if (pool) return pool
+
+  const audio = createAudioElement(event)
+  pool = audio ? [audio] : []
+  sharedAudioCache[event] = pool
+  return pool
+}
+
+function getOrCreateAudio(event: SoundEvent): HTMLAudioElement | null {
+  return getAudioPool(event)[0] ?? null
+}
+
+function getFallbackAudioForPlayback(event: SoundEvent): HTMLAudioElement | null {
+  const pool = getAudioPool(event)
+  const idleAudio = pool.find(audio => audio.paused || audio.ended)
+  if (idleAudio) return idleAudio
+
+  if (pool.length < FALLBACK_AUDIO_POOL_SIZE) {
+    const audio = createAudioElement(event)
+    if (audio) {
+      pool.push(audio)
+      return audio
+    }
+  }
+
+  return pool[pool.length - 1] ?? null
 }
 
 function getAudioContext(): BrowserAudioContext | null {
@@ -141,6 +169,17 @@ function ensureSoundWarmup() {
   preloadAllSounds()
   // preloadDecodedSounds() fires lazily via handleFirstInteraction on first user tap
 
+  if (!hasRegisteredLifecycleListeners && typeof document !== 'undefined') {
+    hasRegisteredLifecycleListeners = true
+    const handleAppReactivated = () => {
+      if (document.visibilityState === 'hidden') return
+      unlockWebAudio()
+      preloadDecodedSounds()
+    }
+    document.addEventListener('visibilitychange', handleAppReactivated)
+    window.addEventListener('pageshow', handleAppReactivated)
+  }
+
   if (hasRegisteredUnlockListeners) return
   hasRegisteredUnlockListeners = true
 
@@ -182,9 +221,10 @@ function playDecodedBuffer(event: SoundEvent): boolean {
 
 function playEventNow(event: SoundEvent) {
   if (!getStoredSoundEnabled()) return
+  unlockWebAudio()
   if (playDecodedBuffer(event)) return
 
-  const audio = getOrCreateAudio(event)
+  const audio = getFallbackAudioForPlayback(event)
   if (!audio) return
   audio.currentTime = 0
   void audio.play().catch(err => console.warn('[sound] play failed:', (err as Error).name, (err as Error).message))

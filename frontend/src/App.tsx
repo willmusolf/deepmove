@@ -2271,7 +2271,11 @@ export default function App() {
 
               {/* ── Right panel ─────────────────────────────────────── */}
               <div className="side-col">
-                {mobilePanelStatusBar}
+                {mobilePanelStatusBar ? (
+                  <div className="mobile-panel-status-bar">
+                    {mobilePanelStatusBar}
+                  </div>
+                ) : null}
                 <div className="panel-tabs">
                   <button
                     className={`panel-tab${panelTab === 'load' ? ' active' : ''}`}
