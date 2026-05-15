@@ -40,6 +40,14 @@ let hasRegisteredUnlockListeners = false
 let hasRegisteredLifecycleListeners = false
 let soundEnabledSnapshot = true
 
+function prefersHtmlAudioFallback(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  const touchMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+  const isiOS = /iPhone|iPad|iPod/i.test(ua) || touchMac
+  return isiOS
+}
+
 function syncSoundEnabledSnapshot(next: boolean) {
   soundEnabledSnapshot = next
 }
@@ -148,7 +156,7 @@ function preloadDecodedSounds() {
 
 function unlockWebAudio() {
   const context = getAudioContext()
-  if (!context || context.state !== 'suspended') return
+  if (!context || context.state === 'running') return
   void context.resume().catch(() => {
     // HTMLAudio fallback remains available if resume fails.
   })
@@ -244,7 +252,7 @@ function playDecodedBuffer(event: SoundEvent): boolean {
 function playEventNow(event: SoundEvent) {
   if (!getStoredSoundEnabled()) return
   unlockWebAudio()
-  if (playDecodedBuffer(event)) return
+  if (!prefersHtmlAudioFallback() && playDecodedBuffer(event)) return
 
   const audio = getFallbackAudioForPlayback(event)
   if (!audio) return
