@@ -1351,8 +1351,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   .board-controls {
     flex-wrap: wrap;
     padding-left: 0;
-    margin-left: 22px;  /* align with board: eval(16)+gap(6) */
-    width: calc(100% - 22px);
+    margin-left: 0;
+    width: 100%;
   }
 
   .board-controls__nav,
@@ -1397,8 +1397,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   }
 
   .board-controls {
-    margin-left: 18px;  /* align with board: eval(12)+gap(6) */
-    width: calc(100% - 18px);
+    margin-left: 0;
+    width: 100%;
   }
 
   .import-tabs,
@@ -1419,6 +1419,12 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   .side-col {
     min-height: 320px;
     max-height: none;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 640px) {
+  .app-main {
+    overflow-y: visible;
   }
 }
 
