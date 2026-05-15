@@ -1256,7 +1256,7 @@ export default function App() {
 
     // loadedGameKey is included in the position-analysis effect dependencies, so
     // move-0 analysis restarts there once the review artifacts are renderable.
-  }, [analysisBoardReset, loadedGameKey, resetPositionAnalysisState])
+  }, [analysisBoardReset, loadedGameKey, panelTab, resetPositionAnalysisState])
 
   useEffect(() => {
     if (!isLoaded) return
@@ -1952,7 +1952,7 @@ export default function App() {
   const shouldShowMobileSponsor = !isFixedLayoutPage && !isPremium && mobileBannerAdEnabled && mobileSponsorPage !== null
   const reviewBoundaryKey = `${currentGameId ?? 'sandbox'}:${panelTab}:${importTab}:${isLoaded ? 'loaded' : 'sandbox'}`
   const boardBoundaryKey = `${reviewBoundaryKey}:${orientation}`
-  const selfDisplayName = useMemo(() => getSelfDisplayName(authUser), [authUser?.chesscom_username, authUser?.lichess_username])
+  const selfDisplayName = useMemo(() => getSelfDisplayName(authUser), [authUser])
 
   return (
     <ResponsiveLayout

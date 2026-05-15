@@ -401,7 +401,7 @@ export default function ProfilePage({ onUsernameLinked, onLoggedOut }: ProfilePa
                 </div>
               </div>
             </div>
-          )}
+          )
         ) : (
           <div className="profile-field-group">
             <p className="profile-section-desc">Sign in to manage your password and recovery options.</p>
