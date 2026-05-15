@@ -6576,6 +6576,60 @@ html.theme-light .analysis-settings-popover {
   }
 }
 
+@media (max-width: 1180px) and (min-width: 640px) {
+  .move-list {
+    font-size: 0.82rem;
+    padding: 0.4rem 0.35rem 0.55rem;
+    line-height: 1.8;
+  }
+
+  .move-list .move-full-row {
+    display: inline;
+  }
+
+  .move-list .move-pair-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0;
+    min-height: 0;
+  }
+
+  .move-list .move-eval-delta {
+    display: none;
+  }
+
+  .move-list .move-san {
+    padding: 1px 4px;
+    white-space: normal;
+    text-overflow: clip;
+  }
+
+  .move-list .move-grade,
+  .move-list .grade-placeholder,
+  .move-list .grade-pending {
+    width: 14px;
+    height: 14px;
+  }
+
+  .move-list .move-grade {
+    font-size: 0.55rem;
+  }
+
+  .move-list .variation-blocks {
+    display: block;
+    margin: 3px 0 3px 10px;
+  }
+
+  .move-list .variation-block.variation-depth-1 {
+    margin-left: 3px;
+  }
+
+  .move-list .variation-block.variation-depth-2 {
+    margin-left: 5px;
+  }
+}
+
 /* === LIGHT MODE OVERRIDES === */
 html.theme-light .panel-tabs {
   background:

@@ -493,7 +493,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
           Show more ({displayedGames.length - displayLimit} remaining)
         </button>
       )}
-      {!showLichessOppActive && !hasMore && allGames.length >= 100 && displayLimit >= displayedGames.length && (
+      {!hasMore && allGames.length >= 100 && displayLimit >= displayedGames.length && (
         <div className="game-list__all-loaded">All games loaded</div>
       )}
     </div>
