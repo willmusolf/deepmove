@@ -831,7 +831,7 @@ export default function App() {
       </div>
     </div>
   ) : null
-  const mobilePanelStatusBar = isPhone && isLoaded && panelTab !== 'load' ? (
+  const mobilePanelStatusBar = isPhone && isLoaded ? (
     <>
       {engineStatus === 'error' && (
         <div className="analyzing-bar analyzing-bar--error">
