@@ -555,7 +555,20 @@ cg-board {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+}
+
+.nav-btn__icon {
+  width: 15px;
+  height: 15px;
+  display: block;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  pointer-events: none;
 }
 
 .nav-btn:hover:not(:disabled) {
@@ -4541,7 +4554,7 @@ html.theme-light .analysis-settings-popover {
   font-size: 0.8rem;
   color: var(--color-text-muted);
   text-align: center;
-  padding: 0.2rem 0.5rem;
+  padding: 0.16rem 0.5rem 0.05rem;
   opacity: 0.85;
   min-height: 1.2rem;
 }
@@ -6484,7 +6497,7 @@ html.theme-light .analysis-settings-popover {
 
 .board-col > .move-rail {
   width: 100%;
-  margin-top: 0.55rem;
+  margin-top: 0.18rem;
 }
 
 .move-rail::-webkit-scrollbar {

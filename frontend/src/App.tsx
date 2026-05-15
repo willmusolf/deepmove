@@ -153,6 +153,21 @@ function roundDuration(durationMs: number): number {
   return Math.round(durationMs * 10) / 10
 }
 
+function renderNavChevron(direction: 'left' | 'right') {
+  return (
+    <svg
+      className="nav-btn__icon"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {direction === 'left'
+        ? <path d="M9.75 3.25 5 8l4.75 4.75" />
+        : <path d="M6.25 3.25 11 8l-4.75 4.75" />}
+    </svg>
+  )
+}
+
 async function copyText(text: string): Promise<boolean> {
   if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
     try {
@@ -2118,7 +2133,7 @@ export default function App() {
                           disabled={reviewBackDisabled}
                           {...reviewBackTouchHandlers}
                         >
-                          ←
+                          {renderNavChevron('left')}
                         </button>
                         <span className="move-counter">
                           {pathDepth} / {displayTotalDepth}
@@ -2128,7 +2143,7 @@ export default function App() {
                           disabled={reviewForwardDisabled}
                           {...reviewForwardTouchHandlers}
                         >
-                          →
+                          {renderNavChevron('right')}
                         </button>
                       </>
                     ) : (
@@ -2138,7 +2153,7 @@ export default function App() {
                           disabled={analysisBackDisabled}
                           {...analysisBackTouchHandlers}
                         >
-                          ←
+                          {renderNavChevron('left')}
                         </button>
                         <span className="move-counter">
                           {analysisPath.length} / {analysisMainLineSans.length}
@@ -2148,7 +2163,7 @@ export default function App() {
                           disabled={analysisForwardDisabled}
                           {...analysisForwardTouchHandlers}
                         >
-                          →
+                          {renderNavChevron('right')}
                         </button>
                       </>
                     )}
