@@ -1751,7 +1751,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.52rem;
 }
 
 .analyzing-bar__fill {

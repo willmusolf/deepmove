@@ -38,10 +38,22 @@ let hasAttemptedAudioContextInit = false
 let hasUnlockedFallbackCache = false
 let hasRegisteredUnlockListeners = false
 let hasRegisteredLifecycleListeners = false
+let soundEnabledSnapshot = true
+
+function syncSoundEnabledSnapshot(next: boolean) {
+  soundEnabledSnapshot = next
+}
 
 function getStoredSoundEnabled(): boolean {
-  if (typeof window === 'undefined') return true
-  return localStorage.getItem('soundEnabled') !== 'false'
+  if (typeof window === 'undefined') return soundEnabledSnapshot
+  try {
+    const stored = localStorage.getItem('soundEnabled')
+    if (stored === null) return soundEnabledSnapshot
+    soundEnabledSnapshot = stored !== 'false'
+    return soundEnabledSnapshot
+  } catch {
+    return soundEnabledSnapshot
+  }
 }
 
 function createAudioElement(event: SoundEvent): HTMLAudioElement | null {
@@ -164,6 +176,16 @@ function unlockFallbackCache() {
   }
 }
 
+function stopFallbackSounds() {
+  for (const pool of Object.values(sharedAudioCache)) {
+    if (!pool) continue
+    for (const audio of pool) {
+      audio.pause()
+      audio.currentTime = 0
+    }
+  }
+}
+
 function ensureSoundWarmup() {
   if (typeof window === 'undefined') return
   preloadAllSounds()
@@ -241,8 +263,9 @@ export function useSound() {
   const setSoundEnabled = usePrefsStore(s => s.setSoundEnabled)
 
   useEffect(() => {
+    syncSoundEnabledSnapshot(enabled)
     ensureSoundWarmup()
-  }, [])
+  }, [enabled])
 
   const playMoveSound = useCallback((san: string) => {
     playSharedMoveSound(san)
@@ -255,7 +278,17 @@ export function useSound() {
 
   const toggle = useCallback(() => {
     const next = !usePrefsStore.getState().soundEnabled
+    syncSoundEnabledSnapshot(next)
     setSoundEnabled(next)
+
+    if (next) {
+      ensureSoundWarmup()
+      unlockWebAudio()
+      unlockFallbackCache()
+      preloadDecodedSounds()
+    } else {
+      stopFallbackSounds()
+    }
 
     const authState = useAuthStore.getState()
     if (authState.user && authState.accessToken) {
