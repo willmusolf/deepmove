@@ -457,6 +457,7 @@ export default function App() {
   const currentGameMeta = useGameStore(s => s.currentGameMeta)
   const currentGameId = useGameStore(s => s.currentGameId)
   const backendGameId = useGameStore(s => s.backendGameId)
+  const loadRequestId = useGameStore(s => s.loadRequestId)
   const [panelTab, setPanelTab] = useState<PanelTab>(savedUiState?.panelTab ?? 'load')
   const [importTab, setImportTab] = useState<ImportTab>(savedUiState?.importTab ?? 'chesscom')
   const [currentPage, setCurrentPage] = useState<Page>(() => routePage ?? savedUiState?.currentPage ?? 'review')
@@ -642,10 +643,10 @@ export default function App() {
       return () => clearTimeout(t)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pgn, isReady])
+  }, [loadRequestId, pgn, isReady])
 
   const displayFen = isLoaded ? currentFen : analysisFen
-  const loadedGameKey = isLoaded ? (currentGameId ?? pgn ?? '__loaded-game__') : null
+  const loadedGameKey = isLoaded ? `${currentGameId ?? pgn ?? '__loaded-game__'}:${loadRequestId}` : null
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
   const mergeCachedTopLines = useCallback((existing: TopLine[] | undefined, incoming: TopLine[]): TopLine[] => {
@@ -1975,6 +1976,7 @@ export default function App() {
     gs.setUserColor(payload.userColor)
     if (payload.userElo && payload.userElo > 0) gs.setUserElo(payload.userElo)
     gs.setPlatform(null)
+    gs.bumpLoadRequestId()
     gs.setCurrentGameMeta({
       opponent: payload.opponent,
       opponentRating: payload.opponentRating,

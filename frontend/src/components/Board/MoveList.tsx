@@ -8,7 +8,7 @@ import type { MoveNode, MoveTree } from '../../chess/types'
 import { getPathToNode } from '../../hooks/useGameReview'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './gradeBadges'
 
-const PHONE_MOVE_LIST_QUERY = '(max-width: 639px)'
+const PHONE_MOVE_LIST_QUERY = '(max-width: 639px) and (pointer: coarse)'
 
 // ─── Grade badge ─────────────────────────────────────────────────────────────
 
