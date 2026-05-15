@@ -119,7 +119,12 @@ export default function MoveRail({
     if (!rail || !activeId) return
     const el = rail.querySelector<HTMLElement>(`[data-node-id="${activeId}"]`)
     if (!el) return
-    el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+
+    const maxScrollLeft = Math.max(0, rail.scrollWidth - rail.clientWidth)
+    const targetLeft = el.offsetLeft - ((rail.clientWidth - el.offsetWidth) / 2)
+    const clampedLeft = Math.max(0, Math.min(maxScrollLeft, targetLeft))
+    if (Math.abs(rail.scrollLeft - clampedLeft) < 1) return
+    rail.scrollTo({ left: clampedLeft, behavior: 'smooth' })
   }, [activeId])
 
   if (!rootId) return <div className="move-rail" />

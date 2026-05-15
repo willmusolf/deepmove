@@ -831,6 +831,22 @@ export default function App() {
       </div>
     </div>
   ) : null
+  const mobilePanelStatusBar = isPhone && isLoaded && panelTab !== 'load' ? (
+    <>
+      {engineStatus === 'error' && (
+        <div className="analyzing-bar analyzing-bar--error">
+          <span className="analyzing-text">⚠ Engine failed to load</span>
+        </div>
+      )}
+      {engineStatus === 'loading' && !isReady && (
+        <div className="analyzing-bar">
+          <span className="analyzing-dot" />
+          <span className="analyzing-text">Engine loading…</span>
+        </div>
+      )}
+      {analysisStatusBar}
+    </>
+  ) : null
 
   const prevEngineLinesRef = useRef(engineLines)
   useEffect(() => {
@@ -2256,6 +2272,7 @@ export default function App() {
 
               {/* ── Right panel ─────────────────────────────────────── */}
               <div className="side-col">
+                {mobilePanelStatusBar}
                 <div className="panel-tabs">
                   <button
                     className={`panel-tab${panelTab === 'load' ? ' active' : ''}`}
@@ -2299,18 +2316,18 @@ export default function App() {
                   {panelTab === 'analysis' && isLoaded && (
                     <>
                       {/* Engine / analyzing status */}
-                      {engineStatus === 'error' && (
+                      {!isPhone && engineStatus === 'error' && (
                         <div className="analyzing-bar analyzing-bar--error">
                           <span className="analyzing-text">⚠ Engine failed to load</span>
                         </div>
                       )}
-                      {engineStatus === 'loading' && !isReady && (
+                      {!isPhone && engineStatus === 'loading' && !isReady && (
                         <div className="analyzing-bar">
                           <span className="analyzing-dot" />
                           <span className="analyzing-text">Engine loading…</span>
                         </div>
                       )}
-                      {analysisStatusBar}
+                      {!isPhone && analysisStatusBar}
 
                       {!hideLoadedReviewArtifacts && shouldRenderEvalDisplay && (
                         <EvalDisplay {...evalDisplayProps} />
@@ -2378,18 +2395,18 @@ export default function App() {
                   {panelTab === 'coach' && isLoaded && COACHING_ENABLED && (
                     <>
                       {/* Engine / analyzing status */}
-                      {engineStatus === 'error' && (
+                      {!isPhone && engineStatus === 'error' && (
                         <div className="analyzing-bar analyzing-bar--error">
                           <span className="analyzing-text">⚠ Engine failed to load</span>
                         </div>
                       )}
-                      {engineStatus === 'loading' && !isReady && (
+                      {!isPhone && engineStatus === 'loading' && !isReady && (
                         <div className="analyzing-bar">
                           <span className="analyzing-dot" />
                           <span className="analyzing-text">Engine loading…</span>
                         </div>
                       )}
-                      {analysisStatusBar}
+                      {!isPhone && analysisStatusBar}
 
                       {/* Eval display */}
                       {!hideLoadedReviewArtifacts && shouldRenderEvalDisplay && (

@@ -361,9 +361,9 @@ html.theme-light body {
   }
 
   .app-shell--compact-nav .nav-user {
-    position: sticky;
-    bottom: 0.45rem;
-    margin-top: auto;
+    position: static;
+    bottom: auto;
+    margin-top: 0.35rem;
     padding-bottom: calc(0.25rem + env(safe-area-inset-bottom, 0px));
     background: inherit;
     z-index: 1;
