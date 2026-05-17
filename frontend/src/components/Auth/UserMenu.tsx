@@ -97,9 +97,9 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
     return (
       <div className="nav-user nav-user--collapsed">
         <button
-          className={`nav-user-btn${currentPage === 'settings' ? ' active' : ''}`}
-          onClick={() => onNavigate('settings')}
-          title={displayName + ' — Profile & Settings'}
+          className={`nav-user-btn${currentPage === 'profile' ? ' active' : ''}`}
+          onClick={() => onNavigate('profile')}
+          title={displayName + ' — Profile'}
         >
           <span className="nav-user-avatar-wrap">
             {avatarUrl ? (
@@ -120,9 +120,9 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
   return (
     <div className="nav-user">
       <button
-        className={`nav-user-btn${currentPage === 'settings' ? ' active' : ''}`}
-        onClick={() => onNavigate('settings')}
-        title="Profile & Settings"
+        className={`nav-user-btn${currentPage === 'profile' ? ' active' : ''}`}
+        onClick={() => onNavigate('profile')}
+        title="Profile"
       >
         <span className="nav-user-avatar-wrap">
           {avatarUrl ? (

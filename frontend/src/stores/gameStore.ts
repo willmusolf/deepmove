@@ -48,6 +48,7 @@ interface GameState {
   currentPositionLines: TopLine[]   // multi-PV results for current position
   isAnalyzingPosition: boolean      // true while running per-position multi-PV analysis
   skipNextAnalysis: boolean         // set by GameSelector when loading from cache
+  loadRequestId: number            // increments when the user explicitly reloads/selects a review game
   currentGameId: string | null      // canonical ID for IndexedDB persistence
   backendGameId: number | null      // DB primary key after sync (null until uploaded)
   currentGameMeta: GameMeta | null  // display metadata for IndexedDB record
@@ -66,6 +67,7 @@ interface GameState {
   setTotalMovesCount: (count: number) => void
   setCurrentPositionLines: (lines: TopLine[]) => void
   setAnalyzingPosition: (v: boolean) => void
+  bumpLoadRequestId: () => void
   setCurrentGameId: (id: string | null) => void
   setBackendGameId: (id: number | null) => void
   setCurrentGameMeta: (meta: GameMeta | null) => void
@@ -93,6 +95,7 @@ const initialState: {
   backendGameId: number | null
   currentGameMeta: GameMeta | null
   skipNextAnalysis: boolean
+  loadRequestId: number
   resumeFromIndex: number
 } = {
   pgn: null,
@@ -108,6 +111,7 @@ const initialState: {
   totalMovesCount: 0,
   currentPositionLines: [],
   isAnalyzingPosition: false,
+  loadRequestId: 0,
   currentGameId: null,
   backendGameId: null,
   currentGameMeta: null,
@@ -240,6 +244,7 @@ export const useGameStore = create<GameState>(set => ({
   setTotalMovesCount: totalMovesCount => set({ totalMovesCount }),
   setCurrentPositionLines: currentPositionLines => set({ currentPositionLines }),
   setAnalyzingPosition: isAnalyzingPosition => set({ isAnalyzingPosition }),
+  bumpLoadRequestId: () => set(state => ({ loadRequestId: state.loadRequestId + 1 })),
   setCurrentGameId: currentGameId => set({ currentGameId }),
   setBackendGameId: backendGameId => set({ backendGameId }),
   setCurrentGameMeta: currentGameMeta => set({ currentGameMeta }),

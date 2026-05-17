@@ -17,6 +17,7 @@ const PAGE_LABELS: Record<Page, string> = {
   play: 'Play',
   dashboard: 'Dashboard',
   settings: 'Settings',
+  profile: 'Profile',
   about: 'About',
   privacy: 'Privacy Policy',
   'reset-password': 'Reset Password',
