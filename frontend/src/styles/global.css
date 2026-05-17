@@ -376,6 +376,26 @@ html.theme-light body {
   }
 }
 
+@media (max-width: 1023px) and (min-width: 640px) and (hover: hover) and (pointer: fine) {
+  .app-shell--fixed-page {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .app-content,
+  .app-shell--fixed-page .app-content,
+  .app-shell--fixed-page .app-view--fixed-layout,
+  .app-shell--fixed-page .app-main--fixed-layout {
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .app-shell--fixed-page .app-main--fixed-layout {
+    flex: 0 0 auto;
+  }
+}
+
 @media (max-width: 1180px) and (min-width: 1024px) and (hover: hover) and (pointer: fine) {
   html,
   body {
