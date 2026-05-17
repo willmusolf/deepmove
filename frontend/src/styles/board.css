@@ -6576,7 +6576,7 @@ html.theme-light .analysis-settings-popover {
   }
 }
 
-@media (max-width: 1180px) and (min-width: 640px) {
+@media (max-width: 1180px) and (min-width: 1024px) {
   .move-list {
     font-size: 0.82rem;
     padding: 0.4rem 0.35rem 0.55rem;
@@ -6630,7 +6630,7 @@ html.theme-light .analysis-settings-popover {
   }
 }
 
-@media (max-width: 1180px) and (min-width: 640px) and (hover: hover) and (pointer: fine) {
+@media (max-width: 1180px) and (min-width: 1024px) and (hover: hover) and (pointer: fine) {
   .app-view--fixed-layout,
   .app-main--fixed-layout {
     min-height: auto;
