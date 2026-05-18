@@ -191,8 +191,8 @@ describe('getBotStrengthProfile', () => {
 
   it('gives club-level settings a steadier internal engine profile', () => {
     expect(getBotStrengthProfile(1200, '10+0')).toEqual({
-      engineElo: 1450,
-      movetime: 800,
+      engineElo: 1500,
+      movetime: 900,
     })
   })
 
