@@ -42,23 +42,21 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
   }
 
   const profileActive = currentPage === 'profile'
+  const profileItemClassName = `nav-item nav-user-item${collapsed ? ' nav-user-item--collapsed' : ''}${profileActive ? ' active' : ''}`
+  const loadingItemClassName = `nav-item nav-user-item nav-user-item--placeholder${collapsed ? ' nav-user-item--collapsed' : ''}`
 
   if (!user) {
     if (isLoading) {
-      if (collapsed) {
-        return (
-          <div className="nav-user nav-user--collapsed">
-            <div className="nav-item nav-user-item nav-user-item--collapsed nav-user-item--placeholder" aria-hidden="true">
-              <span className="nav-user-avatar nav-user-avatar--placeholder" />
-            </div>
-          </div>
-        )
-      }
       return (
-        <div className="nav-user">
-          <div className="nav-item nav-user-item nav-user-item--placeholder" aria-hidden="true">
+        <div className={`nav-user${collapsed ? ' nav-user--collapsed' : ''}`}>
+          <div className={loadingItemClassName} aria-hidden="true">
             <span className="nav-user-avatar nav-user-avatar--placeholder" />
-            <span className="nav-user-name nav-user-name--placeholder">Account</span>
+            {!collapsed && (
+              <span className="nav-user-name nav-user-name--placeholder">
+                <span className="nav-user-skeleton-line nav-user-skeleton-line--primary" />
+                <span className="nav-user-skeleton-line nav-user-skeleton-line--secondary" />
+              </span>
+            )}
           </div>
         </div>
       )
@@ -68,6 +66,7 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
       return (
         <div className="nav-user nav-user--collapsed">
           <button
+            type="button"
             className="nav-user-icon-btn"
             onClick={() => setShowAuth(true)}
             title="Sign In"
@@ -86,8 +85,9 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
     }
     return (
       <>
-        <div className="nav-user">
+        <div className="nav-user nav-user--guest">
           <button
+            type="button"
             className="nav-signin-btn"
             onClick={() => setShowAuth(true)}
             aria-busy={isLoading}
@@ -119,7 +119,8 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
     return (
       <div className="nav-user nav-user--collapsed">
         <button
-          className={`nav-item nav-user-item nav-user-item--collapsed${profileActive ? ' active' : ''}`}
+          type="button"
+          className={profileItemClassName}
           onClick={() => onNavigate('profile')}
           title={displayName + ' — Account'}
         >
@@ -142,7 +143,8 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
   return (
     <div className="nav-user">
       <button
-        className={`nav-item nav-user-item${profileActive ? ' active' : ''}`}
+        type="button"
+        className={profileItemClassName}
         onClick={() => onNavigate('profile')}
         title="Account"
       >

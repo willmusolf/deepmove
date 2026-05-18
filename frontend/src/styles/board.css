@@ -1163,13 +1163,13 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .nav-icon--settings svg {
-  width: 1rem;
-  height: 1rem;
+  width: 1.02rem;
+  height: 1.02rem;
 }
 
 .nav-icon--privacy svg {
-  width: 0.98rem;
-  height: 0.98rem;
+  width: 1rem;
+  height: 1rem;
 }
 
 .nav-soon {
@@ -3731,11 +3731,17 @@ html.theme-light .analysis-settings-popover {
 .nav-spacer { flex: 1; }
 
 .nav-user {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.nav-user--guest {
   padding: 0.5rem 0.75rem;
 }
 
 .nav-user--collapsed {
-  padding: 0.4rem 0;
+  padding: 0;
   display: flex;
   justify-content: center;
 }
@@ -3774,15 +3780,10 @@ html.theme-light .analysis-settings-popover {
 .nav-user-item {
   width: 100%;
   background: none;
-  border-top: none;
-  border-right: none;
-  border-bottom: none;
-  border-left-width: 3px;
-  border-left-style: solid;
-  border-left-color: transparent;
-  border-radius: 0;
+  border: none;
   text-align: left;
   font: inherit;
+  appearance: none;
 }
 
 .nav-user-item--collapsed {
@@ -3796,13 +3797,28 @@ html.theme-light .analysis-settings-popover {
 }
 
 .nav-user-avatar--placeholder {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--color-surface-soft-hover);
   color: transparent;
 }
 
 .nav-user-name--placeholder {
-  color: var(--color-text-muted);
-  opacity: 0.72;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.nav-user-skeleton-line {
+  display: block;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--color-surface-soft-hover);
+}
+
+.nav-user-skeleton-line--primary {
+  width: 4.5rem;
+}
+
+.nav-user-skeleton-line--secondary {
+  width: 3.1rem;
 }
 
 .nav-user-avatar-wrap {
