@@ -463,7 +463,9 @@ export default function App() {
   const [importTab, setImportTab] = useState<ImportTab>(savedUiState?.importTab ?? 'chesscom')
   const [currentPage, setCurrentPage] = useState<Page>(() => routePage ?? savedUiState?.currentPage ?? 'about')
   const [isWideRailViewport, setIsWideRailViewport] = useState(() => (
-    typeof window !== 'undefined' && window.matchMedia('(min-width: 1330px)').matches
+    typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(min-width: 1330px)').matches
   ))
 
   const {
@@ -1130,7 +1132,7 @@ export default function App() {
   const isPhone = useIsPhone()
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
 
     const mediaQuery = window.matchMedia('(min-width: 1330px)')
     const syncWideRail = () => setIsWideRailViewport(mediaQuery.matches)
