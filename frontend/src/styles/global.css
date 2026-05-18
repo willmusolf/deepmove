@@ -446,7 +446,7 @@ html.theme-light body {
 }
 
 .app-shell--nav-collapsed .nav-logo__name,
-.app-shell--nav-collapsed .nav-item span:not(.nav-icon),
+.app-shell--nav-collapsed .nav-item > .nav-label,
 .app-shell--nav-collapsed .nav-soon {
   display: none;
 }

@@ -45,19 +45,37 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
   const profileItemClassName = `nav-item nav-user-item${collapsed ? ' nav-user-item--collapsed' : ''}${profileActive ? ' active' : ''}`
   const loadingItemClassName = `nav-item nav-user-item nav-user-item--placeholder${collapsed ? ' nav-user-item--collapsed' : ''}`
 
+  function renderProfileIcon(name: string, imageUrl: string | null, fallbackInitial: string, placeholder = false) {
+    return (
+      <span className="nav-icon nav-icon--profile">
+        <span className="nav-user-avatar-wrap">
+          {placeholder
+            ? <span className="nav-user-avatar nav-user-avatar--placeholder" aria-hidden="true" />
+            : imageUrl
+              ? (
+                <img
+                  src={imageUrl}
+                  alt={name}
+                  className="nav-user-avatar nav-user-avatar--img"
+                />
+                )
+              : <span className="nav-user-avatar">{fallbackInitial}</span>}
+        </span>
+      </span>
+    )
+  }
+
   if (!user) {
     if (isLoading) {
       return (
-        <div className={`nav-user${collapsed ? ' nav-user--collapsed' : ''}`}>
-          <div className={loadingItemClassName} aria-hidden="true">
-            <span className="nav-user-avatar nav-user-avatar--placeholder" />
-            {!collapsed && (
-              <span className="nav-user-name nav-user-name--placeholder">
-                <span className="nav-user-skeleton-line nav-user-skeleton-line--primary" />
-                <span className="nav-user-skeleton-line nav-user-skeleton-line--secondary" />
-              </span>
-            )}
-          </div>
+        <div className={loadingItemClassName} aria-hidden="true">
+          {renderProfileIcon('Loading account', null, 'A', true)}
+          {!collapsed && (
+            <span className="nav-label nav-user-name nav-user-name--placeholder">
+              <span className="nav-user-skeleton-line nav-user-skeleton-line--primary" />
+              <span className="nav-user-skeleton-line nav-user-skeleton-line--secondary" />
+            </span>
+          )}
         </div>
       )
     }
@@ -117,50 +135,26 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
 
   if (collapsed) {
     return (
-      <div className="nav-user nav-user--collapsed">
-        <button
-          type="button"
-          className={profileItemClassName}
-          onClick={() => onNavigate('profile')}
-          title={displayName + ' — Account'}
-        >
-          <span className="nav-user-avatar-wrap">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={displayName}
-                className="nav-user-avatar nav-user-avatar--img"
-              />
-            ) : (
-              <span className="nav-user-avatar">{initial}</span>
-            )}
-          </span>
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="nav-user">
       <button
         type="button"
         className={profileItemClassName}
         onClick={() => onNavigate('profile')}
-        title="Account"
+        title={displayName + ' — Account'}
       >
-        <span className="nav-user-avatar-wrap">
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt={displayName}
-              className="nav-user-avatar nav-user-avatar--img"
-            />
-          ) : (
-            <span className="nav-user-avatar">{initial}</span>
-          )}
-        </span>
-        <span className="nav-user-name">{displayName}</span>
+        {renderProfileIcon(displayName, avatarUrl, initial)}
       </button>
-    </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      className={profileItemClassName}
+      onClick={() => onNavigate('profile')}
+      title="Account"
+    >
+      {renderProfileIcon(displayName, avatarUrl, initial)}
+      <span className="nav-label nav-user-name">{displayName}</span>
+    </button>
   )
 }
