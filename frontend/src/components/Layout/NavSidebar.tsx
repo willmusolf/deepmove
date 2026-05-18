@@ -53,9 +53,9 @@ const INFO_ITEMS = [
     label: 'Privacy',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2.8 18.4 5.5v4.8c0 4.1-2.5 7.8-6.4 9.9-3.9-2.1-6.4-5.8-6.4-9.9V5.5L12 2.8Z" />
-        <path d="M10.45 10.7v-.9a1.55 1.55 0 1 1 3.1 0v.9" />
-        <rect x="9.2" y="10.7" width="5.6" height="4.8" rx="1" />
+        <path d="M12 2.75 18 5.3v5.05c0 3.87-2.32 7.39-6 9.15-3.68-1.76-6-5.28-6-9.15V5.3L12 2.75Z" />
+        <path d="M10.7 10.8v-.9a1.3 1.3 0 1 1 2.6 0v.9" />
+        <rect x="9.6" y="10.8" width="4.8" height="4.1" rx="0.85" />
       </svg>
     ),
   },
@@ -67,19 +67,8 @@ const ACCOUNT_ITEMS = [
     label: 'Settings',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3.1" />
-        <path d="M12 4.8v1.4" />
-        <path d="M12 17.8v1.4" />
-        <path d="M4.8 12h1.4" />
-        <path d="M17.8 12h1.4" />
-        <path d="m6.95 6.95 1.05 1.05" />
-        <path d="m15.99 15.99 1.05 1.05" />
-        <path d="m17.05 6.95-1.05 1.05" />
-        <path d="m8.01 15.99-1.05 1.05" />
-        <path d="M12 2.9h.01" />
-        <path d="M12 21.1h.01" />
-        <path d="M2.9 12h.01" />
-        <path d="M21.1 12h.01" />
+        <path d="M12.22 2h-.44a2 2 0 0 0-1.95 1.57l-.22 1a2 2 0 0 1-1.5 1.5l-1 .22a2 2 0 0 0-1.57 1.95v.44a2 2 0 0 0 1.57 1.95l1 .22a2 2 0 0 1 1.5 1.5l.22 1a2 2 0 0 0 1.95 1.57h.44a2 2 0 0 0 1.95-1.57l.22-1a2 2 0 0 1 1.5-1.5l1-.22a2 2 0 0 0 1.57-1.95v-.44a2 2 0 0 0-1.57-1.95l-1-.22a2 2 0 0 1-1.5-1.5l-.22-1A2 2 0 0 0 12.22 2Z" />
+        <circle cx="12" cy="12" r="3" />
       </svg>
     ),
   },

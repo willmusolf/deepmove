@@ -41,7 +41,29 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
     if (Object.keys(patch).length > 0) updateProfile(patch).catch(() => {})
   }
 
+  const profileActive = currentPage === 'profile'
+
   if (!user) {
+    if (isLoading) {
+      if (collapsed) {
+        return (
+          <div className="nav-user nav-user--collapsed">
+            <div className="nav-item nav-user-item nav-user-item--collapsed nav-user-item--placeholder" aria-hidden="true">
+              <span className="nav-user-avatar nav-user-avatar--placeholder" />
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div className="nav-user">
+          <div className="nav-item nav-user-item nav-user-item--placeholder" aria-hidden="true">
+            <span className="nav-user-avatar nav-user-avatar--placeholder" />
+            <span className="nav-user-name nav-user-name--placeholder">Account</span>
+          </div>
+        </div>
+      )
+    }
+
     if (collapsed) {
       return (
         <div className="nav-user nav-user--collapsed">
@@ -70,7 +92,7 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
             onClick={() => setShowAuth(true)}
             aria-busy={isLoading}
           >
-            {isLoading ? 'Checking...' : 'Sign In'}
+            Sign In
           </button>
         </div>
         {showAuth && (
@@ -97,7 +119,7 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
     return (
       <div className="nav-user nav-user--collapsed">
         <button
-          className={`nav-user-btn${currentPage === 'profile' ? ' active' : ''}`}
+          className={`nav-item nav-user-item nav-user-item--collapsed${profileActive ? ' active' : ''}`}
           onClick={() => onNavigate('profile')}
           title={displayName + ' — Account'}
         >
@@ -120,7 +142,7 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
   return (
     <div className="nav-user">
       <button
-        className={`nav-user-btn${currentPage === 'profile' ? ' active' : ''}`}
+        className={`nav-item nav-user-item${profileActive ? ' active' : ''}`}
         onClick={() => onNavigate('profile')}
         title="Account"
       >
