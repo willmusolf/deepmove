@@ -982,7 +982,7 @@ cg-board {
   /* Navigation */
   .nav-btn:hover:not(:disabled) { background: transparent; }
   .nav-item:hover { background: transparent; }
-  .nav-user-btn:hover { background: transparent; }
+  .nav-user-item:hover { background: transparent; }
   .nav-signin-btn:hover { background: transparent; color: var(--color-text); border-color: var(--color-border); }
   .nav-user-logout:hover { background: transparent; color: var(--color-text); }
 
@@ -1033,7 +1033,7 @@ body.just-clicked .board-control-btn--danger:hover,
 body.just-clicked .board-btn--danger:hover { background: rgba(220, 60, 60, 0.15) !important; }
 body.just-clicked .nav-btn:hover:not(:disabled) { background: transparent !important; }
 body.just-clicked .nav-item:hover { background: transparent !important; }
-body.just-clicked .nav-user-btn:hover { background: transparent !important; }
+body.just-clicked .nav-user-item:hover { background: transparent !important; }
 body.just-clicked .nav-signin-btn:hover { background: transparent !important; color: var(--color-text) !important; border-color: var(--color-border) !important; }
 body.just-clicked .nav-user-logout:hover { background: transparent !important; color: var(--color-text) !important; }
 body.just-clicked .move-san:hover { background: transparent !important; }
@@ -1126,11 +1126,17 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .nav-item {
   display: flex;
   align-items: center;
+  width: 100%;
   gap: 0.75rem;
   padding: 0.6rem 1rem;
+  background: none;
+  border: none;
   border-left: 3px solid transparent;
   color: var(--color-text-muted);
   font-size: 0.875rem;
+  font: inherit;
+  text-align: left;
+  appearance: none;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
   user-select: none;
@@ -1138,12 +1144,21 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
 .nav-item:hover {
   color: var(--color-text);
+  background: rgba(74, 158, 255, 0.035);
+}
+
+.nav-item:active {
+  background: rgba(74, 158, 255, 0.08);
+}
+
+.nav-item.active:hover {
+  background: rgba(74, 158, 255, 0.07);
 }
 
 .nav-item.active {
   color: var(--color-accent);
   border-left-color: var(--color-accent);
-  background: rgba(74, 158, 255, 0.06);
+  background: rgba(74, 158, 255, 0.045);
 }
 
 .nav-icon {
@@ -1157,6 +1172,21 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .nav-icon svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-icon--review svg,
+.nav-icon--settings svg,
+.nav-icon--privacy svg {
   width: 1rem;
   height: 1rem;
 }
@@ -1538,6 +1568,18 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 @media (max-width: 639px) {
   /* On phones, let the review side panel grow with its content so the load
      tab can use normal page scrolling instead of clipping inside a flex pane. */
+  .play-page--setup {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .play-setup-wrapper {
+    align-items: flex-start;
+    padding:
+      max(0.35rem, env(safe-area-inset-top, 0px))
+      0
+      calc(0.9rem + env(safe-area-inset-bottom, 0px));
+  }
   .app-main--mobile-load-priority .side-col {
     order: -1;
   }
@@ -1589,12 +1631,11 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 @media (max-width: 480px) {
-  .play-page--setup {
-    align-items: flex-start;
-  }
-
   .play-setup-wrapper {
-    padding: 0;
+    padding:
+      max(0.2rem, env(safe-area-inset-top, 0px))
+      0
+      calc(0.9rem + env(safe-area-inset-bottom, 0px));
   }
 
   .play-setup-panel {
@@ -3709,12 +3750,17 @@ html.theme-light .analysis-settings-popover {
 .nav-spacer { flex: 1; }
 
 .nav-user {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.nav-user--guest {
   padding: 0.5rem 0.75rem;
-  border-top: 1px solid var(--border);
 }
 
 .nav-user--collapsed {
-  padding: 0.4rem 0;
+  padding: 0;
   display: flex;
   justify-content: center;
 }
@@ -3736,12 +3782,6 @@ html.theme-light .analysis-settings-popover {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.nav-user--collapsed .nav-user-btn {
-  padding: 0.25rem;
-  justify-content: center;
-  width: auto;
-}
-
 .nav-signin-btn {
   width: 100%;
   padding: 0.5rem;
@@ -3756,28 +3796,45 @@ html.theme-light .analysis-settings-popover {
 
 .nav-signin-btn:hover { opacity: 0.9; }
 
-.nav-user-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.35rem 0.4rem;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: 0.8rem;
-  text-align: left;
-  transition: background 0.15s;
+.nav-user-item {
+  color: inherit;
+  min-width: 0;
+  gap: 0.6rem;
 }
 
-.nav-user-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+.nav-user-item--collapsed {
+  justify-content: center;
+  padding: 0.6rem 0;
 }
 
-.nav-user-btn.active {
-  background: rgba(255, 255, 255, 0.1);
+.nav-user-item--placeholder {
+  cursor: default;
+  pointer-events: none;
+}
+
+.nav-user-avatar--placeholder {
+  background: var(--color-surface-soft-hover);
+  color: transparent;
+}
+
+.nav-user-name--placeholder {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.nav-user-skeleton-line {
+  display: block;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--color-surface-soft-hover);
+}
+
+.nav-user-skeleton-line--primary {
+  width: 4.5rem;
+}
+
+.nav-user-skeleton-line--secondary {
+  width: 3.1rem;
 }
 
 .nav-user-avatar-wrap {
@@ -3785,22 +3842,26 @@ html.theme-light .analysis-settings-popover {
   flex-shrink: 0;
 }
 
+.nav-icon--profile {
+  width: 1.2rem;
+}
+
 .nav-user-avatar {
-  width: 28px;
-  height: 28px;
+  width: 1.25rem;
+  height: 1.25rem;
   border-radius: 50%;
   background: var(--accent);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: 0.62rem;
   font-weight: 600;
 }
 
 .nav-user-avatar--img {
-  width: 28px;
-  height: 28px;
+  width: 1.25rem;
+  height: 1.25rem;
   border-radius: 50%;
   object-fit: cover;
   background: var(--accent);
@@ -3816,11 +3877,9 @@ html.theme-light .analysis-settings-popover {
 }
 
 .nav-user-name {
-  flex: 1 1 0;   /* grow/shrink freely */
-  min-width: 0;  /* allow shrinking below content width — fixes Safari truncation */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1 1 0;
+  font-size: 0.82rem;
+  letter-spacing: -0.01em;
 }
 
 .nav-user-logout:hover {
@@ -3870,7 +3929,13 @@ html.theme-light .analysis-settings-popover {
   font-size: 1.4rem;
   font-weight: 700;
   color: var(--color-text);
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.profile-page-intro {
+  margin: 0 0 1.25rem;
+  font-size: 0.86rem;
+  color: var(--color-text-muted);
 }
 
 .profile-section {
@@ -3923,6 +3988,15 @@ html.theme-light .analysis-settings-popover {
   font-size: 0.85rem;
   color: var(--color-text-muted);
   font-style: italic;
+}
+
+.profile-guest-note--page {
+  margin-bottom: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-style: normal;
 }
 
 .profile-field-group {
@@ -6316,6 +6390,25 @@ html.theme-light .analysis-settings-popover {
   display: flex;
   flex-direction: column;
   align-self: stretch;
+}
+
+.inline-sponsor-wrap {
+  width: 100%;
+  margin-top: 0.9rem;
+}
+
+.ezoic-ad-placeholder {
+  width: 100%;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ezoic-ad-placeholder--rail {
+  min-height: 240px;
+}
+
+.ezoic-ad-placeholder--inline {
+  min-height: 120px;
 }
 
 .ad-placeholder {

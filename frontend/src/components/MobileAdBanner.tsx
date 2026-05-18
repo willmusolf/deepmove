@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
-import { AD_CONFIG, ensureAdSenseScript } from '../config/sponsor'
+import { AD_CONFIG, ensureAdSenseScript, type SponsorConfig } from '../config/sponsor'
+import SponsorCard from './SponsorCard'
 
 const SESSION_KEY = 'mobileAdDismissed'
 
@@ -11,11 +12,11 @@ declare global {
 }
 
 interface MobileAdBannerProps {
-  sponsor?: unknown
+  sponsor?: SponsorConfig | null
   page?: string
 }
 
-export default function MobileAdBanner(_props: MobileAdBannerProps = {}) {
+export default function MobileAdBanner({ sponsor }: MobileAdBannerProps = {}) {
   const isPremium = useAuthStore(s => s.isPremium)
   const [dismissed, setDismissed] = useState(
     () => sessionStorage.getItem(SESSION_KEY) === '1'
@@ -23,7 +24,7 @@ export default function MobileAdBanner(_props: MobileAdBannerProps = {}) {
   const pushed = useRef(false)
 
   useEffect(() => {
-    if (isPremium || dismissed || pushed.current || !AD_CONFIG.enabled || !AD_CONFIG.mobileBannerSlot) return
+    if (isPremium || dismissed || sponsor || pushed.current || !AD_CONFIG.enabled || !AD_CONFIG.mobileBannerSlot) return
 
     let cancelled = false
 
@@ -40,14 +41,31 @@ export default function MobileAdBanner(_props: MobileAdBannerProps = {}) {
     return () => {
       cancelled = true
     }
-  }, [isPremium, dismissed])
+  }, [isPremium, dismissed, sponsor])
 
-  if (isPremium || dismissed || !AD_CONFIG.enabled || !AD_CONFIG.mobileBannerSlot) return null
+  if (isPremium || dismissed) return null
 
   function handleDismiss() {
     sessionStorage.setItem(SESSION_KEY, '1')
     setDismissed(true)
   }
+
+  if (sponsor) {
+    return (
+      <div className="mobile-ad-banner">
+        <SponsorCard sponsor={sponsor} variant="mobile" />
+        <button
+          className="mobile-ad-banner__close"
+          onClick={handleDismiss}
+          aria-label="Dismiss sponsor"
+        >
+          ×
+        </button>
+      </div>
+    )
+  }
+
+  if (!AD_CONFIG.enabled || !AD_CONFIG.mobileBannerSlot) return null
 
   return (
     <div className="mobile-ad-banner">

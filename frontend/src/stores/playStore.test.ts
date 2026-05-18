@@ -107,4 +107,18 @@ describe('playStore', () => {
     expect(usePlayStore.getState().status).toBe('idle')
     expect(sessionStorage.getItem('deepmove_playSession')).toBeNull()
   })
+
+  it('clamps bot Elo into the supported play range when a game starts', async () => {
+    const { MIN_BOT_ELO, usePlayStore } = await import('./playStore')
+
+    usePlayStore.getState().startGame({
+      userColor: 'white',
+      botElo: 25,
+      timeControl: 'none',
+      incrementMs: 0,
+      botSpeed: 'normal',
+    })
+
+    expect(usePlayStore.getState().config?.botElo).toBe(MIN_BOT_ELO)
+  })
 })

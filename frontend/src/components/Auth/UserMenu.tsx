@@ -41,11 +41,50 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
     if (Object.keys(patch).length > 0) updateProfile(patch).catch(() => {})
   }
 
+  const profileActive = currentPage === 'profile'
+  const profileItemClassName = `nav-item nav-user-item${collapsed ? ' nav-user-item--collapsed' : ''}${profileActive ? ' active' : ''}`
+  const loadingItemClassName = `nav-item nav-user-item nav-user-item--placeholder${collapsed ? ' nav-user-item--collapsed' : ''}`
+
+  function renderProfileIcon(name: string, imageUrl: string | null, fallbackInitial: string, placeholder = false) {
+    return (
+      <span className="nav-icon nav-icon--profile">
+        <span className="nav-user-avatar-wrap">
+          {placeholder
+            ? <span className="nav-user-avatar nav-user-avatar--placeholder" aria-hidden="true" />
+            : imageUrl
+              ? (
+                <img
+                  src={imageUrl}
+                  alt={name}
+                  className="nav-user-avatar nav-user-avatar--img"
+                />
+                )
+              : <span className="nav-user-avatar">{fallbackInitial}</span>}
+        </span>
+      </span>
+    )
+  }
+
   if (!user) {
+    if (isLoading) {
+      return (
+        <div className={loadingItemClassName} aria-hidden="true">
+          {renderProfileIcon('Loading account', null, 'A', true)}
+          {!collapsed && (
+            <span className="nav-label nav-user-name nav-user-name--placeholder">
+              <span className="nav-user-skeleton-line nav-user-skeleton-line--primary" />
+              <span className="nav-user-skeleton-line nav-user-skeleton-line--secondary" />
+            </span>
+          )}
+        </div>
+      )
+    }
+
     if (collapsed) {
       return (
         <div className="nav-user nav-user--collapsed">
           <button
+            type="button"
             className="nav-user-icon-btn"
             onClick={() => setShowAuth(true)}
             title="Sign In"
@@ -64,13 +103,14 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
     }
     return (
       <>
-        <div className="nav-user">
+        <div className="nav-user nav-user--guest">
           <button
+            type="button"
             className="nav-signin-btn"
             onClick={() => setShowAuth(true)}
             aria-busy={isLoading}
           >
-            {isLoading ? 'Checking...' : 'Sign In'}
+            Sign In
           </button>
         </div>
         {showAuth && (
@@ -95,48 +135,26 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
 
   if (collapsed) {
     return (
-      <div className="nav-user nav-user--collapsed">
-        <button
-          className={`nav-user-btn${currentPage === 'profile' ? ' active' : ''}`}
-          onClick={() => onNavigate('profile')}
-          title={displayName + ' — Profile'}
-        >
-          <span className="nav-user-avatar-wrap">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={displayName}
-                className="nav-user-avatar nav-user-avatar--img"
-              />
-            ) : (
-              <span className="nav-user-avatar">{initial}</span>
-            )}
-          </span>
-        </button>
-      </div>
+      <button
+        type="button"
+        className={profileItemClassName}
+        onClick={() => onNavigate('profile')}
+        title={displayName + ' — Account'}
+      >
+        {renderProfileIcon(displayName, avatarUrl, initial)}
+      </button>
     )
   }
 
   return (
-    <div className="nav-user">
-      <button
-        className={`nav-user-btn${currentPage === 'profile' ? ' active' : ''}`}
-        onClick={() => onNavigate('profile')}
-        title="Profile"
-      >
-        <span className="nav-user-avatar-wrap">
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt={displayName}
-              className="nav-user-avatar nav-user-avatar--img"
-            />
-          ) : (
-            <span className="nav-user-avatar">{initial}</span>
-          )}
-        </span>
-        <span className="nav-user-name">{displayName}</span>
-      </button>
-    </div>
+    <button
+      type="button"
+      className={profileItemClassName}
+      onClick={() => onNavigate('profile')}
+      title="Account"
+    >
+      {renderProfileIcon(displayName, avatarUrl, initial)}
+      <span className="nav-label nav-user-name">{displayName}</span>
+    </button>
   )
 }

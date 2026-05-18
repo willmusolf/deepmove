@@ -144,20 +144,16 @@ export default function SettingsPage() {
   return (
     <div className="profile-page">
       <h2 className="profile-title">Settings</h2>
-
-      <section className="profile-section">
-        <h3 className="profile-section-title">Preferences</h3>
-        {user ? (
-          <p className="profile-section-desc">Your local settings update immediately and sync to your account.</p>
-        ) : (
-          <div className="profile-guest-note">
-            <p>These settings work right away as a guest. Sign in if you want them synced to your account.</p>
-            <button className="btn btn-primary" type="button" onClick={() => setShowAuth(true)}>
-              Sign In
-            </button>
-          </div>
-        )}
-      </section>
+      {user ? (
+        <p className="profile-page-intro">Your changes apply right away and sync to your account.</p>
+      ) : (
+        <div className="profile-guest-note profile-guest-note--page">
+          <p>These settings work right away as a guest. Sign in if you want them synced to your account.</p>
+          <button className="btn btn-primary" type="button" onClick={() => setShowAuth(true)}>
+            Sign In
+          </button>
+        </div>
+      )}
 
       <section className="profile-section">
         <h3 className="profile-section-title">Appearance</h3>

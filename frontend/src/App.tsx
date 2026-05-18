@@ -69,6 +69,7 @@ import { detectOpening } from './chess/openings'
 import {
   AD_CONFIG,
   ACTIVE_SPONSOR,
+  EZOIC_CONFIG,
   desktopRailAdEnabled,
   mobileBannerAdEnabled,
   MOBILE_BANNER_PAGE_SET,
@@ -347,7 +348,7 @@ function loadAppUiState(): AppUiState | null {
   const parsed = readSessionJson<Partial<AppUiState>>(APP_UI_SESSION_KEY)
   if (parsed && typeof parsed === 'object') {
     return {
-      currentPage: isPage(parsed.currentPage) ? normalizeRestoredPage(parsed.currentPage) : 'review',
+      currentPage: isPage(parsed.currentPage) ? normalizeRestoredPage(parsed.currentPage) : 'about',
       panelTab: isPanelTab(parsed.panelTab) ? parsed.panelTab : 'load',
       importTab: isImportTab(parsed.importTab) ? parsed.importTab : 'chesscom',
       orientation: parsed.orientation === 'black' ? 'black' : 'white',
@@ -460,7 +461,12 @@ export default function App() {
   const loadRequestId = useGameStore(s => s.loadRequestId)
   const [panelTab, setPanelTab] = useState<PanelTab>(savedUiState?.panelTab ?? 'load')
   const [importTab, setImportTab] = useState<ImportTab>(savedUiState?.importTab ?? 'chesscom')
-  const [currentPage, setCurrentPage] = useState<Page>(() => routePage ?? savedUiState?.currentPage ?? 'review')
+  const [currentPage, setCurrentPage] = useState<Page>(() => routePage ?? savedUiState?.currentPage ?? 'about')
+  const [isWideRailViewport, setIsWideRailViewport] = useState(() => (
+    typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(min-width: 1330px)').matches
+  ))
 
   const {
     isReady,
@@ -1124,6 +1130,24 @@ export default function App() {
   }, [cancelGameAnalysis, resetPositionAnalysisState, stopBranchAnalysis])
   const [showEvalBar, setShowEvalBar] = useState(savedUiState?.showEvalBar ?? true)
   const isPhone = useIsPhone()
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+
+    const mediaQuery = window.matchMedia('(min-width: 1330px)')
+    const syncWideRail = () => setIsWideRailViewport(mediaQuery.matches)
+
+    syncWideRail()
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', syncWideRail)
+      return () => mediaQuery.removeEventListener('change', syncWideRail)
+    }
+
+    mediaQuery.addListener(syncWideRail)
+    return () => mediaQuery.removeListener(syncWideRail)
+  }, [])
+
   const viewMode = panelTab === 'coach' ? 'coach' : 'classic'
   const [showArrows, setShowArrows] = useState(savedUiState?.showArrows ?? true)
   const [showGrades, setShowGrades] = useState(savedUiState?.showGrades ?? true)
@@ -1160,7 +1184,7 @@ export default function App() {
     if (typeof window === 'undefined') return
 
     const handlePopState = () => {
-      const nextPage = getPageFromPathname(window.location.pathname) ?? 'review'
+      const nextPage = getPageFromPathname(window.location.pathname) ?? 'about'
       if (nextPage !== 'play') clearPlaySession()
       setCurrentPage(nextPage)
     }
@@ -1952,7 +1976,15 @@ export default function App() {
   const isFixedLayoutPage = isReviewPage || isPlayPage
   const isScrollPage = !isFixedLayoutPage
   const mobileSponsorPage = MOBILE_BANNER_PAGE_SET.has(currentPage) ? currentPage : null
-  const shouldShowDesktopRail = isFixedLayoutPage && !isPremium && desktopRailAdEnabled
+  const hasActiveSponsor = ACTIVE_SPONSOR !== null
+  const shouldShowDesktopRail = isReviewPage
+    && !isPremium
+    && isWideRailViewport
+    && (hasActiveSponsor || EZOIC_CONFIG.desktopRailEnabled || desktopRailAdEnabled)
+  const shouldShowInlineMonetization = isReviewPage
+    && !isPremium
+    && !isWideRailViewport
+    && (hasActiveSponsor || EZOIC_CONFIG.inlineEnabled)
   // iPhone Safari is still unstable when a fixed bottom ad is combined with the
   // fixed-layout review/play shell and pinch zoom. Keep mobile banner ads off
   // those pages until we replace them with a zoom-safe mobile treatment.
@@ -2725,8 +2757,19 @@ export default function App() {
                 <div className="ad-col">
                   <AdBanner
                     slot={AD_CONFIG.desktopRailSlot}
+                    placeholderId={EZOIC_CONFIG.desktopRailPlaceholderId}
                     sponsor={ACTIVE_SPONSOR}
                     placement="desktop-rail"
+                    page="review"
+                  />
+                </div>
+              )}
+              {shouldShowInlineMonetization && (
+                <div className="inline-sponsor-wrap">
+                  <AdBanner
+                    placeholderId={EZOIC_CONFIG.inlinePlaceholderId}
+                    sponsor={ACTIVE_SPONSOR}
+                    placement="inline"
                     page="review"
                   />
                 </div>

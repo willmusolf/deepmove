@@ -24,7 +24,13 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { Chess } from 'chess.js'
 import { StockfishEngine } from '../engine/stockfish'
-import { usePlayStore, STARTING_FEN, type PlayConfig, type TimeControl } from '../stores/playStore'
+import {
+  clampBotElo,
+  usePlayStore,
+  STARTING_FEN,
+  type PlayConfig,
+  type TimeControl,
+} from '../stores/playStore'
 import { msToHHMMSS } from '../utils/format'
 import { useGameStore } from '../stores/gameStore'
 import { useAuthStore } from '../stores/authStore'
@@ -50,12 +56,14 @@ interface BotStrengthProfile {
 }
 
 function getCalibratedBotElo(botElo: number): number {
-  if (botElo <= 800) return Math.min(2850, botElo + 300)
-  if (botElo <= 1200) return Math.min(2850, botElo + 250)
-  if (botElo <= 1600) return Math.min(2850, botElo + 200)
-  if (botElo <= 2000) return Math.min(2850, botElo + 150)
-  if (botElo <= 2400) return Math.min(2850, botElo + 100)
-  return botElo
+  const safeBotElo = clampBotElo(botElo)
+  if (safeBotElo <= 300) return Math.min(2850, safeBotElo + 100)
+  if (safeBotElo <= 800) return Math.min(2850, safeBotElo + 300)
+  if (safeBotElo <= 1200) return Math.min(2850, safeBotElo + 250)
+  if (safeBotElo <= 1600) return Math.min(2850, safeBotElo + 200)
+  if (safeBotElo <= 2000) return Math.min(2850, safeBotElo + 150)
+  if (safeBotElo <= 2400) return Math.min(2850, safeBotElo + 100)
+  return safeBotElo
 }
 
 /** Browser bot calibration:
@@ -64,6 +72,7 @@ function getCalibratedBotElo(botElo: number): number {
  *  upward and give weaker settings a bit more think time so club-level games
  *  feel steadier and more realistic. */
 export function getBotStrengthProfile(botElo: number, tc: TimeControl): BotStrengthProfile {
+  const safeBotElo = clampBotElo(botElo)
   const baseMovetime =
     tc === '5+0' ? 250
       : tc === '10+0' ? 450
@@ -71,14 +80,15 @@ export function getBotStrengthProfile(botElo: number, tc: TimeControl): BotStren
           : 900
 
   const stabilityBonus =
-    botElo <= 900 ? 500
-      : botElo <= 1200 ? 350
-        : botElo <= 1600 ? 220
-          : botElo <= 2200 ? 120
+    safeBotElo <= 300 ? 300
+      : safeBotElo <= 900 ? 500
+        : safeBotElo <= 1200 ? 350
+          : safeBotElo <= 1600 ? 220
+            : safeBotElo <= 2200 ? 120
             : 0
 
   return {
-    engineElo: getCalibratedBotElo(botElo),
+    engineElo: getCalibratedBotElo(safeBotElo),
     movetime: baseMovetime + stabilityBonus,
   }
 }

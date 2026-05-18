@@ -85,7 +85,15 @@ vi.mock('./components/ErrorBoundary', () => ({
 }))
 
 vi.mock('./components/AboutPage', () => ({
-  default: () => <div data-testid="aboutpage" />,
+  default: ({
+    onOpenApp,
+  }: {
+    onOpenApp?: () => void
+  }) => (
+    <div data-testid="aboutpage">
+      <button onClick={() => onOpenApp?.()}>Open App</button>
+    </div>
+  ),
 }))
 
 vi.mock('./components/PrivacyPage', () => ({
@@ -248,6 +256,7 @@ describe('App FEN loading', () => {
   it('switches to the analysis panel after loading a FEN', () => {
     render(<App />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'Open App' }))
     fireEvent.click(screen.getByRole('button', { name: 'PGN' }))
     fireEvent.click(screen.getByRole('button', { name: 'Trigger FEN Load' }))
 
@@ -271,13 +280,13 @@ describe('App FEN loading', () => {
     expect(screen.getByTestId('profilepage')).toBeInTheDocument()
   })
 
-  it('returns to review after logging out from profile', () => {
+  it('returns to the review route after logging out from profile', () => {
     window.history.replaceState({}, '', '/profile')
 
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Mock Logout' }))
 
-    expect(window.location.pathname).toBe('/')
+    expect(window.location.pathname).toBe('/review')
     expect(screen.queryByTestId('profilepage')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'PGN' })).toBeInTheDocument()
   })

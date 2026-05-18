@@ -1,5 +1,12 @@
 import { useState } from 'react'
-import type { PlayConfig, TimeControl, BotSpeed } from '../../stores/playStore'
+import {
+  DEFAULT_BOT_ELO,
+  MAX_BOT_ELO,
+  MIN_BOT_ELO,
+  type PlayConfig,
+  type TimeControl,
+  type BotSpeed,
+} from '../../stores/playStore'
 
 interface Props {
   orientation: 'white' | 'black'
@@ -23,6 +30,7 @@ const BOT_SPEEDS: { value: BotSpeed; label: string; hint: string }[] = [
 ]
 
 function getEloLabel(elo: number): string {
+  if (elo < 400)  return 'New Player'
   if (elo < 800)  return 'Beginner'
   if (elo < 1200) return 'Club Player'
   if (elo < 1600) return 'Intermediate'
@@ -36,7 +44,7 @@ function getIncrementMs(tc: TimeControl): number {
 }
 
 export default function PlaySetupPanel({ orientation, onOrientationChange, onStart, engineReady = true }: Props) {
-  const [botElo, setBotElo] = useState(1200)
+  const [botElo, setBotElo] = useState(DEFAULT_BOT_ELO)
   const [timeControl, setTimeControl] = useState<TimeControl>('none')
   const [botSpeed, setBotSpeed] = useState<BotSpeed>('normal')
 
@@ -80,20 +88,20 @@ export default function PlaySetupPanel({ orientation, onOrientationChange, onSta
         </div>
         <input
           type="range"
-          min={500}
-          max={3000}
+          min={MIN_BOT_ELO}
+          max={MAX_BOT_ELO}
           step={50}
           value={botElo}
           onChange={e => setBotElo(Number(e.target.value))}
           className="play-setup-slider"
         />
         <div className="play-setup-slider-ticks">
-          <span>500</span>
+          <span>{MIN_BOT_ELO}</span>
           <span>1500</span>
-          <span>3000</span>
+          <span>{MAX_BOT_ELO}</span>
         </div>
         <div className="play-setup-help">
-          Calibrated for steadier browser play, especially around club-level ratings.
+          Opens all the way down to true beginner settings while keeping the bot play stable.
         </div>
       </div>
 

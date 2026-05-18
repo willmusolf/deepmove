@@ -3,18 +3,19 @@ import { describe, expect, it, vi } from 'vitest'
 import NavSidebar from './NavSidebar'
 
 vi.mock('../Auth/UserMenu', () => ({
-  default: () => <div data-testid="user-menu" />,
+  default: () => <div data-testid="user-menu">Account</div>,
 }))
 
 describe('NavSidebar', () => {
-  it('shows Settings above Profile in the desktop sidebar', () => {
+  it('keeps profile access in the user menu instead of a duplicate sidebar tab', () => {
     render(<NavSidebar currentPage="review" onNavigate={vi.fn()} />)
 
     const settings = screen.getByText('Settings')
-    const profile = screen.getByText('Profile')
+    const account = screen.getByText('Account')
 
     expect(settings).toBeInTheDocument()
-    expect(profile).toBeInTheDocument()
-    expect(settings.compareDocumentPosition(profile) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(account).toBeInTheDocument()
+    expect(screen.queryByText('Profile')).not.toBeInTheDocument()
+    expect(settings.compareDocumentPosition(account) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
