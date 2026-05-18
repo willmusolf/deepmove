@@ -998,7 +998,11 @@ html.theme-light .nav-user {
 }
 
 html.theme-light .nav-item.active {
-  background: rgba(47, 99, 191, 0.08);
+  background: rgba(47, 99, 191, 0.06);
+}
+
+html.theme-light .nav-user-btn.active {
+  background: rgba(47, 99, 191, 0.06);
 }
 
 html.theme-light .nav-signin-btn {

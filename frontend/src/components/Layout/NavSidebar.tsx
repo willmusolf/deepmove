@@ -53,9 +53,9 @@ const INFO_ITEMS = [
     label: 'Privacy',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2.8 18.5 5.6v5c0 4.1-2.5 7.7-6.5 9.6-4-1.9-6.5-5.5-6.5-9.6v-5L12 2.8Z" />
-        <path d="M10 11.1V10a2 2 0 1 1 4 0v1.1" />
-        <rect x="8.8" y="11.1" width="6.4" height="5.4" rx="1.1" />
+        <path d="M12 2.8 18.4 5.5v4.8c0 4.1-2.5 7.8-6.4 9.9-3.9-2.1-6.4-5.8-6.4-9.9V5.5L12 2.8Z" />
+        <path d="M10.45 10.7v-.9a1.55 1.55 0 1 1 3.1 0v.9" />
+        <rect x="9.2" y="10.7" width="5.6" height="4.8" rx="1" />
       </svg>
     ),
   },
@@ -68,14 +68,18 @@ const ACCOUNT_ITEMS = [
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3.1" />
-        <path d="M12 3.4v2.2" />
-        <path d="M12 18.4v2.2" />
-        <path d="M3.4 12h2.2" />
-        <path d="M18.4 12h2.2" />
-        <path d="m5.9 5.9 1.6 1.6" />
-        <path d="m16.5 16.5 1.6 1.6" />
-        <path d="m18.1 5.9-1.6 1.6" />
-        <path d="m7.5 16.5-1.6 1.6" />
+        <path d="M12 4.8v1.4" />
+        <path d="M12 17.8v1.4" />
+        <path d="M4.8 12h1.4" />
+        <path d="M17.8 12h1.4" />
+        <path d="m6.95 6.95 1.05 1.05" />
+        <path d="m15.99 15.99 1.05 1.05" />
+        <path d="m17.05 6.95-1.05 1.05" />
+        <path d="m8.01 15.99-1.05 1.05" />
+        <path d="M12 2.9h.01" />
+        <path d="M12 21.1h.01" />
+        <path d="M2.9 12h.01" />
+        <path d="M21.1 12h.01" />
       </svg>
     ),
   },
@@ -94,7 +98,7 @@ function renderItem(
       onClick={() => onNavigate(item.id)}
       title={collapsed ? item.label : undefined}
     >
-      <span className="nav-icon">{item.icon}</span>
+      <span className={`nav-icon nav-icon--${item.id}`}>{item.icon}</span>
       {!collapsed && <span>{item.label}</span>}
     </div>
   )

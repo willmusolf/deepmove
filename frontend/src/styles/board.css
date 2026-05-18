@@ -1143,7 +1143,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .nav-item.active {
   color: var(--color-accent);
   border-left-color: var(--color-accent);
-  background: rgba(74, 158, 255, 0.06);
+  background: rgba(74, 158, 255, 0.045);
 }
 
 .nav-icon {
@@ -1160,6 +1160,16 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;
+}
+
+.nav-icon--settings svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.nav-icon--privacy svg {
+  width: 1.02rem;
+  height: 1.02rem;
 }
 
 .nav-soon {
@@ -3772,7 +3782,7 @@ html.theme-light .analysis-settings-popover {
   align-items: center;
   gap: 0.5rem;
   width: 100%;
-  padding: 0.35rem 0.4rem;
+  padding: 0.5rem 0.6rem;
   background: none;
   border: none;
   border-radius: 6px;
@@ -3780,7 +3790,7 @@ html.theme-light .analysis-settings-popover {
   cursor: pointer;
   font-size: 0.8rem;
   text-align: left;
-  transition: background 0.15s;
+  transition: color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 
 .nav-user-btn:hover {
@@ -3788,7 +3798,9 @@ html.theme-light .analysis-settings-popover {
 }
 
 .nav-user-btn.active {
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-accent);
+  background: rgba(74, 158, 255, 0.045);
+  box-shadow: inset 3px 0 0 var(--color-accent);
 }
 
 .nav-user-avatar-wrap {
