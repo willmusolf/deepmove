@@ -1550,7 +1550,6 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
       0
       calc(0.9rem + env(safe-area-inset-bottom, 0px));
   }
-
   .app-main--mobile-load-priority .side-col {
     order: -1;
   }
