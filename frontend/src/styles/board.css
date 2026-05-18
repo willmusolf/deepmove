@@ -1144,10 +1144,15 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
 .nav-item:hover {
   color: var(--color-text);
+  background: rgba(74, 158, 255, 0.035);
 }
 
 .nav-item:active {
   background: rgba(74, 158, 255, 0.08);
+}
+
+.nav-item.active:hover {
+  background: rgba(74, 158, 255, 0.07);
 }
 
 .nav-item.active {
