@@ -53,9 +53,9 @@ const INFO_ITEMS = [
     label: 'Privacy',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 3l7 3v5c0 4.4-2.8 8.4-7 10-4.2-1.6-7-5.6-7-10V6l7-3Z" />
-        <path d="M9.5 11.5V10a2.5 2.5 0 0 1 5 0v1.5" />
-        <rect x="8" y="11.5" width="8" height="6.5" rx="1.2" />
+        <path d="M12 2.8 18.5 5.6v5c0 4.1-2.5 7.7-6.5 9.6-4-1.9-6.5-5.5-6.5-9.6v-5L12 2.8Z" />
+        <path d="M10 11.1V10a2 2 0 1 1 4 0v1.1" />
+        <rect x="8.8" y="11.1" width="6.4" height="5.4" rx="1.1" />
       </svg>
     ),
   },
@@ -67,8 +67,15 @@ const ACCOUNT_ITEMS = [
     label: 'Settings',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3.2" />
-        <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 0 1 0 2.8 2 2 0 0 1-2.8 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 0 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 0 1-2.8 0 2 2 0 0 1 0-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 0 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 0 1 0-2.8 2 2 0 0 1 2.8 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a2 2 0 0 1 4 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 0 1 2.8 0 2 2 0 0 1 0 2.8l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6h.2a2 2 0 0 1 0 4h-.2a1 1 0 0 0-.9.6Z" />
+        <circle cx="12" cy="12" r="3.1" />
+        <path d="M12 3.4v2.2" />
+        <path d="M12 18.4v2.2" />
+        <path d="M3.4 12h2.2" />
+        <path d="M18.4 12h2.2" />
+        <path d="m5.9 5.9 1.6 1.6" />
+        <path d="m16.5 16.5 1.6 1.6" />
+        <path d="m18.1 5.9-1.6 1.6" />
+        <path d="m7.5 16.5-1.6 1.6" />
       </svg>
     ),
   },
@@ -122,6 +129,7 @@ export default function NavSidebar({ currentPage, onNavigate, collapsed = false,
       {INFO_ITEMS.map(item => renderItem(item, currentPage, onNavigate, collapsed))}
       <div className="nav-divider" />
       {ACCOUNT_ITEMS.map(item => renderItem(item, currentPage, onNavigate, collapsed))}
+      <div className="nav-divider" />
       <UserMenu currentPage={currentPage} onNavigate={onNavigate} collapsed={collapsed} />
     </nav>
   )

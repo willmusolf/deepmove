@@ -1159,6 +1159,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .nav-icon svg {
   width: 1rem;
   height: 1rem;
+  flex-shrink: 0;
 }
 
 .nav-soon {
@@ -3721,7 +3722,6 @@ html.theme-light .analysis-settings-popover {
 
 .nav-user {
   padding: 0.5rem 0.75rem;
-  border-top: 1px solid var(--border);
 }
 
 .nav-user--collapsed {
