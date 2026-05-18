@@ -19,9 +19,13 @@ export type GameEndReason =
   | 'resigned'
   | null
 
+export const MIN_BOT_ELO = 100
+export const MAX_BOT_ELO = 3000
+export const DEFAULT_BOT_ELO = 1200
+
 export interface PlayConfig {
   userColor: 'white' | 'black'   // captured from board orientation at Start click
-  botElo: number                  // 500–3000
+  botElo: number                  // 100–3000
   timeControl: TimeControl
   incrementMs: number             // 0 for 5+0/10+0, 10000 for 15+10
   botSpeed: BotSpeed              // UI think-time pad
@@ -84,6 +88,18 @@ function isGameEndReason(value: unknown): value is GameEndReason {
     || value === 'resigned'
 }
 
+export function clampBotElo(botElo: number): number {
+  if (!Number.isFinite(botElo)) return DEFAULT_BOT_ELO
+  return Math.min(MAX_BOT_ELO, Math.max(MIN_BOT_ELO, botElo))
+}
+
+function normalizePlayConfig(config: PlayConfig): PlayConfig {
+  return {
+    ...config,
+    botElo: clampBotElo(config.botElo),
+  }
+}
+
 function sanitizePlayConfig(value: unknown): PlayConfig | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
 
@@ -94,13 +110,13 @@ function sanitizePlayConfig(value: unknown): PlayConfig | null {
   if (typeof config.incrementMs !== 'number') return null
   if (!isBotSpeed(config.botSpeed)) return null
 
-  return {
+  return normalizePlayConfig({
     userColor: config.userColor,
     botElo: config.botElo,
     timeControl: config.timeControl,
     incrementMs: config.incrementMs,
     botSpeed: config.botSpeed,
-  }
+  })
 }
 
 function sanitizeMoveTree(value: unknown): MoveTree {
@@ -324,12 +340,13 @@ const initialState = savedSession
 export const usePlayStore = create<PlayState>((set) => ({
   ...initialState,
 
-  setConfig: (config) => set({ config }),
+  setConfig: (config) => set({ config: normalizePlayConfig(config) }),
 
   startGame: (config) => {
+    const safeConfig = normalizePlayConfig(config)
     clearPlaySession()
     set({
-      config,
+      config: safeConfig,
       status: 'playing',
       result: null,
       endReason: null,
@@ -338,9 +355,9 @@ export const usePlayStore = create<PlayState>((set) => ({
       currentPath: [],
       moveCounter: 0,
       currentFen: STARTING_FEN,
-      whiteTimeMs: parseInitialClockMs(config.timeControl),
-      blackTimeMs: parseInitialClockMs(config.timeControl),
-      clockRunning: config.timeControl !== 'none',
+      whiteTimeMs: parseInitialClockMs(safeConfig.timeControl),
+      blackTimeMs: parseInitialClockMs(safeConfig.timeControl),
+      clockRunning: safeConfig.timeControl !== 'none',
       isBotThinking: false,
       premoveQueue: [],
     })

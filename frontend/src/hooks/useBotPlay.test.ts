@@ -182,6 +182,13 @@ describe('useBotPlay review handoff', () => {
 })
 
 describe('getBotStrengthProfile', () => {
+  it('keeps the minimum setting genuinely beginner-friendly', () => {
+    expect(getBotStrengthProfile(100, 'none')).toEqual({
+      engineElo: 200,
+      movetime: 1200,
+    })
+  })
+
   it('gives club-level settings a steadier internal engine profile', () => {
     expect(getBotStrengthProfile(1200, '10+0')).toEqual({
       engineElo: 1450,
