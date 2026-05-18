@@ -1146,6 +1146,10 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   color: var(--color-text);
 }
 
+.nav-item:active {
+  background: rgba(74, 158, 255, 0.08);
+}
+
 .nav-item.active {
   color: var(--color-accent);
   border-left-color: var(--color-accent);
@@ -3790,6 +3794,7 @@ html.theme-light .analysis-settings-popover {
 .nav-user-item {
   color: inherit;
   min-width: 0;
+  gap: 0.6rem;
 }
 
 .nav-user-item--collapsed {
@@ -3868,6 +3873,8 @@ html.theme-light .analysis-settings-popover {
 
 .nav-user-name {
   flex: 1 1 0;
+  font-size: 0.82rem;
+  letter-spacing: -0.01em;
 }
 
 .nav-user-logout:hover {
