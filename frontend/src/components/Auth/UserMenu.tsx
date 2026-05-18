@@ -99,7 +99,7 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
         <button
           className={`nav-user-btn${currentPage === 'profile' ? ' active' : ''}`}
           onClick={() => onNavigate('profile')}
-          title={displayName + ' — Profile'}
+          title={displayName + ' — Account'}
         >
           <span className="nav-user-avatar-wrap">
             {avatarUrl ? (
@@ -122,7 +122,7 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
       <button
         className={`nav-user-btn${currentPage === 'profile' ? ' active' : ''}`}
         onClick={() => onNavigate('profile')}
-        title="Profile"
+        title="Account"
       >
         <span className="nav-user-avatar-wrap">
           {avatarUrl ? (

@@ -3,18 +3,22 @@ import type { Page } from '../components/Layout/NavSidebar'
 const SITE_URL = 'https://www.deepmove.io'
 
 const PAGE_PATHS: Record<Page, string> = {
-  review: '/',
+  review: '/review',
   practice: '/practice',
   play: '/play',
   dashboard: '/dashboard',
   settings: '/settings',
   profile: '/profile',
-  about: '/about',
+  about: '/',
   privacy: '/privacy',
   'reset-password': '/reset-password',
 }
 
-const INDEXABLE_PAGES = new Set<Page>(['review', 'play', 'about', 'privacy'])
+const PAGE_ALIASES: Record<string, Page> = {
+  '/about': 'about',
+}
+
+const INDEXABLE_PAGES = new Set<Page>(['about', 'privacy'])
 
 const PAGE_META: Record<Page, { title: string, description: string }> = {
   review: {
@@ -42,7 +46,7 @@ const PAGE_META: Record<Page, { title: string, description: string }> = {
     description: 'Manage your DeepMove account, linked chess profiles, ratings, and security.',
   },
   about: {
-    title: 'About DeepMove | Chess Improvement Through Game Review',
+    title: 'DeepMove | Chess Improvement Through Game Review',
     description: 'Learn how DeepMove helps chess players improve by reviewing their own games, spotting repeated mistakes, and studying critical moments.',
   },
   privacy: {
@@ -62,6 +66,8 @@ function normalizePathname(pathname: string): string {
 
 export function getPageFromPathname(pathname: string): Page | null {
   const normalized = normalizePathname(pathname)
+  const aliasPage = PAGE_ALIASES[normalized]
+  if (aliasPage) return aliasPage
   const entry = Object.entries(PAGE_PATHS).find(([, path]) => path === normalized)
   return (entry?.[0] as Page | undefined) ?? null
 }

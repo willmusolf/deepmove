@@ -42,6 +42,8 @@ if (_params.get('oauth_success') === '1') {
 
 initMonitoring()
 
+document.getElementById('app-shell-fallback')?.setAttribute('hidden', 'true')
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

@@ -33,6 +33,34 @@ const ROADMAP_ITEMS = [
   'Clearer progress tracking so players can see which habits are improving over time.',
 ] as const
 
+const AUDIENCE_ITEMS = [
+  'Players who already have real games on Chess.com, Lichess, or PGN and want a faster review loop.',
+  'Improvers who understand engine scores exist but still need help translating them into habits they can fix.',
+  'Adult club players and online grinders who want practical post-game study instead of a giant database rabbit hole.',
+] as const
+
+const REVIEW_FLOW_ITEMS = [
+  'Import a finished game from Chess.com, Lichess, or a PGN file.',
+  'Scan the critical moments, eval swings, and move grades to find where the result really turned.',
+  'Use best-line context and written coaching to understand the mistake pattern, not just the engine move.',
+  'Take the lesson into the next game, then repeat the cycle often enough that the same blunders stop repeating.',
+] as const
+
+const FAQ_ITEMS = [
+  {
+    question: 'Is DeepMove a database, a lesson platform, or an engine wrapper?',
+    answer: 'It is closest to a review workflow product. The engine is part of the stack, but the value is supposed to come from clearer feedback, faster diagnosis, and a better study loop after each game.',
+  },
+  {
+    question: 'What makes the content on this site different from generic chess advice?',
+    answer: 'DeepMove is built around the mistakes that appear in your own imported games. The content is meant to be anchored to personal review data rather than broad recycled opening tips or scraped game dumps.',
+  },
+  {
+    question: 'Why does the public site focus so much on process?',
+    answer: 'Because the product is not just “upload a PGN and get a number.” The whole point is to help players build a repeatable review habit they can actually stick with between games.',
+  },
+] as const
+
 export default function AboutPage({ onOpenApp, onOpenPrivacy }: AboutPageProps) {
   return (
     <div className="about-page">
@@ -89,6 +117,25 @@ export default function AboutPage({ onOpenApp, onOpenPrivacy }: AboutPageProps) 
 
         <section className="about-page__section about-page__section--split">
           <div>
+            <h2>Who it is for</h2>
+            <ul className="about-page__list about-page__list--compact">
+              {AUDIENCE_ITEMS.map(item => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h2>What a review session looks like</h2>
+            <ul className="about-page__list about-page__list--compact">
+              {REVIEW_FLOW_ITEMS.map(item => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section className="about-page__section about-page__section--split">
+          <div>
             <h2>How to use it well</h2>
             <p>
               The best results usually come from a boring but effective routine: play serious games,
@@ -103,6 +150,33 @@ export default function AboutPage({ onOpenApp, onOpenPrivacy }: AboutPageProps) 
                 <li key={item}>{item}</li>
               ))}
             </ul>
+          </div>
+        </section>
+
+        <section className="about-page__section">
+          <div className="about-page__section-head">
+            <h2>Why the public site exists</h2>
+            <p>
+              DeepMove is a working software product, but the public site also needs to explain the
+              approach behind it: what problem it solves, who it is built for, and how the review
+              flow is meant to create useful study material from real games. That context matters
+              because the product is designed around interpretation and training, not raw engine
+              output by itself.
+            </p>
+          </div>
+        </section>
+
+        <section className="about-page__section">
+          <div className="about-page__section-head">
+            <h2>Frequently asked questions</h2>
+          </div>
+          <div className="about-page__grid">
+            {FAQ_ITEMS.map(item => (
+              <article key={item.question} className="about-page__card">
+                <h3>{item.question}</h3>
+                <p>{item.answer}</p>
+              </article>
+            ))}
           </div>
         </section>
 

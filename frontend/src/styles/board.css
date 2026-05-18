@@ -3881,7 +3881,13 @@ html.theme-light .analysis-settings-popover {
   font-size: 1.4rem;
   font-weight: 700;
   color: var(--color-text);
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.profile-page-intro {
+  margin: 0 0 1.25rem;
+  font-size: 0.86rem;
+  color: var(--color-text-muted);
 }
 
 .profile-section {
@@ -3934,6 +3940,15 @@ html.theme-light .analysis-settings-popover {
   font-size: 0.85rem;
   color: var(--color-text-muted);
   font-style: italic;
+}
+
+.profile-guest-note--page {
+  margin-bottom: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-style: normal;
 }
 
 .profile-field-group {
@@ -6327,6 +6342,25 @@ html.theme-light .analysis-settings-popover {
   display: flex;
   flex-direction: column;
   align-self: stretch;
+}
+
+.inline-sponsor-wrap {
+  width: 100%;
+  margin-top: 0.9rem;
+}
+
+.ezoic-ad-placeholder {
+  width: 100%;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ezoic-ad-placeholder--rail {
+  min-height: 240px;
+}
+
+.ezoic-ad-placeholder--inline {
+  min-height: 120px;
 }
 
 .ad-placeholder {
