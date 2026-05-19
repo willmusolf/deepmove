@@ -4,8 +4,11 @@ import css from './board.css?raw'
 describe('mobile input zoom guard', () => {
   it('keeps the final mobile input override at 16px', () => {
     const lastMobileRuleIndex = css.lastIndexOf('@media (max-width: 767px)')
-    expect(lastMobileRuleIndex).toBeGreaterThan(css.lastIndexOf('.auth-input {'))
-    expect(lastMobileRuleIndex).toBeGreaterThan(css.lastIndexOf('.profile-input {'))
+    const authInputBaseIndex = css.search(/(^|\n)\.auth-input\s*\{/)
+    const profileInputBaseIndex = css.search(/(^|\n)\.profile-input\s*\{/)
+
+    expect(lastMobileRuleIndex).toBeGreaterThan(authInputBaseIndex)
+    expect(lastMobileRuleIndex).toBeGreaterThan(profileInputBaseIndex)
 
     const finalMobileCss = css.slice(lastMobileRuleIndex)
     expect(finalMobileCss).toContain('.account-link-input')
