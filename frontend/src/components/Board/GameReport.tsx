@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { computeAccuracy, type MoveEval } from '../../engine/analysis'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './gradeBadges'
+import calibrationData from './gameRatingCalibrationData.json'
 import {
   estimatePerformanceRatingFromInputs,
   parseRating,
@@ -27,8 +28,30 @@ interface SideStats {
 }
 
 type CalibrationExportPlatform = 'chesscom' | 'lichess' | 'pgn-paste' | null
+type CalibrationReviewStatus = 'prefilled-from-calibration-dataset' | 'needs-manual-entry'
 
 const GRADE_ORDER = ['brilliant', 'great', 'best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder', 'miss'] as const
+
+interface CalibrationDatasetGame {
+  gameId: string
+  result: string | null
+  players: {
+    white: {
+      name: string
+      rating: number | null
+      deepmoveAccuracy: number | null
+      chesscomAccuracy: number | null
+      chesscomGameRating: number | null
+    }
+    black: {
+      name: string
+      rating: number | null
+      deepmoveAccuracy: number | null
+      chesscomAccuracy: number | null
+      chesscomGameRating: number | null
+    }
+  }
+}
 
 export function computeSideStats(allEvals: MoveEval[], side: 'white' | 'black'): SideStats | null {
   if (allEvals.length === 0) return null
@@ -113,6 +136,8 @@ export interface CalibrationSnapshot {
     black: CalibrationSnapshotSide
   }
   chesscomReview: {
+    status: CalibrationReviewStatus
+    instructions: string
     whiteAccuracy: number | null
     blackAccuracy: number | null
     whiteGameRating: number | null
@@ -121,6 +146,28 @@ export interface CalibrationSnapshot {
     blackBadgeNotes: string
     notableDifferences: string
   }
+}
+
+function extractComparableGameId(platform: CalibrationExportPlatform, gameId: string | null, sourceUrl: string | null): string | null {
+  const candidates = [gameId, sourceUrl].filter((value): value is string => typeof value === 'string' && value.length > 0)
+  for (const candidate of candidates) {
+    if (platform === 'chesscom') {
+      const match = candidate.match(/\/game\/live\/(\d+)/) ?? candidate.match(/^(\d+)$/)
+      if (match) return match[1]
+    }
+    if (platform === 'lichess') {
+      if (candidate.startsWith('lichess:')) return candidate.slice('lichess:'.length)
+      const match = candidate.match(/lichess\.org\/([A-Za-z0-9]+)/)
+      if (match) return match[1]
+    }
+  }
+  return null
+}
+
+function findCalibrationDatasetGame(platform: CalibrationExportPlatform, gameId: string | null, sourceUrl: string | null): CalibrationDatasetGame | null {
+  const comparableGameId = extractComparableGameId(platform, gameId, sourceUrl)
+  if (!comparableGameId) return null
+  return (calibrationData as CalibrationDatasetGame[]).find(game => game.gameId === comparableGameId) ?? null
 }
 
 interface BuildCalibrationSnapshotArgs {
@@ -156,9 +203,15 @@ export function buildCalibrationSnapshot({
 }: BuildCalibrationSnapshotArgs): CalibrationSnapshot {
   const whiteGameRating = estimatePerformanceRating(whiteAccuracy, whiteElo, blackElo, getSideResult(result, 'White'))
   const blackGameRating = estimatePerformanceRating(blackAccuracy, blackElo, whiteElo, getSideResult(result, 'Black'))
+  const sourceUrl = buildSourceUrl(platform, gameId)
+  const datasetGame = findCalibrationDatasetGame(platform, gameId ?? null, sourceUrl)
+  const reviewStatus: CalibrationReviewStatus = datasetGame ? 'prefilled-from-calibration-dataset' : 'needs-manual-entry'
+  const reviewInstructions = datasetGame
+    ? 'Chess.com accuracy and game ratings were auto-filled from the DeepMove calibration dataset. Add only badge notes and any new notable differences from this build.'
+    : 'Fill in Chess.com accuracy and game ratings from the Chess.com review, then use the notes fields for the biggest badge or move-label differences.'
 
   return {
-    sourceUrl: buildSourceUrl(platform, gameId),
+    sourceUrl,
     platform,
     gameId,
     result,
@@ -181,10 +234,12 @@ export function buildCalibrationSnapshot({
       },
     },
     chesscomReview: {
-      whiteAccuracy: null,
-      blackAccuracy: null,
-      whiteGameRating: null,
-      blackGameRating: null,
+      status: reviewStatus,
+      instructions: reviewInstructions,
+      whiteAccuracy: datasetGame?.players.white.chesscomAccuracy ?? null,
+      blackAccuracy: datasetGame?.players.black.chesscomAccuracy ?? null,
+      whiteGameRating: datasetGame?.players.white.chesscomGameRating ?? null,
+      blackGameRating: datasetGame?.players.black.chesscomGameRating ?? null,
       whiteBadgeNotes: '',
       blackBadgeNotes: '',
       notableDifferences: '',
