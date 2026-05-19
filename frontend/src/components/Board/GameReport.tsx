@@ -2,11 +2,14 @@ import { useMemo } from 'react'
 import { computeAccuracy, type MoveEval } from '../../engine/analysis'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './gradeBadges'
 import {
-  estimatePerformanceRatingFromInputs,
   parseRating,
   type SideResult,
 } from './gameRatingModel'
-import { computeReviewCalibratedAccuracy } from './reviewCalibration'
+import {
+  computeReviewCalibratedAccuracy,
+  computeReviewCalibratedGameRating,
+  type ReviewBadgeCounts,
+} from './reviewCalibration'
 
 interface GameReportProps {
   moveEvals: MoveEval[]
@@ -81,10 +84,11 @@ export function estimatePerformanceRating(
   rating: string | null | undefined,
   opponentRating: string | null | undefined,
   sideResult: 'win' | 'loss' | 'draw' | null,
+  counts?: ReviewBadgeCounts,
 ): number | null {
   const parsedRating = parseRating(rating)
   const parsedOpponentRating = parseRating(opponentRating)
-  return estimatePerformanceRatingFromInputs(accuracy, parsedRating, parsedOpponentRating, sideResult)
+  return computeReviewCalibratedGameRating(accuracy, counts, parsedRating, parsedOpponentRating, sideResult)
 }
 
 function buildSourceUrl(platform: CalibrationExportPlatform, gameId: string | null | undefined): string | null {
@@ -156,8 +160,8 @@ export function buildCalibrationSnapshot({
   const normalizedBlackAccuracy = normalizeSnapshotAccuracy(blackAccuracy)
   const calibratedWhiteAccuracy = computeReviewCalibratedAccuracy(normalizedWhiteAccuracy, whiteStats?.counts, whiteSideResult) ?? 100
   const calibratedBlackAccuracy = computeReviewCalibratedAccuracy(normalizedBlackAccuracy, blackStats?.counts, blackSideResult) ?? 100
-  const whiteGameRating = estimatePerformanceRating(calibratedWhiteAccuracy, whiteElo, blackElo, whiteSideResult) ?? 1200
-  const blackGameRating = estimatePerformanceRating(calibratedBlackAccuracy, blackElo, whiteElo, blackSideResult) ?? 1200
+  const whiteGameRating = estimatePerformanceRating(calibratedWhiteAccuracy, whiteElo, blackElo, whiteSideResult, whiteStats?.counts) ?? 1200
+  const blackGameRating = estimatePerformanceRating(calibratedBlackAccuracy, blackElo, whiteElo, blackSideResult, blackStats?.counts) ?? 1200
   const sourceUrl = buildSourceUrl(platform, gameId)
 
   return {
@@ -193,6 +197,7 @@ function SidePanel({ label, stats, isUser, accuracy, playerName, rating, opponen
     rating,
     opponentRating,
     getSideResult(result, label),
+    stats?.counts,
   )
   const sideClass = label === 'White' ? 'game-report-player-dot--white' : 'game-report-player-dot--black'
 

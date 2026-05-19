@@ -8,6 +8,8 @@ import { estimatePerformanceRatingFromInputs, type SideResult } from './gameRati
 import {
   computeReviewAccuracyPenalty,
   computeReviewCalibratedAccuracy,
+  computeReviewCalibratedGameRating,
+  computeReviewGameRatingAdjustment,
   REVIEW_CALIBRATION_COEFFICIENTS,
   type ReviewCalibrationCoefficients,
 } from './reviewCalibration'
@@ -502,6 +504,21 @@ describe('review accuracy calibration', () => {
     expect(selection?.cleanEvaluation.every(fixture => fixture.accuracyDelta <= 3)).toBe(true)
     expect(selection?.cleanEvaluation.every(fixture => fixture.gameRatingDelta <= 150)).toBe(true)
   })
+
+  it('applies a rough-game rating discount only for messy mid-accuracy games', () => {
+    expect(
+      computeReviewGameRatingAdjustment(64.8, { mistake: 5, miss: 2, blunder: 1 }),
+    ).toBe(-200)
+    expect(
+      computeReviewGameRatingAdjustment(74.7, { mistake: 1, miss: 4, blunder: 1 }),
+    ).toBe(-100)
+    expect(
+      computeReviewGameRatingAdjustment(85, { mistake: 4, miss: 3, blunder: 1 }),
+    ).toBe(0)
+    expect(
+      computeReviewGameRatingAdjustment(29.7, { mistake: 3, miss: 6, blunder: 2 }),
+    ).toBe(0)
+  })
 })
 
 describe('buildCalibrationSnapshot', () => {
@@ -538,10 +555,10 @@ describe('buildCalibrationSnapshot', () => {
     expect(snapshot.players.white.deepmoveAccuracy).toBe(expectedWhiteAccuracy)
     expect(snapshot.players.black.deepmoveAccuracy).toBe(expectedBlackAccuracy)
     expect(snapshot.players.white.deepmoveGameRating).toBe(
-      estimatePerformanceRating(expectedWhiteAccuracy, '1500', '1400', 'win'),
+      estimatePerformanceRating(expectedWhiteAccuracy, '1500', '1400', 'win', whiteStats?.counts),
     )
     expect(snapshot.players.black.deepmoveGameRating).toBe(
-      estimatePerformanceRating(expectedBlackAccuracy, '1400', '1500', 'loss'),
+      estimatePerformanceRating(expectedBlackAccuracy, '1400', '1500', 'loss', blackStats?.counts),
     )
     expect(snapshot.players.white.deepmoveBadges.best).toBe(1)
     expect(snapshot.players.white.deepmoveBadges.good).toBe(1)
@@ -573,6 +590,18 @@ describe('buildCalibrationSnapshot', () => {
 })
 
 describe('game rating calibration', () => {
+  it('applies the review roughness discount on top of the fitted rating model', () => {
+    expect(
+      computeReviewCalibratedGameRating(64.8, { mistake: 5, miss: 2, blunder: 1 }, 1295, 1302, 'loss'),
+    ).toBe(800)
+    expect(
+      computeReviewCalibratedGameRating(74.7, { mistake: 1, miss: 4, blunder: 1 }, 1331, 1296, 'win'),
+    ).toBe(1400)
+    expect(
+      computeReviewCalibratedGameRating(85, { mistake: 4, miss: 3, blunder: 1 }, 1292, 1269, 'win'),
+    ).toBe(1650)
+  })
+
   it('falls back to a usable estimate when one or both ratings are missing', () => {
     expect(estimatePerformanceRatingFromInputs(83.4, null, null, null)).toBe(1400)
     expect(estimatePerformanceRatingFromInputs(72.8, 1292, null, 'win')).toBe(1500)
