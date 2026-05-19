@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
 import { computeAccuracy, type MoveEval } from '../../engine/analysis'
 import { getGradeBadgeMeta, renderGradeBadgeGlyph } from './gradeBadges'
-import calibrationData from './gameRatingCalibrationData.json'
 import {
   estimatePerformanceRatingFromInputs,
   parseRating,
   type SideResult,
 } from './gameRatingModel'
+import { computeReviewCalibratedAccuracy } from './reviewCalibration'
 
 interface GameReportProps {
   moveEvals: MoveEval[]
@@ -28,30 +28,8 @@ interface SideStats {
 }
 
 type CalibrationExportPlatform = 'chesscom' | 'lichess' | 'pgn-paste' | null
-type CalibrationReviewStatus = 'prefilled-from-calibration-dataset' | 'needs-manual-entry'
 
 const GRADE_ORDER = ['brilliant', 'great', 'best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder', 'miss'] as const
-
-interface CalibrationDatasetGame {
-  gameId: string
-  result: string | null
-  players: {
-    white: {
-      name: string
-      rating: number | null
-      deepmoveAccuracy: number | null
-      chesscomAccuracy: number | null
-      chesscomGameRating: number | null
-    }
-    black: {
-      name: string
-      rating: number | null
-      deepmoveAccuracy: number | null
-      chesscomAccuracy: number | null
-      chesscomGameRating: number | null
-    }
-  }
-}
 
 export function computeSideStats(allEvals: MoveEval[], side: 'white' | 'black'): SideStats | null {
   if (allEvals.length === 0) return null
@@ -119,8 +97,8 @@ function buildSourceUrl(platform: CalibrationExportPlatform, gameId: string | nu
 export interface CalibrationSnapshotSide {
   name: string
   rating: number | null
-  deepmoveAccuracy: number | null
-  deepmoveGameRating: number | null
+  deepmoveAccuracy: number
+  deepmoveGameRating: number
   deepmoveBadges: Partial<Record<string, number>>
 }
 
@@ -135,36 +113,6 @@ export interface CalibrationSnapshot {
     white: CalibrationSnapshotSide
     black: CalibrationSnapshotSide
   }
-  chesscomReview: {
-    status: CalibrationReviewStatus
-    instructions: string
-    whiteAccuracy: number | null
-    blackAccuracy: number | null
-    whiteGameRating: number | null
-    blackGameRating: number | null
-  }
-}
-
-function extractComparableGameId(platform: CalibrationExportPlatform, gameId: string | null, sourceUrl: string | null): string | null {
-  const candidates = [gameId, sourceUrl].filter((value): value is string => typeof value === 'string' && value.length > 0)
-  for (const candidate of candidates) {
-    if (platform === 'chesscom') {
-      const match = candidate.match(/\/game\/live\/(\d+)/) ?? candidate.match(/^(\d+)$/)
-      if (match) return match[1]
-    }
-    if (platform === 'lichess') {
-      if (candidate.startsWith('lichess:')) return candidate.slice('lichess:'.length)
-      const match = candidate.match(/lichess\.org\/([A-Za-z0-9]+)/)
-      if (match) return match[1]
-    }
-  }
-  return null
-}
-
-function findCalibrationDatasetGame(platform: CalibrationExportPlatform, gameId: string | null, sourceUrl: string | null): CalibrationDatasetGame | null {
-  const comparableGameId = extractComparableGameId(platform, gameId, sourceUrl)
-  if (!comparableGameId) return null
-  return (calibrationData as CalibrationDatasetGame[]).find(game => game.gameId === comparableGameId) ?? null
 }
 
 interface BuildCalibrationSnapshotArgs {
@@ -183,6 +131,10 @@ interface BuildCalibrationSnapshotArgs {
   blackAccuracy: number | null
 }
 
+function normalizeSnapshotAccuracy(accuracy: number | null): number {
+  return accuracy ?? 100
+}
+
 export function buildCalibrationSnapshot({
   platform = null,
   gameId = null,
@@ -198,14 +150,15 @@ export function buildCalibrationSnapshot({
   whiteAccuracy,
   blackAccuracy,
 }: BuildCalibrationSnapshotArgs): CalibrationSnapshot {
-  const whiteGameRating = estimatePerformanceRating(whiteAccuracy, whiteElo, blackElo, getSideResult(result, 'White'))
-  const blackGameRating = estimatePerformanceRating(blackAccuracy, blackElo, whiteElo, getSideResult(result, 'Black'))
+  const whiteSideResult = getSideResult(result, 'White')
+  const blackSideResult = getSideResult(result, 'Black')
+  const normalizedWhiteAccuracy = normalizeSnapshotAccuracy(whiteAccuracy)
+  const normalizedBlackAccuracy = normalizeSnapshotAccuracy(blackAccuracy)
+  const calibratedWhiteAccuracy = computeReviewCalibratedAccuracy(normalizedWhiteAccuracy, whiteStats?.counts, whiteSideResult) ?? 100
+  const calibratedBlackAccuracy = computeReviewCalibratedAccuracy(normalizedBlackAccuracy, blackStats?.counts, blackSideResult) ?? 100
+  const whiteGameRating = estimatePerformanceRating(calibratedWhiteAccuracy, whiteElo, blackElo, whiteSideResult) ?? 1200
+  const blackGameRating = estimatePerformanceRating(calibratedBlackAccuracy, blackElo, whiteElo, blackSideResult) ?? 1200
   const sourceUrl = buildSourceUrl(platform, gameId)
-  const datasetGame = findCalibrationDatasetGame(platform, gameId ?? null, sourceUrl)
-  const reviewStatus: CalibrationReviewStatus = datasetGame ? 'prefilled-from-calibration-dataset' : 'needs-manual-entry'
-  const reviewInstructions = datasetGame
-    ? 'Chess.com accuracy and game ratings were auto-filled from the DeepMove calibration dataset.'
-    : 'Fill in Chess.com accuracy and game ratings from the Chess.com review.'
 
   return {
     sourceUrl,
@@ -218,25 +171,17 @@ export function buildCalibrationSnapshot({
       white: {
         name: whiteName?.trim() || 'White',
         rating: parseRating(whiteElo),
-        deepmoveAccuracy: whiteAccuracy,
+        deepmoveAccuracy: calibratedWhiteAccuracy,
         deepmoveGameRating: whiteGameRating,
         deepmoveBadges: whiteStats?.counts ?? {},
       },
       black: {
         name: blackName?.trim() || 'Black',
         rating: parseRating(blackElo),
-        deepmoveAccuracy: blackAccuracy,
+        deepmoveAccuracy: calibratedBlackAccuracy,
         deepmoveGameRating: blackGameRating,
         deepmoveBadges: blackStats?.counts ?? {},
       },
-    },
-    chesscomReview: {
-      status: reviewStatus,
-      instructions: reviewInstructions,
-      whiteAccuracy: datasetGame?.players.white.chesscomAccuracy ?? null,
-      blackAccuracy: datasetGame?.players.black.chesscomAccuracy ?? null,
-      whiteGameRating: datasetGame?.players.white.chesscomGameRating ?? null,
-      blackGameRating: datasetGame?.players.black.chesscomGameRating ?? null,
     },
   }
 }
@@ -312,8 +257,16 @@ export default function GameReport({
 }: GameReportProps) {
   const white = useMemo(() => computeSideStats(moveEvals, 'white'), [moveEvals])
   const black = useMemo(() => computeSideStats(moveEvals, 'black'), [moveEvals])
-  const whiteAccuracy = useMemo(() => computeAccuracy(moveEvals, 'white'), [moveEvals])
-  const blackAccuracy = useMemo(() => computeAccuracy(moveEvals, 'black'), [moveEvals])
+  const rawWhiteAccuracy = useMemo(() => computeAccuracy(moveEvals, 'white'), [moveEvals])
+  const rawBlackAccuracy = useMemo(() => computeAccuracy(moveEvals, 'black'), [moveEvals])
+  const whiteAccuracy = useMemo(
+    () => computeReviewCalibratedAccuracy(rawWhiteAccuracy, white?.counts, getSideResult(result, 'White')),
+    [rawWhiteAccuracy, white, result],
+  )
+  const blackAccuracy = useMemo(
+    () => computeReviewCalibratedAccuracy(rawBlackAccuracy, black?.counts, getSideResult(result, 'Black')),
+    [rawBlackAccuracy, black, result],
+  )
 
   if (!analysisComplete) return null
   if (!white && !black) return null

@@ -1874,8 +1874,8 @@ export default function App() {
       blackElo,
       whiteStats,
       blackStats,
-      whiteAccuracy: whiteStats ? computeAccuracy(moveEvals, 'white') : null,
-      blackAccuracy: blackStats ? computeAccuracy(moveEvals, 'black') : null,
+      whiteAccuracy: computeAccuracy(moveEvals, 'white'),
+      blackAccuracy: computeAccuracy(moveEvals, 'black'),
     })
 
     return copyText(JSON.stringify(snapshot, null, 2))

@@ -1,10 +1,16 @@
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { MoveEval } from '../../engine/analysis'
+import { computeAccuracy, type MoveEval } from '../../engine/analysis'
 import GameReport from './GameReport'
 import calibrationData from './gameRatingCalibrationData.json'
 import { buildCalibrationSnapshot, computeSideStats, estimatePerformanceRating } from './GameReport'
 import { estimatePerformanceRatingFromInputs, type SideResult } from './gameRatingModel'
+import {
+  computeReviewAccuracyPenalty,
+  computeReviewCalibratedAccuracy,
+  REVIEW_CALIBRATION_COEFFICIENTS,
+  type ReviewCalibrationCoefficients,
+} from './reviewCalibration'
 
 function makeEval(
   moveNumber: number,
@@ -58,6 +64,288 @@ function getSideResult(result: string, color: 'white' | 'black'): SideResult {
   if (result === '1-0') return color === 'white' ? 'win' : 'loss'
   if (result === '0-1') return color === 'black' ? 'win' : 'loss'
   return 'draw'
+}
+
+interface ReviewCalibrationFixture {
+  label: string
+  rawAccuracy: number
+  rating: number
+  opponentRating: number
+  result: Exclude<SideResult, null>
+  counts: Partial<Record<string, number>>
+  chesscomAccuracy: number
+  chesscomGameRating: number
+}
+
+const ROUGH_GAME_FIXTURES: ReviewCalibrationFixture[] = [
+  {
+    label: '168944079042 white',
+    rawAccuracy: 85.0,
+    rating: 1292,
+    opponentRating: 1269,
+    result: 'win',
+    counts: { inaccuracy: 1, mistake: 3, miss: 1 },
+    chesscomAccuracy: 72.8,
+    chesscomGameRating: 1250,
+  },
+  {
+    label: '168944079042 black',
+    rawAccuracy: 78.8,
+    rating: 1269,
+    opponentRating: 1292,
+    result: 'loss',
+    counts: { inaccuracy: 4, mistake: 5, miss: 1 },
+    chesscomAccuracy: 64.5,
+    chesscomGameRating: 800,
+  },
+  {
+    label: '168908632128 white',
+    rawAccuracy: 79.0,
+    rating: 1284,
+    opponentRating: 1348,
+    result: 'loss',
+    counts: { inaccuracy: 5, mistake: 4, blunder: 2, miss: 1 },
+    chesscomAccuracy: 69.9,
+    chesscomGameRating: 1100,
+  },
+  {
+    label: '168908632128 black',
+    rawAccuracy: 82.1,
+    rating: 1348,
+    opponentRating: 1284,
+    result: 'win',
+    counts: { inaccuracy: 5, mistake: 1, miss: 3 },
+    chesscomAccuracy: 75.4,
+    chesscomGameRating: 1450,
+  },
+  {
+    label: '168897408928 white',
+    rawAccuracy: 53.9,
+    rating: 1309,
+    opponentRating: 1291,
+    result: 'draw',
+    counts: { inaccuracy: 2, mistake: 2, blunder: 3, miss: 3 },
+    chesscomAccuracy: 51.4,
+    chesscomGameRating: 550,
+  },
+  {
+    label: '168897408928 black',
+    rawAccuracy: 59.3,
+    rating: 1291,
+    opponentRating: 1309,
+    result: 'draw',
+    counts: { inaccuracy: 2, mistake: 2, blunder: 3, miss: 4 },
+    chesscomAccuracy: 43.2,
+    chesscomGameRating: 500,
+  },
+  {
+    label: '168896908938 white',
+    rawAccuracy: 76.8,
+    rating: 1291,
+    opponentRating: 1325,
+    result: 'loss',
+    counts: { inaccuracy: 4, mistake: 2, blunder: 1, miss: 2 },
+    chesscomAccuracy: 60.7,
+    chesscomGameRating: 750,
+  },
+  {
+    label: '168896908938 black',
+    rawAccuracy: 84.8,
+    rating: 1325,
+    opponentRating: 1291,
+    result: 'win',
+    counts: { inaccuracy: 2, mistake: 2, blunder: 1 },
+    chesscomAccuracy: 73.6,
+    chesscomGameRating: 1350,
+  },
+  {
+    label: '168894861710 white',
+    rawAccuracy: 70.2,
+    rating: 1276,
+    opponentRating: 1299,
+    result: 'loss',
+    counts: { inaccuracy: 5, mistake: 5, blunder: 2, miss: 2 },
+    chesscomAccuracy: 48.7,
+    chesscomGameRating: 550,
+  },
+  {
+    label: '168894861710 black',
+    rawAccuracy: 74.1,
+    rating: 1299,
+    opponentRating: 1276,
+    result: 'win',
+    counts: { inaccuracy: 5, mistake: 1, blunder: 2, miss: 3 },
+    chesscomAccuracy: 59.0,
+    chesscomGameRating: 700,
+  },
+  {
+    label: '168773587574 white',
+    rawAccuracy: 80.3,
+    rating: 1295,
+    opponentRating: 1291,
+    result: 'loss',
+    counts: { inaccuracy: 1, blunder: 2, miss: 1 },
+    chesscomAccuracy: 69.1,
+    chesscomGameRating: 750,
+  },
+  {
+    label: '168773587574 black',
+    rawAccuracy: 89.3,
+    rating: 1291,
+    opponentRating: 1295,
+    result: 'win',
+    counts: { inaccuracy: 1, mistake: 2, miss: 1 },
+    chesscomAccuracy: 76.9,
+    chesscomGameRating: 1500,
+  },
+]
+
+const CLEAN_ANCHOR_FIXTURES: ReviewCalibrationFixture[] = [
+  {
+    label: 'Ace_S_04 white',
+    rawAccuracy: 94.8,
+    rating: 1278,
+    opponentRating: 1304,
+    result: 'loss',
+    counts: {},
+    chesscomAccuracy: 97.2,
+    chesscomGameRating: 2100,
+  },
+  {
+    label: 'Ace_S_04 black',
+    rawAccuracy: 97.0,
+    rating: 1304,
+    opponentRating: 1278,
+    result: 'win',
+    counts: {},
+    chesscomAccuracy: 99.0,
+    chesscomGameRating: 2150,
+  },
+  {
+    label: 'KingWald black',
+    rawAccuracy: 98.0,
+    rating: 1310,
+    opponentRating: 1272,
+    result: 'win',
+    counts: {},
+    chesscomAccuracy: 98.5,
+    chesscomGameRating: 2100,
+  },
+  {
+    label: 'Kevalan white',
+    rawAccuracy: 96.1,
+    rating: 903,
+    opponentRating: 885,
+    result: 'win',
+    counts: { inaccuracy: 1 },
+    chesscomAccuracy: 95.3,
+    chesscomGameRating: 1700,
+  },
+]
+
+function average(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+function evaluateCalibrationFixture(
+  fixture: ReviewCalibrationFixture,
+  coefficients: ReviewCalibrationCoefficients,
+) {
+  const calibratedAccuracy = computeReviewCalibratedAccuracy(
+    fixture.rawAccuracy,
+    fixture.counts,
+    fixture.result,
+    coefficients,
+  )
+  const calibratedGameRating = estimatePerformanceRatingFromInputs(
+    calibratedAccuracy,
+    fixture.rating,
+    fixture.opponentRating,
+    fixture.result,
+  )
+  const baselineGameRating = estimatePerformanceRatingFromInputs(
+    fixture.rawAccuracy,
+    fixture.rating,
+    fixture.opponentRating,
+    fixture.result,
+  )
+
+  return {
+    ...fixture,
+    calibratedAccuracy: calibratedAccuracy ?? 0,
+    calibratedGameRating: calibratedGameRating ?? 0,
+    baselineGameRating: baselineGameRating ?? 0,
+    accuracyError: Math.abs((calibratedAccuracy ?? 0) - fixture.chesscomAccuracy),
+    gameRatingError: Math.abs((calibratedGameRating ?? 0) - fixture.chesscomGameRating),
+    accuracyDelta:
+      Math.abs((calibratedAccuracy ?? 0) - fixture.chesscomAccuracy)
+      - Math.abs(fixture.rawAccuracy - fixture.chesscomAccuracy),
+    gameRatingDelta:
+      Math.abs((calibratedGameRating ?? 0) - fixture.chesscomGameRating)
+      - Math.abs((baselineGameRating ?? 0) - fixture.chesscomGameRating),
+  }
+}
+
+function findFirstMatchingReviewCalibrationCoefficients() {
+  const coefficientGrid = {
+    inaccuracy: [0, 0.5, 1],
+    mistake: [0.5, 1, 1.5, 2],
+    blunder: [2, 3, 4],
+    miss: [2, 3, 4],
+    nonWin: [0, 1, 2],
+  } as const
+
+  const roughBaselineAccuracyError = average(
+    ROUGH_GAME_FIXTURES.map(fixture => Math.abs(fixture.rawAccuracy - fixture.chesscomAccuracy)),
+  )
+  const roughBaselineGameRatingError = average(
+    ROUGH_GAME_FIXTURES.map(fixture => {
+      const baselineRating = estimatePerformanceRatingFromInputs(
+        fixture.rawAccuracy,
+        fixture.rating,
+        fixture.opponentRating,
+        fixture.result,
+      )
+      return Math.abs((baselineRating ?? 0) - fixture.chesscomGameRating)
+    }),
+  )
+
+  for (const inaccuracy of coefficientGrid.inaccuracy) {
+    for (const mistake of coefficientGrid.mistake) {
+      for (const blunder of coefficientGrid.blunder) {
+        for (const miss of coefficientGrid.miss) {
+          for (const nonWin of coefficientGrid.nonWin) {
+            const candidate: ReviewCalibrationCoefficients = {
+              inaccuracy,
+              mistake,
+              blunder,
+              miss,
+              nonWin,
+            }
+            const roughEvaluation = ROUGH_GAME_FIXTURES.map(fixture => evaluateCalibrationFixture(fixture, candidate))
+            const cleanEvaluation = CLEAN_ANCHOR_FIXTURES.map(fixture => evaluateCalibrationFixture(fixture, candidate))
+            const roughAccuracyImprovement = roughBaselineAccuracyError - average(roughEvaluation.map(fixture => fixture.accuracyError))
+            const roughGameRatingImprovement = roughBaselineGameRatingError - average(roughEvaluation.map(fixture => fixture.gameRatingError))
+            const cleanAnchorsOk = cleanEvaluation.every(
+              fixture => fixture.accuracyDelta <= 3 && fixture.gameRatingDelta <= 150,
+            )
+
+            if (roughAccuracyImprovement >= 5 && roughGameRatingImprovement >= 100 && cleanAnchorsOk) {
+              return {
+                coefficients: candidate,
+                roughAccuracyImprovement,
+                roughGameRatingImprovement,
+                roughEvaluation,
+                cleanEvaluation,
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return null
 }
 
 describe('computeSideStats', () => {
@@ -156,10 +444,68 @@ describe('GameReport rendering', () => {
     expect(container.textContent).not.toContain('(1500)')
     expect(container.textContent).not.toContain('(1400)')
   })
+
+  it('renders review-calibrated accuracy instead of raw engine accuracy', () => {
+    const moveEvals: MoveEval[] = [
+      makeEval(1, 'white', 40, 'mistake'),
+      makeEval(2, 'white', -120, 'blunder'),
+    ]
+    const rawWhiteAccuracy = computeAccuracy(moveEvals, 'white')
+    const whiteStats = computeSideStats(moveEvals, 'white')
+    const calibratedWhiteAccuracy = computeReviewCalibratedAccuracy(rawWhiteAccuracy, whiteStats?.counts, 'loss')
+
+    const { container } = render(
+      <GameReport
+        moveEvals={moveEvals}
+        userColor="white"
+        analysisComplete={true}
+        whiteName="Alice"
+        result="0-1"
+        whiteElo="1500"
+        blackElo="1400"
+      />
+    )
+
+    expect(calibratedWhiteAccuracy).not.toBeNull()
+    expect(calibratedWhiteAccuracy).toBeLessThan(rawWhiteAccuracy)
+    expect(container.textContent).toContain(`${calibratedWhiteAccuracy?.toFixed(1)}%`)
+  })
+})
+
+describe('review accuracy calibration', () => {
+  it('keeps clean games unchanged or lightly adjusted', () => {
+    expect(computeReviewAccuracyPenalty({}, 'win')).toBe(0)
+    expect(computeReviewAccuracyPenalty({ inaccuracy: 1 }, 'win')).toBe(0)
+    expect(computeReviewCalibratedAccuracy(96.1, { inaccuracy: 1 }, 'win')).toBe(96.1)
+  })
+
+  it('penalizes rough games with multiple misses and blunders', () => {
+    const counts = { inaccuracy: 5, mistake: 5, blunder: 2, miss: 2 }
+    expect(computeReviewAccuracyPenalty(counts, 'loss')).toBe(10.5)
+    expect(computeReviewCalibratedAccuracy(70.2, counts, 'loss')).toBe(59.7)
+  })
+
+  it('caps the penalty at 20 and clamps calibrated accuracy into range', () => {
+    const counts = { inaccuracy: 12, mistake: 8, blunder: 4, miss: 6 }
+    expect(computeReviewAccuracyPenalty(counts, 'draw')).toBe(20)
+    expect(computeReviewCalibratedAccuracy(15, counts, 'draw')).toBe(0)
+    expect(computeReviewCalibratedAccuracy(105, {}, 'win')).toBe(100)
+  })
+
+  it('uses the first coefficient tuple that satisfies the regression thresholds', () => {
+    const selection = findFirstMatchingReviewCalibrationCoefficients()
+
+    expect(selection).not.toBeNull()
+    expect(selection?.coefficients).toEqual(REVIEW_CALIBRATION_COEFFICIENTS)
+    expect(selection?.roughAccuracyImprovement ?? 0).toBeGreaterThanOrEqual(5)
+    expect(selection?.roughGameRatingImprovement ?? 0).toBeGreaterThanOrEqual(100)
+    expect(selection?.cleanEvaluation.every(fixture => fixture.accuracyDelta <= 3)).toBe(true)
+    expect(selection?.cleanEvaluation.every(fixture => fixture.gameRatingDelta <= 150)).toBe(true)
+  })
 })
 
 describe('buildCalibrationSnapshot', () => {
-  it('builds a copyable comparison snapshot with source URL and Chess.com comparison placeholders', () => {
+  it('builds a copyable snapshot with source URL and DeepMove review metrics', () => {
     const moveEvals: MoveEval[] = [
       makeEval(1, 'white', 30, 'best'),
       makeEval(1, 'black', 20, 'mistake'),
@@ -185,49 +531,54 @@ describe('buildCalibrationSnapshot', () => {
       whiteAccuracy: 91.2,
       blackAccuracy: 62.5,
     })
+    const expectedWhiteAccuracy = computeReviewCalibratedAccuracy(91.2, whiteStats?.counts, 'win')
+    const expectedBlackAccuracy = computeReviewCalibratedAccuracy(62.5, blackStats?.counts, 'loss')
 
     expect(snapshot.sourceUrl).toBe('https://www.chess.com/game/live/123')
-    expect(snapshot.players.white.deepmoveAccuracy).toBe(91.2)
-    expect(snapshot.players.white.deepmoveGameRating).toBeGreaterThan(1500)
+    expect(snapshot.players.white.deepmoveAccuracy).toBe(expectedWhiteAccuracy)
+    expect(snapshot.players.black.deepmoveAccuracy).toBe(expectedBlackAccuracy)
+    expect(snapshot.players.white.deepmoveGameRating).toBe(
+      estimatePerformanceRating(expectedWhiteAccuracy, '1500', '1400', 'win'),
+    )
+    expect(snapshot.players.black.deepmoveGameRating).toBe(
+      estimatePerformanceRating(expectedBlackAccuracy, '1400', '1500', 'loss'),
+    )
     expect(snapshot.players.white.deepmoveBadges.best).toBe(1)
     expect(snapshot.players.white.deepmoveBadges.good).toBe(1)
     expect(snapshot.players.black.deepmoveBadges.mistake).toBe(1)
     expect(snapshot.players.black.deepmoveBadges.blunder).toBe(1)
-    expect(snapshot.chesscomReview.status).toBe('needs-manual-entry')
-    expect(snapshot.chesscomReview.instructions).toContain('Fill in Chess.com accuracy')
-    expect(snapshot.chesscomReview.whiteAccuracy).toBeNull()
-    expect(snapshot.chesscomReview).not.toHaveProperty('whiteBadgeNotes')
-    expect(snapshot.chesscomReview).not.toHaveProperty('blackBadgeNotes')
-    expect(snapshot.chesscomReview).not.toHaveProperty('notableDifferences')
+    expect(snapshot).not.toHaveProperty('chesscomReview')
   })
 
-  it('prefills known Chess.com review data for existing calibration samples', () => {
+  it('fills snapshot accuracy and rating even when analysis inputs are sparse', () => {
     const snapshot = buildCalibrationSnapshot({
-      platform: 'chesscom',
-      gameId: 'https://www.chess.com/game/live/167997823636',
-      timeControl: '10 min',
-      endTime: Date.UTC(2026, 3, 29, 15, 55, 51),
-      result: '1-0',
-      whiteName: 'moosetheman123',
-      blackName: 'mattea5',
-      whiteElo: '1288',
-      blackElo: '1268',
-      whiteStats: { counts: { best: 29 } },
-      blackStats: { counts: { best: 20 } },
-      whiteAccuracy: 55.6,
-      blackAccuracy: 49.7,
+      platform: 'pgn-paste',
+      gameId: null,
+      result: null,
+      whiteName: 'Alice',
+      blackName: 'Bob',
+      whiteElo: null,
+      blackElo: null,
+      whiteStats: null,
+      blackStats: { counts: { best: 1 } },
+      whiteAccuracy: null,
+      blackAccuracy: 83.4,
     })
 
-    expect(snapshot.chesscomReview.status).toBe('prefilled-from-calibration-dataset')
-    expect(snapshot.chesscomReview.instructions).toContain('auto-filled')
-    expect(snapshot.chesscomReview.whiteAccuracy).toBe(67.0)
-    expect(snapshot.chesscomReview.blackAccuracy).toBe(61.0)
-    expect(snapshot.chesscomReview.whiteGameRating).toBe(1000)
-    expect(snapshot.chesscomReview.blackGameRating).toBe(600)
+    expect(snapshot.players.white.deepmoveAccuracy).toBe(100)
+    expect(snapshot.players.white.deepmoveGameRating).toBe(1650)
+    expect(snapshot.players.black.deepmoveAccuracy).toBe(83.4)
+    expect(snapshot.players.black.deepmoveGameRating).toBe(1400)
   })
 })
 
 describe('game rating calibration', () => {
+  it('falls back to a usable estimate when one or both ratings are missing', () => {
+    expect(estimatePerformanceRatingFromInputs(83.4, null, null, null)).toBe(1400)
+    expect(estimatePerformanceRatingFromInputs(72.8, 1292, null, 'win')).toBe(1500)
+    expect(estimatePerformanceRatingFromInputs(64.5, null, 1269, 'loss')).toBe(950)
+  })
+
   it('raises compressed high-end performances closer to the Chess.com sample set', () => {
     const sampleCases = [
       { gameId: '168331799352', color: 'white' as const },
