@@ -38,6 +38,7 @@ import { playSharedMoveSound } from './useSound'
 import type { MoveNode } from '../chess/types'
 import { applyPremoveForcefully } from '../components/Board/ChessBoard'
 import { getSelfDisplayName } from '../utils/selfDisplayName'
+import { chooseMaterialAwareBotMove } from '../chess/botTactics'
 
 export interface BotReviewPayload {
   pgn: string
@@ -59,7 +60,7 @@ function getCalibratedBotElo(botElo: number): number {
   const safeBotElo = clampBotElo(botElo)
   if (safeBotElo <= 300) return Math.min(2850, safeBotElo + 100)
   if (safeBotElo <= 800) return Math.min(2850, safeBotElo + 300)
-  if (safeBotElo <= 1200) return Math.min(2850, safeBotElo + 250)
+  if (safeBotElo <= 1200) return Math.min(2850, safeBotElo + 300)
   if (safeBotElo <= 1600) return Math.min(2850, safeBotElo + 200)
   if (safeBotElo <= 2000) return Math.min(2850, safeBotElo + 150)
   if (safeBotElo <= 2400) return Math.min(2850, safeBotElo + 100)
@@ -82,7 +83,7 @@ export function getBotStrengthProfile(botElo: number, tc: TimeControl): BotStren
   const stabilityBonus =
     safeBotElo <= 300 ? 300
       : safeBotElo <= 900 ? 500
-        : safeBotElo <= 1200 ? 350
+        : safeBotElo <= 1200 ? 450
           : safeBotElo <= 1600 ? 220
             : safeBotElo <= 2200 ? 120
             : 0
@@ -496,6 +497,7 @@ export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => vo
       store.getState().setIsBotThinking(false)
       return
     }
+    uci = chooseMaterialAwareBotMove(fen, uci, config.botElo)
 
     // Pad to configured think time (botSpeed controls how "human" the bot feels)
     const elapsed = performance.now() - botMoveStart

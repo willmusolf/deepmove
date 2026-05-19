@@ -193,8 +193,35 @@ describe('buildCalibrationSnapshot', () => {
     expect(snapshot.players.white.deepmoveBadges.good).toBe(1)
     expect(snapshot.players.black.deepmoveBadges.mistake).toBe(1)
     expect(snapshot.players.black.deepmoveBadges.blunder).toBe(1)
+    expect(snapshot.chesscomReview.status).toBe('needs-manual-entry')
+    expect(snapshot.chesscomReview.instructions).toContain('Fill in Chess.com accuracy')
     expect(snapshot.chesscomReview.whiteAccuracy).toBeNull()
     expect(snapshot.chesscomReview.notableDifferences).toBe('')
+  })
+
+  it('prefills known Chess.com review data for existing calibration samples', () => {
+    const snapshot = buildCalibrationSnapshot({
+      platform: 'chesscom',
+      gameId: 'https://www.chess.com/game/live/167997823636',
+      timeControl: '10 min',
+      endTime: Date.UTC(2026, 3, 29, 15, 55, 51),
+      result: '1-0',
+      whiteName: 'moosetheman123',
+      blackName: 'mattea5',
+      whiteElo: '1288',
+      blackElo: '1268',
+      whiteStats: { counts: { best: 29 } },
+      blackStats: { counts: { best: 20 } },
+      whiteAccuracy: 55.6,
+      blackAccuracy: 49.7,
+    })
+
+    expect(snapshot.chesscomReview.status).toBe('prefilled-from-calibration-dataset')
+    expect(snapshot.chesscomReview.instructions).toContain('auto-filled')
+    expect(snapshot.chesscomReview.whiteAccuracy).toBe(67.0)
+    expect(snapshot.chesscomReview.blackAccuracy).toBe(61.0)
+    expect(snapshot.chesscomReview.whiteGameRating).toBe(1000)
+    expect(snapshot.chesscomReview.blackGameRating).toBe(600)
   })
 })
 
