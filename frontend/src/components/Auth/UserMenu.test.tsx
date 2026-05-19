@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { UserResponse } from '../../stores/authStore'
 import UserMenu from './UserMenu'
 
 const mockState = vi.hoisted(() => ({
@@ -19,7 +20,7 @@ const mockState = vi.hoisted(() => ({
     google_oauth_linked: true,
     preferences: {},
     created_at: '2026-05-19T00:00:00Z',
-  },
+  } as UserResponse,
 }))
 
 vi.mock('../../api/chesscom', () => ({

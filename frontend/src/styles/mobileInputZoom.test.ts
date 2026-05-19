@@ -1,7 +1,5 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-
-const css = readFileSync(new URL('./board.css', import.meta.url), 'utf8')
+import css from './board.css?raw'
 
 describe('mobile input zoom guard', () => {
   it('keeps the final mobile input override at 16px', () => {
