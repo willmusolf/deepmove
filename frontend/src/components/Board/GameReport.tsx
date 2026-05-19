@@ -96,8 +96,8 @@ function buildSourceUrl(platform: CalibrationExportPlatform, gameId: string | nu
 export interface CalibrationSnapshotSide {
   name: string
   rating: number | null
-  deepmoveAccuracy: number | null
-  deepmoveGameRating: number | null
+  deepmoveAccuracy: number
+  deepmoveGameRating: number
   deepmoveBadges: Partial<Record<string, number>>
 }
 
@@ -111,15 +111,6 @@ export interface CalibrationSnapshot {
   players: {
     white: CalibrationSnapshotSide
     black: CalibrationSnapshotSide
-  }
-  chesscomReview: {
-    whiteAccuracy: number | null
-    blackAccuracy: number | null
-    whiteGameRating: number | null
-    blackGameRating: number | null
-    whiteBadgeNotes: string
-    blackBadgeNotes: string
-    notableDifferences: string
   }
 }
 
@@ -139,6 +130,10 @@ interface BuildCalibrationSnapshotArgs {
   blackAccuracy: number | null
 }
 
+function normalizeSnapshotAccuracy(accuracy: number | null): number {
+  return accuracy ?? 100
+}
+
 export function buildCalibrationSnapshot({
   platform = null,
   gameId = null,
@@ -154,11 +149,14 @@ export function buildCalibrationSnapshot({
   whiteAccuracy,
   blackAccuracy,
 }: BuildCalibrationSnapshotArgs): CalibrationSnapshot {
-  const whiteGameRating = estimatePerformanceRating(whiteAccuracy, whiteElo, blackElo, getSideResult(result, 'White'))
-  const blackGameRating = estimatePerformanceRating(blackAccuracy, blackElo, whiteElo, getSideResult(result, 'Black'))
+  const normalizedWhiteAccuracy = normalizeSnapshotAccuracy(whiteAccuracy)
+  const normalizedBlackAccuracy = normalizeSnapshotAccuracy(blackAccuracy)
+  const whiteGameRating = estimatePerformanceRating(normalizedWhiteAccuracy, whiteElo, blackElo, getSideResult(result, 'White')) ?? 1200
+  const blackGameRating = estimatePerformanceRating(normalizedBlackAccuracy, blackElo, whiteElo, getSideResult(result, 'Black')) ?? 1200
+  const sourceUrl = buildSourceUrl(platform, gameId)
 
   return {
-    sourceUrl: buildSourceUrl(platform, gameId),
+    sourceUrl,
     platform,
     gameId,
     result,
@@ -168,26 +166,17 @@ export function buildCalibrationSnapshot({
       white: {
         name: whiteName?.trim() || 'White',
         rating: parseRating(whiteElo),
-        deepmoveAccuracy: whiteAccuracy,
+        deepmoveAccuracy: normalizedWhiteAccuracy,
         deepmoveGameRating: whiteGameRating,
         deepmoveBadges: whiteStats?.counts ?? {},
       },
       black: {
         name: blackName?.trim() || 'Black',
         rating: parseRating(blackElo),
-        deepmoveAccuracy: blackAccuracy,
+        deepmoveAccuracy: normalizedBlackAccuracy,
         deepmoveGameRating: blackGameRating,
         deepmoveBadges: blackStats?.counts ?? {},
       },
-    },
-    chesscomReview: {
-      whiteAccuracy: null,
-      blackAccuracy: null,
-      whiteGameRating: null,
-      blackGameRating: null,
-      whiteBadgeNotes: '',
-      blackBadgeNotes: '',
-      notableDifferences: '',
     },
   }
 }

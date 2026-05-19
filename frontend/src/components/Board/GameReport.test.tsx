@@ -159,7 +159,7 @@ describe('GameReport rendering', () => {
 })
 
 describe('buildCalibrationSnapshot', () => {
-  it('builds a copyable comparison snapshot with source URL, stats, and blank Chess.com placeholders', () => {
+  it('builds a copyable snapshot with source URL and DeepMove review metrics', () => {
     const moveEvals: MoveEval[] = [
       makeEval(1, 'white', 30, 'best'),
       makeEval(1, 'black', 20, 'mistake'),
@@ -193,12 +193,38 @@ describe('buildCalibrationSnapshot', () => {
     expect(snapshot.players.white.deepmoveBadges.good).toBe(1)
     expect(snapshot.players.black.deepmoveBadges.mistake).toBe(1)
     expect(snapshot.players.black.deepmoveBadges.blunder).toBe(1)
-    expect(snapshot.chesscomReview.whiteAccuracy).toBeNull()
-    expect(snapshot.chesscomReview.notableDifferences).toBe('')
+    expect(snapshot).not.toHaveProperty('chesscomReview')
+  })
+
+  it('fills snapshot accuracy and rating even when analysis inputs are sparse', () => {
+    const snapshot = buildCalibrationSnapshot({
+      platform: 'pgn-paste',
+      gameId: null,
+      result: null,
+      whiteName: 'Alice',
+      blackName: 'Bob',
+      whiteElo: null,
+      blackElo: null,
+      whiteStats: null,
+      blackStats: { counts: { best: 1 } },
+      whiteAccuracy: null,
+      blackAccuracy: 83.4,
+    })
+
+    expect(snapshot.players.white.deepmoveAccuracy).toBe(100)
+    expect(snapshot.players.white.deepmoveGameRating).toBe(1650)
+    expect(snapshot.players.black.deepmoveAccuracy).toBe(83.4)
+    expect(snapshot.players.black.deepmoveGameRating).toBe(1400)
   })
 })
 
 describe('game rating calibration', () => {
+  it('falls back to a usable estimate when one or both ratings are missing', () => {
+    expect(estimatePerformanceRatingFromInputs(83.4, null, null, null)).toBe(1400)
+    expect(estimatePerformanceRatingFromInputs(72.8, 1292, null, 'win')).toBe(1500)
+    expect(estimatePerformanceRatingFromInputs(64.5, null, 1269, 'loss')).toBe(950)
+  })
+
   it('raises compressed high-end performances closer to the Chess.com sample set', () => {
     const sampleCases = [
       { gameId: '168331799352', color: 'white' as const },

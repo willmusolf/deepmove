@@ -16,6 +16,8 @@ export const GAME_RATING_COEFFICIENTS: GameRatingCoefficients = {
   result: 185.62111279428248,
 }
 
+const DEFAULT_FALLBACK_RATING = 1200
+
 export function roundToNearest50(value: number): number {
   return Math.round(value / 50) * 50
 }
@@ -43,12 +45,15 @@ export function estimatePerformanceRatingFromInputs(
   sideResult: SideResult,
   coefficients: GameRatingCoefficients = GAME_RATING_COEFFICIENTS,
 ): number | null {
-  if (accuracy === null || playerRating === null || opponentRating === null) return null
+  if (accuracy === null) return null
+
+  const resolvedPlayerRating = playerRating ?? opponentRating ?? DEFAULT_FALLBACK_RATING
+  const resolvedOpponentRating = opponentRating ?? playerRating ?? DEFAULT_FALLBACK_RATING
 
   const rawEstimate =
     coefficients.intercept
-    + coefficients.playerRating * playerRating
-    + coefficients.opponentRating * opponentRating
+    + coefficients.playerRating * resolvedPlayerRating
+    + coefficients.opponentRating * resolvedOpponentRating
     + coefficients.accuracy * accuracy
     + coefficients.result * resultToFeatureValue(sideResult)
 
