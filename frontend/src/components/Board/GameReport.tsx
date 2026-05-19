@@ -142,9 +142,6 @@ export interface CalibrationSnapshot {
     blackAccuracy: number | null
     whiteGameRating: number | null
     blackGameRating: number | null
-    whiteBadgeNotes: string
-    blackBadgeNotes: string
-    notableDifferences: string
   }
 }
 
@@ -207,8 +204,8 @@ export function buildCalibrationSnapshot({
   const datasetGame = findCalibrationDatasetGame(platform, gameId ?? null, sourceUrl)
   const reviewStatus: CalibrationReviewStatus = datasetGame ? 'prefilled-from-calibration-dataset' : 'needs-manual-entry'
   const reviewInstructions = datasetGame
-    ? 'Chess.com accuracy and game ratings were auto-filled from the DeepMove calibration dataset. Add only badge notes and any new notable differences from this build.'
-    : 'Fill in Chess.com accuracy and game ratings from the Chess.com review, then use the notes fields for the biggest badge or move-label differences.'
+    ? 'Chess.com accuracy and game ratings were auto-filled from the DeepMove calibration dataset.'
+    : 'Fill in Chess.com accuracy and game ratings from the Chess.com review.'
 
   return {
     sourceUrl,
@@ -240,9 +237,6 @@ export function buildCalibrationSnapshot({
       blackAccuracy: datasetGame?.players.black.chesscomAccuracy ?? null,
       whiteGameRating: datasetGame?.players.white.chesscomGameRating ?? null,
       blackGameRating: datasetGame?.players.black.chesscomGameRating ?? null,
-      whiteBadgeNotes: '',
-      blackBadgeNotes: '',
-      notableDifferences: '',
     },
   }
 }

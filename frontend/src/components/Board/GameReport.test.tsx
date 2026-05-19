@@ -159,7 +159,7 @@ describe('GameReport rendering', () => {
 })
 
 describe('buildCalibrationSnapshot', () => {
-  it('builds a copyable comparison snapshot with source URL, stats, and blank Chess.com placeholders', () => {
+  it('builds a copyable comparison snapshot with source URL and Chess.com comparison placeholders', () => {
     const moveEvals: MoveEval[] = [
       makeEval(1, 'white', 30, 'best'),
       makeEval(1, 'black', 20, 'mistake'),
@@ -196,7 +196,9 @@ describe('buildCalibrationSnapshot', () => {
     expect(snapshot.chesscomReview.status).toBe('needs-manual-entry')
     expect(snapshot.chesscomReview.instructions).toContain('Fill in Chess.com accuracy')
     expect(snapshot.chesscomReview.whiteAccuracy).toBeNull()
-    expect(snapshot.chesscomReview.notableDifferences).toBe('')
+    expect(snapshot.chesscomReview).not.toHaveProperty('whiteBadgeNotes')
+    expect(snapshot.chesscomReview).not.toHaveProperty('blackBadgeNotes')
+    expect(snapshot.chesscomReview).not.toHaveProperty('notableDifferences')
   })
 
   it('prefills known Chess.com review data for existing calibration samples', () => {
