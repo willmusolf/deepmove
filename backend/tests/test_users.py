@@ -10,6 +10,7 @@ class TestUserProfile:
         assert resp.status_code == 200
         data = resp.json()
         assert data["email"] == "testuser@deepmove.io"
+        assert data["avatar_url"] is None
         assert data["is_premium"] is False
         assert data["preferences"] == {}
 

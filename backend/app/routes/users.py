@@ -87,6 +87,7 @@ async def export_me(
             "elo_estimate": user.elo_estimate,
             "chesscom_username": user.chesscom_username,
             "lichess_username": user.lichess_username,
+            "avatar_url": user.avatar_url,
             "preferences": user.preferences,
             "is_premium": user.is_premium,
             "created_at": user.created_at.isoformat() if user.created_at else None,

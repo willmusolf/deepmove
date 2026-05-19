@@ -40,6 +40,7 @@ class UserResponse(BaseModel):
     elo_estimate: int | None
     chesscom_username: str | None
     lichess_username: str | None
+    avatar_url: str | None
     lichess_oauth_linked: bool
     google_oauth_linked: bool
     preferences: dict
@@ -53,7 +54,7 @@ class UserResponse(BaseModel):
         data = {
             **{c: getattr(obj, c) for c in [
                 "is_admin", "id", "email", "is_premium", "subscription_status",
-                "elo_estimate", "chesscom_username", "lichess_username",
+                "elo_estimate", "chesscom_username", "lichess_username", "avatar_url",
                 "preferences", "created_at"
             ]},
             "lichess_oauth_linked": bool(getattr(obj, "lichess_id", None)),

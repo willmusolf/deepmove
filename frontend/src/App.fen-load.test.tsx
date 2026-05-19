@@ -253,10 +253,16 @@ describe('App FEN loading', () => {
     window.history.replaceState({}, '', '/')
   })
 
+  it('boots into the review app at the root route', () => {
+    render(<App />)
+
+    expect(screen.getByRole('button', { name: 'PGN' })).toBeInTheDocument()
+    expect(screen.queryByTestId('aboutpage')).not.toBeInTheDocument()
+  })
+
   it('switches to the analysis panel after loading a FEN', () => {
     render(<App />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open App' }))
     fireEvent.click(screen.getByRole('button', { name: 'PGN' }))
     fireEvent.click(screen.getByRole('button', { name: 'Trigger FEN Load' }))
 
@@ -280,13 +286,21 @@ describe('App FEN loading', () => {
     expect(screen.getByTestId('profilepage')).toBeInTheDocument()
   })
 
+  it('renders about on the dedicated about route', () => {
+    window.history.replaceState({}, '', '/about')
+
+    render(<App />)
+
+    expect(screen.getByTestId('aboutpage')).toBeInTheDocument()
+  })
+
   it('returns to the review route after logging out from profile', () => {
     window.history.replaceState({}, '', '/profile')
 
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Mock Logout' }))
 
-    expect(window.location.pathname).toBe('/review')
+    expect(window.location.pathname).toBe('/')
     expect(screen.queryByTestId('profilepage')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'PGN' })).toBeInTheDocument()
   })

@@ -13,6 +13,7 @@ export interface UserResponse {
   elo_estimate: number | null
   chesscom_username: string | null
   lichess_username: string | null
+  avatar_url: string | null
   lichess_oauth_linked: boolean
   google_oauth_linked: boolean
   preferences: Record<string, unknown>
