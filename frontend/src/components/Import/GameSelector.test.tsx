@@ -6,6 +6,27 @@ import type { LichessGame } from '../../api/lichess'
 
 const loadMoreGamesMock = vi.fn()
 const onGamesAppendedMock = vi.fn()
+const gameStore = {
+  setPgn: vi.fn(),
+  setRawPgn: vi.fn(),
+  setLoadedPgn: vi.fn(),
+  loadedPgn: '',
+  setUserColor: vi.fn(),
+  setUserElo: vi.fn(),
+  setPlatform: vi.fn(),
+  setMoveEvals: vi.fn(),
+  setCriticalMoments: vi.fn(),
+  setCurrentGameId: vi.fn(),
+  currentGameId: null as string | null,
+  setBackendGameId: vi.fn(),
+  setCurrentGameMeta: vi.fn(),
+  setSkipNextAnalysis: vi.fn(),
+  setResumeFromIndex: vi.fn(),
+  bumpLoadRequestId: vi.fn(),
+  reset: vi.fn(),
+  moveEvals: [],
+  isAnalyzing: false,
+}
 
 vi.mock('../../api/chesscom', () => ({
   loadMoreGames: (...args: unknown[]) => loadMoreGamesMock(...args),
@@ -24,28 +45,8 @@ vi.mock('../../services/gameDB', () => ({
 }))
 
 vi.mock('../../stores/gameStore', () => {
-  const store = {
-    setPgn: vi.fn(),
-    setRawPgn: vi.fn(),
-    setLoadedPgn: vi.fn(),
-    loadedPgn: '',
-    setUserColor: vi.fn(),
-    setUserElo: vi.fn(),
-    setPlatform: vi.fn(),
-    setMoveEvals: vi.fn(),
-    setCriticalMoments: vi.fn(),
-    setCurrentGameId: vi.fn(),
-    setBackendGameId: vi.fn(),
-    setCurrentGameMeta: vi.fn(),
-    setSkipNextAnalysis: vi.fn(),
-    setResumeFromIndex: vi.fn(),
-    reset: vi.fn(),
-    moveEvals: [],
-    isAnalyzing: false,
-  }
-
   return {
-    useGameStore: (selector: (state: typeof store) => unknown) => selector(store),
+    useGameStore: (selector: (state: typeof gameStore) => unknown) => selector(gameStore),
   }
 })
 
@@ -84,6 +85,11 @@ describe('GameSelector Chess.com opponent hint', () => {
   beforeEach(() => {
     loadMoreGamesMock.mockReset()
     onGamesAppendedMock.mockReset()
+    gameStore.loadedPgn = ''
+    gameStore.currentGameId = null
+    gameStore.reset.mockReset()
+    gameStore.setCurrentGameId.mockReset()
+    gameStore.bumpLoadRequestId.mockReset()
   })
 
   it('shows the local-only hint only while archive backfill is actively running', async () => {
@@ -165,5 +171,39 @@ describe('GameSelector Lichess opponent filtering', () => {
       expect(screen.getByText(/1 of 1/)).toBeInTheDocument()
     })
     expect(screen.queryByText('Search all')).not.toBeInTheDocument()
+  })
+})
+
+describe('GameSelector existing review selection', () => {
+  beforeEach(() => {
+    gameStore.loadedPgn = '[Event "?"]\n\n1. e4 e5 2. Nf3 Nc6'
+    gameStore.currentGameId = 'https://www.chess.com/game/live/123'
+    gameStore.reset.mockReset()
+    gameStore.setCurrentGameId.mockReset()
+    gameStore.bumpLoadRequestId.mockReset()
+  })
+
+  it('does not reset or reload when clicking the already open game', async () => {
+    const onGameLoaded = vi.fn()
+
+    render(
+      <GameSelector
+        games={[makeChessComGame()]}
+        username="Alice"
+        platform="chesscom"
+        onGameLoaded={onGameLoaded}
+        pagination={null}
+        onGamesAppended={onGamesAppendedMock}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Alice.*Bob/i }))
+
+    await waitFor(() => {
+      expect(onGameLoaded).toHaveBeenCalled()
+    })
+    expect(gameStore.reset).not.toHaveBeenCalled()
+    expect(gameStore.setCurrentGameId).not.toHaveBeenCalled()
+    expect(gameStore.bumpLoadRequestId).not.toHaveBeenCalled()
   })
 })

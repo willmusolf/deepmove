@@ -71,6 +71,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
   const setMoveEvals = useGameStore(s => s.setMoveEvals)
   const setCriticalMoments = useGameStore(s => s.setCriticalMoments)
   const setCurrentGameId = useGameStore(s => s.setCurrentGameId)
+  const currentGameId = useGameStore(s => s.currentGameId)
   const setBackendGameId = useGameStore(s => s.setBackendGameId)
   const setCurrentGameMeta = useGameStore(s => s.setCurrentGameMeta)
   const setSkipNextAnalysis = useGameStore(s => s.setSkipNextAnalysis)
@@ -228,6 +229,11 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
   }, [moveEvalsLength, isAnalyzing, username, platform])
 
   const handleSelect = useCallback(async (g: NormalizedGame) => {
+    if (currentGameId === g.gameId && loadedPgn) {
+      onGameLoaded()
+      return
+    }
+
     onBeforeGameLoad?.()
 
     // Resolve the IndexedDB cache before resetting the current review state so the UI
@@ -287,7 +293,7 @@ export default function GameSelector({ games, username, platform, onGameLoaded, 
     setPgn(cleanPgn(g.pgn))
     bumpLoadRequestId()
     onGameLoaded()
-  }, [reset, setCurrentGameId, setBackendGameId, setCurrentGameMeta, setSkipNextAnalysis, setResumeFromIndex, setUserColor, setUserElo, setPlatform, setRawPgn, setLoadedPgn, setPgn, setMoveEvals, setCriticalMoments, bumpLoadRequestId, onBeforeGameLoad, onGameLoaded, platform])
+  }, [currentGameId, loadedPgn, reset, setCurrentGameId, setBackendGameId, setCurrentGameMeta, setSkipNextAnalysis, setResumeFromIndex, setUserColor, setUserElo, setPlatform, setRawPgn, setLoadedPgn, setPgn, setMoveEvals, setCriticalMoments, bumpLoadRequestId, onBeforeGameLoad, onGameLoaded, platform])
 
   // Uses paginationRef for async safety — JSX uses pagination prop for rendering
   const handleLoadMore = useCallback(async (): Promise<boolean> => {
