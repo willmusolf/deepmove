@@ -6,6 +6,7 @@ import {
   parseRating,
   type SideResult,
 } from './gameRatingModel'
+import { computeReviewCalibratedAccuracy } from './reviewCalibration'
 
 interface GameReportProps {
   moveEvals: MoveEval[]
@@ -149,10 +150,14 @@ export function buildCalibrationSnapshot({
   whiteAccuracy,
   blackAccuracy,
 }: BuildCalibrationSnapshotArgs): CalibrationSnapshot {
+  const whiteSideResult = getSideResult(result, 'White')
+  const blackSideResult = getSideResult(result, 'Black')
   const normalizedWhiteAccuracy = normalizeSnapshotAccuracy(whiteAccuracy)
   const normalizedBlackAccuracy = normalizeSnapshotAccuracy(blackAccuracy)
-  const whiteGameRating = estimatePerformanceRating(normalizedWhiteAccuracy, whiteElo, blackElo, getSideResult(result, 'White')) ?? 1200
-  const blackGameRating = estimatePerformanceRating(normalizedBlackAccuracy, blackElo, whiteElo, getSideResult(result, 'Black')) ?? 1200
+  const calibratedWhiteAccuracy = computeReviewCalibratedAccuracy(normalizedWhiteAccuracy, whiteStats?.counts, whiteSideResult) ?? 100
+  const calibratedBlackAccuracy = computeReviewCalibratedAccuracy(normalizedBlackAccuracy, blackStats?.counts, blackSideResult) ?? 100
+  const whiteGameRating = estimatePerformanceRating(calibratedWhiteAccuracy, whiteElo, blackElo, whiteSideResult) ?? 1200
+  const blackGameRating = estimatePerformanceRating(calibratedBlackAccuracy, blackElo, whiteElo, blackSideResult) ?? 1200
   const sourceUrl = buildSourceUrl(platform, gameId)
 
   return {
@@ -166,14 +171,14 @@ export function buildCalibrationSnapshot({
       white: {
         name: whiteName?.trim() || 'White',
         rating: parseRating(whiteElo),
-        deepmoveAccuracy: normalizedWhiteAccuracy,
+        deepmoveAccuracy: calibratedWhiteAccuracy,
         deepmoveGameRating: whiteGameRating,
         deepmoveBadges: whiteStats?.counts ?? {},
       },
       black: {
         name: blackName?.trim() || 'Black',
         rating: parseRating(blackElo),
-        deepmoveAccuracy: normalizedBlackAccuracy,
+        deepmoveAccuracy: calibratedBlackAccuracy,
         deepmoveGameRating: blackGameRating,
         deepmoveBadges: blackStats?.counts ?? {},
       },
@@ -252,8 +257,16 @@ export default function GameReport({
 }: GameReportProps) {
   const white = useMemo(() => computeSideStats(moveEvals, 'white'), [moveEvals])
   const black = useMemo(() => computeSideStats(moveEvals, 'black'), [moveEvals])
-  const whiteAccuracy = useMemo(() => computeAccuracy(moveEvals, 'white'), [moveEvals])
-  const blackAccuracy = useMemo(() => computeAccuracy(moveEvals, 'black'), [moveEvals])
+  const rawWhiteAccuracy = useMemo(() => computeAccuracy(moveEvals, 'white'), [moveEvals])
+  const rawBlackAccuracy = useMemo(() => computeAccuracy(moveEvals, 'black'), [moveEvals])
+  const whiteAccuracy = useMemo(
+    () => computeReviewCalibratedAccuracy(rawWhiteAccuracy, white?.counts, getSideResult(result, 'White')),
+    [rawWhiteAccuracy, white, result],
+  )
+  const blackAccuracy = useMemo(
+    () => computeReviewCalibratedAccuracy(rawBlackAccuracy, black?.counts, getSideResult(result, 'Black')),
+    [rawBlackAccuracy, black, result],
+  )
 
   if (!analysisComplete) return null
   if (!white && !black) return null
