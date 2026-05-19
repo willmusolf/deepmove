@@ -556,7 +556,7 @@ export default function App() {
 
     if (Object.keys(patch).length === 0) return
     void updateProfile(patch).catch(() => {})
-  }, [authUser?.id, authUser?.chesscom_username, authUser?.lichess_username, updateProfile])
+  }, [authUser, updateProfile])
 
   // Initialize userElo from cached detected ratings (instant — cached at import time, no analysis needed)
   useEffect(() => {
