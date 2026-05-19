@@ -9,10 +9,10 @@ export interface ReviewCalibrationCoefficients {
 }
 
 export const REVIEW_CALIBRATION_COEFFICIENTS: ReviewCalibrationCoefficients = {
-  inaccuracy: 1,
-  mistake: 2,
-  blunder: 4,
-  miss: 4,
+  inaccuracy: 0,
+  mistake: 0.5,
+  blunder: 2,
+  miss: 2,
   nonWin: 0,
 }
 

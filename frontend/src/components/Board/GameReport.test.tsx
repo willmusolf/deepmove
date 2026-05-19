@@ -475,14 +475,14 @@ describe('GameReport rendering', () => {
 describe('review accuracy calibration', () => {
   it('keeps clean games unchanged or lightly adjusted', () => {
     expect(computeReviewAccuracyPenalty({}, 'win')).toBe(0)
-    expect(computeReviewAccuracyPenalty({ inaccuracy: 1 }, 'win')).toBe(1)
-    expect(computeReviewCalibratedAccuracy(96.1, { inaccuracy: 1 }, 'win')).toBe(95.1)
+    expect(computeReviewAccuracyPenalty({ inaccuracy: 1 }, 'win')).toBe(0)
+    expect(computeReviewCalibratedAccuracy(96.1, { inaccuracy: 1 }, 'win')).toBe(96.1)
   })
 
   it('penalizes rough games with multiple misses and blunders', () => {
     const counts = { inaccuracy: 5, mistake: 5, blunder: 2, miss: 2 }
-    expect(computeReviewAccuracyPenalty(counts, 'loss')).toBe(20)
-    expect(computeReviewCalibratedAccuracy(70.2, counts, 'loss')).toBe(50.2)
+    expect(computeReviewAccuracyPenalty(counts, 'loss')).toBe(10.5)
+    expect(computeReviewCalibratedAccuracy(70.2, counts, 'loss')).toBe(59.7)
   })
 
   it('caps the penalty at 20 and clamps calibrated accuracy into range', () => {
