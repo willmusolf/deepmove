@@ -7503,3 +7503,17 @@ html.theme-light .profile-admin-badge {
   border-color: rgba(47, 99, 191, 0.24);
   color: var(--color-accent);
 }
+
+@media (max-width: 767px) {
+  /* Keep focusable text fields at iOS's no-zoom threshold. This lives at the
+     end of the file so it overrides the smaller base input styles above. */
+  .account-link-input,
+  .game-opponent-search,
+  .game-sort-select,
+  .fen-input,
+  .import-textarea,
+  .auth-input,
+  .profile-input {
+    font-size: 16px;
+  }
+}

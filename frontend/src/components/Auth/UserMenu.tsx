@@ -19,14 +19,35 @@ export default function UserMenu({ currentPage, onNavigate, collapsed = false }:
   const [showAuth, setShowAuth] = useState(() => sessionStorage.getItem('dm_oauth_error') === '1')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
-  // Fetch avatar when Chess.com username is linked. Lichess doesn't expose
-  // avatar URLs in their API, so Lichess-only users get the initial fallback.
+  // Prefer Chess.com avatars when available, otherwise fall back to the
+  // persisted backend avatar (used for Google OAuth profile photos).
   useEffect(() => {
-    if (!user?.chesscom_username) { setAvatarUrl(null); return }
-    getPlayerProfile(user.chesscom_username).then(p => {
-      setAvatarUrl(p?.avatar ?? null)
-    })
-  }, [user?.chesscom_username, user?.lichess_username])
+    let cancelled = false
+    const fallbackAvatar = user?.avatar_url ?? null
+
+    if (!user?.chesscom_username) {
+      setAvatarUrl(fallbackAvatar)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    getPlayerProfile(user.chesscom_username)
+      .then(profile => {
+        if (!cancelled) {
+          setAvatarUrl(profile?.avatar ?? fallbackAvatar)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAvatarUrl(fallbackAvatar)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.avatar_url, user?.chesscom_username])
 
   function handleAuthSuccess() {
     setShowAuth(false)

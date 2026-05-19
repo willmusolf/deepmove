@@ -27,6 +27,7 @@ class User(Base):
     # Linked chess platform accounts
     chesscom_username: Mapped[str | None] = mapped_column(Text, nullable=True)
     lichess_username: Mapped[str | None] = mapped_column(Text, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     lichess_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     google_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     chesscom_id: Mapped[str | None] = mapped_column(Text, nullable=True)

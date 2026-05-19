@@ -98,7 +98,7 @@ function renderItem(
 export default function NavSidebar({ currentPage, onNavigate, collapsed = false, onToggleCollapse }: NavSidebarProps) {
   return (
     <nav className="nav-sidebar">
-      <div className="nav-logo" onClick={() => onNavigate('about')} title="Go to Home">
+      <div className="nav-logo" onClick={() => onNavigate('review')} title="Go to Review">
         <img src="/DeepMove.png" alt="DeepMove" className="nav-logo__img" />
         {!collapsed && <span className="nav-logo__name">DeepMove</span>}
         {onToggleCollapse && (

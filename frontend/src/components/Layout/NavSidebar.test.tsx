@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import NavSidebar from './NavSidebar'
 
@@ -17,5 +17,14 @@ describe('NavSidebar', () => {
     expect(account).toBeInTheDocument()
     expect(screen.queryByText('Profile')).not.toBeInTheDocument()
     expect(settings.compareDocumentPosition(account) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('routes the logo to review', () => {
+    const onNavigate = vi.fn()
+    render(<NavSidebar currentPage="about" onNavigate={onNavigate} />)
+
+    fireEvent.click(screen.getByTitle('Go to Review'))
+
+    expect(onNavigate).toHaveBeenCalledWith('review')
   })
 })

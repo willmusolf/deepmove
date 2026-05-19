@@ -78,6 +78,7 @@ import { SUPPORT_GITHUB_ISSUES_URL } from './config/contact'
 import { getPageFromPathname, getPageMeta, getPathForPage, isIndexablePage } from './utils/pageMeta'
 import { normalizeRestoredPage } from './utils/navigation'
 import { reportFrontendPerf } from './services/monitoring'
+import { getIdentity } from './services/identity'
 
 // Lichess-style thickness brushes — all green, varying weight
 const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
@@ -348,7 +349,7 @@ function loadAppUiState(): AppUiState | null {
   const parsed = readSessionJson<Partial<AppUiState>>(APP_UI_SESSION_KEY)
   if (parsed && typeof parsed === 'object') {
     return {
-      currentPage: isPage(parsed.currentPage) ? normalizeRestoredPage(parsed.currentPage) : 'about',
+      currentPage: isPage(parsed.currentPage) ? normalizeRestoredPage(parsed.currentPage) : 'review',
       panelTab: isPanelTab(parsed.panelTab) ? parsed.panelTab : 'load',
       importTab: isImportTab(parsed.importTab) ? parsed.importTab : 'chesscom',
       orientation: parsed.orientation === 'black' ? 'black' : 'white',
@@ -461,7 +462,8 @@ export default function App() {
   const loadRequestId = useGameStore(s => s.loadRequestId)
   const [panelTab, setPanelTab] = useState<PanelTab>(savedUiState?.panelTab ?? 'load')
   const [importTab, setImportTab] = useState<ImportTab>(savedUiState?.importTab ?? 'chesscom')
-  const [currentPage, setCurrentPage] = useState<Page>(() => routePage ?? savedUiState?.currentPage ?? 'about')
+  const updateProfile = useAuthStore(s => s.updateProfile)
+  const [currentPage, setCurrentPage] = useState<Page>(() => routePage ?? savedUiState?.currentPage ?? 'review')
   const [isWideRailViewport, setIsWideRailViewport] = useState(() => (
     typeof window !== 'undefined'
       && typeof window.matchMedia === 'function'
@@ -539,6 +541,22 @@ export default function App() {
       localStorage.setItem(CHESSCOM_KEY, authUser.chesscom_username)
     }
   }, [authUser?.id])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!authUser) return
+    const identity = getIdentity()
+    const patch: Parameters<typeof updateProfile>[0] = {}
+
+    if (identity.chesscom && !authUser.chesscom_username) {
+      patch.chesscom_username = identity.chesscom
+    }
+    if (identity.lichess && !authUser.lichess_username) {
+      patch.lichess_username = identity.lichess
+    }
+
+    if (Object.keys(patch).length === 0) return
+    void updateProfile(patch).catch(() => {})
+  }, [authUser, updateProfile])
 
   // Initialize userElo from cached detected ratings (instant — cached at import time, no analysis needed)
   useEffect(() => {
@@ -1184,7 +1202,7 @@ export default function App() {
     if (typeof window === 'undefined') return
 
     const handlePopState = () => {
-      const nextPage = getPageFromPathname(window.location.pathname) ?? 'about'
+      const nextPage = getPageFromPathname(window.location.pathname) ?? 'review'
       if (nextPage !== 'play') clearPlaySession()
       setCurrentPage(nextPage)
     }

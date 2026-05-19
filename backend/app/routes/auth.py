@@ -144,6 +144,7 @@ def _find_or_create_oauth_user(
     provider_id: str,
     email: str | None,
     lichess_username: str | None = None,
+    avatar_url: str | None = None,
 ) -> User:
     """Find an existing user by provider ID or email, or create a new one.
 
@@ -188,6 +189,8 @@ def _find_or_create_oauth_user(
     # Always stamp the provider ID onto the canonical user
     if provider == "google":
         user.google_id = provider_id
+        if avatar_url:
+            user.avatar_url = avatar_url
     elif provider == "lichess":
         user.lichess_id = provider_id
         if lichess_username:
@@ -196,6 +199,14 @@ def _find_or_create_oauth_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+def _frontend_review_url() -> str:
+    return settings.frontend_url.rstrip("/")
+
+
+def _frontend_review_redirect(query: str) -> RedirectResponse:
+    return RedirectResponse(f"{_frontend_review_url()}/{query}", 302)
 
 
 # ── Email / password routes ───────────────────────────────────────────────────
@@ -384,7 +395,7 @@ async def google_callback(
 ):
     """Handle Google OAuth callback: exchange code, find/create user, issue tokens."""
     ip = client_ip_from_request(request)
-    redirect_err = RedirectResponse(f"{settings.frontend_url}/?oauth_error=1", 302)
+    redirect_err = _frontend_review_redirect("?oauth_error=1")
 
     try:
         verifier, linking_user_id = _parse_state_token(state)
@@ -423,7 +434,7 @@ async def google_callback(
 
         if linking_user_id:
             # Account-link flow: stamp google_id onto the existing user
-            redirect_err_link = RedirectResponse(f"{settings.frontend_url}/?link_error=already_linked", 302)
+            redirect_err_link = _frontend_review_redirect("?link_error=already_linked")
             existing = db.query(User).filter(User.google_id == profile["sub"]).first()
             if existing and existing.id != linking_user_id:
                 log_event(logger, logging.WARNING, "auth.oauth.google_link_conflict", ip=ip,
@@ -433,20 +444,23 @@ async def google_callback(
             if not link_user:
                 return redirect_err_link
             link_user.google_id = profile["sub"]
+            if profile.get("picture"):
+                link_user.avatar_url = profile["picture"]
             db.commit()
             log_event(logger, logging.INFO, "auth.oauth.google_linked", ip=ip, user_id=link_user.id)
-            return RedirectResponse(f"{settings.frontend_url}/?link_success=google", 302)
+            return _frontend_review_redirect("?link_success=google")
 
         user = _find_or_create_oauth_user(
             db,
             provider="google",
             provider_id=profile["sub"],
             email=profile.get("email"),
+            avatar_url=profile.get("picture"),
         )
         new_refresh = create_refresh_token(user.id, user.token_version)
         log_event(logger, logging.INFO, "auth.oauth.google_login", ip=ip, user_id=user.id)
 
-        redirect_ok = RedirectResponse(f"{settings.frontend_url}/?oauth_success=1", 302)
+        redirect_ok = _frontend_review_redirect("?oauth_success=1")
         _set_refresh_cookie(redirect_ok, new_refresh)
         return redirect_ok
     except Exception as exc:
@@ -485,7 +499,7 @@ async def lichess_callback(
 ):
     """Handle Lichess OAuth callback: exchange code, find/create user, issue tokens."""
     ip = client_ip_from_request(request)
-    redirect_err = RedirectResponse(f"{settings.frontend_url}/?oauth_error=1", 302)
+    redirect_err = _frontend_review_redirect("?oauth_error=1")
 
     try:
         verifier, linking_user_id = _parse_state_token(state)
@@ -531,7 +545,7 @@ async def lichess_callback(
 
         if linking_user_id:
             # Account-link flow: stamp lichess_id + username onto the existing user
-            redirect_err_link = RedirectResponse(f"{settings.frontend_url}/?link_error=already_linked", 302)
+            redirect_err_link = _frontend_review_redirect("?link_error=already_linked")
             existing = db.query(User).filter(User.lichess_id == profile["id"]).first()
             if existing and existing.id != linking_user_id:
                 log_event(logger, logging.WARNING, "auth.oauth.lichess_link_conflict", ip=ip,
@@ -545,7 +559,7 @@ async def lichess_callback(
                 link_user.lichess_username = profile["username"]
             db.commit()
             log_event(logger, logging.INFO, "auth.oauth.lichess_linked", ip=ip, user_id=link_user.id)
-            return RedirectResponse(f"{settings.frontend_url}/?link_success=lichess", 302)
+            return _frontend_review_redirect("?link_success=lichess")
 
         user = _find_or_create_oauth_user(
             db,
@@ -557,7 +571,7 @@ async def lichess_callback(
         new_refresh = create_refresh_token(user.id, user.token_version)
         log_event(logger, logging.INFO, "auth.oauth.lichess_login", ip=ip, user_id=user.id)
 
-        redirect_ok = RedirectResponse(f"{settings.frontend_url}/?oauth_success=1", 302)
+        redirect_ok = _frontend_review_redirect("?oauth_success=1")
         _set_refresh_cookie(redirect_ok, new_refresh)
         return redirect_ok
     except Exception as exc:

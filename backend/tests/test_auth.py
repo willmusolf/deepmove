@@ -8,6 +8,8 @@ import time
 from jose import jwt
 
 from app.config import settings
+from app.models.user import User
+from app.routes import auth as auth_routes
 
 # ── Registration ─────────────────────────────────────────────────────────────
 
@@ -207,6 +209,108 @@ class TestLogout:
         resp = client.post("/auth/logout")
         # HTTPBearer(auto_error=False) → None → get_current_user raises 401
         assert resp.status_code == 401
+
+
+class _FakeOAuthResponse:
+    def __init__(self, json_data: dict, *, status_code: int = 200):
+        self._json_data = json_data
+        self.status_code = status_code
+        self.text = str(json_data)
+
+    @property
+    def is_success(self) -> bool:
+        return 200 <= self.status_code < 300
+
+    def json(self) -> dict:
+        return self._json_data
+
+
+class _FakeAsyncClient:
+    def __init__(self, responses: list[_FakeOAuthResponse], *args, **kwargs):
+        self._responses = responses
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def post(self, *args, **kwargs):
+        return self._responses.pop(0)
+
+    async def get(self, *args, **kwargs):
+        return self._responses.pop(0)
+
+
+class TestOAuthCallbacks:
+    def test_google_callback_redirects_to_review_and_persists_avatar(self, client, db_session, monkeypatch):
+        responses = [
+            _FakeOAuthResponse({"access_token": "google-token"}),
+            _FakeOAuthResponse({
+                "sub": "google-sub-1",
+                "email": "oauth@deepmove.io",
+                "picture": "https://lh3.googleusercontent.com/avatar-123",
+            }),
+        ]
+        monkeypatch.setattr(auth_routes, "_parse_state_token", lambda state: ("verifier-1", 0))
+        monkeypatch.setattr(
+            auth_routes.httpx,
+            "AsyncClient",
+            lambda *args, **kwargs: _FakeAsyncClient(list(responses), *args, **kwargs),
+        )
+
+        resp = client.get("/auth/google/callback?code=test-code&state=test-state", follow_redirects=False)
+
+        assert resp.status_code == 302
+        assert resp.headers["location"] == "http://localhost:5173/?oauth_success=1"
+        user = db_session.query(User).filter(User.email == "oauth@deepmove.io").first()
+        assert user is not None
+        assert user.avatar_url == "https://lh3.googleusercontent.com/avatar-123"
+
+    def test_google_link_callback_redirects_to_review_and_updates_avatar(self, auth_client, db_session, monkeypatch):
+        client, token, user = auth_client
+        responses = [
+            _FakeOAuthResponse({"access_token": "google-token"}),
+            _FakeOAuthResponse({
+                "sub": "google-sub-2",
+                "email": "testuser@deepmove.io",
+                "picture": "https://lh3.googleusercontent.com/avatar-linked",
+            }),
+        ]
+        monkeypatch.setattr(auth_routes, "_parse_state_token", lambda state: ("verifier-2", user["id"]))
+        monkeypatch.setattr(
+            auth_routes.httpx,
+            "AsyncClient",
+            lambda *args, **kwargs: _FakeAsyncClient(list(responses), *args, **kwargs),
+        )
+
+        resp = client.get("/auth/google/callback?code=test-code&state=test-state", follow_redirects=False)
+
+        assert resp.status_code == 302
+        assert resp.headers["location"] == "http://localhost:5173/?link_success=google"
+        linked_user = db_session.query(User).filter(User.id == user["id"]).first()
+        assert linked_user is not None
+        assert linked_user.google_id == "google-sub-2"
+        assert linked_user.avatar_url == "https://lh3.googleusercontent.com/avatar-linked"
+
+    def test_lichess_link_callback_redirects_to_review(self, auth_client, monkeypatch):
+        client, token, user = auth_client
+        responses = [
+            _FakeOAuthResponse({"access_token": "lichess-token"}),
+            _FakeOAuthResponse({"id": "lichess-id-1", "username": "LichessUser"}),
+            _FakeOAuthResponse({"email": "lichess@example.com"}),
+        ]
+        monkeypatch.setattr(auth_routes, "_parse_state_token", lambda state: ("verifier-3", user["id"]))
+        monkeypatch.setattr(
+            auth_routes.httpx,
+            "AsyncClient",
+            lambda *args, **kwargs: _FakeAsyncClient(list(responses), *args, **kwargs),
+        )
+
+        resp = client.get("/auth/lichess/callback?code=test-code&state=test-state", follow_redirects=False)
+
+        assert resp.status_code == 302
+        assert resp.headers["location"] == "http://localhost:5173/?link_success=lichess"
 
 
 # ── Token Validation ─────────────────────────────────────────────────────────
