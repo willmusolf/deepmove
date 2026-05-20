@@ -9,7 +9,9 @@ const engineMocks = vi.hoisted(() => ({
   initialize: vi.fn(() => Promise.resolve()),
   stop: vi.fn(),
   terminate: vi.fn(),
-  getBotMove: vi.fn(() => Promise.resolve('(none)')),
+  getBotMove: vi.fn<(fen: string, elo: number, movetime: number) => Promise<string>>(
+    () => Promise.resolve('(none)')
+  ),
 }))
 
 vi.mock('../engine/stockfish', () => ({

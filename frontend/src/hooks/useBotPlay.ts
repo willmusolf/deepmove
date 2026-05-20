@@ -280,6 +280,13 @@ export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => vo
     setPremoveSnapToken(token => token + 1)
   }, [clearPremoveQueue])
 
+  const cancelClockRaf = useCallback(() => {
+    if (clockRafRef.current !== null) {
+      cancelAnimationFrame(clockRafRef.current)
+      clockRafRef.current = null
+    }
+  }, [])
+
   // ── Engine lifecycle ─────────────────────────────────────────────────────
   useEffect(() => {
     const engine = new StockfishEngine()
@@ -365,13 +372,6 @@ export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => vo
     }
     clockRafRef.current = requestAnimationFrame(tick)
   }, [store])
-
-  const cancelClockRaf = useCallback(() => {
-    if (clockRafRef.current !== null) {
-      cancelAnimationFrame(clockRafRef.current)
-      clockRafRef.current = null
-    }
-  }, [])
 
   useEffect(() => {
     if (playStatus === 'playing' && clockRunning) {
