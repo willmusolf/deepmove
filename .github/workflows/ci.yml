@@ -17,7 +17,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Detect frontend changes
+        id: changes
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/ci.yml'
+
       - name: Setup Node.js
+        if: steps.changes.outputs.frontend == 'true'
         uses: actions/setup-node@v6
         with:
           node-version-file: "frontend/.nvmrc"
@@ -25,22 +35,32 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        if: steps.changes.outputs.frontend == 'true'
         run: npm ci
 
       - name: Audit dependencies
+        if: steps.changes.outputs.frontend == 'true'
         run: npm audit --audit-level=moderate
 
       - name: Lint
+        if: steps.changes.outputs.frontend == 'true'
         run: npm run lint
 
       - name: TypeScript check
+        if: steps.changes.outputs.frontend == 'true'
         run: npm run typecheck
 
       - name: Run tests
+        if: steps.changes.outputs.frontend == 'true'
         run: npx vitest run
 
       - name: Build
+        if: steps.changes.outputs.frontend == 'true'
         run: npm run build
+
+      - name: Skip frontend checks when unchanged
+        if: steps.changes.outputs.frontend != 'true'
+        run: echo "No frontend files changed; skipping frontend CI."
 
   backend-ci:
     name: Backend — Lint + Test
@@ -67,7 +87,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Detect backend changes
+        id: changes
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
+
       - name: Setup Python
+        if: steps.changes.outputs.backend == 'true'
         uses: actions/setup-python@v6
         with:
           python-version-file: ".python-version"
@@ -75,17 +105,22 @@ jobs:
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
+        if: steps.changes.outputs.backend == 'true'
         run: pip install -r requirements.txt
 
       - name: Validate Alembic graph
+        if: steps.changes.outputs.backend == 'true'
         run: python scripts/check_alembic_graph.py
 
       - name: Audit Python dependencies
+        if: steps.changes.outputs.backend == 'true'
         run: |
           pip install pip-audit
-          python -m pip_audit -r requirements.txt
+          # Upstream has not released a patched python-jose version for this advisory yet.
+          python -m pip_audit -r requirements.txt --ignore-vuln PYSEC-2025-185
 
       - name: Run Alembic migrations (upgrade)
+        if: steps.changes.outputs.backend == 'true'
         run: alembic upgrade head
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/deepmove_test
@@ -94,6 +129,7 @@ jobs:
           SECRET_KEY: ci-test-secret-key-not-for-production
 
       - name: Test Alembic downgrade roundtrip
+        if: steps.changes.outputs.backend == 'true'
         run: alembic downgrade base && alembic upgrade head
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/deepmove_test
@@ -102,12 +138,15 @@ jobs:
           SECRET_KEY: ci-test-secret-key-not-for-production
 
       - name: Lint with ruff
+        if: steps.changes.outputs.backend == 'true'
         run: python -m ruff check app/ tests/
 
       - name: Type-check with mypy
+        if: steps.changes.outputs.backend == 'true'
         run: python -m mypy app/routes app/services
 
       - name: Run tests
+        if: steps.changes.outputs.backend == 'true'
         run: python -m pytest tests/ -v
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/deepmove_test
@@ -115,6 +154,10 @@ jobs:
           ANTHROPIC_API_KEY: ""
           ENVIRONMENT: test
           SECRET_KEY: ci-test-secret-key-not-for-production
+
+      - name: Skip backend checks when unchanged
+        if: steps.changes.outputs.backend != 'true'
+        run: echo "No backend files changed; skipping backend CI."
 
   backend-deploy:
     name: Backend — Deploy to Render
