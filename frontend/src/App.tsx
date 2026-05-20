@@ -2112,6 +2112,7 @@ export default function App() {
 
       {(importTab === 'chesscom' || mountedImportPanels.chesscom) && (
         <div
+          className="import-panel-host"
           style={{ display: importTab === 'chesscom' ? undefined : 'none' }}
           aria-hidden={importTab !== 'chesscom'}
         >
@@ -2175,6 +2176,7 @@ export default function App() {
 
       {(importTab === 'lichess' || mountedImportPanels.lichess) && (
         <div
+          className="import-panel-host"
           style={{ display: importTab === 'lichess' ? undefined : 'none' }}
           aria-hidden={importTab !== 'lichess'}
         >

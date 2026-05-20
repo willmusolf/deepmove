@@ -2881,6 +2881,10 @@ html.theme-light .analysis-settings-popover {
   height: 100%;
 }
 
+.import-panel-host {
+  display: contents;
+}
+
 .import-tabs {
   display: flex;
   gap: 2px;
