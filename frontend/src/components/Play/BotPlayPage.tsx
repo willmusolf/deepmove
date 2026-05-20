@@ -379,6 +379,24 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
     }
   }, [displayFen, orientation, endReason, browsePosition])
 
+  const resignOverlay = status === 'finished' && endReason === 'resigned' && browsePosition === null ? (
+    <div className="play-result-overlay" role="dialog" aria-live="polite" aria-label="Game ended by resignation">
+      <div className="play-result-overlay__card play-result-overlay__card--loss">
+        <div className="play-result-overlay__eyebrow">Game Over</div>
+        <div className="play-result-overlay__title">You resigned</div>
+        <div className="play-result-overlay__copy">The game is finished and ready to review or restart.</div>
+        <div className="play-result-overlay__actions">
+          <button className="play-result-overlay__btn play-result-overlay__btn--secondary" onClick={reviewGame}>
+            Review
+          </button>
+          <button className="play-result-overlay__btn play-result-overlay__btn--primary" onClick={handleNewGame}>
+            Play Again
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
   const boardSurface = useMemo(() => (
     <div
       className="board-overlay-host"
@@ -410,6 +428,7 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
         forceCheck={endReason === 'resigned' && config && browsePosition === null ? config.userColor : undefined}
       />
       {boardResultOverlay}
+      {resignOverlay}
     </div>
   ), [
     boardInteractive,
@@ -427,6 +446,7 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
     playIllegalSound,
     premoveQueue,
     premoveSnapToken,
+    resignOverlay,
     status,
   ])
 

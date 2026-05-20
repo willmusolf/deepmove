@@ -2,18 +2,32 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getBotStrengthProfile, useBotPlay } from './useBotPlay'
 import { useGameStore } from '../stores/gameStore'
-import { usePlayStore } from '../stores/playStore'
+import { STARTING_FEN, usePlayStore } from '../stores/playStore'
 import type { MoveNode } from '../chess/types'
+
+const engineMocks = vi.hoisted(() => ({
+  initialize: vi.fn(() => Promise.resolve()),
+  stop: vi.fn(),
+  terminate: vi.fn(),
+  getBotMove: vi.fn(() => Promise.resolve('(none)')),
+}))
 
 vi.mock('../engine/stockfish', () => ({
   StockfishEngine: class MockStockfishEngine {
     initialize() {
-      return Promise.resolve()
+      return engineMocks.initialize()
     }
 
-    terminate() {}
-    getBotMove() {
-      return Promise.resolve('(none)')
+    stop() {
+      engineMocks.stop()
+    }
+
+    terminate() {
+      engineMocks.terminate()
+    }
+
+    getBotMove(fen: string, elo: number, movetime: number) {
+      return engineMocks.getBotMove(fen, elo, movetime)
     }
   },
 }))
@@ -65,6 +79,11 @@ describe('useBotPlay review handoff', () => {
     localStorage.clear()
     useGameStore.getState().reset()
     usePlayStore.getState().resetPlay()
+    engineMocks.initialize.mockClear()
+    engineMocks.stop.mockClear()
+    engineMocks.terminate.mockClear()
+    engineMocks.getBotMove.mockReset()
+    engineMocks.getBotMove.mockResolvedValue('(none)')
   })
 
   it('clears stale review analysis before loading a bot game into review', () => {
@@ -178,6 +197,63 @@ describe('useBotPlay review handoff', () => {
     expect(useGameStore.getState().pgn).toBeNull()
 
     unmount()
+  })
+
+  it('ignores a late bot move after resignation', async () => {
+    vi.useFakeTimers()
+
+    let resolveBotMove: ((move: string) => void) | null = null
+    engineMocks.getBotMove.mockImplementation(() => new Promise(resolve => {
+      resolveBotMove = resolve
+    }))
+
+    const onNavigateToReview = vi.fn()
+    const { result, unmount } = renderHook(() => useBotPlay(onNavigateToReview))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    act(() => {
+      result.current.startGame({
+        userColor: 'black',
+        botElo: 1200,
+        timeControl: 'none',
+        incrementMs: 0,
+        botSpeed: 'normal',
+      })
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(100)
+      await Promise.resolve()
+    })
+
+    expect(usePlayStore.getState().status).toBe('playing')
+    expect(usePlayStore.getState().isBotThinking).toBe(true)
+
+    act(() => {
+      result.current.resignGame()
+    })
+
+    expect(usePlayStore.getState().status).toBe('finished')
+    expect(usePlayStore.getState().result).toBe('user-loss')
+    expect(usePlayStore.getState().endReason).toBe('resigned')
+    expect(engineMocks.stop).toHaveBeenCalled()
+
+    await act(async () => {
+      resolveBotMove?.('e2e4')
+      await Promise.resolve()
+      vi.runAllTimers()
+      await Promise.resolve()
+    })
+
+    expect(usePlayStore.getState().currentFen).toBe(STARTING_FEN)
+    expect(usePlayStore.getState().currentPath).toEqual([])
+    expect(usePlayStore.getState().isBotThinking).toBe(false)
+
+    unmount()
+    vi.useRealTimers()
   })
 })
 

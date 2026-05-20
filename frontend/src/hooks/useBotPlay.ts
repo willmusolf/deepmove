@@ -200,6 +200,7 @@ function applyMoveToStore(
 
 export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => void) {
   const botEngineRef = useRef<StockfishEngine | null>(null)
+  const botMoveRequestTokenRef = useRef(0)
   const clockRafRef = useRef<number | null>(null)
   const lastTickRef = useRef<number>(0)
   const [botEngineReady, setBotEngineReady] = useState(false)
@@ -266,6 +267,12 @@ export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => vo
     usePlayStore.setState({ premoveQueue: [] })
   }, [])
 
+  const invalidatePendingBotMove = useCallback(() => {
+    botMoveRequestTokenRef.current += 1
+    botEngineRef.current?.stop()
+    usePlayStore.getState().setIsBotThinking(false)
+  }, [])
+
   const cancelPremoveQueue = useCallback(() => {
     const { premoveQueue } = usePlayStore.getState()
     if (premoveQueue.length === 0) return
@@ -287,11 +294,12 @@ export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => vo
 
     return () => {
       cancelClockRaf()
+      invalidatePendingBotMove()
       botEngineReadyRef.current = false
       engine.terminate()
       botEngineRef.current = null
     }
-  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cancelClockRaf, invalidatePendingBotMove])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Safety net: recover when the bot should move but nothing is happening ─
   // If the normal chain (handleBoardMove → scheduleBotMove) breaks for any
@@ -471,6 +479,13 @@ export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => vo
     const state = store.getState()
     if (!botEngineRef.current || !botEngineReadyRef.current || state.status !== 'playing') return
 
+    const requestToken = ++botMoveRequestTokenRef.current
+    const isStale = () => (
+      requestToken !== botMoveRequestTokenRef.current
+      || store.getState().status !== 'playing'
+      || store.getState().currentFen !== fen
+    )
+
     state.setIsBotThinking(true)
     const botMoveStart = performance.now()
 
@@ -493,7 +508,12 @@ export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => vo
         ),
       ])
     } catch (e) {
+      if (isStale()) return
       console.error('Bot move failed', e)
+      store.getState().setIsBotThinking(false)
+      return
+    }
+    if (isStale()) {
       store.getState().setIsBotThinking(false)
       return
     }
@@ -507,6 +527,10 @@ export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => vo
     if (remaining > 0) {
       await new Promise<void>(r => setTimeout(r, remaining))
     }
+    if (isStale()) {
+      store.getState().setIsBotThinking(false)
+      return
+    }
 
     if (!uci || uci === '(none)') {
       store.getState().setIsBotThinking(false)
@@ -519,6 +543,10 @@ export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => vo
     const to = uci.slice(2, 4)
     const promotion = uci[4] ?? 'q'
     const moveResult = chess.move({ from, to, promotion })
+    if (isStale()) {
+      store.getState().setIsBotThinking(false)
+      return
+    }
     if (!moveResult) {
       store.getState().setIsBotThinking(false)
       return
@@ -657,6 +685,7 @@ export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => vo
   // ── Start game ───────────────────────────────────────────────────────────
   const startGame = useCallback((config: PlayConfig) => {
     cancelClockRaf()
+    invalidatePendingBotMove()
     cancelPremoveQueue()
     isProcessingMoveRef.current = false
     safetyNetRetryRef.current = 0
@@ -667,16 +696,17 @@ export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => vo
     if (config.userColor === 'black') {
       setTimeout(() => scheduleBotMove(STARTING_FEN), 100)
     }
-  }, [scheduleBotMove])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [invalidatePendingBotMove, scheduleBotMove])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Resign ───────────────────────────────────────────────────────────────
   const resignGame = useCallback(() => {
     const state = store.getState()
     if (state.status !== 'playing') return
+    invalidatePendingBotMove()
     cancelPremoveQueue()
     state.setResult('user-loss', 'resigned')
     cancelClockRaf()
-  }, [cancelClockRaf, cancelPremoveQueue, store])
+  }, [cancelClockRaf, cancelPremoveQueue, invalidatePendingBotMove, store])
 
   // ── Review game ──────────────────────────────────────────────────────────
   const reviewGame = useCallback(() => {

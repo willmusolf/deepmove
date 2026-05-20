@@ -1568,15 +1568,6 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 @media (max-width: 639px) {
   /* On phones, let the review side panel grow with its content so the load
      tab can use normal page scrolling instead of clipping inside a flex pane. */
-  .play-setup-wrapper {
-    justify-content: flex-start;
-    align-items: center;
-    min-height: min(100dvh, 100svh);
-    padding:
-      max(2.25rem, calc(env(safe-area-inset-top, 0px) + 1rem))
-      0
-      max(1rem, env(safe-area-inset-bottom, 0px));
-  }
   .app-main--mobile-load-priority .side-col {
     order: -1;
   }
@@ -1647,13 +1638,6 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 @media (max-width: 480px) {
-  .play-setup-wrapper {
-    padding:
-      max(1.9rem, calc(env(safe-area-inset-top, 0px) + 0.85rem))
-      0
-      max(0.9rem, env(safe-area-inset-bottom, 0px));
-  }
-
   .play-setup-panel {
     padding: 1rem;
     border-radius: 12px;
@@ -4725,6 +4709,20 @@ html.theme-light .analysis-settings-popover {
   min-height: 100%;
 }
 
+@media (max-width: 639px) {
+  .play-page--setup-phone {
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: max(1.1rem, calc(env(safe-area-inset-top, 0px) + 0.55rem));
+    padding-bottom: max(0.9rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .play-page--setup-phone .play-setup-wrapper {
+    padding: 0;
+    min-height: 0;
+  }
+}
+
 .play-setup-wrapper {
   display: flex;
   justify-content: center;
@@ -4990,6 +4988,84 @@ html.theme-light .analysis-settings-popover {
   background:
     radial-gradient(circle at top, rgba(148, 163, 184, 0.12), transparent 58%),
     rgba(148, 163, 184, 0.05);
+}
+
+.play-result-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0.8rem, 3.4cqw, 1.2rem);
+  background: rgba(9, 12, 18, 0.34);
+  backdrop-filter: blur(3px);
+}
+
+.play-result-overlay__card {
+  width: min(88%, 280px);
+  padding: 0.95rem 1rem 1rem;
+  border-radius: 16px;
+  border: 1px solid rgba(248, 113, 113, 0.28);
+  background:
+    radial-gradient(circle at top, rgba(248, 113, 113, 0.12), transparent 58%),
+    rgba(18, 22, 30, 0.96);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.play-result-overlay__eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #aaa);
+}
+
+.play-result-overlay__title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.play-result-overlay__copy {
+  font-size: 0.83rem;
+  line-height: 1.4;
+  color: var(--color-text-muted, #aaa);
+}
+
+.play-result-overlay__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.play-result-overlay__btn {
+  min-height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border, #444);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.play-result-overlay__btn:hover {
+  opacity: 0.92;
+}
+
+.play-result-overlay__btn--primary {
+  background: var(--color-accent, #4a9eff);
+  border-color: var(--color-accent, #4a9eff);
+  color: #fff;
+}
+
+.play-result-overlay__btn--secondary {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text, #eee);
 }
 
 .game-result-badge-row {

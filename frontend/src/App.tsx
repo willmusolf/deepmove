@@ -2102,7 +2102,6 @@ export default function App() {
         <>
           <AccountLink
             platform="chesscom"
-            restoreSavedUsername={!phoneViewport.matches}
             restoreCachedGames={!phoneViewport.matches}
             onGamesLoaded={(games, uname, pagination) => {
               setChesscomGames(games as ChessComGame[])
@@ -2163,7 +2162,6 @@ export default function App() {
         <>
           <AccountLink
             platform="lichess"
-            restoreSavedUsername={!phoneViewport.matches}
             restoreCachedGames={!phoneViewport.matches}
             onGamesLoaded={(games, uname, pagination) => {
               setLichessGames(games as LichessGame[])

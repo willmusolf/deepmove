@@ -37,6 +37,11 @@ const HISTORY_KEY: Record<Platform, string> = {
   lichess: 'deepmove_search_history_lichess',
 }
 
+const INPUT_NAME: Record<Platform, string> = {
+  chesscom: 'chesscom-handle',
+  lichess: 'lichess-handle',
+}
+
 function getStoredUsername(platform: Platform): string {
   return localStorage.getItem(STORAGE_KEY[platform]) ?? getMyUsername(platform) ?? ''
 }
@@ -241,6 +246,7 @@ export default function AccountLink({
             className="account-link-input"
             type="text"
             placeholder={placeholder}
+            name={INPUT_NAME[platform]}
             value={username}
             onChange={e => { setUsername(e.target.value); setShowSuggestions(true) }}
             onFocus={() => setShowSuggestions(true)}
@@ -250,6 +256,13 @@ export default function AccountLink({
             }}
             disabled={loading}
             autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            data-form-type="other"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            enterKeyHint="search"
           />
           {confirmed && <span className="identity-crown" title="Your account">♔</span>}
           {showSuggestions && suggestions.length > 0 && (
