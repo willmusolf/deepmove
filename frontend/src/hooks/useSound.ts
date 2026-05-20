@@ -7,6 +7,8 @@ import { useAuthStore } from '../stores/authStore'
 
 type SoundEvent = 'move' | 'capture' | 'castle' | 'check' | 'mate' | 'promote' | 'illegal'
 type BrowserAudioContext = AudioContext
+type BrowserAudioSessionType = 'auto' | 'ambient'
+type BrowserAudioSession = { type: BrowserAudioSessionType | string }
 
 /** Classify a SAN string into the appropriate sound event */
 export function classifySan(san: string): SoundEvent {
@@ -39,6 +41,22 @@ let hasUnlockedFallbackCache = false
 let hasRegisteredUnlockListeners = false
 let hasRegisteredLifecycleListeners = false
 let soundEnabledSnapshot = true
+
+function getBrowserAudioSession(): BrowserAudioSession | null {
+  if (typeof navigator === 'undefined') return null
+  const nav = navigator as Navigator & { audioSession?: BrowserAudioSession }
+  return nav.audioSession ?? null
+}
+
+function setBrowserAudioSession(type: BrowserAudioSessionType) {
+  const session = getBrowserAudioSession()
+  if (!session || session.type === type) return
+  try {
+    session.type = type
+  } catch {
+    // Older browsers may expose a read-only/partial implementation.
+  }
+}
 
 function prefersHtmlAudioFallback(): boolean {
   if (typeof navigator === 'undefined') return false
@@ -196,6 +214,7 @@ function stopFallbackSounds() {
 
 function ensureSoundWarmup() {
   if (typeof window === 'undefined') return
+  if (getStoredSoundEnabled()) setBrowserAudioSession('ambient')
   preloadAllSounds()
   // preloadDecodedSounds() fires lazily via handleFirstInteraction on first user tap
 
@@ -251,6 +270,7 @@ function playDecodedBuffer(event: SoundEvent): boolean {
 
 function playEventNow(event: SoundEvent) {
   if (!getStoredSoundEnabled()) return
+  setBrowserAudioSession('ambient')
   unlockWebAudio()
   if (!prefersHtmlAudioFallback() && playDecodedBuffer(event)) return
 
@@ -290,11 +310,13 @@ export function useSound() {
     setSoundEnabled(next)
 
     if (next) {
+      setBrowserAudioSession('ambient')
       ensureSoundWarmup()
       unlockWebAudio()
       unlockFallbackCache()
       preloadDecodedSounds()
     } else {
+      setBrowserAudioSession('auto')
       stopFallbackSounds()
     }
 
