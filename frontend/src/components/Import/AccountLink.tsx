@@ -23,6 +23,8 @@ interface AccountLinkProps {
   onGamesAppended?: (games: ChessComGame[] | LichessGame[], pagination: PaginationState) => void
   /** Newest end_time (unix seconds) already loaded — used to delta-fetch on Reload */
   newestEndTime?: number
+  restoreSavedUsername?: boolean
+  restoreCachedGames?: boolean
 }
 
 const STORAGE_KEY: Record<Platform, string> = {
@@ -33,6 +35,11 @@ const STORAGE_KEY: Record<Platform, string> = {
 const HISTORY_KEY: Record<Platform, string> = {
   chesscom: 'deepmove_search_history_chesscom',
   lichess: 'deepmove_search_history_lichess',
+}
+
+const INPUT_NAME: Record<Platform, string> = {
+  chesscom: 'chesscom-handle',
+  lichess: 'lichess-handle',
 }
 
 function getStoredUsername(platform: Platform): string {
@@ -97,18 +104,32 @@ function addToHistory(platform: Platform, username: string) {
   localStorage.setItem(HISTORY_KEY[platform], JSON.stringify([lower, ...prev].slice(0, 10)))
 }
 
-export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, newestEndTime }: AccountLinkProps) {
-  const [username, setUsername] = useState(() => getStoredUsername(platform))
+export default function AccountLink({
+  platform,
+  onGamesLoaded,
+  onGamesAppended,
+  newestEndTime,
+  restoreSavedUsername = true,
+  restoreCachedGames = true,
+}: AccountLinkProps) {
+  const [username, setUsername] = useState(() => (
+    restoreSavedUsername ? getStoredUsername(platform) : ''
+  ))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadedUser, setLoadedUser] = useState<string | null>(null)
   const [identityVersion, setIdentityVersion] = useState(0)
   const [history, setHistory] = useState<string[]>(() => getHistory(platform))
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [autofillGuardActive, setAutofillGuardActive] = useState(true)
   const wrapRef = useRef<HTMLDivElement>(null)
   const fetchingRef = useRef(false)
+  const autoLoadAttemptedRef = useRef(false)
 
   const bump = useCallback(() => setIdentityVersion(v => v + 1), [])
+  const releaseAutofillGuard = useCallback(() => {
+    setAutofillGuardActive(false)
+  }, [])
 
   const fetchGames = useCallback(async (name: string) => {
     const trimmed = name.trim()
@@ -175,17 +196,37 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
 
   // On mount: restore game list from cache if fresh, skipping the API call
   useEffect(() => {
+    if (!restoreCachedGames) return
     const savedUsername = getStoredUsername(platform)
     if (!savedUsername) return
     const cached = getGameListCache(platform, savedUsername)
     if (!cached) return
     const resolvedUsername = getResolvedUsername(platform, savedUsername, cached.games)
-    setUsername(resolvedUsername)
+    if (restoreSavedUsername) {
+      setUsername(resolvedUsername)
+    }
     setLoadedUser(resolvedUsername)
     localStorage.setItem(STORAGE_KEY[platform], resolvedUsername)
     onGamesLoaded(cached.games, resolvedUsername, cached.pagination)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [platform])
+  }, [platform, restoreCachedGames, restoreSavedUsername])
+
+  // On mount: if we have a saved username, automatically refresh/load that
+  // account so Review opens with the latest games on both desktop and mobile.
+  useEffect(() => {
+    if (autoLoadAttemptedRef.current) return
+    const savedUsername = getStoredUsername(platform).trim()
+    if (!savedUsername) return
+    const cached = restoreCachedGames ? getGameListCache(platform, savedUsername) : null
+
+    if (cached) {
+      if (loadedUser?.toLowerCase() !== savedUsername.toLowerCase()) return
+      if (!onGamesAppended || newestEndTime == null) return
+    }
+
+    autoLoadAttemptedRef.current = true
+    void fetchGames(savedUsername)
+  }, [platform, fetchGames, loadedUser, newestEndTime, onGamesAppended, restoreCachedGames])
 
   useEffect(() => {
     setHistory(getHistory(platform))
@@ -218,6 +259,10 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
 
   return (
     <div className="account-link">
+      <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 0, height: 0, overflow: 'hidden' }}>
+        <input type="text" name="username" autoComplete="username" tabIndex={-1} />
+        <input type="password" name="password" autoComplete="current-password" tabIndex={-1} />
+      </div>
       <div className="account-link-row">
         <div
           className={`account-link-input-wrap${confirmed ? ' account-link-input-wrap--crowned' : ''}`}
@@ -227,15 +272,31 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
             className="account-link-input"
             type="text"
             placeholder={placeholder}
+            name={INPUT_NAME[platform]}
             value={username}
             onChange={e => { setUsername(e.target.value); setShowSuggestions(true) }}
-            onFocus={() => setShowSuggestions(true)}
+            onMouseDownCapture={releaseAutofillGuard}
+            onTouchStart={releaseAutofillGuard}
+            onPointerDown={releaseAutofillGuard}
+            onFocus={() => {
+              releaseAutofillGuard()
+              setShowSuggestions(true)
+            }}
             onKeyDown={e => {
               if (e.key === 'Enter') void fetchGames(username)
               if (e.key === 'Escape') setShowSuggestions(false)
             }}
             disabled={loading}
-            autoComplete="off"
+            readOnly={autofillGuardActive}
+            autoComplete="new-password"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            data-form-type="other"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            enterKeyHint="search"
+            inputMode="search"
           />
           {confirmed && <span className="identity-crown" title="Your account">♔</span>}
           {showSuggestions && suggestions.length > 0 && (
