@@ -463,6 +463,10 @@ export default function App() {
   const loadRequestId = useGameStore(s => s.loadRequestId)
   const [panelTab, setPanelTab] = useState<PanelTab>(savedUiState?.panelTab ?? 'load')
   const [importTab, setImportTab] = useState<ImportTab>(savedUiState?.importTab ?? 'chesscom')
+  const [mountedImportPanels, setMountedImportPanels] = useState(() => ({
+    chesscom: (savedUiState?.importTab ?? 'chesscom') === 'chesscom',
+    lichess: (savedUiState?.importTab ?? 'chesscom') === 'lichess',
+  }))
   const updateProfile = useAuthStore(s => s.updateProfile)
   const [currentPage, setCurrentPage] = useState<Page>(() => routePage ?? savedUiState?.currentPage ?? 'review')
   const [mobileReviewMode, setMobileReviewMode] = useState<MobileReviewMode>(() => {
@@ -2046,6 +2050,14 @@ export default function App() {
   const reviewBoundaryKey = `${currentGameId ?? 'sandbox'}:${panelTab}:${importTab}:${isLoaded ? 'loaded' : 'sandbox'}`
   const boardBoundaryKey = `${reviewBoundaryKey}:${orientation}`
   const selfDisplayName = useMemo(() => getSelfDisplayName(authUser), [authUser])
+
+  useEffect(() => {
+    if (importTab !== 'chesscom' && importTab !== 'lichess') return
+    setMountedImportPanels(prev => (
+      prev[importTab] ? prev : { ...prev, [importTab]: true }
+    ))
+  }, [importTab])
+
   const handleBotReviewReady = useCallback((payload: BotReviewPayload) => {
     reviewHandoffRef.current = true
     suppressPositionAnalysisRef.current = true
@@ -2098,8 +2110,11 @@ export default function App() {
         >PGN</button>
       </div>
 
-      {importTab === 'chesscom' && (
-        <>
+      {(importTab === 'chesscom' || mountedImportPanels.chesscom) && (
+        <div
+          style={{ display: importTab === 'chesscom' ? undefined : 'none' }}
+          aria-hidden={importTab !== 'chesscom'}
+        >
           <AccountLink
             platform="chesscom"
             restoreCachedGames={!phoneViewport.matches}
@@ -2155,11 +2170,14 @@ export default function App() {
               }}
             />
           )}
-        </>
+        </div>
       )}
 
-      {importTab === 'lichess' && (
-        <>
+      {(importTab === 'lichess' || mountedImportPanels.lichess) && (
+        <div
+          style={{ display: importTab === 'lichess' ? undefined : 'none' }}
+          aria-hidden={importTab !== 'lichess'}
+        >
           <AccountLink
             platform="lichess"
             restoreCachedGames={!phoneViewport.matches}
@@ -2212,7 +2230,7 @@ export default function App() {
               }}
             />
           )}
-        </>
+        </div>
       )}
 
       {importTab === 'pgn' && (
