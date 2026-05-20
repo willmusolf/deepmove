@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   analysisBoardReset: vi.fn(),
@@ -246,6 +246,8 @@ import App from './App'
 import { useGameStore } from './stores/gameStore'
 
 describe('App FEN loading', () => {
+  const originalMatchMedia = window.matchMedia
+
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
@@ -255,7 +257,21 @@ describe('App FEN loading', () => {
     mocks.authReloadUser.mockClear()
     mocks.phoneViewport.matches = false
     mocks.phoneViewport.resolved = true
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(max-width: 639px) and (pointer: coarse)' ? mocks.phoneViewport.matches : false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
     window.history.replaceState({}, '', '/')
+  })
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia
   })
 
   it('boots into the review app at the root route', () => {
@@ -285,7 +301,6 @@ describe('App FEN loading', () => {
 
     expect(screen.getByTestId('chessboard')).toBeInTheDocument()
   })
-
   it('switches to the analysis panel after loading a FEN', () => {
     render(<App />)
 
