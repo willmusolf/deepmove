@@ -46,6 +46,20 @@ describe('AccountLink', () => {
     expect(screen.getByPlaceholderText('Chess.com username')).toHaveValue('moosetheman123')
   })
 
+  it('can keep the mobile loader blank even when a saved username exists', () => {
+    localStorage.setItem('deepmove_chesscom_username', 'moosetheman123')
+
+    render(
+      <AccountLink
+        platform="chesscom"
+        onGamesLoaded={() => {}}
+        restoreSavedUsername={false}
+      />
+    )
+
+    expect(screen.getByPlaceholderText('Chess.com username')).toHaveValue('')
+  })
+
   it('persists the searched username immediately after a successful fetch', async () => {
     mocks.getRecentGames.mockResolvedValue({
       games: [],
@@ -104,6 +118,28 @@ describe('AccountLink', () => {
       />
     )
 
+    expect(onGamesLoaded).not.toHaveBeenCalled()
+  })
+
+  it('can skip cached auto-restore for a blank mobile load shell', () => {
+    localStorage.setItem('deepmove_lichess_username', 'alice')
+    localStorage.setItem('deepmove_gamelist_lichess_alice', JSON.stringify({
+      games: [],
+      pagination: { platform: 'lichess', hasMore: false },
+      fetchedAt: Date.now(),
+    }))
+
+    const onGamesLoaded = vi.fn()
+    render(
+      <AccountLink
+        platform="lichess"
+        onGamesLoaded={onGamesLoaded}
+        restoreSavedUsername={false}
+        restoreCachedGames={false}
+      />
+    )
+
+    expect(screen.getByPlaceholderText('Lichess username')).toHaveValue('')
     expect(onGamesLoaded).not.toHaveBeenCalled()
   })
 })

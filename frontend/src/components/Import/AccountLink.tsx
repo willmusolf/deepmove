@@ -23,6 +23,8 @@ interface AccountLinkProps {
   onGamesAppended?: (games: ChessComGame[] | LichessGame[], pagination: PaginationState) => void
   /** Newest end_time (unix seconds) already loaded — used to delta-fetch on Reload */
   newestEndTime?: number
+  restoreSavedUsername?: boolean
+  restoreCachedGames?: boolean
 }
 
 const STORAGE_KEY: Record<Platform, string> = {
@@ -97,8 +99,17 @@ function addToHistory(platform: Platform, username: string) {
   localStorage.setItem(HISTORY_KEY[platform], JSON.stringify([lower, ...prev].slice(0, 10)))
 }
 
-export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, newestEndTime }: AccountLinkProps) {
-  const [username, setUsername] = useState(() => getStoredUsername(platform))
+export default function AccountLink({
+  platform,
+  onGamesLoaded,
+  onGamesAppended,
+  newestEndTime,
+  restoreSavedUsername = true,
+  restoreCachedGames = true,
+}: AccountLinkProps) {
+  const [username, setUsername] = useState(() => (
+    restoreSavedUsername ? getStoredUsername(platform) : ''
+  ))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadedUser, setLoadedUser] = useState<string | null>(null)
@@ -175,17 +186,20 @@ export default function AccountLink({ platform, onGamesLoaded, onGamesAppended, 
 
   // On mount: restore game list from cache if fresh, skipping the API call
   useEffect(() => {
+    if (!restoreCachedGames) return
     const savedUsername = getStoredUsername(platform)
     if (!savedUsername) return
     const cached = getGameListCache(platform, savedUsername)
     if (!cached) return
     const resolvedUsername = getResolvedUsername(platform, savedUsername, cached.games)
-    setUsername(resolvedUsername)
+    if (restoreSavedUsername) {
+      setUsername(resolvedUsername)
+    }
     setLoadedUser(resolvedUsername)
     localStorage.setItem(STORAGE_KEY[platform], resolvedUsername)
     onGamesLoaded(cached.games, resolvedUsername, cached.pagination)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [platform])
+  }, [platform, restoreCachedGames, restoreSavedUsername])
 
   useEffect(() => {
     setHistory(getHistory(platform))

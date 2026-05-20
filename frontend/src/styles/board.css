@@ -1569,11 +1569,11 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   /* On phones, let the review side panel grow with its content so the load
      tab can use normal page scrolling instead of clipping inside a flex pane. */
   .play-setup-wrapper {
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     min-height: min(100dvh, 100svh);
     padding:
-      max(0.75rem, env(safe-area-inset-top, 0px))
+      max(2.25rem, calc(env(safe-area-inset-top, 0px) + 1rem))
       0
       max(1rem, env(safe-area-inset-bottom, 0px));
   }
@@ -1649,7 +1649,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 @media (max-width: 480px) {
   .play-setup-wrapper {
     padding:
-      max(0.6rem, env(safe-area-inset-top, 0px))
+      max(1.9rem, calc(env(safe-area-inset-top, 0px) + 0.85rem))
       0
       max(0.9rem, env(safe-area-inset-bottom, 0px));
   }
