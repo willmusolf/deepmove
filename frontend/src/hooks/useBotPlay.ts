@@ -299,7 +299,7 @@ export function useBotPlay(onNavigateToReview: (payload: BotReviewPayload) => vo
       engine.terminate()
       botEngineRef.current = null
     }
-  }, [cancelClockRaf, invalidatePendingBotMove])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cancelClockRaf, invalidatePendingBotMove])
 
   // ── Safety net: recover when the bot should move but nothing is happening ─
   // If the normal chain (handleBoardMove → scheduleBotMove) breaks for any
