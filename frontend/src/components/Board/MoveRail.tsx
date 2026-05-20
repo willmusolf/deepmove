@@ -9,21 +9,46 @@ import { getPathToNode } from '../../hooks/useGameReview'
 import { GRADE_BADGE_CONFIG } from './gradeBadges'
 import type { KnownMoveGrade } from './gradeBadges'
 
-const PHONE_QUERY = '(max-width: 639px) and (pointer: coarse)'
+export const PHONE_QUERY = '(max-width: 639px) and (pointer: coarse)'
+
+interface PhoneViewportState {
+  matches: boolean
+  resolved: boolean
+}
 
 // ─── Shared hook: is the viewport phone-sized? ─────────────────────────────
 
-export function useIsPhone(): boolean {
-  const [isPhone, setIsPhone] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia(PHONE_QUERY).matches
-  )
+export function usePhoneViewport(): PhoneViewportState {
+  const [viewport, setViewport] = useState<PhoneViewportState>(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return { matches: false, resolved: false }
+    }
+    return { matches: window.matchMedia(PHONE_QUERY).matches, resolved: true }
+  })
+
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+
     const mql = window.matchMedia(PHONE_QUERY)
-    const handler = (e: MediaQueryListEvent) => setIsPhone(e.matches)
-    mql.addEventListener('change', handler)
-    return () => mql.removeEventListener('change', handler)
+    const syncViewport = (matches: boolean) => setViewport({ matches, resolved: true })
+    const handler = (e: MediaQueryListEvent) => syncViewport(e.matches)
+
+    syncViewport(mql.matches)
+
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', handler)
+      return () => mql.removeEventListener('change', handler)
+    }
+
+    mql.addListener(handler)
+    return () => mql.removeListener(handler)
   }, [])
-  return isPhone
+
+  return viewport
+}
+
+export function useIsPhone(): boolean {
+  return usePhoneViewport().matches
 }
 
 // ─── Grade color lookup ─────────────────────────────────────────────────────

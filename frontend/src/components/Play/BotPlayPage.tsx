@@ -433,7 +433,7 @@ export default function BotPlayPage({ onNavigateToReview }: Props) {
   // ── Render ───────────────────────────────────────────────────────────────
   if (status === 'idle') {
     return (
-      <div className="play-page play-page--setup">
+      <div className={`play-page play-page--setup${isPhone ? ' play-page--setup-phone' : ''}`}>
         <div className="play-setup-wrapper">
           <div className="side-col play-setup-side-col">
             <PlaySetupPanel

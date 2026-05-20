@@ -10,7 +10,7 @@ import {
 import ChessBoard from './components/Board/ChessBoard'
 import type { DrawShape } from './components/Board/ChessBoard'
 import EvalBar from './components/Board/EvalBar'
-import MoveRail, { useIsPhone } from './components/Board/MoveRail'
+import MoveRail, { PHONE_QUERY, usePhoneViewport } from './components/Board/MoveRail'
 import EvalGraph from './components/Board/EvalGraph'
 import GameReport, { buildCalibrationSnapshot, computeSideStats } from './components/Board/GameReport'
 import MoveList from './components/Board/MoveList'
@@ -86,6 +86,7 @@ const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
 // depth and caches partial results at each depth — so interrupting and returning
 // resumes visually from the last reached depth.
 type PanelTab = "analysis" | "load" | "coach"
+type MobileReviewMode = 'load' | 'sandbox'
 
 // Set VITE_COACHING_ENABLED=true in Vercel env vars to enable coaching in production
 const COACHING_ENABLED = import.meta.env.VITE_COACHING_ENABLED === 'true'
@@ -464,6 +465,13 @@ export default function App() {
   const [importTab, setImportTab] = useState<ImportTab>(savedUiState?.importTab ?? 'chesscom')
   const updateProfile = useAuthStore(s => s.updateProfile)
   const [currentPage, setCurrentPage] = useState<Page>(() => routePage ?? savedUiState?.currentPage ?? 'review')
+  const [mobileReviewMode, setMobileReviewMode] = useState<MobileReviewMode>(() => {
+    const initialPage = routePage ?? savedUiState?.currentPage ?? 'review'
+    const isPhoneViewport = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia(PHONE_QUERY).matches
+    return initialPage === 'review' && !isLoaded && isPhoneViewport ? 'load' : 'sandbox'
+  })
   const [isWideRailViewport, setIsWideRailViewport] = useState(() => (
     typeof window !== 'undefined'
       && typeof window.matchMedia === 'function'
@@ -1147,7 +1155,27 @@ export default function App() {
     setCurrentPage(page)
   }, [cancelGameAnalysis, resetPositionAnalysisState, stopBranchAnalysis])
   const [showEvalBar, setShowEvalBar] = useState(savedUiState?.showEvalBar ?? true)
-  const isPhone = useIsPhone()
+  const phoneViewport = usePhoneViewport()
+  const isPhone = phoneViewport.matches
+  const reviewModeRef = useRef({ currentPage, isLoaded, isPhone })
+
+  useEffect(() => {
+    const prev = reviewModeRef.current
+    const shouldResetToMobileLoad = currentPage === 'review'
+      && !isLoaded
+      && isPhone
+      && (
+        prev.currentPage !== 'review'
+        || prev.isLoaded
+        || !prev.isPhone
+      )
+
+    if (shouldResetToMobileLoad) {
+      setMobileReviewMode('load')
+    }
+
+    reviewModeRef.current = { currentPage, isLoaded, isPhone }
+  }, [currentPage, isLoaded, isPhone])
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
@@ -1462,6 +1490,7 @@ export default function App() {
     analysisBoardReset()
     setOpeningName(null)
     setPanelTab('load')
+    setMobileReviewMode('load')
   }
 
   function handleLoadSandboxAsGame() {
@@ -1993,6 +2022,13 @@ export default function App() {
   const isDocumentPage = currentPage === 'about' || currentPage === 'privacy'
   const isFixedLayoutPage = isReviewPage || isPlayPage
   const isScrollPage = !isFixedLayoutPage
+  const shouldHoldIdleReviewBoard = isReviewPage && !isLoaded && !phoneViewport.resolved
+  const showMobileLoadOnlyReview = shouldHoldIdleReviewBoard || (
+    isReviewPage
+    && !isLoaded
+    && isPhone
+    && mobileReviewMode === 'load'
+  )
   const mobileSponsorPage = MOBILE_BANNER_PAGE_SET.has(currentPage) ? currentPage : null
   const hasActiveSponsor = ACTIVE_SPONSOR !== null
   const shouldShowDesktopRail = isReviewPage
@@ -2042,6 +2078,154 @@ export default function App() {
     })
   }, [cancelGameAnalysis, goToPage, resetPositionAnalysisState, stopBranchAnalysis])
 
+  const loadPanel = (
+    <div
+      className="load-panel"
+      style={{ display: showMobileLoadOnlyReview || panelTab === 'load' ? undefined : 'none' }}
+    >
+      <div className="import-tabs">
+        <button
+          className={`import-tab${importTab === 'chesscom' ? ' active' : ''}`}
+          onClick={() => setImportTab('chesscom')}
+        >Chess.com</button>
+        <button
+          className={`import-tab${importTab === 'lichess' ? ' active' : ''}`}
+          onClick={() => setImportTab('lichess')}
+        >Lichess</button>
+        <button
+          className={`import-tab${importTab === 'pgn' ? ' active' : ''}`}
+          onClick={() => setImportTab('pgn')}
+        >PGN</button>
+      </div>
+
+      {importTab === 'chesscom' && (
+        <>
+          <AccountLink
+            platform="chesscom"
+            onGamesLoaded={(games, uname, pagination) => {
+              setChesscomGames(games as ChessComGame[])
+              setChesscomUsername(uname)
+              setChesscomPagination(pagination)
+              cacheRatingsFromGameList(games as ChessComGame[], uname, 'chesscom')
+            }}
+            onGamesAppended={(newGames, newPagination) => {
+              setChesscomGames(prev => {
+                const existing = new Set(prev.map(g => (g as ChessComGame).url))
+                const fresh = (newGames as ChessComGame[]).filter(g => !existing.has(g.url))
+                const merged = [...fresh, ...prev]
+                try {
+                  localStorage.setItem(
+                    `deepmove_gamelist_chesscom_${chesscomUsername.toLowerCase()}`,
+                    JSON.stringify({ games: merged.slice(0, 2000), pagination: newPagination, fetchedAt: Date.now() })
+                  )
+                } catch {}
+                return merged
+              })
+            }}
+            newestEndTime={chesscomGames.length > 0 ? Math.max(...chesscomGames.map(g => (g as ChessComGame).end_time)) : undefined}
+          />
+          {chesscomGames.length > 0 && (
+            <GameSelector
+              games={chesscomGames}
+              username={chesscomUsername}
+              platform="chesscom"
+              onGameLoaded={() => setPanelTab('analysis')}
+              onBeforeGameLoad={handleBeforeGameLoad}
+              pagination={chesscomPagination}
+              onGamesAppended={(newGames, newPagination) => {
+                const isPaginationComplete = 'fetchedArchives' in newPagination && 'allArchives' in newPagination
+                setChesscomGames(prev => {
+                  const existing = new Set(prev.map(g => (g as ChessComGame).url))
+                  const fresh = (newGames as ChessComGame[]).filter(g => !existing.has(g.url))
+                  const merged = [...prev, ...fresh]
+                  if (isPaginationComplete) {
+                    try {
+                      localStorage.setItem(
+                        `deepmove_gamelist_chesscom_${chesscomUsername.toLowerCase()}`,
+                        JSON.stringify({ games: merged.slice(0, 2000), pagination: newPagination, fetchedAt: Date.now() })
+                      )
+                    } catch {}
+                  }
+                  return merged
+                })
+                if (isPaginationComplete) {
+                  setChesscomPagination(newPagination)
+                }
+              }}
+            />
+          )}
+        </>
+      )}
+
+      {importTab === 'lichess' && (
+        <>
+          <AccountLink
+            platform="lichess"
+            onGamesLoaded={(games, uname, pagination) => {
+              setLichessGames(games as LichessGame[])
+              setLichessUsername(uname)
+              setLichessPagination(pagination)
+              cacheRatingsFromGameList(games as LichessGame[], uname, 'lichess')
+            }}
+            onGamesAppended={(newGames, _newPagination) => {
+              setLichessGames(prev => {
+                const existing = new Set(prev.map(g => (g as LichessGame).id))
+                const fresh = (newGames as LichessGame[]).filter(g => !existing.has((g as LichessGame).id))
+                const merged = [...fresh, ...prev]
+                try {
+                  localStorage.setItem(
+                    `deepmove_gamelist_lichess_${lichessUsername.toLowerCase()}`,
+                    JSON.stringify({ games: merged.slice(0, 2000), pagination: lichessPagination, fetchedAt: Date.now() })
+                  )
+                } catch {}
+                return merged
+              })
+            }}
+            newestEndTime={lichessGames.length > 0
+              ? Math.max(...lichessGames.map(g => (g as LichessGame).lastMoveAt ?? 0))
+              : undefined}
+          />
+          {lichessGames.length > 0 && (
+            <GameSelector
+              games={lichessGames}
+              username={lichessUsername}
+              platform="lichess"
+              onGameLoaded={() => setPanelTab('analysis')}
+              onBeforeGameLoad={handleBeforeGameLoad}
+              pagination={lichessPagination}
+              onGamesAppended={(newGames, newPagination) => {
+                setLichessGames(prev => {
+                  const existing = new Set(prev.map(g => (g as LichessGame).id))
+                  const fresh = (newGames as LichessGame[]).filter(g => !existing.has(g.id))
+                  const merged = [...prev, ...fresh]
+                  try {
+                    localStorage.setItem(
+                      `deepmove_gamelist_lichess_${lichessUsername.toLowerCase()}`,
+                      JSON.stringify({ games: merged.slice(0, 2000), pagination: newPagination, fetchedAt: Date.now() })
+                    )
+                  } catch {}
+                  return merged
+                })
+                setLichessPagination(newPagination)
+              }}
+            />
+          )}
+        </>
+      )}
+
+      {importTab === 'pgn' && (
+        <ImportPanel
+          onFenLoad={(fen) => {
+            reset()
+            analysisBoardReset(fen)
+            setMobileReviewMode('sandbox')
+            setPanelTab('analysis')
+          }}
+        />
+      )}
+    </div>
+  )
+
   return (
     <ResponsiveLayout
       currentPage={currentPage}
@@ -2061,10 +2245,28 @@ export default function App() {
           'app-main',
           isFixedLayoutPage ? 'app-main--fixed-layout' : '',
           isDocumentPage ? 'app-main--document' : '',
-          isPhone && isReviewPage && !isLoaded ? 'app-main--mobile-load-priority' : '',
+          showMobileLoadOnlyReview ? 'app-main--mobile-load-priority' : '',
           !isFixedLayoutPage && !isDocumentPage ? 'app-main--page' : '',
         ].filter(Boolean).join(' ')}>
           {currentPage === 'review' && (
+            showMobileLoadOnlyReview ? (
+              <div className="side-col side-col--mobile-review-load">
+                <div className="side-panel-content side-panel-content--mobile-review-load">
+                  <div className="review-mobile-load-shell">
+                    <button
+                      className="btn btn-secondary review-mobile-load-shell__sandbox-btn"
+                      onClick={() => {
+                        setPanelTab('load')
+                        setMobileReviewMode('sandbox')
+                      }}
+                    >
+                      Open Sandbox Board
+                    </button>
+                    {loadPanel}
+                  </div>
+                </div>
+              </div>
+            ) : (
             <>
               <ErrorBoundary
                 boundaryName="review-board"
@@ -2568,150 +2770,7 @@ export default function App() {
                     />
                   )}
 
-                  <div
-                    className="load-panel"
-                    style={{ display: panelTab === 'load' ? undefined : 'none' }}
-                  >
-                      <div className="import-tabs">
-                        <button
-                          className={`import-tab${importTab === 'chesscom' ? ' active' : ''}`}
-                          onClick={() => setImportTab('chesscom')}
-                        >Chess.com</button>
-                        <button
-                          className={`import-tab${importTab === 'lichess' ? ' active' : ''}`}
-                          onClick={() => setImportTab('lichess')}
-                        >Lichess</button>
-                        <button
-                          className={`import-tab${importTab === 'pgn' ? ' active' : ''}`}
-                          onClick={() => setImportTab('pgn')}
-                        >PGN</button>
-                      </div>
-
-                      {importTab === 'chesscom' && (
-                        <>
-                          <AccountLink
-                            platform="chesscom"
-                            onGamesLoaded={(games, uname, pagination) => {
-                              setChesscomGames(games as ChessComGame[])
-                              setChesscomUsername(uname)
-                              setChesscomPagination(pagination)
-                              cacheRatingsFromGameList(games as ChessComGame[], uname, 'chesscom')
-                            }}
-                            onGamesAppended={(newGames, newPagination) => {
-                              setChesscomGames(prev => {
-                                const existing = new Set(prev.map(g => (g as ChessComGame).url))
-                                const fresh = (newGames as ChessComGame[]).filter(g => !existing.has(g.url))
-                                const merged = [...fresh, ...prev]
-                                try {
-                                  localStorage.setItem(
-                                    `deepmove_gamelist_chesscom_${chesscomUsername.toLowerCase()}`,
-                                    JSON.stringify({ games: merged.slice(0, 2000), pagination: newPagination, fetchedAt: Date.now() })
-                                  )
-                                } catch {}
-                                return merged
-                              })
-                            }}
-                            newestEndTime={chesscomGames.length > 0 ? Math.max(...chesscomGames.map(g => (g as ChessComGame).end_time)) : undefined}
-                          />
-                          {chesscomGames.length > 0 && (
-                            <GameSelector
-                              games={chesscomGames}
-                              username={chesscomUsername}
-                              platform="chesscom"
-                              onGameLoaded={() => setPanelTab('analysis')}
-                              onBeforeGameLoad={handleBeforeGameLoad}
-                              pagination={chesscomPagination}
-                                              onGamesAppended={(newGames, newPagination) => {
-                                const isPaginationComplete = 'fetchedArchives' in newPagination && 'allArchives' in newPagination
-                                setChesscomGames(prev => {
-                                  const existing = new Set(prev.map(g => (g as ChessComGame).url))
-                                  const fresh = (newGames as ChessComGame[]).filter(g => !existing.has(g.url))
-                                  const merged = [...prev, ...fresh]
-                                  if (isPaginationComplete) {
-                                    try {
-                                      localStorage.setItem(
-                                        `deepmove_gamelist_chesscom_${chesscomUsername.toLowerCase()}`,
-                                        JSON.stringify({ games: merged.slice(0, 2000), pagination: newPagination, fetchedAt: Date.now() })
-                                      )
-                                    } catch {}
-                                  }
-                                  return merged
-                                })
-                                if (isPaginationComplete) {
-                                  setChesscomPagination(newPagination)
-                                }
-                              }}
-                            />
-                          )}
-                        </>
-                      )}
-
-                      {importTab === 'lichess' && (
-                        <>
-                          <AccountLink
-                            platform="lichess"
-                            onGamesLoaded={(games, uname, pagination) => {
-                              setLichessGames(games as LichessGame[])
-                              setLichessUsername(uname)
-                              setLichessPagination(pagination)
-                              cacheRatingsFromGameList(games as LichessGame[], uname, 'lichess')
-                            }}
-                            onGamesAppended={(newGames, _newPagination) => {
-                              setLichessGames(prev => {
-                                const existing = new Set(prev.map(g => (g as LichessGame).id))
-                                const fresh = (newGames as LichessGame[]).filter(g => !existing.has((g as LichessGame).id))
-                                const merged = [...fresh, ...prev]
-                                try {
-                                  localStorage.setItem(
-                                    `deepmove_gamelist_lichess_${lichessUsername.toLowerCase()}`,
-                                    JSON.stringify({ games: merged.slice(0, 2000), pagination: lichessPagination, fetchedAt: Date.now() })
-                                  )
-                                } catch {}
-                                return merged
-                              })
-                            }}
-                            newestEndTime={lichessGames.length > 0
-                              ? Math.max(...lichessGames.map(g => (g as LichessGame).lastMoveAt ?? 0))
-                              : undefined}
-                          />
-                          {lichessGames.length > 0 && (
-                            <GameSelector
-                              games={lichessGames}
-                              username={lichessUsername}
-                              platform="lichess"
-                              onGameLoaded={() => setPanelTab('analysis')}
-                              onBeforeGameLoad={handleBeforeGameLoad}
-                              pagination={lichessPagination}
-                                              onGamesAppended={(newGames, newPagination) => {
-                                setLichessGames(prev => {
-                                  const existing = new Set(prev.map(g => (g as LichessGame).id))
-                                  const fresh = (newGames as LichessGame[]).filter(g => !existing.has(g.id))
-                                  const merged = [...prev, ...fresh]
-                                  try {
-                                    localStorage.setItem(
-                                      `deepmove_gamelist_lichess_${lichessUsername.toLowerCase()}`,
-                                      JSON.stringify({ games: merged.slice(0, 2000), pagination: newPagination, fetchedAt: Date.now() })
-                                    )
-                                  } catch {}
-                                  return merged
-                                })
-                                setLichessPagination(newPagination)
-                              }}
-                            />
-                          )}
-                        </>
-                      )}
-
-                      {importTab === 'pgn' && (
-                        <ImportPanel
-                          onFenLoad={(fen) => {
-                            reset()
-                            analysisBoardReset(fen)
-                            setPanelTab('analysis')
-                          }}
-                        />
-                      )}
-                    </div>
+                  {loadPanel}
 
                   {panelTab === 'analysis' && !isLoaded && (
                     <>
@@ -2793,6 +2852,7 @@ export default function App() {
                 </div>
               )}
             </>
+            )
           )}
 
           {currentPage === 'dashboard' && <div className="stub-page">Dashboard coming soon.</div>}
