@@ -229,6 +229,10 @@ function formatScore(stats: OpeningStats): string {
   return `${stats.wins}-${stats.losses}-${stats.draws}, ${stats.scorePct}% score`
 }
 
+function preferredWeakness(weaknesses: WeaknessStats[]): WeaknessStats | undefined {
+  return weaknesses.find(weakness => weakness.category !== 'unknown') ?? weaknesses[0]
+}
+
 function lowestRecurringOpening(openings: OpeningStats[]): OpeningStats | null {
   const recurring = openings.filter(opening =>
     opening.games >= MIN_RECURRING_OPENING_SAMPLE && opening.scorePct <= OPENING_TROUBLE_SCORE_MAX
@@ -276,9 +280,13 @@ export function buildAccountTakeaways(
     }
   }
 
-  const topWeakness = summary.weaknesses[0]
+  const topWeakness = preferredWeakness(summary.weaknesses)
   if (topWeakness) {
-    takeaways.push(`Your most common reviewed mistake category is ${topWeakness.name}. Before moving, add one quick check for that theme in every critical position.`)
+    if (topWeakness.category === 'unknown') {
+      takeaways.push('Your reviewed mistakes are still too mixed to name one precise theme. Analyze more games so DeepMove can separate tactical, opening, and planning patterns.')
+    } else {
+      takeaways.push(`Your most common reviewed mistake category is ${topWeakness.name}. Before moving, add one quick check for that theme in every critical position.`)
+    }
   } else if (summary.scannedGames.length > 0) {
     takeaways.push('Opening stats are ready, but weakness takeaways need more DeepMove-reviewed games in this recent set.')
   }
@@ -326,19 +334,28 @@ function buildTopInsights(
       kind: 'building',
       title: 'Still building confidence',
       evidence: `${summary.analyzedGameCount} games analyzed. DeepMove needs at least ${MIN_STRONG_INSIGHT_GAMES} reviewed games before making strong claims.`,
-      action: 'Analyze recent games to unlock reliable weakness and opening patterns.',
+      action: 'Analyze the selected games to unlock reliable weakness and opening patterns.',
     }]
   }
 
   const insights: AccountInsight[] = []
-  const topWeakness = summary.weaknesses[0]
+  const topWeakness = preferredWeakness(summary.weaknesses)
   if (topWeakness) {
-    insights.push({
-      kind: 'weakness',
-      title: `${topWeakness.name} keeps showing up`,
-      evidence: `${topWeakness.count} critical moment${topWeakness.count === 1 ? '' : 's'} across ${summary.analyzedGameCount} analyzed games.`,
-      action: `Before each candidate move, pause for one ${topWeakness.shortLabel.toLowerCase()} check.`,
-    })
+    if (topWeakness.category === 'unknown') {
+      insights.push({
+        kind: 'weakness',
+        title: 'The mistakes are still mixed',
+        evidence: `${topWeakness.count} general critical moment${topWeakness.count === 1 ? '' : 's'} across ${summary.analyzedGameCount} analyzed games.`,
+        action: 'Analyze more games or review the largest evaluation swings first; DeepMove will get more specific as patterns repeat.',
+      })
+    } else {
+      insights.push({
+        kind: 'weakness',
+        title: `${topWeakness.name} keeps showing up`,
+        evidence: `${topWeakness.count} critical moment${topWeakness.count === 1 ? '' : 's'} across ${summary.analyzedGameCount} analyzed games.`,
+        action: `Before committing to a move, pause for one ${topWeakness.shortLabel.toLowerCase()} check.`,
+      })
+    }
   }
 
   const visibleOpenings = [

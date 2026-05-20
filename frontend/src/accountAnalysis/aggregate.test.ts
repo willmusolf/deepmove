@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChessComGame } from '../api/chesscom'
 import type { LichessGame } from '../api/lichess'
+import type { MistakeCategory } from '../chess/types'
 import type { AnalyzedGameRecord } from '../services/gameDB'
 import { buildAccountAnalysis, getOpeningFromPgn } from './aggregate'
 
@@ -56,7 +57,7 @@ function lichessGame(
 
 function analyzedRecord(
   id: string,
-  category: 'hung_piece' | 'ignored_threat',
+  category: MistakeCategory,
   partial = false,
 ): AnalyzedGameRecord {
   return {
@@ -319,5 +320,23 @@ describe('account analysis aggregation', () => {
     expect(summary.topInsights.length).toBeLessThanOrEqual(3)
     expect(summary.topInsights[0].kind).toBe('weakness')
     expect(summary.topInsights.some(insight => insight.kind === 'opening' && insight.title.includes('French'))).toBe(true)
+  })
+
+  it('does not present unknown/general mistakes as a precise weakness theme', () => {
+    const games = Array.from({ length: 10 }, (_, index) =>
+      chesscomGame(`mixed-${index}`, ITALIAN_PGN, 700 - index, 'me', 'them', 'win', 'resigned')
+    )
+    const summary = buildAccountAnalysis({
+      chesscomUsername: 'me',
+      chesscomGames: games,
+      analyzedGames: games.map(game => analyzedRecord(game.url, 'unknown')),
+      gameCount: 10,
+    })
+
+    expect(summary.topInsights[0]).toMatchObject({
+      kind: 'weakness',
+      title: 'The mistakes are still mixed',
+    })
+    expect(summary.topInsights[0].action).not.toContain('general check')
   })
 })

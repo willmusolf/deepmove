@@ -43,7 +43,6 @@ interface AnalysisQueueState {
 }
 
 const GAME_COUNT_OPTIONS = [25, 50, 100, 150, 200]
-const DEFAULT_ANALYSIS_BATCH = 25
 
 function getAnalysisDepth(elo: number): number {
   if (!elo || elo < 1200) return 12
@@ -202,7 +201,6 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
   const [summary, setSummary] = useState<AccountAnalysisSummary | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [loadedOnce, setLoadedOnce] = useState(false)
   const [identityVersion, setIdentityVersion] = useState(0)
   const [showAllOpenings, setShowAllOpenings] = useState(false)
   const [queueState, setQueueState] = useState<AnalysisQueueState>({
@@ -417,15 +415,8 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     }))
   }, [analyzeQueuedGame, ensureQueueEngine, mergeCompletedAnalysis])
 
-  const startAnalysisQueue = useCallback((limit: number | 'all') => {
-    if (!summary || queueState.status === 'running' || queueState.status === 'initializing') return
-    const batch = selectAnalysisBatch(summary.scannedGames, loaded.analyzed, limit)
-    queuePendingRef.current = batch
-    void runPendingQueue(batch.length, 0)
-  }, [loaded.analyzed, queueState.status, runPendingQueue, summary])
-
-  const queueUntilBaseline = useCallback((nextSummary: AccountAnalysisSummary, nextLoaded: LoadedAccountGames) => {
-    const targetComplete = Math.min(DEFAULT_ANALYSIS_BATCH, nextSummary.scannedGames.length)
+  const queueSelectedGames = useCallback((nextSummary: AccountAnalysisSummary, nextLoaded: LoadedAccountGames) => {
+    const targetComplete = Math.min(gameCount, nextSummary.scannedGames.length)
     const needed = Math.max(0, targetComplete - nextSummary.analyzedGameCount)
     if (needed === 0) return
 
@@ -433,7 +424,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     if (batch.length === 0) return
     queuePendingRef.current = batch
     void runPendingQueue(targetComplete, nextSummary.analyzedGameCount)
-  }, [runPendingQueue])
+  }, [gameCount, runPendingQueue])
 
   const pauseAnalysisQueue = useCallback(() => {
     if (queueState.status !== 'running' && queueState.status !== 'initializing') return
@@ -456,49 +447,12 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     setQueueState(prev => ({ ...prev, status: 'idle', currentGame: null, currentMove: 0, totalMoves: 0 }))
   }, [])
 
-  const refreshReport = useCallback(async () => {
-    const currentIdentity = getIdentity()
-    setIdentityVersion(v => v + 1)
-    if (!currentIdentity.chesscom && !currentIdentity.lichess) {
-      setSummary(null)
-      setLoaded({ chesscom: [], lichess: [], analyzed: [] })
-      setLoadedOnce(false)
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-    try {
-      const [chesscom, lichess, analyzed] = await Promise.all([
-        platform !== 'lichess' && currentIdentity.chesscom
-          ? fetchChessComGames(currentIdentity.chesscom, gameCount)
-          : Promise.resolve([]),
-        platform !== 'chesscom' && currentIdentity.lichess
-          ? getUserGames(currentIdentity.lichess, gameCount).then(result => result.games)
-          : Promise.resolve([]),
-        loadAnalyzedGames(currentIdentity, platform),
-      ])
-
-      const nextLoaded = { chesscom, lichess, analyzed }
-      const nextSummary = rebuildSummary(nextLoaded, currentIdentity)
-
-      setLoaded(nextLoaded)
-      setSummary(nextSummary)
-      setLoadedOnce(true)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load account analysis right now.')
-    } finally {
-      setLoading(false)
-    }
-  }, [gameCount, platform, rebuildSummary])
-
   const analyzeRecentGames = useCallback(async () => {
     const currentIdentity = getIdentity()
     setIdentityVersion(v => v + 1)
     if (!currentIdentity.chesscom && !currentIdentity.lichess) {
       setSummary(null)
       setLoaded({ chesscom: [], lichess: [], analyzed: [] })
-      setLoadedOnce(false)
       return
     }
 
@@ -519,14 +473,13 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
       const nextSummary = rebuildSummary(nextLoaded, currentIdentity)
       setLoaded(nextLoaded)
       setSummary(nextSummary)
-      setLoadedOnce(true)
-      queueUntilBaseline(nextSummary, nextLoaded)
+      queueSelectedGames(nextSummary, nextLoaded)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start Insights analysis right now.')
     } finally {
       setLoading(false)
     }
-  }, [gameCount, platform, queueUntilBaseline, rebuildSummary])
+  }, [gameCount, platform, queueSelectedGames, rebuildSummary])
 
   useEffect(() => {
     setIdentityVersion(v => v + 1)
@@ -539,25 +492,25 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
   }, [])
 
   void identityVersion
-  const filteredSourceCount = platform === 'all'
-    ? loaded.chesscom.length + loaded.lichess.length
-    : platform === 'chesscom'
-      ? loaded.chesscom.length
-      : loaded.lichess.length
   const queueBusy = queueState.status === 'running' || queueState.status === 'initializing'
-  const baselineTarget = summary ? Math.min(DEFAULT_ANALYSIS_BATCH, summary.scannedGames.length) : DEFAULT_ANALYSIS_BATCH
-  const baselineReady = !!summary && summary.analyzedGameCount >= Math.min(10, baselineTarget)
-  const canAnalyzeMore = !!summary && missingGames.length > 0 && !queueBusy
+  const queueActive = queueBusy || queueState.status === 'paused'
+  const selectedAnalysisTarget = summary ? Math.min(gameCount, summary.scannedGames.length) : gameCount
+  const hasReliableSignal = !!summary && summary.analyzedGameCount >= Math.min(10, selectedAnalysisTarget)
+  const canAnalyzeRemainingSelected = !!summary && missingGames.length > 0 && summary.analyzedGameCount < selectedAnalysisTarget && !queueActive
+  const showQueue = queueState.status === 'running' ||
+    queueState.status === 'initializing' ||
+    queueState.status === 'paused' ||
+    queueState.status === 'error'
 
   return (
     <div className="account-analysis-page">
       <section className="account-analysis-hero">
         <div>
           <p className="account-analysis-kicker">Insights</p>
-          <h1>Analyze your recent games and find recurring patterns.</h1>
+          <h1>Analyze your recent games.</h1>
           <p>
-            DeepMove reviews a fresh batch of your games with browser Stockfish, then turns the
-            results into a small set of practical improvement signals.
+            Choose how many recent games DeepMove should review. It runs Stockfish in your browser,
+            so bigger batches take longer but give the report better signal.
           </p>
         </div>
         <div className="account-analysis-controls" aria-label="Account analysis controls">
@@ -570,7 +523,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
             </select>
           </label>
           <label>
-            Recent games
+            Games to analyze
             <select value={gameCount} onChange={event => setGameCount(Number(event.target.value))}>
               {GAME_COUNT_OPTIONS.map(option => (
                 <option value={option} key={option}>{option}</option>
@@ -581,10 +534,13 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
             type="button"
             className="btn btn-primary"
             onClick={() => void analyzeRecentGames()}
-            disabled={loading || !canFetchPlatform || queueBusy}
+            disabled={loading || !canFetchPlatform || queueActive}
           >
-            {loading ? 'Loading games...' : queueBusy ? 'Analyzing...' : 'Analyze recent games'}
+            {loading ? 'Loading games...' : queueState.status === 'paused' ? 'Paused' : queueBusy ? 'Analyzing...' : `Analyze ${gameCount} games`}
           </button>
+          <p className="account-analysis-controls__note">
+            Expected: {gameCount} games can take several minutes. You can pause anytime.
+          </p>
         </div>
       </section>
 
@@ -613,79 +569,53 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
         </div>
       )}
 
-      {hasLinkedAccount && canFetchPlatform && !summary && !loading && !loadedOnce && (
-        <section className="account-analysis-empty">
-          <h2>Start with a 25-game deep analysis.</h2>
-          <p>DeepMove will fetch your selected recent-game pool, then analyze the latest 25 missing games. This can take a while, but it gives the report real signal.</p>
-          <button type="button" className="btn btn-primary" onClick={() => void analyzeRecentGames()}>
-            Analyze recent games
-          </button>
-        </section>
-      )}
-
       {summary && (
         <>
           <section className={`account-analysis-coverage account-analysis-coverage--${summary.weaknessConfidence}`}>
             <div>
-              <span>{baselineReady ? formatConfidence(summary.weaknessConfidence) : 'Building your baseline'}</span>
-              <strong>{summary.analyzedGameCount} / {baselineTarget} baseline games analyzed</strong>
+              <span>{hasReliableSignal ? formatConfidence(summary.weaknessConfidence) : 'Building signal'}</span>
+              <strong>{summary.analyzedGameCount} / {selectedAnalysisTarget} selected games analyzed</strong>
               <p>
-                Found {filteredSourceCount} candidate games and selected the latest {summary.scannedGames.length}
-                {' '}from {formatDateRange(summary)}. Insights become reliable after at least 10 analyzed games.
+                Using the latest {summary.scannedGames.length} games from {formatDateRange(summary)}.
+                {' '}This is a recent sample, not your all-time account total.
               </p>
               <div className="account-analysis-meter" aria-hidden="true">
-                <div style={{ width: `${baselineTarget > 0 ? Math.min(100, (summary.analyzedGameCount / baselineTarget) * 100) : 0}%` }} />
+                <div style={{ width: `${selectedAnalysisTarget > 0 ? Math.min(100, (summary.analyzedGameCount / selectedAnalysisTarget) * 100) : 0}%` }} />
               </div>
             </div>
-            {canAnalyzeMore && (
+            {canAnalyzeRemainingSelected && (
               <div className="account-analysis-queue-actions">
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={() => {
-                    if (summary.analyzedGameCount >= baselineTarget) startAnalysisQueue(DEFAULT_ANALYSIS_BATCH)
-                    else queueUntilBaseline(summary, loaded)
-                  }}
+                  onClick={() => queueSelectedGames(summary, loaded)}
                 >
-                  {summary.analyzedGameCount >= baselineTarget ? 'Analyze 25 more' : 'Continue baseline'}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => startAnalysisQueue('all')}
-                >
-                  Analyze all missing
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => void refreshReport()}
-                >
-                  Refresh pool
+                  Analyze remaining selected games
                 </button>
               </div>
             )}
           </section>
 
-          {(queueState.status !== 'idle' || queueState.completed > 0 || queueState.error) && (
+          {showQueue && (
             <section className="account-analysis-queue">
               <div>
-                <span>Analysis Queue</span>
+                <span>Analysis progress</span>
                 <strong>
                   {queueState.status === 'initializing'
                     ? 'Starting Stockfish...'
                     : queueState.status === 'paused'
-                      ? 'Paused'
+                      ? `Paused at ${queueState.completed} of ${queueState.total}`
                       : queueState.status === 'error'
                         ? 'Needs attention'
                         : queueState.status === 'running'
                           ? `Analyzing ${queueState.completed + 1} of ${queueState.total}`
-                          : `Finished ${queueState.completed} game${queueState.completed === 1 ? '' : 's'}`}
+                          : `Analyzed ${queueState.completed} game${queueState.completed === 1 ? '' : 's'}`}
                 </strong>
                 {queueState.currentGame && <p>{queueState.currentGame}</p>}
                 {queueState.status === 'running' && queueState.totalMoves > 0 && (
                   <small>Move {queueState.currentMove} / {queueState.totalMoves}</small>
                 )}
+                <p>Stockfish is running locally in this browser tab. It may use noticeable CPU while analysis is active.</p>
                 {queueState.error && <p className="account-analysis-queue__error">{queueState.error}</p>}
               </div>
               <div className="account-analysis-queue-actions">
@@ -704,7 +634,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
 
           <section className="account-analysis-section-heading">
             <span>Top Insights</span>
-            <h2>{baselineReady ? 'The strongest signals from your analyzed games' : 'DeepMove is still building enough signal'}</h2>
+            <h2>{hasReliableSignal ? 'The strongest signals from your analyzed games' : 'DeepMove is still building enough signal'}</h2>
           </section>
 
           <section className="account-insight-grid">
@@ -719,8 +649,8 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           </section>
 
           <section className="account-analysis-section-heading">
-            <span>Opening Trends</span>
-            <h2>Compact context from your latest {summary.scannedGames.length} games</h2>
+            <span>Opening Context</span>
+            <h2>Compact results from the selected games</h2>
           </section>
 
           <div className="account-analysis-grid">
