@@ -1319,6 +1319,272 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   font-size: 1rem;
 }
 
+/* ── Account Analysis page ─────────────────────────────────────────────── */
+.account-analysis-page {
+  flex: 1;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+.account-analysis-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 1.25rem;
+  align-items: stretch;
+  margin-bottom: 1.25rem;
+  padding: 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--color-border) 75%, var(--color-accent));
+  border-radius: calc(var(--radius) + 8px);
+  background:
+    radial-gradient(circle at 16% 20%, color-mix(in srgb, var(--color-accent) 18%, transparent) 0 18rem, transparent 18rem),
+    linear-gradient(135deg, color-mix(in srgb, var(--color-surface) 96%, white) 0%, var(--color-surface) 100%);
+}
+
+.account-analysis-kicker {
+  margin: 0 0 0.55rem;
+  color: var(--color-accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.account-analysis-hero h1 {
+  max-width: 720px;
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(1.75rem, 3vw, 3rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+}
+
+.account-analysis-hero p:not(.account-analysis-kicker) {
+  max-width: 700px;
+  margin: 0.85rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.account-analysis-controls {
+  display: grid;
+  gap: 0.8rem;
+  align-self: center;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--color-bg) 56%, transparent);
+}
+
+.account-analysis-controls label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-analysis-controls select {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.account-analysis-summary-grid,
+.account-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.account-analysis-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.account-analysis-stat,
+.account-analysis-card,
+.account-analysis-empty,
+.account-analysis-error {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.account-analysis-stat {
+  display: grid;
+  gap: 0.28rem;
+  padding: 1rem;
+}
+
+.account-analysis-stat span,
+.account-analysis-card__header span,
+.account-opening-row span,
+.account-weakness-row span,
+.account-analysis-stat small {
+  color: var(--color-text-muted);
+}
+
+.account-analysis-stat span,
+.account-analysis-card__header span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-analysis-stat strong {
+  color: var(--color-text);
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.account-analysis-stat--wide strong {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.account-analysis-card {
+  padding: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.account-analysis-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.account-analysis-card h2,
+.account-analysis-empty h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.account-opening-list,
+.account-weakness-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.account-opening-row,
+.account-weakness-row {
+  display: grid;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-bg) 34%, transparent);
+}
+
+.account-opening-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.account-opening-row strong,
+.account-weakness-row strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+.account-opening-row span,
+.account-weakness-row span {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 0.78rem;
+}
+
+.account-opening-row__score {
+  text-align: right;
+}
+
+.account-weakness-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.account-weakness-row em {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  min-height: 2rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-text);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.account-weakness-dot {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 999px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.account-analysis-takeaways ol {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding-left: 1.35rem;
+}
+
+.account-analysis-takeaways li {
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.account-analysis-empty,
+.account-analysis-error {
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.account-analysis-empty p,
+.account-analysis-empty-copy {
+  margin: 0.55rem 0 0;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.account-analysis-empty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.account-analysis-error {
+  border-color: color-mix(in srgb, #ef4444 65%, var(--color-border));
+  color: #fecaca;
+}
+
+@media (max-width: 860px) {
+  .account-analysis-page {
+    padding: 1rem;
+  }
+
+  .account-analysis-hero,
+  .account-analysis-summary-grid,
+  .account-analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Board-first layout once side-by-side gets cramped ─────────────────── */
 @media (max-width: 1180px) {
   .app-main {

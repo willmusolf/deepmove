@@ -31,6 +31,7 @@ import BotPlayPage from './components/Play/BotPlayPage'
 import ErrorBoundary from './components/ErrorBoundary'
 import AboutPage from './components/AboutPage'
 import PrivacyPage from './components/PrivacyPage'
+import AccountAnalysisPage from './components/AccountAnalysis/AccountAnalysisPage'
 import ResetPasswordPage from './components/Auth/ResetPasswordPage'
 import AdBanner from './components/AdBanner'
 import MobileAdBanner from './components/MobileAdBanner'
@@ -2877,7 +2878,12 @@ export default function App() {
             )
           )}
 
-          {currentPage === 'dashboard' && <div className="stub-page">Dashboard coming soon.</div>}
+          {currentPage === 'dashboard' && (
+            <AccountAnalysisPage
+              onOpenReview={() => goToPage('review')}
+              onOpenProfile={() => goToPage('profile')}
+            />
+          )}
           {currentPage === 'practice' && (
             <div className="practice-coming-soon-page">
               <div className="practice-coming-soon-board">
