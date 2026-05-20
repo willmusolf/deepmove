@@ -1,16 +1,22 @@
-.PHONY: install dev-frontend dev-backend dev-coach typecheck typecheck-backend test test-frontend test-backend test-backend-smoke lint test-chess test-coaching test-ui check check-coaching review-3b build worktree ship ship-checks verify-migrations help
+.PHONY: install install-hooks dev-frontend dev-backend dev-coach typecheck typecheck-backend test test-frontend test-backend test-backend-smoke lint test-chess test-coaching test-ui check check-coaching review-3b build worktree ship ship-checks verify-migrations help
+
+PYTHON ?= python3
 
 # ── Setup ──────────────────────────────────────────────────────────────────
 install:
-	cd frontend && npm install
-	cd backend && pip install -r requirements.txt
+	cd frontend && node scripts/check-node-version.mjs && npm install --include=optional
+	cd backend && $(PYTHON) -m pip install -r requirements.txt
+	./scripts/install-git-hooks.sh
+
+install-hooks:
+	./scripts/install-git-hooks.sh
 
 # ── Development servers ────────────────────────────────────────────────────
 dev-frontend:
 	cd frontend && npm run dev
 
 dev-backend:
-	cd backend && uvicorn app.main:app --reload --port 8000
+	cd backend && $(PYTHON) -m uvicorn app.main:app --reload --port 8000
 
 # Run both in parallel (requires a terminal that supports it)
 dev:
@@ -28,13 +34,13 @@ typecheck:
 	cd frontend && npm run typecheck
 
 typecheck-backend:
-	cd backend && python -m mypy app/routes app/services
+	cd backend && $(PYTHON) -m mypy app/routes app/services
 
 lint-frontend:
 	cd frontend && npm run lint
 
 lint-backend:
-	cd backend && ruff check app/ tests/
+	cd backend && $(PYTHON) -m ruff check app/ tests/
 
 lint: lint-frontend lint-backend
 
@@ -43,10 +49,10 @@ test-frontend:
 	cd frontend && npm run test:run
 
 test-backend:
-	cd backend && pytest tests/ -v
+	cd backend && $(PYTHON) -m pytest tests/ -v
 
 test-backend-smoke:
-	cd backend && DATABASE_URL='' TEST_DATABASE_URL='' ANTHROPIC_API_KEY='' SECRET_KEY='local-test-secret' ENVIRONMENT=test pytest tests/ -v
+	cd backend && DATABASE_URL='' TEST_DATABASE_URL='' ANTHROPIC_API_KEY='' SECRET_KEY='local-test-secret' ENVIRONMENT=test $(PYTHON) -m pytest tests/ -v
 
 test: test-frontend test-backend
 
@@ -67,7 +73,7 @@ check:
 	@make lint
 
 verify-migrations:
-	cd backend && python scripts/check_alembic_graph.py
+	cd backend && $(PYTHON) scripts/check_alembic_graph.py
 
 check-coaching:
 	@echo "Coaching checkpoint:"
@@ -113,6 +119,7 @@ ship:
 help:
 	@echo "DeepMove development commands:"
 	@echo "  make install        — Install all dependencies"
+	@echo "  make install-hooks  — Configure repo-managed git hooks"
 	@echo "  make dev-frontend   — Start Vite dev server (:5173)"
 	@echo "  make dev-backend    — Start FastAPI server (:8000)"
 	@echo "  make dev-coach      — Start the Prompt 3B coaching workspace"

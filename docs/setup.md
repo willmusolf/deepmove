@@ -10,6 +10,16 @@ Everything you need to get from zero to a running dev environment.
 
 No Docker required.
 
+Use the versions pinned in the repo root before you install anything:
+
+```bash
+nvm use
+```
+
+DeepMove's frontend build depends on Node 20.19+ and Rolldown optional native
+bindings. If you install with the wrong Node version, `npm install`, `make
+check`, and `make build` can fail in confusing ways.
+
 ## Step 1: Get your Anthropic API key
 
 1. Go to [console.anthropic.com](https://console.anthropic.com)
@@ -26,15 +36,28 @@ Budget ~$20 to start. Dev testing costs a few dollars/month.
 3. Go to **Connection Details** and select the **Pooled** connection option
 4. Copy the connection string — it looks like: `postgresql://username:[password]@ep-xxx-yyy-zzz.region.aws.neon.tech/neondb?sslmode=require`
 
-## Step 3: Install dependencies
+## Step 3: Create a backend virtualenv
+
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+cd ..
+```
+
+Using a virtualenv keeps backend tools like `pytest`, `ruff`, and `mypy`
+available in the same shell where you run the repo commands.
+
+## Step 4: Install dependencies
 
 ```bash
 make install
 ```
 
-This runs `npm install` in `frontend/` and `pip install -r requirements.txt` in `backend/`.
+This runs `npm install --include=optional` in `frontend/` and
+`python -m pip install -r requirements.txt` in `backend/`.
 
-## Step 4: Set up environment files
+## Step 5: Set up environment files
 
 ```bash
 # Backend
@@ -50,7 +73,7 @@ cp frontend/.env.example frontend/.env.local
 #   VITE_API_URL=http://localhost:8000
 ```
 
-## Step 5: Run the dev servers
+## Step 6: Run the dev servers
 
 Two terminals:
 
@@ -65,17 +88,20 @@ make dev-frontend
 # → Vite running at http://localhost:5173
 ```
 
-## Step 6: Verify everything works
+## Step 7: Verify everything works
 
 ```bash
-make typecheck           # Frontend TypeScript
-make typecheck-backend   # Backend mypy
-make verify-migrations   # Alembic graph sanity check
-make test-frontend       # Frontend tests
-make test-backend-smoke  # Safe backend smoke tests (no DB required)
+make typecheck
+make check
+make test-backend-smoke
+make build
 ```
 
-Open http://localhost:5173 — you should see the DeepMove placeholder page.
+This is the pre-launch verification path for a fresh install. If any of these
+fail, fix the environment before trusting local results.
+
+Open http://localhost:5173 — you should see the DeepMove app shell with Review,
+Play, Profile, and About pages rather than a placeholder page.
 Open http://localhost:8000/docs — FastAPI's auto-generated API documentation.
 
 ## Claude Code hooks
@@ -156,10 +182,10 @@ The shorter overview lives in [docs/release-flow.md](./release-flow.md).
 
 ## Getting Stockfish
 
-Stockfish is handled automatically via npm. The `stockfish` npm package ships `stockfish-18-asm.js` (10MB asm.js fallback). A postinstall script in `frontend/package.json` copies it to `frontend/public/stockfish/stockfish.js` on every `npm install`.
+Stockfish is handled automatically via npm. The `stockfish` npm package ships `stockfish-18-asm.js` (10MB asm.js fallback). A postinstall script in `frontend/package.json` copies it to `frontend/public/stockfish/stockfish.js` on every `npm install --include=optional`.
 
 A thin wrapper at `frontend/public/stockfish/worker.js` calls `importScripts('/stockfish/stockfish.js')` — this is the file the Web Worker loads.
 
-No manual download needed. Just run `npm install` in `frontend/`.
+No manual download needed. Just run `npm install --include=optional` in `frontend/`.
 
 **Note:** The npm `stockfish` package does NOT include `.wasm` binaries — only the asm.js fallback. When ready to optimize for performance, download `stockfish-18.wasm` from the nmrugg GitHub releases and switch to the `stockfish-18.js` loader.
