@@ -46,6 +46,25 @@ describe('AccountLink', () => {
     expect(screen.getByPlaceholderText('Chess.com username')).toHaveValue('moosetheman123')
   })
 
+  it('starts read-only to discourage Safari autofill and unlocks on focus', () => {
+    localStorage.setItem('deepmove_chesscom_username', 'moosetheman123')
+
+    render(
+      <AccountLink
+        platform="chesscom"
+        onGamesLoaded={() => {}}
+      />
+    )
+
+    const input = screen.getByPlaceholderText('Chess.com username')
+    expect(input).toHaveAttribute('readonly')
+
+    fireEvent.focus(input)
+
+    expect(input).not.toHaveAttribute('readonly')
+    expect(input).toHaveValue('moosetheman123')
+  })
+
   it('can keep the mobile loader blank even when a saved username exists', () => {
     localStorage.setItem('deepmove_chesscom_username', 'moosetheman123')
 

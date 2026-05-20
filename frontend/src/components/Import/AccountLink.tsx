@@ -121,10 +121,14 @@ export default function AccountLink({
   const [identityVersion, setIdentityVersion] = useState(0)
   const [history, setHistory] = useState<string[]>(() => getHistory(platform))
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [autofillGuardActive, setAutofillGuardActive] = useState(true)
   const wrapRef = useRef<HTMLDivElement>(null)
   const fetchingRef = useRef(false)
 
   const bump = useCallback(() => setIdentityVersion(v => v + 1), [])
+  const releaseAutofillGuard = useCallback(() => {
+    setAutofillGuardActive(false)
+  }, [])
 
   const fetchGames = useCallback(async (name: string) => {
     const trimmed = name.trim()
@@ -237,6 +241,10 @@ export default function AccountLink({
 
   return (
     <div className="account-link">
+      <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 0, height: 0, overflow: 'hidden' }}>
+        <input type="text" name="username" autoComplete="username" tabIndex={-1} />
+        <input type="password" name="password" autoComplete="current-password" tabIndex={-1} />
+      </div>
       <div className="account-link-row">
         <div
           className={`account-link-input-wrap${confirmed ? ' account-link-input-wrap--crowned' : ''}`}
@@ -249,13 +257,20 @@ export default function AccountLink({
             name={INPUT_NAME[platform]}
             value={username}
             onChange={e => { setUsername(e.target.value); setShowSuggestions(true) }}
-            onFocus={() => setShowSuggestions(true)}
+            onMouseDownCapture={releaseAutofillGuard}
+            onTouchStart={releaseAutofillGuard}
+            onPointerDown={releaseAutofillGuard}
+            onFocus={() => {
+              releaseAutofillGuard()
+              setShowSuggestions(true)
+            }}
             onKeyDown={e => {
               if (e.key === 'Enter') void fetchGames(username)
               if (e.key === 'Escape') setShowSuggestions(false)
             }}
             disabled={loading}
-            autoComplete="off"
+            readOnly={autofillGuardActive}
+            autoComplete="new-password"
             autoCorrect="off"
             autoCapitalize="none"
             spellCheck={false}
@@ -263,6 +278,7 @@ export default function AccountLink({
             data-lpignore="true"
             data-1p-ignore="true"
             enterKeyHint="search"
+            inputMode="search"
           />
           {confirmed && <span className="identity-crown" title="Your account">♔</span>}
           {showSuggestions && suggestions.length > 0 && (
