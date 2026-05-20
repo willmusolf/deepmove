@@ -124,6 +124,7 @@ export default function AccountLink({
   const [autofillGuardActive, setAutofillGuardActive] = useState(true)
   const wrapRef = useRef<HTMLDivElement>(null)
   const fetchingRef = useRef(false)
+  const autoLoadAttemptedRef = useRef(false)
 
   const bump = useCallback(() => setIdentityVersion(v => v + 1), [])
   const releaseAutofillGuard = useCallback(() => {
@@ -209,6 +210,16 @@ export default function AccountLink({
     onGamesLoaded(cached.games, resolvedUsername, cached.pagination)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [platform, restoreCachedGames, restoreSavedUsername])
+
+  // On mount: if we have a saved username, automatically refresh/load that
+  // account so Review opens with the latest games on both desktop and mobile.
+  useEffect(() => {
+    if (autoLoadAttemptedRef.current) return
+    const savedUsername = getStoredUsername(platform).trim()
+    if (!savedUsername) return
+    autoLoadAttemptedRef.current = true
+    void fetchGames(savedUsername)
+  }, [platform, fetchGames])
 
   useEffect(() => {
     setHistory(getHistory(platform))

@@ -5,17 +5,19 @@ import type { LichessGame } from '../../api/lichess'
 
 const mocks = vi.hoisted(() => ({
   getRecentGames: vi.fn(),
+  getNewGames: vi.fn(),
   getUserGames: vi.fn(),
+  getNewLichessGames: vi.fn(),
 }))
 
 vi.mock('../../api/chesscom', () => ({
   getRecentGames: mocks.getRecentGames,
-  getNewGames: vi.fn(),
+  getNewGames: mocks.getNewGames,
 }))
 
 vi.mock('../../api/lichess', () => ({
   getUserGames: mocks.getUserGames,
-  getNewLichessGames: vi.fn(),
+  getNewLichessGames: mocks.getNewLichessGames,
 }))
 
 vi.mock('../../services/identity', () => ({
@@ -30,10 +32,18 @@ describe('AccountLink', () => {
   beforeEach(() => {
     localStorage.clear()
     mocks.getRecentGames.mockReset()
+    mocks.getNewGames.mockReset()
     mocks.getUserGames.mockReset()
+    mocks.getNewLichessGames.mockReset()
   })
 
   it('restores the saved username for the same device/browser', () => {
+    mocks.getRecentGames.mockResolvedValue({
+      games: [],
+      fetchedArchives: [],
+      allArchives: [],
+      hasMore: false,
+    })
     localStorage.setItem('deepmove_chesscom_username', 'moosetheman123')
 
     render(
@@ -44,6 +54,27 @@ describe('AccountLink', () => {
     )
 
     expect(screen.getByPlaceholderText('Chess.com username')).toHaveValue('moosetheman123')
+  })
+
+  it('automatically loads saved chess.com games on mount', async () => {
+    mocks.getRecentGames.mockResolvedValue({
+      games: [],
+      fetchedArchives: [],
+      allArchives: [],
+      hasMore: false,
+    })
+    localStorage.setItem('deepmove_chesscom_username', 'moosetheman123')
+
+    render(
+      <AccountLink
+        platform="chesscom"
+        onGamesLoaded={() => {}}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.getRecentGames).toHaveBeenCalledWith('moosetheman123')
+    })
   })
 
   it('starts read-only to discourage Safari autofill and unlocks on focus', () => {
