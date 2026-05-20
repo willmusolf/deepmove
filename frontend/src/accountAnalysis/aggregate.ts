@@ -42,6 +42,8 @@ export interface AccountAnalysisSummary {
   scannedGames: ScannedAccountGame[]
   requestedGameCount: number
   analyzedGameCount: number
+  weaknessCoveragePct: number
+  weaknessConfidence: 'none' | 'low' | 'medium' | 'high'
   dateRange: { start: number | null; end: number | null }
   openingsByColor: {
     white: OpeningStats[]
@@ -61,7 +63,9 @@ interface BuildAccountAnalysisInput {
   platform?: AccountAnalysisPlatform
 }
 
-const MIN_RECURRING_OPENING_SAMPLE = 2
+const MIN_RECURRING_OPENING_SAMPLE = 5
+const MIN_WATCHLIST_OPENING_SAMPLE = 2
+const OPENING_TAKEAWAY_VISIBLE_LIMIT = 6
 
 function clampGameCount(count: number): number {
   if (!Number.isFinite(count)) return 50
@@ -202,6 +206,14 @@ function buildWeaknessStats(
   return { weaknesses, analyzedGameCount: analyzedInScan.length }
 }
 
+function getWeaknessConfidence(analyzedGameCount: number, scannedGameCount: number): AccountAnalysisSummary['weaknessConfidence'] {
+  if (scannedGameCount === 0 || analyzedGameCount === 0) return 'none'
+  const pct = analyzedGameCount / scannedGameCount
+  if (pct < 0.25) return 'low'
+  if (pct < 0.65) return 'medium'
+  return 'high'
+}
+
 function formatScore(stats: OpeningStats): string {
   return `${stats.wins}-${stats.losses}-${stats.draws}, ${stats.scorePct}% score`
 }
@@ -212,18 +224,41 @@ function lowestRecurringOpening(openings: OpeningStats[]): OpeningStats | null {
   return [...recurring].sort((a, b) => a.scorePct - b.scorePct || b.games - a.games)[0]
 }
 
+function lowestWatchlistOpening(openings: OpeningStats[]): OpeningStats | null {
+  const watchlist = openings.filter(opening =>
+    opening.games >= MIN_WATCHLIST_OPENING_SAMPLE && opening.games < MIN_RECURRING_OPENING_SAMPLE
+  )
+  if (watchlist.length === 0) return null
+  return [...watchlist].sort((a, b) => a.scorePct - b.scorePct || b.games - a.games)[0]
+}
+
 export function buildAccountTakeaways(
   summary: Pick<AccountAnalysisSummary, 'openingsByColor' | 'weaknesses' | 'analyzedGameCount' | 'scannedGames'>,
 ): string[] {
   const takeaways: string[] = []
-  const weakestWhite = lowestRecurringOpening(summary.openingsByColor.white)
-  const weakestBlack = lowestRecurringOpening(summary.openingsByColor.black)
+  const visibleWhite = summary.openingsByColor.white.slice(0, OPENING_TAKEAWAY_VISIBLE_LIMIT)
+  const visibleBlack = summary.openingsByColor.black.slice(0, OPENING_TAKEAWAY_VISIBLE_LIMIT)
+  const weakestWhite = lowestRecurringOpening(visibleWhite)
+  const weakestBlack = lowestRecurringOpening(visibleBlack)
 
   if (weakestWhite) {
-    takeaways.push(`As White, your lowest-scoring repeated opening is ${weakestWhite.opening} (${formatScore(weakestWhite)}). Review the first middlegame plan you usually reach from it.`)
+    takeaways.push(`Among your most-played White openings, ${weakestWhite.opening} is the repeated line scoring lowest (${formatScore(weakestWhite)}). Review the first middlegame plan you usually reach from it.`)
   }
   if (weakestBlack) {
-    takeaways.push(`As Black, ${weakestBlack.opening} is the repeated line giving you the most trouble (${formatScore(weakestBlack)}). Look for one simple setup improvement instead of memorizing a full tree.`)
+    takeaways.push(`Among your most-played Black openings, ${weakestBlack.opening} is the repeated line scoring lowest (${formatScore(weakestBlack)}). Look for one simple setup improvement instead of memorizing a full tree.`)
+  }
+
+  if (!weakestWhite) {
+    const watchlistWhite = lowestWatchlistOpening(visibleWhite)
+    if (watchlistWhite) {
+      takeaways.push(`White watchlist: ${watchlistWhite.opening} is only ${watchlistWhite.games} games, so treat the ${watchlistWhite.scorePct}% score as a signal to monitor, not a conclusion yet.`)
+    }
+  }
+  if (!weakestBlack) {
+    const watchlistBlack = lowestWatchlistOpening(visibleBlack)
+    if (watchlistBlack) {
+      takeaways.push(`Black watchlist: ${watchlistBlack.opening} is only ${watchlistBlack.games} games, so treat the ${watchlistBlack.scorePct}% score as a signal to monitor, not a conclusion yet.`)
+    }
   }
 
   const topWeakness = summary.weaknesses[0]
@@ -264,11 +299,16 @@ export function buildAccountAnalysis(input: BuildAccountAnalysisInput): AccountA
   const scannedGames = normalizeInputGames(input).slice(0, requestedGameCount)
   const openingsByColor = buildOpeningStats(scannedGames)
   const { weaknesses, analyzedGameCount } = buildWeaknessStats(scannedGames, input.analyzedGames ?? [])
+  const weaknessCoveragePct = scannedGames.length === 0
+    ? 0
+    : Math.round((analyzedGameCount / scannedGames.length) * 1000) / 10
   const times = scannedGames.map(game => game.endTime).filter(time => time > 0)
   const withoutTakeaways = {
     scannedGames,
     requestedGameCount,
     analyzedGameCount,
+    weaknessCoveragePct,
+    weaknessConfidence: getWeaknessConfidence(analyzedGameCount, scannedGames.length),
     dateRange: {
       start: times.length > 0 ? Math.min(...times) : null,
       end: times.length > 0 ? Math.max(...times) : null,

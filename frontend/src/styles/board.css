@@ -1407,6 +1407,24 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   margin-bottom: 1rem;
 }
 
+.account-analysis-section-heading {
+  margin: 1.25rem 0 0.75rem;
+}
+
+.account-analysis-section-heading span {
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.account-analysis-section-heading h2 {
+  margin: 0.25rem 0 0;
+  color: var(--color-text);
+  font-size: 1.1rem;
+}
+
 .account-analysis-summary-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -1414,7 +1432,9 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .account-analysis-stat,
 .account-analysis-card,
 .account-analysis-empty,
-.account-analysis-error {
+.account-analysis-error,
+.account-analysis-coverage,
+.account-analysis-queue {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
@@ -1451,6 +1471,87 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .account-analysis-stat--wide strong {
   font-size: 1rem;
   line-height: 1.2;
+}
+
+.account-analysis-coverage,
+.account-analysis-queue {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.account-analysis-coverage--none,
+.account-analysis-coverage--low {
+  border-color: color-mix(in srgb, #f97316 58%, var(--color-border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, #f97316 10%, var(--color-surface)), var(--color-surface));
+}
+
+.account-analysis-coverage--medium {
+  border-color: color-mix(in srgb, #eab308 45%, var(--color-border));
+}
+
+.account-analysis-coverage--high {
+  border-color: color-mix(in srgb, #22c55e 45%, var(--color-border));
+}
+
+.account-analysis-coverage span,
+.account-analysis-queue span {
+  display: block;
+  margin-bottom: 0.22rem;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-analysis-coverage strong,
+.account-analysis-queue strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.account-analysis-coverage p,
+.account-analysis-queue p,
+.account-analysis-queue small {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.account-analysis-meter {
+  overflow: hidden;
+  height: 0.45rem;
+  margin-top: 0.75rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-bg) 70%, white);
+}
+
+.account-analysis-meter div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 45%, #22c55e));
+  transition: width 180ms ease;
+}
+
+.account-analysis-queue {
+  border-style: dashed;
+}
+
+.account-analysis-queue__error {
+  color: #fecaca !important;
+}
+
+.account-analysis-queue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
 }
 
 .account-analysis-card {
@@ -1580,8 +1681,14 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
   .account-analysis-hero,
   .account-analysis-summary-grid,
-  .account-analysis-grid {
+  .account-analysis-grid,
+  .account-analysis-coverage,
+  .account-analysis-queue {
     grid-template-columns: 1fr;
+  }
+
+  .account-analysis-queue-actions {
+    justify-content: flex-start;
   }
 }
 

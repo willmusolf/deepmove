@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Chess } from 'chess.js'
 import { getRecentGames, loadMoreGames, type ChessComGame } from '../../api/chesscom'
 import { getUserGames, type LichessGame } from '../../api/lichess'
 import {
@@ -6,9 +7,18 @@ import {
   type AccountAnalysisPlatform,
   type AccountAnalysisSummary,
   type OpeningStats,
+  type ScannedAccountGame,
 } from '../../accountAnalysis/aggregate'
-import { getCachedGamesForUser, type AnalyzedGameRecord } from '../../services/gameDB'
+import { getMissingAnalysisGames, selectAnalysisBatch } from '../../accountAnalysis/queue'
+import { cleanPgn } from '../../chess/pgn'
+import { analyzeGame, type MoveEval } from '../../engine/analysis'
+import { detectCriticalMoments } from '../../engine/criticalMoments'
+import { StockfishEngine } from '../../engine/stockfish'
+import { getAnalyzedGame, getCachedGamesForUser, saveAnalyzedGame, type AnalyzedGameRecord } from '../../services/gameDB'
 import { getIdentity } from '../../services/identity'
+import { pushGame } from '../../services/syncService'
+import { useAuthStore } from '../../stores/authStore'
+import type { CriticalMoment } from '../../chess/types'
 
 interface AccountAnalysisPageProps {
   onOpenReview?: () => void
@@ -21,7 +31,23 @@ interface LoadedAccountGames {
   analyzed: AnalyzedGameRecord[]
 }
 
+interface AnalysisQueueState {
+  status: 'idle' | 'initializing' | 'running' | 'paused' | 'error'
+  total: number
+  completed: number
+  currentGame: string | null
+  currentMove: number
+  totalMoves: number
+  error: string | null
+}
+
 const GAME_COUNT_OPTIONS = [25, 50, 100, 150, 200]
+
+function getAnalysisDepth(elo: number): number {
+  if (!elo || elo < 1200) return 12
+  if (elo < 1600) return 14
+  return 16
+}
 
 function formatDateRange(summary: AccountAnalysisSummary): string {
   const { start, end } = summary.dateRange
@@ -34,6 +60,15 @@ function formatDateRange(summary: AccountAnalysisSummary): string {
 
 function formatRecord(opening: OpeningStats): string {
   return `${opening.wins}-${opening.losses}-${opening.draws}`
+}
+
+function formatConfidence(confidence: AccountAnalysisSummary['weaknessConfidence']): string {
+  switch (confidence) {
+    case 'high': return 'High confidence'
+    case 'medium': return 'Medium confidence'
+    case 'low': return 'Low confidence'
+    default: return 'No weakness data yet'
+  }
 }
 
 async function fetchChessComGames(username: string, targetCount: number): Promise<ChessComGame[]> {
@@ -102,6 +137,51 @@ function OpeningTable({ title, openings }: { title: string; openings: OpeningSta
   )
 }
 
+function upsertAnalyzedGame(records: AnalyzedGameRecord[], next: AnalyzedGameRecord): AnalyzedGameRecord[] {
+  const without = records.filter(record => record.id !== next.id)
+  return [next, ...without]
+}
+
+function getTotalMoves(pgn: string): number {
+  try {
+    const chess = new Chess()
+    chess.loadPgn(cleanPgn(pgn))
+    return chess.history().length
+  } catch {
+    return 0
+  }
+}
+
+function buildAnalyzedRecord(
+  game: ScannedAccountGame,
+  username: string,
+  moveEvals: MoveEval[],
+  criticalMoments: CriticalMoment[],
+  partial: boolean,
+  existing?: AnalyzedGameRecord,
+): AnalyzedGameRecord {
+  return {
+    id: game.gameId,
+    username,
+    platform: game.platform,
+    rawPgn: game.pgn,
+    cleanedPgn: cleanPgn(game.pgn),
+    userColor: game.isWhite ? 'white' : 'black',
+    userElo: game.userRating || existing?.userElo || 1200,
+    moveEvals,
+    criticalMoments,
+    analyzedAt: Date.now(),
+    opponent: game.opponent,
+    opponentRating: game.opponentRating,
+    result: game.result,
+    timeControl: game.timeControl,
+    endTime: game.endTime,
+    backendGameId: existing?.backendGameId ?? null,
+    partial,
+    ...(existing?.branchState ? { branchState: existing.branchState } : {}),
+  }
+}
+
 export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: AccountAnalysisPageProps) {
   const [platform, setPlatform] = useState<AccountAnalysisPlatform>('all')
   const [gameCount, setGameCount] = useState(50)
@@ -111,6 +191,20 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
   const [error, setError] = useState<string | null>(null)
   const [loadedOnce, setLoadedOnce] = useState(false)
   const [identityVersion, setIdentityVersion] = useState(0)
+  const [queueState, setQueueState] = useState<AnalysisQueueState>({
+    status: 'idle',
+    total: 0,
+    completed: 0,
+    currentGame: null,
+    currentMove: 0,
+    totalMoves: 0,
+    error: null,
+  })
+  const queueEngineRef = useRef<StockfishEngine | null>(null)
+  const queueEngineReadyRef = useRef<Promise<StockfishEngine> | null>(null)
+  const queueAbortRef = useRef<AbortController | null>(null)
+  const queueControlRef = useRef({ paused: false, cancelled: false })
+  const queuePendingRef = useRef<ScannedAccountGame[]>([])
 
   const identity = getIdentity()
   const hasLinkedAccount = !!identity.chesscom || !!identity.lichess
@@ -120,6 +214,222 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
       : platform === 'chesscom'
         ? !!identity.chesscom
         : !!identity.lichess
+
+  const rebuildSummary = useCallback((nextLoaded: LoadedAccountGames, currentIdentity = getIdentity()) => buildAccountAnalysis({
+    chesscomGames: nextLoaded.chesscom,
+    chesscomUsername: currentIdentity.chesscom,
+    lichessGames: nextLoaded.lichess,
+    lichessUsername: currentIdentity.lichess,
+    analyzedGames: nextLoaded.analyzed,
+    gameCount,
+    platform,
+  }), [gameCount, platform])
+
+  const mergeCompletedAnalysis = useCallback((record: AnalyzedGameRecord) => {
+    setLoaded(prev => {
+      const nextLoaded = {
+        ...prev,
+        analyzed: upsertAnalyzedGame(prev.analyzed, record),
+      }
+      setSummary(rebuildSummary(nextLoaded))
+      return nextLoaded
+    })
+  }, [rebuildSummary])
+
+  const missingGames = useMemo(
+    () => summary ? getMissingAnalysisGames(summary.scannedGames, loaded.analyzed) : [],
+    [loaded.analyzed, summary],
+  )
+
+  const ensureQueueEngine = useCallback(async (): Promise<StockfishEngine> => {
+    if (queueEngineRef.current) return queueEngineRef.current
+    if (queueEngineReadyRef.current) return queueEngineReadyRef.current
+
+    const engine = new StockfishEngine()
+    const ready = engine.initialize({ hashMB: 16 }).then(() => {
+      queueEngineRef.current = engine
+      return engine
+    })
+    queueEngineReadyRef.current = ready
+    return ready
+  }, [])
+
+  const analyzeQueuedGame = useCallback(async (
+    game: ScannedAccountGame,
+    engine: StockfishEngine,
+  ): Promise<AnalyzedGameRecord | null> => {
+    const existing = await getAnalyzedGame(game.gameId)
+    if (existing && !existing.partial) return existing
+
+    const username = game.platform === 'lichess'
+      ? getIdentity().lichess ?? ''
+      : getIdentity().chesscom ?? ''
+    const color = game.isWhite ? 'white' : 'black'
+    const totalMoves = getTotalMoves(game.pgn)
+    const initialEvals = existing?.partial ? existing.moveEvals : []
+    const startFromIndex = initialEvals.length
+    const accumulated: MoveEval[] = [...initialEvals]
+    const controller = new AbortController()
+    queueAbortRef.current = controller
+
+    setQueueState(prev => ({
+      ...prev,
+      currentGame: `${game.opening} vs ${game.opponent}`,
+      currentMove: startFromIndex,
+      totalMoves,
+      error: null,
+    }))
+
+    const savePartial = (moments: CriticalMoment[] = []) => {
+      const record = buildAnalyzedRecord(game, username, [...accumulated], moments, true, existing)
+      void saveAnalyzedGame(record)
+    }
+
+    const results = await analyzeGame(
+      game.pgn,
+      engine,
+      getAnalysisDepth(game.userRating),
+      completed => {
+        setQueueState(prev => ({ ...prev, currentMove: completed, totalMoves }))
+      },
+      controller.signal,
+      undefined,
+      moveEval => {
+        accumulated.push(moveEval)
+        if (accumulated.length >= 10) {
+          savePartial(detectCriticalMoments([...accumulated], color, game.userRating))
+        } else {
+          savePartial()
+        }
+      },
+      startFromIndex,
+      initialEvals,
+    )
+
+    if (controller.signal.aborted || queueControlRef.current.paused || queueControlRef.current.cancelled) {
+      savePartial(accumulated.length >= 10 ? detectCriticalMoments([...accumulated], color, game.userRating) : [])
+      return null
+    }
+
+    const moments = detectCriticalMoments(results, color, game.userRating)
+    const record = buildAnalyzedRecord(game, username, results, moments, false, existing)
+    await saveAnalyzedGame(record)
+
+    if (useAuthStore.getState().accessToken) {
+      void pushGame(record).catch(() => {
+        // Local IndexedDB is still the source of truth for this report if cloud sync fails.
+      })
+    }
+
+    return record
+  }, [])
+
+  const runPendingQueue = useCallback(async (initialTotal?: number, initialCompleted?: number) => {
+    if (queuePendingRef.current.length === 0) return
+    queueControlRef.current.paused = false
+    queueControlRef.current.cancelled = false
+
+    setQueueState(prev => ({
+      status: 'initializing',
+      total: initialTotal ?? prev.total,
+      completed: initialCompleted ?? prev.completed,
+      currentGame: null,
+      currentMove: 0,
+      totalMoves: 0,
+      error: null,
+    }))
+
+    let engine: StockfishEngine
+    try {
+      engine = await ensureQueueEngine()
+    } catch (err) {
+      setQueueState(prev => ({
+        ...prev,
+        status: 'error',
+        error: err instanceof Error ? err.message : 'Could not start Stockfish for account analysis.',
+      }))
+      return
+    }
+
+    setQueueState(prev => ({ ...prev, status: 'running' }))
+
+    while (queuePendingRef.current.length > 0) {
+      if (queueControlRef.current.paused || queueControlRef.current.cancelled) break
+      const game = queuePendingRef.current[0]
+
+      try {
+        const record = await analyzeQueuedGame(game, engine)
+        if (record) {
+          queuePendingRef.current = queuePendingRef.current.slice(1)
+          mergeCompletedAnalysis(record)
+          setQueueState(prev => ({
+            ...prev,
+            completed: prev.completed + 1,
+            currentMove: 0,
+            totalMoves: 0,
+          }))
+        } else if (queueControlRef.current.paused || queueControlRef.current.cancelled) {
+          break
+        } else {
+          queuePendingRef.current = queuePendingRef.current.slice(1)
+        }
+      } catch (err) {
+        if (queueControlRef.current.paused || queueControlRef.current.cancelled) break
+        setQueueState(prev => ({
+          ...prev,
+          status: 'error',
+          error: err instanceof Error ? err.message : 'Account analysis stopped on this game.',
+        }))
+        return
+      }
+    }
+
+    if (queueControlRef.current.cancelled) {
+      queuePendingRef.current = []
+      setQueueState(prev => ({ ...prev, status: 'idle', currentGame: null, currentMove: 0, totalMoves: 0 }))
+      return
+    }
+    if (queueControlRef.current.paused) {
+      setQueueState(prev => ({ ...prev, status: 'paused' }))
+      return
+    }
+
+    setQueueState(prev => ({
+      ...prev,
+      status: 'idle',
+      currentGame: null,
+      currentMove: 0,
+      totalMoves: 0,
+    }))
+  }, [analyzeQueuedGame, ensureQueueEngine, mergeCompletedAnalysis])
+
+  const startAnalysisQueue = useCallback((limit: number | 'all') => {
+    if (!summary || queueState.status === 'running' || queueState.status === 'initializing') return
+    const batch = selectAnalysisBatch(summary.scannedGames, loaded.analyzed, limit)
+    queuePendingRef.current = batch
+    void runPendingQueue(batch.length, 0)
+  }, [loaded.analyzed, queueState.status, runPendingQueue, summary])
+
+  const pauseAnalysisQueue = useCallback(() => {
+    if (queueState.status !== 'running' && queueState.status !== 'initializing') return
+    queueControlRef.current.paused = true
+    queueAbortRef.current?.abort()
+    queueEngineRef.current?.stop()
+    setQueueState(prev => ({ ...prev, status: 'paused' }))
+  }, [queueState.status])
+
+  const resumeAnalysisQueue = useCallback(() => {
+    if (queueState.status !== 'paused') return
+    void runPendingQueue(queueState.total, queueState.completed)
+  }, [queueState.completed, queueState.status, queueState.total, runPendingQueue])
+
+  const cancelAnalysisQueue = useCallback(() => {
+    queueControlRef.current.cancelled = true
+    queueAbortRef.current?.abort()
+    queueEngineRef.current?.stop()
+    queuePendingRef.current = []
+    setQueueState(prev => ({ ...prev, status: 'idle', currentGame: null, currentMove: 0, totalMoves: 0 }))
+  }, [])
 
   const refreshReport = useCallback(async () => {
     const currentIdentity = getIdentity()
@@ -145,15 +455,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
       ])
 
       const nextLoaded = { chesscom, lichess, analyzed }
-      const nextSummary = buildAccountAnalysis({
-        chesscomGames: chesscom,
-        chesscomUsername: currentIdentity.chesscom,
-        lichessGames: lichess,
-        lichessUsername: currentIdentity.lichess,
-        analyzedGames: analyzed,
-        gameCount,
-        platform,
-      })
+      const nextSummary = rebuildSummary(nextLoaded, currentIdentity)
 
       setLoaded(nextLoaded)
       setSummary(nextSummary)
@@ -163,10 +465,16 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     } finally {
       setLoading(false)
     }
-  }, [gameCount, platform])
+  }, [gameCount, platform, rebuildSummary])
 
   useEffect(() => {
     setIdentityVersion(v => v + 1)
+  }, [])
+
+  useEffect(() => () => {
+    queueControlRef.current.cancelled = true
+    queueAbortRef.current?.abort()
+    queueEngineRef.current?.terminate()
   }, [])
 
   void identityVersion
@@ -254,19 +562,19 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
         <>
           <section className="account-analysis-summary-grid">
             <div className="account-analysis-stat">
-              <span>Scanned</span>
+              <span>Games scanned for openings</span>
               <strong>{summary.scannedGames.length}</strong>
               <small>of {summary.requestedGameCount} requested</small>
             </div>
             <div className="account-analysis-stat">
-              <span>Reviewed</span>
+              <span>Games analyzed for weaknesses</span>
               <strong>{summary.analyzedGameCount}</strong>
-              <small>with DeepMove weakness data</small>
+              <small>{summary.weaknessCoveragePct}% coverage</small>
             </div>
             <div className="account-analysis-stat">
-              <span>Fetched</span>
+              <span>Games found in account</span>
               <strong>{filteredSourceCount}</strong>
-              <small>available before final recency slice</small>
+              <small>using latest {summary.scannedGames.length}</small>
             </div>
             <div className="account-analysis-stat account-analysis-stat--wide">
               <span>Date range</span>
@@ -275,15 +583,88 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
             </div>
           </section>
 
+          <section className={`account-analysis-coverage account-analysis-coverage--${summary.weaknessConfidence}`}>
+            <div>
+              <span>{formatConfidence(summary.weaknessConfidence)}</span>
+              <strong>{summary.analyzedGameCount} / {summary.scannedGames.length} games analyzed for weaknesses</strong>
+              <p>
+                Opening trends are based on the latest fetched games. Reviewed weaknesses only use games that have completed DeepMove engine analysis.
+              </p>
+              <div className="account-analysis-meter" aria-hidden="true">
+                <div style={{ width: `${Math.min(100, summary.weaknessCoveragePct)}%` }} />
+              </div>
+            </div>
+            {missingGames.length > 0 && (
+              <div className="account-analysis-queue-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => startAnalysisQueue(10)}
+                  disabled={queueState.status === 'running' || queueState.status === 'initializing'}
+                >
+                  Analyze 10
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => startAnalysisQueue('all')}
+                  disabled={queueState.status === 'running' || queueState.status === 'initializing'}
+                >
+                  Analyze all missing
+                </button>
+              </div>
+            )}
+          </section>
+
+          {(queueState.status !== 'idle' || queueState.completed > 0 || queueState.error) && (
+            <section className="account-analysis-queue">
+              <div>
+                <span>Analysis Queue</span>
+                <strong>
+                  {queueState.status === 'initializing'
+                    ? 'Starting Stockfish...'
+                    : queueState.status === 'paused'
+                      ? 'Paused'
+                      : queueState.status === 'error'
+                        ? 'Needs attention'
+                        : queueState.status === 'running'
+                          ? `Analyzing ${queueState.completed + 1} of ${queueState.total}`
+                          : `Finished ${queueState.completed} game${queueState.completed === 1 ? '' : 's'}`}
+                </strong>
+                {queueState.currentGame && <p>{queueState.currentGame}</p>}
+                {queueState.status === 'running' && queueState.totalMoves > 0 && (
+                  <small>Move {queueState.currentMove} / {queueState.totalMoves}</small>
+                )}
+                {queueState.error && <p className="account-analysis-queue__error">{queueState.error}</p>}
+              </div>
+              <div className="account-analysis-queue-actions">
+                {queueState.status === 'running' || queueState.status === 'initializing' ? (
+                  <button type="button" className="btn btn-secondary" onClick={pauseAnalysisQueue}>Pause</button>
+                ) : null}
+                {queueState.status === 'paused' ? (
+                  <button type="button" className="btn btn-primary" onClick={resumeAnalysisQueue}>Resume</button>
+                ) : null}
+                {queueState.status === 'running' || queueState.status === 'initializing' || queueState.status === 'paused' ? (
+                  <button type="button" className="btn btn-secondary" onClick={cancelAnalysisQueue}>Cancel</button>
+                ) : null}
+              </div>
+            </section>
+          )}
+
+          <section className="account-analysis-section-heading">
+            <span>Opening Trends</span>
+            <h2>Fast scan from your latest {summary.scannedGames.length} fetched games</h2>
+          </section>
+
           <div className="account-analysis-grid">
-            <OpeningTable title="White" openings={summary.openingsByColor.white} />
-            <OpeningTable title="Black" openings={summary.openingsByColor.black} />
+            <OpeningTable title="Your games as White" openings={summary.openingsByColor.white} />
+            <OpeningTable title="Your games as Black" openings={summary.openingsByColor.black} />
           </div>
 
           <section className="account-analysis-card">
             <div className="account-analysis-card__header">
-              <h2>Recurring Weaknesses</h2>
-              <span>{summary.analyzedGameCount} reviewed game{summary.analyzedGameCount === 1 ? '' : 's'}</span>
+              <h2>Reviewed Weaknesses</h2>
+              <span>{summary.weaknesses.reduce((sum, weakness) => sum + weakness.count, 0)} critical moments across {summary.analyzedGameCount} analyzed game{summary.analyzedGameCount === 1 ? '' : 's'}</span>
             </div>
             {summary.weaknesses.length > 0 ? (
               <div className="account-weakness-list">

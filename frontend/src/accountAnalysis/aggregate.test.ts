@@ -57,6 +57,7 @@ function lichessGame(
 function analyzedRecord(
   id: string,
   category: 'hung_piece' | 'ignored_threat',
+  partial = false,
 ): AnalyzedGameRecord {
   return {
     id,
@@ -98,6 +99,7 @@ function analyzedRecord(
     timeControl: '10 min',
     endTime: 1,
     backendGameId: null,
+    partial,
   }
 }
 
@@ -175,6 +177,8 @@ describe('account analysis aggregation', () => {
     })
 
     expect(summary.analyzedGameCount).toBe(1)
+    expect(summary.weaknessCoveragePct).toBe(100)
+    expect(summary.weaknessConfidence).toBe('high')
     expect(summary.weaknesses).toHaveLength(1)
     expect(summary.weaknesses[0]).toMatchObject({
       category: 'hung_piece',
@@ -192,5 +196,70 @@ describe('account analysis aggregation', () => {
     })
 
     expect(summary.takeaways.some(takeaway => takeaway.includes('weakness takeaways need more DeepMove-reviewed games'))).toBe(true)
+  })
+
+  it('reports low weakness confidence when few scanned games have completed analysis', () => {
+    const summary = buildAccountAnalysis({
+      chesscomUsername: 'me',
+      chesscomGames: Array.from({ length: 10 }, (_, index) =>
+        chesscomGame(`g${index}`, ITALIAN_PGN, 300 - index, 'me', 'them', 'win', 'resigned')
+      ),
+      analyzedGames: [analyzedRecord('https://www.chess.com/game/live/g0', 'hung_piece')],
+      gameCount: 10,
+    })
+
+    expect(summary.analyzedGameCount).toBe(1)
+    expect(summary.weaknessCoveragePct).toBe(10)
+    expect(summary.weaknessConfidence).toBe('low')
+  })
+
+  it('uses watchlist language instead of recurring weakness for openings below 5 games', () => {
+    const summary = buildAccountAnalysis({
+      chesscomUsername: 'me',
+      chesscomGames: [
+        chesscomGame('a', FRENCH_PGN, 300, 'me', 'them', 'resigned', 'win'),
+        chesscomGame('b', FRENCH_PGN, 299, 'me', 'them', 'resigned', 'win'),
+        chesscomGame('c', FRENCH_PGN, 298, 'me', 'them', 'win', 'resigned'),
+      ],
+      gameCount: 10,
+    })
+
+    expect(summary.takeaways.some(takeaway => takeaway.includes('White watchlist'))).toBe(true)
+    expect(summary.takeaways.some(takeaway => takeaway.includes('lowest-scoring repeated opening'))).toBe(false)
+  })
+
+  it('does not reference openings outside the visible top-six table rows in takeaways', () => {
+    const pgns = [
+      ITALIAN_PGN,
+      SICILIAN_PGN,
+      FRENCH_PGN,
+      LONDON_PGN,
+      '[White "me"][Black "them"][Result "1-0"] 1. c4 e5 2. Nc3 Nc6 1-0',
+      '[White "me"][Black "them"][Result "1-0"] 1. Nf3 d5 2. g3 Nf6 1-0',
+      '[White "me"][Black "them"][Result "0-1"] 1. b3 e5 2. Bb2 Nc6 0-1',
+    ]
+    const chesscomGames = pgns.flatMap((pgn, pgnIndex) =>
+      Array.from({ length: 5 }, (_, copyIndex) =>
+        chesscomGame(
+          `o${pgnIndex}-${copyIndex}`,
+          pgn,
+          1000 - (pgnIndex * 10 + copyIndex),
+          'me',
+          'them',
+          pgnIndex === 6 ? 'resigned' : 'win',
+          pgnIndex === 6 ? 'win' : 'resigned',
+        )
+      )
+    )
+
+    const summary = buildAccountAnalysis({
+      chesscomUsername: 'me',
+      chesscomGames,
+      gameCount: 35,
+    })
+    const hiddenOpening = summary.openingsByColor.white[6]?.opening
+
+    expect(hiddenOpening).toBeTruthy()
+    expect(summary.takeaways.some(takeaway => hiddenOpening && takeaway.includes(hiddenOpening))).toBe(false)
   })
 })
