@@ -217,9 +217,16 @@ export default function AccountLink({
     if (autoLoadAttemptedRef.current) return
     const savedUsername = getStoredUsername(platform).trim()
     if (!savedUsername) return
+    const cached = restoreCachedGames ? getGameListCache(platform, savedUsername) : null
+
+    if (cached) {
+      if (loadedUser?.toLowerCase() !== savedUsername.toLowerCase()) return
+      if (!onGamesAppended || newestEndTime == null) return
+    }
+
     autoLoadAttemptedRef.current = true
     void fetchGames(savedUsername)
-  }, [platform, fetchGames])
+  }, [platform, fetchGames, loadedUser, newestEndTime, onGamesAppended, restoreCachedGames])
 
   useEffect(() => {
     setHistory(getHistory(platform))

@@ -77,6 +77,47 @@ describe('AccountLink', () => {
     })
   })
 
+  it('uses delta reload after restoring cached chess.com games', async () => {
+    const cachedGames = [{
+      url: 'https://www.chess.com/game/live/1',
+      pgn: '1. e4 e5',
+      time_control: '600',
+      end_time: 1700000000,
+      rated: true,
+      white: { username: 'moosetheman123', rating: 1500, result: 'win' },
+      black: { username: 'opponent', rating: 1490, result: 'resigned' },
+    }]
+
+    localStorage.setItem('deepmove_chesscom_username', 'moosetheman123')
+    localStorage.setItem('deepmove_gamelist_chesscom_moosetheman123', JSON.stringify({
+      games: cachedGames,
+      pagination: {
+        platform: 'chesscom',
+        fetchedArchives: ['archive-1'],
+        allArchives: ['archive-1', 'archive-2'],
+        hasMore: true,
+      },
+      fetchedAt: Date.now(),
+    }))
+
+    mocks.getNewGames.mockResolvedValue([])
+
+    render(
+      <AccountLink
+        platform="chesscom"
+        onGamesLoaded={() => {}}
+        onGamesAppended={() => {}}
+        newestEndTime={1700000000}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.getNewGames).toHaveBeenCalledWith('moosetheman123', 1700000000)
+    })
+
+    expect(mocks.getRecentGames).not.toHaveBeenCalled()
+  })
+
   it('starts read-only to discourage Safari autofill and unlocks on focus', () => {
     localStorage.setItem('deepmove_chesscom_username', 'moosetheman123')
 
