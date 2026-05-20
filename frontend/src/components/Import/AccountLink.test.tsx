@@ -152,7 +152,7 @@ describe('AccountLink', () => {
     expect(input).toHaveValue('moosetheman123')
   })
 
-  it('can keep the mobile loader blank even when a saved username exists', async () => {
+  it('starts blank before the saved account auto-load fills the username', async () => {
     mocks.getRecentGames.mockResolvedValue({
       games: [],
       fetchedArchives: [],
@@ -169,10 +169,12 @@ describe('AccountLink', () => {
       />
     )
 
+    expect(screen.getByPlaceholderText('Chess.com username')).toHaveValue('')
+
     await waitFor(() => {
       expect(mocks.getRecentGames).toHaveBeenCalledWith('moosetheman123')
     })
-    expect(screen.getByPlaceholderText('Chess.com username')).toHaveValue('')
+    expect(screen.getByPlaceholderText('Chess.com username')).toHaveValue('moosetheman123')
   })
 
   it('persists the searched username immediately after a successful fetch', async () => {
