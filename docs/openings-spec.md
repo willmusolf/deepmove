@@ -1,6 +1,8 @@
 # DeepMove Openings / Repertoire Trainer Spec
 
-Extracted from TODO.md. This is the full product spec for the Practice > Openings feature.
+Planning doc for the deferred Practice > Openings feature. The app currently
+keeps Practice hidden behind a non-live shell even though partial prototype work
+exists in the repo.
 
 ---
 

@@ -1,6 +1,7 @@
 # DeepMove Responsive Layout Spec
 
-Extracted from TODO.md — build to this spec, not vibes.
+Working spec for the remaining responsive polish pass. Core responsive work is
+already in the product; use this doc for the unfinished cleanup before launch.
 
 ## Breakpoints
 

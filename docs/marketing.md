@@ -1,6 +1,7 @@
 # DeepMove Marketing, Launch & Monetization
 
-Extracted from TODO.md.
+Planning doc for post-cleanup launch work. Do not treat every item here as an
+active pre-launch commitment.
 
 ---
 
@@ -60,6 +61,10 @@ Extracted from TODO.md.
 ---
 
 ## Launch Sequence
+
+Precondition for any public push: repo/setup verification is green, launch copy
+is truthful, and manual coaching QA on real games is good enough to show to
+strangers.
 
 - [ ] Soft launch in chess Discord servers for beta feedback
 - [ ] r/chess post (expect removal — doesn't matter, gets picked up externally)

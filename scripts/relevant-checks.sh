@@ -58,8 +58,14 @@ fi
 
 if [[ $needs_frontend -eq 1 ]]; then
   echo "==> Frontend checks"
-  if [[ -f frontend/.nvmrc ]]; then
-    required_node="$(tr -d '[:space:]' < frontend/.nvmrc)"
+  node_version_file=""
+  if [[ -f .nvmrc ]]; then
+    node_version_file=".nvmrc"
+  elif [[ -f frontend/.nvmrc ]]; then
+    node_version_file="frontend/.nvmrc"
+  fi
+  if [[ -n "$node_version_file" ]]; then
+    required_node="$(tr -d '[:space:]' < "$node_version_file")"
     current_node="$(node -v 2>/dev/null || true)"
     if [[ "$current_node" != "v$required_node" ]]; then
       if [[ -s "${HOME}/.nvm/nvm.sh" ]]; then
@@ -74,8 +80,8 @@ if [[ $needs_frontend -eq 1 ]]; then
     fi
   fi
   if [[ ! -d frontend/node_modules ]]; then
-    echo "Installing frontend dependencies with npm ci..."
-    (cd frontend && npm ci)
+    echo "Installing frontend dependencies with npm ci --include=optional..."
+    (cd frontend && npm ci --include=optional)
   fi
   (cd frontend && npm run lint)
   (cd frontend && npm run typecheck)
