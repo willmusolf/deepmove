@@ -1442,7 +1442,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .account-analysis-empty,
 .account-analysis-error,
 .account-analysis-coverage,
-.account-analysis-queue {
+.account-analysis-queue,
+.account-coach-brief {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
@@ -1609,6 +1610,131 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   margin: -0.35rem 0 1rem;
 }
 
+.account-coach-brief {
+  display: grid;
+  gap: 1rem;
+  padding: 1.15rem;
+  margin-bottom: 1rem;
+  border-color: color-mix(in srgb, var(--color-border) 65%, var(--color-accent));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 8%, var(--color-surface)), var(--color-surface));
+}
+
+.account-coach-brief__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.account-coach-brief__header span,
+.account-coach-brief__grid span,
+.account-evidence-moments__title span {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-coach-brief__header h3 {
+  margin: 0.2rem 0 0;
+  color: var(--color-text);
+  font-size: 1.3rem;
+  line-height: 1.18;
+}
+
+.account-coach-brief__header em {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+  border-radius: 999px;
+  color: var(--color-text);
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.account-coach-brief__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.account-coach-brief__grid div {
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-bg) 26%, transparent);
+}
+
+.account-coach-brief__grid p {
+  margin: 0.35rem 0 0;
+  color: var(--color-text);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.account-evidence-moments {
+  display: grid;
+  gap: 0.65rem;
+  padding-top: 0.15rem;
+}
+
+.account-evidence-moments__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.account-evidence-moments__title strong {
+  color: var(--color-text);
+  font-size: 0.98rem;
+}
+
+.account-evidence-moments__title span {
+  text-align: right;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.account-evidence-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-bg) 34%, transparent);
+}
+
+.account-evidence-row strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 0.92rem;
+}
+
+.account-evidence-row span {
+  display: block;
+  margin-top: 0.22rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.account-coach-brief__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
 .account-analysis-card {
   padding: 1.1rem;
   margin-bottom: 1rem;
@@ -1692,6 +1818,45 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 10%, transparent);
 }
 
+.account-pattern-evidence {
+  padding: 0;
+}
+
+.account-pattern-evidence summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.account-pattern-evidence summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-pattern-evidence summary span {
+  color: var(--color-text);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.account-pattern-evidence summary em {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.account-pattern-evidence .account-weakness-list,
+.account-pattern-evidence .account-analysis-empty-copy {
+  padding: 0 1.1rem 1.1rem;
+}
+
 .account-analysis-takeaways ol {
   display: grid;
   gap: 0.65rem;
@@ -1737,9 +1902,24 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   .account-analysis-hero,
   .account-analysis-grid,
   .account-insight-grid,
+  .account-coach-brief__grid,
   .account-analysis-coverage,
   .account-analysis-queue {
     grid-template-columns: 1fr;
+  }
+
+  .account-coach-brief__header,
+  .account-evidence-moments__title,
+  .account-evidence-row,
+  .account-pattern-evidence summary {
+    align-items: flex-start;
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .account-evidence-moments__title span,
+  .account-pattern-evidence summary em {
+    text-align: left;
   }
 
   .account-analysis-queue-actions {

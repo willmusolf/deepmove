@@ -59,6 +59,7 @@ function analyzedRecord(
   id: string,
   category: MistakeCategory,
   partial = false,
+  options: { moveNumber?: number; movePlayed?: string; evalSwing?: number } = {},
 ): AnalyzedGameRecord {
   return {
     id,
@@ -70,15 +71,15 @@ function analyzedRecord(
     userElo: 1200,
     moveEvals: [],
     criticalMoments: [{
-      moveNumber: 4,
+      moveNumber: options.moveNumber ?? 4,
       color: 'white',
       fen: '',
       fenAfter: '',
-      movePlayed: 'Bc4',
+      movePlayed: options.movePlayed ?? 'Bc4',
       engineBest: [],
       evalBefore: 0,
       evalAfter: -200,
-      evalSwing: 200,
+      evalSwing: options.evalSwing ?? 200,
       features: {} as AnalyzedGameRecord['criticalMoments'][number]['features'],
       classification: null,
       analysisFacts: {
@@ -101,6 +102,13 @@ function analyzedRecord(
     endTime: 1,
     backendGameId: null,
     partial,
+  }
+}
+
+function analyzedRecordWithoutMoments(id: string): AnalyzedGameRecord {
+  return {
+    ...analyzedRecord(id, 'unknown'),
+    criticalMoments: [],
   }
 }
 
@@ -338,5 +346,149 @@ describe('account analysis aggregation', () => {
       title: 'The mistakes are still mixed',
     })
     expect(summary.topInsights[0].action).not.toContain('general check')
+  })
+
+  it('uses a specific coach brief theme even when general mistakes have the highest count', () => {
+    const games = Array.from({ length: 15 }, (_, index) =>
+      chesscomGame(`theme-${index}`, ITALIAN_PGN, 900 - index, 'me', 'them', 'win', 'resigned')
+    )
+    const analyzedGames = [
+      ...games.slice(0, 12).map(game => analyzedRecord(game.url, 'unknown')),
+      ...games.slice(12).map((game, index) =>
+        analyzedRecord(game.url, 'missed_tactic', false, {
+          moveNumber: 12 + index,
+          movePlayed: index === 0 ? 'Qd2' : 'Re1',
+          evalSwing: 420 - index * 30,
+        })
+      ),
+    ]
+
+    const summary = buildAccountAnalysis({
+      chesscomUsername: 'me',
+      chesscomGames: games,
+      analyzedGames,
+      gameCount: 15,
+    })
+
+    expect(summary.weaknesses[0]).toMatchObject({ category: 'unknown', count: 12 })
+    expect(summary.coachBrief).toMatchObject({
+      primaryCategory: 'missed_tactic',
+      title: 'Missed Tactic is the review focus',
+    })
+    expect(summary.coachBrief.evidence).toContain('3 missed tactic moments')
+  })
+
+  it('frames only-general coach briefs as unclear classifier signal', () => {
+    const games = Array.from({ length: 10 }, (_, index) =>
+      chesscomGame(`general-${index}`, ITALIAN_PGN, 800 - index, 'me', 'them', 'win', 'resigned')
+    )
+
+    const summary = buildAccountAnalysis({
+      chesscomUsername: 'me',
+      chesscomGames: games,
+      analyzedGames: games.map(game => analyzedRecord(game.url, 'unknown')),
+      gameCount: 10,
+    })
+
+    expect(summary.coachBrief).toMatchObject({
+      primaryCategory: 'unknown',
+      title: 'Critical moments need a clearer label',
+      finding: 'DeepMove found critical moments, but not a clean theme yet.',
+    })
+    expect(summary.coachBrief.evidence).toContain('uncategorized critical moments')
+  })
+
+  it('includes the strongest evidence moments for the selected coach theme', () => {
+    const games = Array.from({ length: 10 }, (_, index) =>
+      chesscomGame(`evidence-${index}`, ITALIAN_PGN, 1000 - index, 'me', 'them', 'win', 'resigned')
+    )
+    const analyzedGames = games.map((game, index) =>
+      analyzedRecord(game.url, index < 3 ? 'hung_piece' : 'ignored_threat', false, {
+        moveNumber: 8 + index,
+        movePlayed: index < 3 ? 'Nd5' : 'h3',
+        evalSwing: 180 + index * 50,
+      })
+    )
+
+    const summary = buildAccountAnalysis({
+      chesscomUsername: 'me',
+      chesscomGames: games,
+      analyzedGames,
+      gameCount: 10,
+    })
+
+    expect(summary.coachBrief.primaryCategory).toBe('ignored_threat')
+    expect(summary.coachBrief.exampleMoments).toHaveLength(3)
+    expect(summary.coachBrief.exampleMoments.map(moment => moment.category)).toEqual([
+      'ignored_threat',
+      'ignored_threat',
+      'ignored_threat',
+    ])
+    expect(summary.coachBrief.exampleMoments[0]).toMatchObject({
+      gameId: 'https://www.chess.com/game/live/evidence-9',
+      moveNumber: 17,
+      movePlayed: 'h3',
+      evalSwing: 630,
+      opening: 'Italian Game: Giuoco Piano',
+    })
+  })
+
+  it('uses cautious coach confidence language for a 25-game sample', () => {
+    const games = Array.from({ length: 25 }, (_, index) =>
+      chesscomGame(`sample-${index}`, ITALIAN_PGN, 1100 - index, 'me', 'them', 'win', 'resigned')
+    )
+
+    const summary = buildAccountAnalysis({
+      chesscomUsername: 'me',
+      chesscomGames: games,
+      analyzedGames: games.map(game => analyzedRecord(game.url, 'missed_tactic')),
+      gameCount: 25,
+    })
+
+    expect(summary.coachBrief.confidenceLabel).toBe('Recent sample')
+    expect(summary.coachBrief.nextAction).toContain('Open the evidence games')
+  })
+
+  it('does not make a poor opening the coach focus before five games', () => {
+    const poorOpeningGames = Array.from({ length: 4 }, (_, index) =>
+      chesscomGame(`short-french-${index}`, FRENCH_PGN, 700 - index, 'me', 'them', 'resigned', 'win')
+    )
+    const otherGames = Array.from({ length: 6 }, (_, index) =>
+      chesscomGame(`short-other-${index}`, ITALIAN_PGN, 600 - index, 'me', 'them', 'win', 'resigned')
+    )
+    const games = [...poorOpeningGames, ...otherGames]
+
+    const summary = buildAccountAnalysis({
+      chesscomUsername: 'me',
+      chesscomGames: games,
+      analyzedGames: games.map(game => analyzedRecordWithoutMoments(game.url)),
+      gameCount: 10,
+    })
+
+    expect(summary.coachBrief.kind).not.toBe('opening')
+    expect(summary.coachBrief.title).not.toContain('French')
+  })
+
+  it('allows an opening coach focus once the poor line is recurring', () => {
+    const poorOpeningGames = Array.from({ length: 5 }, (_, index) =>
+      chesscomGame(`recurring-french-${index}`, FRENCH_PGN, 700 - index, 'me', 'them', 'resigned', 'win')
+    )
+    const otherGames = Array.from({ length: 5 }, (_, index) =>
+      chesscomGame(`recurring-other-${index}`, ITALIAN_PGN, 600 - index, 'me', 'them', 'win', 'resigned')
+    )
+    const games = [...poorOpeningGames, ...otherGames]
+
+    const summary = buildAccountAnalysis({
+      chesscomUsername: 'me',
+      chesscomGames: games,
+      analyzedGames: games.map(game => analyzedRecordWithoutMoments(game.url)),
+      gameCount: 10,
+    })
+
+    expect(summary.coachBrief).toMatchObject({
+      kind: 'opening',
+      title: 'French Defense: Classical Variation is the line to review',
+    })
+    expect(summary.coachBrief.whyItMatters).toContain('Opening results are not engine-reviewed mistakes')
   })
 })

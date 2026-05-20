@@ -4,9 +4,9 @@ import { getRecentGames, loadMoreGames, type ChessComGame } from '../../api/ches
 import { getUserGames, type LichessGame } from '../../api/lichess'
 import {
   buildAccountAnalysis,
+  type AccountAnalysisEvidenceMoment,
   type AccountAnalysisPlatform,
   type AccountAnalysisSummary,
-  type AccountInsight,
   type OpeningStats,
   type ScannedAccountGame,
 } from '../../accountAnalysis/aggregate'
@@ -19,6 +19,7 @@ import { getAnalyzedGame, getCachedGamesForUser, saveAnalyzedGame, type Analyzed
 import { getIdentity } from '../../services/identity'
 import { pushGame } from '../../services/syncService'
 import { useAuthStore } from '../../stores/authStore'
+import { useGameStore } from '../../stores/gameStore'
 import type { CriticalMoment } from '../../chess/types'
 
 interface AccountAnalysisPageProps {
@@ -63,24 +64,30 @@ function formatRecord(opening: OpeningStats): string {
   return `${opening.wins}-${opening.losses}-${opening.draws}`
 }
 
-function formatConfidence(confidence: AccountAnalysisSummary['weaknessConfidence']): string {
+function formatCoverage(confidence: AccountAnalysisSummary['weaknessConfidence']): string {
   switch (confidence) {
-    case 'high': return 'High confidence'
-    case 'medium': return 'Medium confidence'
-    case 'low': return 'Low confidence'
-    default: return 'No weakness data yet'
+    case 'high': return 'Coverage complete'
+    case 'medium': return 'Coverage in progress'
+    case 'low': return 'Coverage started'
+    default: return 'No engine-reviewed games yet'
   }
 }
 
-function insightLabel(kind: AccountInsight['kind']): string {
-  switch (kind) {
-    case 'weakness': return 'Recurring weakness'
-    case 'opening': return 'Opening pattern'
-    case 'color': return 'Color imbalance'
-    case 'watchlist': return 'Watchlist'
-    case 'strength': return 'Strength'
-    default: return 'Building signal'
-  }
+function openingSampleLabel(opening: OpeningStats): string {
+  if (opening.games === 1) return '1 game'
+  if (opening.games < 5) return `${opening.games} games - early signal`
+  return `${opening.games} games - recurring`
+}
+
+function formatResult(result: 'W' | 'L' | 'D'): string {
+  if (result === 'W') return 'Win'
+  if (result === 'L') return 'Loss'
+  return 'Draw'
+}
+
+function formatEvalSwing(cp: number): string {
+  if (cp >= 100) return `${(cp / 100).toFixed(1)} pawn swing`
+  return `${cp} cp swing`
 }
 
 async function fetchChessComGames(username: string, targetCount: number): Promise<ChessComGame[]> {
@@ -133,7 +140,7 @@ function OpeningTable({ title, openings, expanded }: { title: string; openings: 
             <div className="account-opening-row" key={`${opening.color}:${opening.opening}`}>
               <div>
                 <strong>{opening.opening}</strong>
-                <span>{opening.games} game{opening.games === 1 ? '' : 's'} played</span>
+                <span>{openingSampleLabel(opening)}</span>
               </div>
               <div className="account-opening-row__score">
                 <strong>{opening.scorePct}%</strong>
@@ -227,13 +234,13 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
         ? !!identity.chesscom
         : !!identity.lichess
 
-  const rebuildSummary = useCallback((nextLoaded: LoadedAccountGames, currentIdentity = getIdentity()) => buildAccountAnalysis({
+  const rebuildSummary = useCallback((nextLoaded: LoadedAccountGames, currentIdentity = getIdentity(), targetGameCount = gameCount) => buildAccountAnalysis({
     chesscomGames: nextLoaded.chesscom,
     chesscomUsername: currentIdentity.chesscom,
     lichessGames: nextLoaded.lichess,
     lichessUsername: currentIdentity.lichess,
     analyzedGames: nextLoaded.analyzed,
-    gameCount,
+    gameCount: targetGameCount,
     platform,
   }), [gameCount, platform])
 
@@ -415,8 +422,8 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     }))
   }, [analyzeQueuedGame, ensureQueueEngine, mergeCompletedAnalysis])
 
-  const queueSelectedGames = useCallback((nextSummary: AccountAnalysisSummary, nextLoaded: LoadedAccountGames) => {
-    const targetComplete = Math.min(gameCount, nextSummary.scannedGames.length)
+  const queueSelectedGames = useCallback((nextSummary: AccountAnalysisSummary, nextLoaded: LoadedAccountGames, targetGameCount = gameCount) => {
+    const targetComplete = Math.min(targetGameCount, nextSummary.scannedGames.length)
     const needed = Math.max(0, targetComplete - nextSummary.analyzedGameCount)
     if (needed === 0) return
 
@@ -447,7 +454,44 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     setQueueState(prev => ({ ...prev, status: 'idle', currentGame: null, currentMove: 0, totalMoves: 0 }))
   }, [])
 
-  const analyzeRecentGames = useCallback(async () => {
+  const openEvidenceMoment = useCallback(async (moment: AccountAnalysisEvidenceMoment) => {
+    const record = await getAnalyzedGame(moment.gameId)
+    if (!record) {
+      setError('Could not find that analyzed game in this browser. Re-run Insights to refresh the local cache.')
+      return
+    }
+
+    const store = useGameStore.getState()
+    store.reset()
+    store.setCurrentGameId(record.id)
+    store.setCurrentGameMeta({
+      opponent: record.opponent,
+      opponentRating: record.opponentRating,
+      result: record.result,
+      timeControl: record.timeControl,
+      endTime: record.endTime,
+    })
+    store.setUserColor(record.userColor)
+    if (record.userElo && record.userElo > 0) store.setUserElo(record.userElo)
+    store.setPlatform(record.platform === 'chesscom' || record.platform === 'lichess' ? record.platform : null)
+    store.setBackendGameId(record.backendGameId ?? null)
+    store.setRawPgn(record.rawPgn)
+    store.setLoadedPgn(record.rawPgn)
+    store.setPgn(record.cleanedPgn || cleanPgn(record.rawPgn))
+    store.setMoveEvals(record.moveEvals)
+    if (record.partial) {
+      store.setResumeFromIndex(record.moveEvals.length)
+      store.setSkipNextAnalysis(false)
+    } else {
+      store.setCriticalMoments(record.criticalMoments)
+      store.setResumeFromIndex(0)
+      store.setSkipNextAnalysis(true)
+    }
+    store.bumpLoadRequestId()
+    onOpenReview?.()
+  }, [onOpenReview])
+
+  const analyzeRecentGames = useCallback(async (targetGameCount = gameCount) => {
     const currentIdentity = getIdentity()
     setIdentityVersion(v => v + 1)
     if (!currentIdentity.chesscom && !currentIdentity.lichess) {
@@ -461,19 +505,19 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     try {
       const [chesscom, lichess, analyzed] = await Promise.all([
         platform !== 'lichess' && currentIdentity.chesscom
-          ? fetchChessComGames(currentIdentity.chesscom, gameCount)
+          ? fetchChessComGames(currentIdentity.chesscom, targetGameCount)
           : Promise.resolve([]),
         platform !== 'chesscom' && currentIdentity.lichess
-          ? getUserGames(currentIdentity.lichess, gameCount).then(result => result.games)
+          ? getUserGames(currentIdentity.lichess, targetGameCount).then(result => result.games)
           : Promise.resolve([]),
         loadAnalyzedGames(currentIdentity, platform),
       ])
 
       const nextLoaded = { chesscom, lichess, analyzed }
-      const nextSummary = rebuildSummary(nextLoaded, currentIdentity)
+      const nextSummary = rebuildSummary(nextLoaded, currentIdentity, targetGameCount)
       setLoaded(nextLoaded)
       setSummary(nextSummary)
-      queueSelectedGames(nextSummary, nextLoaded)
+      queueSelectedGames(nextSummary, nextLoaded, targetGameCount)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not start Insights analysis right now.')
     } finally {
@@ -497,6 +541,8 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
   const selectedAnalysisTarget = summary ? Math.min(gameCount, summary.scannedGames.length) : gameCount
   const hasReliableSignal = !!summary && summary.analyzedGameCount >= Math.min(10, selectedAnalysisTarget)
   const canAnalyzeRemainingSelected = !!summary && missingGames.length > 0 && summary.analyzedGameCount < selectedAnalysisTarget && !queueActive
+  const selectedAnalysisComplete = !!summary && selectedAnalysisTarget > 0 && summary.analyzedGameCount >= selectedAnalysisTarget
+  const canOfferNextBatch = !!summary && selectedAnalysisComplete && gameCount === 25 && !queueActive
   const showQueue = queueState.status === 'running' ||
     queueState.status === 'initializing' ||
     queueState.status === 'paused' ||
@@ -509,8 +555,8 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           <p className="account-analysis-kicker">Insights</p>
           <h1>Analyze your recent games.</h1>
           <p>
-            Choose how many recent games DeepMove should review. It runs Stockfish in your browser,
-            so bigger batches take longer but give the report better signal.
+            Choose how many recent games DeepMove should review. Analysis runs privately in this
+            browser tab; larger batches take longer, and you can pause anytime.
           </p>
         </div>
         <div className="account-analysis-controls" aria-label="Account analysis controls">
@@ -539,7 +585,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
             {loading ? 'Loading games...' : queueState.status === 'paused' ? 'Paused' : queueBusy ? 'Analyzing...' : `Analyze ${gameCount} games`}
           </button>
           <p className="account-analysis-controls__note">
-            Expected: {gameCount} games can take several minutes. You can pause anytime.
+            {gameCount} games can take several minutes. Cached games are reused automatically.
           </p>
         </div>
       </section>
@@ -573,7 +619,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
         <>
           <section className={`account-analysis-coverage account-analysis-coverage--${summary.weaknessConfidence}`}>
             <div>
-              <span>{hasReliableSignal ? formatConfidence(summary.weaknessConfidence) : 'Building signal'}</span>
+              <span>{hasReliableSignal ? formatCoverage(summary.weaknessConfidence) : 'Building signal'}</span>
               <strong>{summary.analyzedGameCount} / {selectedAnalysisTarget} selected games analyzed</strong>
               <p>
                 Using the latest {summary.scannedGames.length} games from {formatDateRange(summary)}.
@@ -615,7 +661,10 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
                 {queueState.status === 'running' && queueState.totalMoves > 0 && (
                   <small>Move {queueState.currentMove} / {queueState.totalMoves}</small>
                 )}
-                <p>Stockfish is running locally in this browser tab. It may use noticeable CPU while analysis is active.</p>
+                <p>Analysis runs privately in this browser tab. Larger batches take longer, and you can pause anytime.</p>
+                {queueState.status === 'running' && (
+                  <small>Stockfish may use noticeable CPU while analysis is active.</small>
+                )}
                 {queueState.error && <p className="account-analysis-queue__error">{queueState.error}</p>}
               </div>
               <div className="account-analysis-queue-actions">
@@ -633,24 +682,102 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           )}
 
           <section className="account-analysis-section-heading">
-            <span>Top Insights</span>
-            <h2>{hasReliableSignal ? 'The strongest signals from your analyzed games' : 'DeepMove is still building enough signal'}</h2>
+            <span>Coach Brief</span>
+            <h2>{hasReliableSignal ? 'The one pattern to review first' : 'DeepMove is still building enough signal'}</h2>
           </section>
 
-          <section className="account-insight-grid">
-            {summary.topInsights.map((insight, index) => (
-              <article className={`account-insight-card account-insight-card--${insight.kind}`} key={`${insight.kind}:${insight.title}`}>
-                <span>{insightLabel(insight.kind)} #{index + 1}</span>
-                <h3>{insight.title}</h3>
-                <p>{insight.evidence}</p>
-                <strong>{insight.action}</strong>
-              </article>
-            ))}
+          <section className={`account-coach-brief account-coach-brief--${summary.coachBrief.kind}`}>
+            <div className="account-coach-brief__header">
+              <div>
+                <span>{summary.coachBrief.confidenceLabel}</span>
+                <h3>{summary.coachBrief.title}</h3>
+              </div>
+              {summary.coachBrief.primaryCategory && (
+                <em>{summary.coachBrief.primaryCategory === 'unknown' ? 'Uncategorized' : 'Engine-reviewed theme'}</em>
+              )}
+            </div>
+            <div className="account-coach-brief__grid">
+              <div>
+                <span>Finding</span>
+                <p>{summary.coachBrief.finding}</p>
+              </div>
+              <div>
+                <span>Evidence</span>
+                <p>{summary.coachBrief.evidence}</p>
+              </div>
+              <div>
+                <span>Why this matters</span>
+                <p>{summary.coachBrief.whyItMatters}</p>
+              </div>
+              <div>
+                <span>Next review action</span>
+                <p>{summary.coachBrief.nextAction}</p>
+              </div>
+            </div>
+
+            {summary.coachBrief.exampleMoments.length > 0 && (
+              <div className="account-evidence-moments">
+                <div className="account-evidence-moments__title">
+                  <strong>Review these moments</strong>
+                  <span>Open the game, then jump to the move number shown in the move list.</span>
+                </div>
+                {summary.coachBrief.exampleMoments.map(moment => (
+                  <div className="account-evidence-row" key={`${moment.gameId}:${moment.moveNumber}:${moment.movePlayed}`}>
+                    <div>
+                      <strong>Move {moment.moveNumber}: {moment.movePlayed}</strong>
+                      <span>
+                        {formatResult(moment.result)} vs {moment.opponent} - {moment.opening} - {formatEvalSwing(moment.evalSwing)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => void openEvidenceMoment(moment)}
+                    >
+                      Open in Review
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="account-coach-brief__actions">
+              {summary.coachBrief.exampleMoments[0] && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => void openEvidenceMoment(summary.coachBrief.exampleMoments[0])}
+                >
+                  Review first evidence game
+                </button>
+              )}
+              {canAnalyzeRemainingSelected && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => queueSelectedGames(summary, loaded)}
+                >
+                  Analyze remaining selected games
+                </button>
+              )}
+              {canOfferNextBatch && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setGameCount(50)
+                    void analyzeRecentGames(50)
+                  }}
+                >
+                  Analyze 50 games next
+                </button>
+              )}
+            </div>
           </section>
 
           <section className="account-analysis-section-heading">
-            <span>Opening Context</span>
-            <h2>Compact results from the selected games</h2>
+            <span>Opening Results</span>
+            <h2>Game results by opening, separate from engine-reviewed mistake themes</h2>
           </section>
 
           <div className="account-analysis-grid">
@@ -668,19 +795,19 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
             </button>
           )}
 
-          <section className="account-analysis-card">
-            <div className="account-analysis-card__header">
-              <h2>Reviewed Weaknesses</h2>
-              <span>{summary.weaknesses.reduce((sum, weakness) => sum + weakness.count, 0)} critical moments across {summary.analyzedGameCount} analyzed game{summary.analyzedGameCount === 1 ? '' : 's'}</span>
-            </div>
+          <details className="account-analysis-card account-pattern-evidence">
+            <summary>
+              <span>Pattern Evidence</span>
+              <em>{summary.weaknesses.reduce((sum, weakness) => sum + weakness.count, 0)} critical moments across {summary.analyzedGameCount} analyzed game{summary.analyzedGameCount === 1 ? '' : 's'}</em>
+            </summary>
             {summary.weaknesses.length > 0 ? (
               <div className="account-weakness-list">
                 {summary.weaknesses.slice(0, 5).map(weakness => (
                   <div className="account-weakness-row" key={weakness.category}>
                     <span className="account-weakness-dot" style={{ background: weakness.color }} />
                     <div>
-                      <strong>{weakness.name}</strong>
-                      <span>{weakness.shortLabel}</span>
+                      <strong>{weakness.category === 'unknown' ? 'General / uncategorized' : weakness.name}</strong>
+                      <span>{weakness.category === 'unknown' ? 'Classifier uncertainty, not a coach theme' : weakness.shortLabel}</span>
                     </div>
                     <em>{weakness.count}</em>
                   </div>
@@ -691,7 +818,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
                 No recurring weakness categories yet. Review a few games in DeepMove and this section will become more specific.
               </p>
             )}
-          </section>
+          </details>
 
         </>
       )}

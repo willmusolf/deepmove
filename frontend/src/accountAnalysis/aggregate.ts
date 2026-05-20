@@ -45,6 +45,34 @@ export interface AccountInsight {
   action: string
 }
 
+export interface AccountAnalysisEvidenceMoment {
+  category: MistakeCategory
+  gameId: string
+  platform: 'chesscom' | 'lichess'
+  opponent: string
+  opponentRating: number
+  result: 'W' | 'L' | 'D'
+  color: 'white' | 'black'
+  opening: string
+  moveNumber: number
+  movePlayed: string
+  evalSwing: number
+  timeControl: string
+  endTime: number
+}
+
+export interface AccountCoachBrief {
+  kind: AccountInsight['kind']
+  title: string
+  finding: string
+  evidence: string
+  whyItMatters: string
+  nextAction: string
+  confidenceLabel: string
+  primaryCategory: MistakeCategory | null
+  exampleMoments: AccountAnalysisEvidenceMoment[]
+}
+
 export interface AccountAnalysisSummary {
   scannedGames: ScannedAccountGame[]
   requestedGameCount: number
@@ -59,6 +87,7 @@ export interface AccountAnalysisSummary {
   weaknesses: WeaknessStats[]
   takeaways: string[]
   topInsights: AccountInsight[]
+  coachBrief: AccountCoachBrief
 }
 
 interface BuildAccountAnalysisInput {
@@ -77,6 +106,15 @@ const OPENING_TAKEAWAY_VISIBLE_LIMIT = 6
 const MIN_STRONG_INSIGHT_GAMES = 10
 const OPENING_TROUBLE_SCORE_MAX = 45
 const OPENING_STRENGTH_SCORE_MIN = 65
+const CATEGORY_PRIORITY: Record<MistakeCategory, number> = {
+  missed_tactic: 6,
+  hung_piece: 5,
+  ignored_threat: 4,
+  didnt_develop: 3,
+  didnt_castle: 3,
+  aimless_move: 2,
+  unknown: 0,
+}
 
 function clampGameCount(count: number): number {
   if (!Number.isFinite(count)) return 50
@@ -160,16 +198,16 @@ function buildOpeningStats(scannedGames: ScannedAccountGame[]): AccountAnalysisS
   }
 }
 
-function getMomentCategory(record: AnalyzedGameRecord): MistakeCategory[] {
-  const categories: MistakeCategory[] = []
+function getCategorizedMoments(record: AnalyzedGameRecord): { category: MistakeCategory; moment: AnalyzedGameRecord['criticalMoments'][number] }[] {
+  const categorized: { category: MistakeCategory; moment: AnalyzedGameRecord['criticalMoments'][number] }[] = []
 
   for (const moment of record.criticalMoments ?? []) {
     const category = moment.analysisFacts?.category
-    if (category && CATEGORIES[category]) categories.push(category)
+    if (category && CATEGORIES[category]) categorized.push({ category, moment })
   }
 
-  if (categories.length > 0 || record.criticalMoments.length === 0 || record.moveEvals.length === 0) {
-    return categories
+  if (categorized.length > 0 || record.criticalMoments.length === 0 || record.moveEvals.length === 0) {
+    return categorized
   }
 
   try {
@@ -181,26 +219,44 @@ function getMomentCategory(record: AnalyzedGameRecord): MistakeCategory[] {
     )
     for (const moment of enriched) {
       const category = moment.analysisFacts?.category
-      if (category && CATEGORIES[category]) categories.push(category)
+      if (category && CATEGORIES[category]) categorized.push({ category, moment })
     }
   } catch {
-    return categories
+    return categorized
   }
 
-  return categories
+  return categorized
 }
 
 function buildWeaknessStats(
   scannedGames: ScannedAccountGame[],
   analyzedGames: AnalyzedGameRecord[],
-): { weaknesses: WeaknessStats[]; analyzedGameCount: number } {
+): { weaknesses: WeaknessStats[]; analyzedGameCount: number; evidenceMoments: AccountAnalysisEvidenceMoment[] } {
   const scannedIds = new Set(scannedGames.map(game => game.gameId))
+  const scannedById = new Map(scannedGames.map(game => [game.gameId, game]))
   const analyzedInScan = analyzedGames.filter(game => scannedIds.has(game.id) && !game.partial)
   const counts = new Map<MistakeCategory, number>()
+  const evidenceMoments: AccountAnalysisEvidenceMoment[] = []
 
   for (const record of analyzedInScan) {
-    for (const category of getMomentCategory(record)) {
+    const scanned = scannedById.get(record.id)
+    for (const { category, moment } of getCategorizedMoments(record)) {
       counts.set(category, (counts.get(category) ?? 0) + 1)
+      evidenceMoments.push({
+        category,
+        gameId: record.id,
+        platform: record.platform === 'lichess' ? 'lichess' : 'chesscom',
+        opponent: record.opponent,
+        opponentRating: record.opponentRating,
+        result: record.result,
+        color: record.userColor ?? (scanned?.isWhite ? 'white' : 'black'),
+        opening: scanned?.opening ?? getOpeningFromPgn(record.cleanedPgn || record.rawPgn),
+        moveNumber: moment.moveNumber,
+        movePlayed: moment.movePlayed,
+        evalSwing: Math.round(Math.abs(moment.evalSwing)),
+        timeControl: record.timeControl,
+        endTime: record.endTime,
+      })
     }
   }
 
@@ -214,7 +270,8 @@ function buildWeaknessStats(
     }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 
-  return { weaknesses, analyzedGameCount: analyzedInScan.length }
+  evidenceMoments.sort((a, b) => b.evalSwing - a.evalSwing || b.endTime - a.endTime)
+  return { weaknesses, analyzedGameCount: analyzedInScan.length, evidenceMoments }
 }
 
 function getWeaknessConfidence(analyzedGameCount: number, scannedGameCount: number): AccountAnalysisSummary['weaknessConfidence'] {
@@ -230,7 +287,14 @@ function formatScore(stats: OpeningStats): string {
 }
 
 function preferredWeakness(weaknesses: WeaknessStats[]): WeaknessStats | undefined {
-  return weaknesses.find(weakness => weakness.category !== 'unknown') ?? weaknesses[0]
+  const specific = weaknesses.filter(weakness => weakness.category !== 'unknown')
+  if (specific.length === 0) return weaknesses[0]
+
+  return [...specific].sort((a, b) => {
+    const countGap = b.count - a.count
+    if (Math.abs(countGap) > 2) return countGap
+    return CATEGORY_PRIORITY[b.category] - CATEGORY_PRIORITY[a.category] || countGap || a.name.localeCompare(b.name)
+  })[0]
 }
 
 function lowestRecurringOpening(openings: OpeningStats[]): OpeningStats | null {
@@ -438,11 +502,156 @@ function buildTopInsights(
   return insights.slice(0, 3)
 }
 
+function sampleConfidenceLabel(analyzedGameCount: number, scannedGameCount: number): string {
+  if (scannedGameCount === 0 || analyzedGameCount === 0) return 'No engine-reviewed games yet'
+  if (analyzedGameCount < MIN_STRONG_INSIGHT_GAMES) return 'Building sample'
+  if (analyzedGameCount < 50) return 'Recent sample'
+  return 'Broader sample'
+}
+
+function categoryCoachCopy(category: MistakeCategory): Pick<AccountCoachBrief, 'finding' | 'whyItMatters' | 'nextAction'> {
+  switch (category) {
+    case 'missed_tactic':
+      return {
+        finding: 'Forcing moves are getting missed in critical positions.',
+        whyItMatters: 'These are the swings where a check, capture, or threat changes the whole position. Missing them makes good positions feel random.',
+        nextAction: 'Open the evidence games and pause before the marked move. List checks, captures, and threats for both sides before looking at the engine line.',
+      }
+    case 'hung_piece':
+      return {
+        finding: 'Loose pieces are turning normal positions into costly moments.',
+        whyItMatters: 'A single undefended piece can erase several good moves. This is one of the fastest patterns to improve because the habit is simple and repeatable.',
+        nextAction: 'Open each evidence game and ask: what became undefended after my move, and what was that piece protecting before it moved?',
+      }
+    case 'ignored_threat':
+      return {
+        finding: "Opponent threats are slipping through before your plan is ready.",
+        whyItMatters: "Most plans fail because the opponent's last move had a concrete point. Catching that one threat often prevents the whole position from collapsing.",
+        nextAction: "Open the evidence games and name the opponent's threat before checking DeepMove's best line.",
+      }
+    case 'aimless_move':
+      return {
+        finding: 'Quiet moves are showing up without a clear job.',
+        whyItMatters: 'When a move does not improve a piece, stop a threat, or create pressure, the opponent gets a free tempo to take over the position.',
+        nextAction: 'Open the evidence games and write one sentence for what the move was trying to do. If that sentence is vague, find the worst-placed piece instead.',
+      }
+    case 'didnt_develop':
+      return {
+        finding: 'Development is being delayed in games where the position opens up.',
+        whyItMatters: 'Undeveloped pieces make tactics harder to see and defenses harder to coordinate. The opening does not need memorization as much as piece activity.',
+        nextAction: 'Open the evidence games and count undeveloped minor pieces before the marked move. Look for the simplest developing move that also meets a threat.',
+      }
+    case 'didnt_castle':
+      return {
+        finding: 'King safety is waiting too long in some openings.',
+        whyItMatters: 'An uncastled king turns normal central tension into tactics for your opponent. Castling often removes several problems at once.',
+        nextAction: 'Open the evidence games and check whether castling was still possible before the position became tactical.',
+      }
+    default:
+      return {
+        finding: 'DeepMove found critical moments, but not a clean theme yet.',
+        whyItMatters: 'A coachable pattern needs repeated specific mistakes, not just a pile of engine swings. This usually clears up as more games are reviewed.',
+        nextAction: 'Open the largest swings first and look for what the move missed: a loose piece, a threat, or a forcing move.',
+      }
+  }
+}
+
+function buildCoachBrief(
+  summary: Pick<AccountAnalysisSummary, 'openingsByColor' | 'weaknesses' | 'analyzedGameCount' | 'scannedGames'>,
+  evidenceMoments: AccountAnalysisEvidenceMoment[],
+): AccountCoachBrief {
+  const confidenceLabel = sampleConfidenceLabel(summary.analyzedGameCount, summary.scannedGames.length)
+
+  if (summary.scannedGames.length === 0) {
+    return {
+      kind: 'building',
+      title: 'Connect an account to build Insights',
+      finding: 'DeepMove needs recent Chess.com or Lichess games before it can spot patterns.',
+      evidence: 'No recent games have been loaded yet.',
+      whyItMatters: 'The useful report comes from your real games, not generic advice.',
+      nextAction: 'Link an account, then analyze your selected recent games.',
+      confidenceLabel,
+      primaryCategory: null,
+      exampleMoments: [],
+    }
+  }
+
+  if (summary.analyzedGameCount < MIN_STRONG_INSIGHT_GAMES) {
+    return {
+      kind: 'building',
+      title: 'Still building the first coach brief',
+      finding: 'There are not enough engine-reviewed games yet to call a pattern.',
+      evidence: `${summary.analyzedGameCount} of ${summary.scannedGames.length} selected games have completed analysis.`,
+      whyItMatters: 'A few games can be noisy. Ten reviewed games is the minimum before DeepMove makes a strong claim.',
+      nextAction: 'Finish analyzing the selected games, then review the first repeated theme here.',
+      confidenceLabel,
+      primaryCategory: null,
+      exampleMoments: [],
+    }
+  }
+
+  const topWeakness = preferredWeakness(summary.weaknesses)
+  if (topWeakness) {
+    const copy = categoryCoachCopy(topWeakness.category)
+    const exampleMoments = evidenceMoments
+      .filter(moment => moment.category === topWeakness.category)
+      .slice(0, 3)
+    const isSpecific = topWeakness.category !== 'unknown'
+    return {
+      kind: 'weakness',
+      title: isSpecific ? `${topWeakness.name} is the review focus` : 'Critical moments need a clearer label',
+      finding: copy.finding,
+      evidence: isSpecific
+        ? `${topWeakness.count} ${topWeakness.name.toLowerCase()} moment${topWeakness.count === 1 ? '' : 's'} across ${summary.analyzedGameCount} analyzed games.`
+        : `${topWeakness.count} uncategorized critical moment${topWeakness.count === 1 ? '' : 's'} across ${summary.analyzedGameCount} analyzed games.`,
+      whyItMatters: copy.whyItMatters,
+      nextAction: copy.nextAction,
+      confidenceLabel,
+      primaryCategory: topWeakness.category,
+      exampleMoments,
+    }
+  }
+
+  const visibleOpenings = [
+    ...summary.openingsByColor.white.slice(0, OPENING_TAKEAWAY_VISIBLE_LIMIT),
+    ...summary.openingsByColor.black.slice(0, OPENING_TAKEAWAY_VISIBLE_LIMIT),
+  ]
+  const troubleOpening = visibleOpenings
+    .filter(opening => opening.games >= MIN_RECURRING_OPENING_SAMPLE && opening.scorePct <= OPENING_TROUBLE_SCORE_MAX)
+    .sort((a, b) => a.scorePct - b.scorePct || b.games - a.games)[0]
+
+  if (troubleOpening) {
+    return {
+      kind: 'opening',
+      title: `${troubleOpening.opening} is the line to review`,
+      finding: `Your results in this repeated ${troubleOpening.color} opening are lagging behind the rest of the sample.`,
+      evidence: `${formatScore(troubleOpening)} over ${troubleOpening.games} games.`,
+      whyItMatters: 'Opening results are not engine-reviewed mistakes, but they can point to positions where you keep reaching uncomfortable middlegames.',
+      nextAction: 'Review the first middlegame plan from this opening. Keep it to one setup improvement, not a full repertoire rebuild.',
+      confidenceLabel,
+      primaryCategory: null,
+      exampleMoments: [],
+    }
+  }
+
+  return {
+    kind: 'building',
+    title: 'No sharp pattern yet',
+    finding: 'The selected games do not have one repeated mistake theme strong enough to lead with.',
+    evidence: `${summary.analyzedGameCount} games analyzed without one dominant engine-reviewed issue.`,
+    whyItMatters: 'That is useful too: it means the next batch may matter more than overreacting to a small cluster.',
+    nextAction: 'Analyze another recent batch or open the largest individual swings in Review.',
+    confidenceLabel,
+    primaryCategory: null,
+    exampleMoments: [],
+  }
+}
+
 export function buildAccountAnalysis(input: BuildAccountAnalysisInput): AccountAnalysisSummary {
   const requestedGameCount = clampGameCount(input.gameCount)
   const scannedGames = normalizeInputGames(input).slice(0, requestedGameCount)
   const openingsByColor = buildOpeningStats(scannedGames)
-  const { weaknesses, analyzedGameCount } = buildWeaknessStats(scannedGames, input.analyzedGames ?? [])
+  const { weaknesses, analyzedGameCount, evidenceMoments } = buildWeaknessStats(scannedGames, input.analyzedGames ?? [])
   const weaknessCoveragePct = scannedGames.length === 0
     ? 0
     : Math.round((analyzedGameCount / scannedGames.length) * 1000) / 10
@@ -465,5 +674,6 @@ export function buildAccountAnalysis(input: BuildAccountAnalysisInput): AccountA
     ...withoutTakeaways,
     takeaways: buildAccountTakeaways(withoutTakeaways),
     topInsights: buildTopInsights(withoutTakeaways),
+    coachBrief: buildCoachBrief(withoutTakeaways, evidenceMoments),
   }
 }
