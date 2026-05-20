@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   analysisBoardReset: vi.fn(),
   authRefresh: vi.fn(async () => {}),
   authReloadUser: vi.fn(async () => {}),
+  phoneViewport: { matches: false, resolved: true },
 }))
 
 vi.mock('./components/Board/ChessBoard', () => ({
@@ -17,7 +18,9 @@ vi.mock('./components/Board/EvalBar', () => ({
 }))
 
 vi.mock('./components/Board/MoveRail', () => ({
-  useIsPhone: () => false,
+  PHONE_QUERY: '(max-width: 639px) and (pointer: coarse)',
+  usePhoneViewport: () => mocks.phoneViewport,
+  useIsPhone: () => mocks.phoneViewport.matches,
 }))
 
 vi.mock('./components/Board/EvalGraph', () => ({
@@ -243,6 +246,8 @@ import App from './App'
 import { useGameStore } from './stores/gameStore'
 
 describe('App FEN loading', () => {
+  const originalMatchMedia = window.matchMedia
+
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
@@ -250,16 +255,52 @@ describe('App FEN loading', () => {
     mocks.analysisBoardReset.mockReset()
     mocks.authRefresh.mockClear()
     mocks.authReloadUser.mockClear()
+    mocks.phoneViewport.matches = false
+    mocks.phoneViewport.resolved = true
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(max-width: 639px) and (pointer: coarse)' ? mocks.phoneViewport.matches : false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
     window.history.replaceState({}, '', '/')
+  })
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia
   })
 
   it('boots into the review app at the root route', () => {
     render(<App />)
 
     expect(screen.getByRole('button', { name: 'PGN' })).toBeInTheDocument()
+    expect(screen.getByTestId('chessboard')).toBeInTheDocument()
     expect(screen.queryByTestId('aboutpage')).not.toBeInTheDocument()
   })
 
+  it('shows load-only review on phone-sized mobile before sandbox is opened', () => {
+    mocks.phoneViewport.matches = true
+
+    render(<App />)
+
+    expect(screen.getByRole('button', { name: 'Open Sandbox Board' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PGN' })).toBeInTheDocument()
+    expect(screen.queryByTestId('chessboard')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('playerinfo')).not.toBeInTheDocument()
+  })
+
+  it('opens the sandbox board from the mobile load-only review shell', () => {
+    mocks.phoneViewport.matches = true
+
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open Sandbox Board' }))
+
+    expect(screen.getByTestId('chessboard')).toBeInTheDocument()
+  })
   it('switches to the analysis panel after loading a FEN', () => {
     render(<App />)
 

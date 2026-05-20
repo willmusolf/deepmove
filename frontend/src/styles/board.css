@@ -1568,17 +1568,14 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 @media (max-width: 639px) {
   /* On phones, let the review side panel grow with its content so the load
      tab can use normal page scrolling instead of clipping inside a flex pane. */
-  .play-page--setup {
-    align-items: flex-start;
-    justify-content: flex-start;
-  }
-
   .play-setup-wrapper {
-    align-items: flex-start;
+    justify-content: center;
+    align-items: center;
+    min-height: min(100dvh, 100svh);
     padding:
-      max(0.35rem, env(safe-area-inset-top, 0px))
+      max(0.75rem, env(safe-area-inset-top, 0px))
       0
-      calc(0.9rem + env(safe-area-inset-bottom, 0px));
+      max(1rem, env(safe-area-inset-bottom, 0px));
   }
   .app-main--mobile-load-priority .side-col {
     order: -1;
@@ -1604,6 +1601,25 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
     flex: 0 0 auto;
     min-height: auto;
     overflow: visible;
+  }
+
+  .side-col--mobile-review-load {
+    min-height: 0;
+  }
+
+  .side-panel-content--mobile-review-load {
+    padding-top: 0;
+  }
+
+  .review-mobile-load-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    width: 100%;
+  }
+
+  .review-mobile-load-shell__sandbox-btn {
+    width: 100%;
   }
 }
 
@@ -1633,9 +1649,9 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 @media (max-width: 480px) {
   .play-setup-wrapper {
     padding:
-      max(0.2rem, env(safe-area-inset-top, 0px))
+      max(0.6rem, env(safe-area-inset-top, 0px))
       0
-      calc(0.9rem + env(safe-area-inset-bottom, 0px));
+      max(0.9rem, env(safe-area-inset-bottom, 0px));
   }
 
   .play-setup-panel {
@@ -4703,6 +4719,10 @@ html.theme-light .analysis-settings-popover {
 .play-page--setup {
   align-items: center;
   justify-content: center;
+}
+
+.play-page--setup-phone {
+  min-height: 100%;
 }
 
 .play-setup-wrapper {
