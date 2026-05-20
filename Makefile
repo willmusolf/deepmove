@@ -1,9 +1,13 @@
-.PHONY: install dev-frontend dev-backend dev-coach typecheck typecheck-backend test test-frontend test-backend test-backend-smoke lint test-chess test-coaching test-ui check check-coaching review-3b build worktree ship ship-checks verify-migrations help
+.PHONY: install install-hooks dev-frontend dev-backend dev-coach typecheck typecheck-backend test test-frontend test-backend test-backend-smoke lint test-chess test-coaching test-ui check check-coaching review-3b build worktree ship ship-checks verify-migrations help
 
 # ── Setup ──────────────────────────────────────────────────────────────────
 install:
 	cd frontend && npm install
 	cd backend && pip install -r requirements.txt
+	./scripts/install-git-hooks.sh
+
+install-hooks:
+	./scripts/install-git-hooks.sh
 
 # ── Development servers ────────────────────────────────────────────────────
 dev-frontend:
@@ -113,6 +117,7 @@ ship:
 help:
 	@echo "DeepMove development commands:"
 	@echo "  make install        — Install all dependencies"
+	@echo "  make install-hooks  — Configure repo-managed git hooks"
 	@echo "  make dev-frontend   — Start Vite dev server (:5173)"
 	@echo "  make dev-backend    — Start FastAPI server (:8000)"
 	@echo "  make dev-coach      — Start the Prompt 3B coaching workspace"
