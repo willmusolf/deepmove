@@ -24,7 +24,7 @@ const MAIN_ITEMS = [
   },
   {
     id: 'dashboard' as const,
-    label: 'Account Report',
+    label: 'Insights',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 19V5" />

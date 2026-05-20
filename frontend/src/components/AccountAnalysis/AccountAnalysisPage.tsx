@@ -6,6 +6,7 @@ import {
   buildAccountAnalysis,
   type AccountAnalysisPlatform,
   type AccountAnalysisSummary,
+  type AccountInsight,
   type OpeningStats,
   type ScannedAccountGame,
 } from '../../accountAnalysis/aggregate'
@@ -42,6 +43,7 @@ interface AnalysisQueueState {
 }
 
 const GAME_COUNT_OPTIONS = [25, 50, 100, 150, 200]
+const DEFAULT_ANALYSIS_BATCH = 25
 
 function getAnalysisDepth(elo: number): number {
   if (!elo || elo < 1200) return 12
@@ -68,6 +70,17 @@ function formatConfidence(confidence: AccountAnalysisSummary['weaknessConfidence
     case 'medium': return 'Medium confidence'
     case 'low': return 'Low confidence'
     default: return 'No weakness data yet'
+  }
+}
+
+function insightLabel(kind: AccountInsight['kind']): string {
+  switch (kind) {
+    case 'weakness': return 'Recurring weakness'
+    case 'opening': return 'Opening pattern'
+    case 'color': return 'Color imbalance'
+    case 'watchlist': return 'Watchlist'
+    case 'strength': return 'Strength'
+    default: return 'Building signal'
   }
 }
 
@@ -106,8 +119,8 @@ async function loadAnalyzedGames(
   return all
 }
 
-function OpeningTable({ title, openings }: { title: string; openings: OpeningStats[] }) {
-  const visible = openings.slice(0, 6)
+function OpeningTable({ title, openings, expanded }: { title: string; openings: OpeningStats[]; expanded: boolean }) {
+  const visible = expanded ? openings : openings.slice(0, 3)
 
   return (
     <section className="account-analysis-card">
@@ -191,6 +204,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
   const [error, setError] = useState<string | null>(null)
   const [loadedOnce, setLoadedOnce] = useState(false)
   const [identityVersion, setIdentityVersion] = useState(0)
+  const [showAllOpenings, setShowAllOpenings] = useState(false)
   const [queueState, setQueueState] = useState<AnalysisQueueState>({
     status: 'idle',
     total: 0,
@@ -410,6 +424,17 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     void runPendingQueue(batch.length, 0)
   }, [loaded.analyzed, queueState.status, runPendingQueue, summary])
 
+  const queueUntilBaseline = useCallback((nextSummary: AccountAnalysisSummary, nextLoaded: LoadedAccountGames) => {
+    const targetComplete = Math.min(DEFAULT_ANALYSIS_BATCH, nextSummary.scannedGames.length)
+    const needed = Math.max(0, targetComplete - nextSummary.analyzedGameCount)
+    if (needed === 0) return
+
+    const batch = selectAnalysisBatch(nextSummary.scannedGames, nextLoaded.analyzed, needed)
+    if (batch.length === 0) return
+    queuePendingRef.current = batch
+    void runPendingQueue(targetComplete, nextSummary.analyzedGameCount)
+  }, [runPendingQueue])
+
   const pauseAnalysisQueue = useCallback(() => {
     if (queueState.status !== 'running' && queueState.status !== 'initializing') return
     queueControlRef.current.paused = true
@@ -467,6 +492,42 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     }
   }, [gameCount, platform, rebuildSummary])
 
+  const analyzeRecentGames = useCallback(async () => {
+    const currentIdentity = getIdentity()
+    setIdentityVersion(v => v + 1)
+    if (!currentIdentity.chesscom && !currentIdentity.lichess) {
+      setSummary(null)
+      setLoaded({ chesscom: [], lichess: [], analyzed: [] })
+      setLoadedOnce(false)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      const [chesscom, lichess, analyzed] = await Promise.all([
+        platform !== 'lichess' && currentIdentity.chesscom
+          ? fetchChessComGames(currentIdentity.chesscom, gameCount)
+          : Promise.resolve([]),
+        platform !== 'chesscom' && currentIdentity.lichess
+          ? getUserGames(currentIdentity.lichess, gameCount).then(result => result.games)
+          : Promise.resolve([]),
+        loadAnalyzedGames(currentIdentity, platform),
+      ])
+
+      const nextLoaded = { chesscom, lichess, analyzed }
+      const nextSummary = rebuildSummary(nextLoaded, currentIdentity)
+      setLoaded(nextLoaded)
+      setSummary(nextSummary)
+      setLoadedOnce(true)
+      queueUntilBaseline(nextSummary, nextLoaded)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not start Insights analysis right now.')
+    } finally {
+      setLoading(false)
+    }
+  }, [gameCount, platform, queueUntilBaseline, rebuildSummary])
+
   useEffect(() => {
     setIdentityVersion(v => v + 1)
   }, [])
@@ -483,16 +544,20 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     : platform === 'chesscom'
       ? loaded.chesscom.length
       : loaded.lichess.length
+  const queueBusy = queueState.status === 'running' || queueState.status === 'initializing'
+  const baselineTarget = summary ? Math.min(DEFAULT_ANALYSIS_BATCH, summary.scannedGames.length) : DEFAULT_ANALYSIS_BATCH
+  const baselineReady = !!summary && summary.analyzedGameCount >= Math.min(10, baselineTarget)
+  const canAnalyzeMore = !!summary && missingGames.length > 0 && !queueBusy
 
   return (
     <div className="account-analysis-page">
       <section className="account-analysis-hero">
         <div>
-          <p className="account-analysis-kicker">Account Analysis</p>
-          <h1>Find the patterns hiding in your recent games.</h1>
+          <p className="account-analysis-kicker">Insights</p>
+          <h1>Analyze your recent games and find recurring patterns.</h1>
           <p>
-            Opening stats use recent fetched Chess.com/Lichess games. Weakness categories use
-            games DeepMove has already analyzed, so the report stays fast and honest.
+            DeepMove reviews a fresh batch of your games with browser Stockfish, then turns the
+            results into a small set of practical improvement signals.
           </p>
         </div>
         <div className="account-analysis-controls" aria-label="Account analysis controls">
@@ -515,10 +580,10 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => void refreshReport()}
-            disabled={loading || !canFetchPlatform}
+            onClick={() => void analyzeRecentGames()}
+            disabled={loading || !canFetchPlatform || queueBusy}
           >
-            {loading ? 'Scanning...' : 'Refresh report'}
+            {loading ? 'Loading games...' : queueBusy ? 'Analyzing...' : 'Analyze recent games'}
           </button>
         </div>
       </section>
@@ -550,67 +615,53 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
 
       {hasLinkedAccount && canFetchPlatform && !summary && !loading && !loadedOnce && (
         <section className="account-analysis-empty">
-          <h2>Ready when you are.</h2>
-          <p>Run a scan to build a lightweight report from your most recent games.</p>
-          <button type="button" className="btn btn-primary" onClick={() => void refreshReport()}>
-            Scan recent games
+          <h2>Start with a 25-game deep analysis.</h2>
+          <p>DeepMove will fetch your selected recent-game pool, then analyze the latest 25 missing games. This can take a while, but it gives the report real signal.</p>
+          <button type="button" className="btn btn-primary" onClick={() => void analyzeRecentGames()}>
+            Analyze recent games
           </button>
         </section>
       )}
 
       {summary && (
         <>
-          <section className="account-analysis-summary-grid">
-            <div className="account-analysis-stat">
-              <span>Games scanned for openings</span>
-              <strong>{summary.scannedGames.length}</strong>
-              <small>of {summary.requestedGameCount} requested</small>
-            </div>
-            <div className="account-analysis-stat">
-              <span>Games analyzed for weaknesses</span>
-              <strong>{summary.analyzedGameCount}</strong>
-              <small>{summary.weaknessCoveragePct}% coverage</small>
-            </div>
-            <div className="account-analysis-stat">
-              <span>Games found in account</span>
-              <strong>{filteredSourceCount}</strong>
-              <small>using latest {summary.scannedGames.length}</small>
-            </div>
-            <div className="account-analysis-stat account-analysis-stat--wide">
-              <span>Date range</span>
-              <strong>{formatDateRange(summary)}</strong>
-              <small>most recent sample</small>
-            </div>
-          </section>
-
           <section className={`account-analysis-coverage account-analysis-coverage--${summary.weaknessConfidence}`}>
             <div>
-              <span>{formatConfidence(summary.weaknessConfidence)}</span>
-              <strong>{summary.analyzedGameCount} / {summary.scannedGames.length} games analyzed for weaknesses</strong>
+              <span>{baselineReady ? formatConfidence(summary.weaknessConfidence) : 'Building your baseline'}</span>
+              <strong>{summary.analyzedGameCount} / {baselineTarget} baseline games analyzed</strong>
               <p>
-                Opening trends are based on the latest fetched games. Reviewed weaknesses only use games that have completed DeepMove engine analysis.
+                Found {filteredSourceCount} candidate games and selected the latest {summary.scannedGames.length}
+                {' '}from {formatDateRange(summary)}. Insights become reliable after at least 10 analyzed games.
               </p>
               <div className="account-analysis-meter" aria-hidden="true">
-                <div style={{ width: `${Math.min(100, summary.weaknessCoveragePct)}%` }} />
+                <div style={{ width: `${baselineTarget > 0 ? Math.min(100, (summary.analyzedGameCount / baselineTarget) * 100) : 0}%` }} />
               </div>
             </div>
-            {missingGames.length > 0 && (
+            {canAnalyzeMore && (
               <div className="account-analysis-queue-actions">
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={() => startAnalysisQueue(10)}
-                  disabled={queueState.status === 'running' || queueState.status === 'initializing'}
+                  onClick={() => {
+                    if (summary.analyzedGameCount >= baselineTarget) startAnalysisQueue(DEFAULT_ANALYSIS_BATCH)
+                    else queueUntilBaseline(summary, loaded)
+                  }}
                 >
-                  Analyze 10
+                  {summary.analyzedGameCount >= baselineTarget ? 'Analyze 25 more' : 'Continue baseline'}
                 </button>
                 <button
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => startAnalysisQueue('all')}
-                  disabled={queueState.status === 'running' || queueState.status === 'initializing'}
                 >
                   Analyze all missing
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => void refreshReport()}
+                >
+                  Refresh pool
                 </button>
               </div>
             )}
@@ -652,14 +703,40 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           )}
 
           <section className="account-analysis-section-heading">
+            <span>Top Insights</span>
+            <h2>{baselineReady ? 'The strongest signals from your analyzed games' : 'DeepMove is still building enough signal'}</h2>
+          </section>
+
+          <section className="account-insight-grid">
+            {summary.topInsights.map((insight, index) => (
+              <article className={`account-insight-card account-insight-card--${insight.kind}`} key={`${insight.kind}:${insight.title}`}>
+                <span>{insightLabel(insight.kind)} #{index + 1}</span>
+                <h3>{insight.title}</h3>
+                <p>{insight.evidence}</p>
+                <strong>{insight.action}</strong>
+              </article>
+            ))}
+          </section>
+
+          <section className="account-analysis-section-heading">
             <span>Opening Trends</span>
-            <h2>Fast scan from your latest {summary.scannedGames.length} fetched games</h2>
+            <h2>Compact context from your latest {summary.scannedGames.length} games</h2>
           </section>
 
           <div className="account-analysis-grid">
-            <OpeningTable title="Your games as White" openings={summary.openingsByColor.white} />
-            <OpeningTable title="Your games as Black" openings={summary.openingsByColor.black} />
+            <OpeningTable title="Your games as White" openings={summary.openingsByColor.white} expanded={showAllOpenings} />
+            <OpeningTable title="Your games as Black" openings={summary.openingsByColor.black} expanded={showAllOpenings} />
           </div>
+
+          {(summary.openingsByColor.white.length > 3 || summary.openingsByColor.black.length > 3) && (
+            <button
+              type="button"
+              className="btn btn-secondary account-analysis-show-more"
+              onClick={() => setShowAllOpenings(v => !v)}
+            >
+              {showAllOpenings ? 'Show fewer openings' : 'Show all openings'}
+            </button>
+          )}
 
           <section className="account-analysis-card">
             <div className="account-analysis-card__header">
@@ -686,16 +763,6 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
             )}
           </section>
 
-          <section className="account-analysis-card account-analysis-takeaways">
-            <div className="account-analysis-card__header">
-              <h2>What To Work On Next</h2>
-            </div>
-            <ol>
-              {summary.takeaways.map(takeaway => (
-                <li key={takeaway}>{takeaway}</li>
-              ))}
-            </ol>
-          </section>
         </>
       )}
     </div>

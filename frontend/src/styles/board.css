@@ -1399,12 +1399,16 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   font: inherit;
 }
 
-.account-analysis-summary-grid,
-.account-analysis-grid {
+.account-analysis-grid,
+.account-insight-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.account-insight-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .account-analysis-section-heading {
@@ -1425,10 +1429,6 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   font-size: 1.1rem;
 }
 
-.account-analysis-summary-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
 .account-analysis-stat,
 .account-analysis-card,
 .account-analysis-empty,
@@ -1438,6 +1438,49 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
+}
+
+.account-insight-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 12rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, var(--color-accent));
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--color-accent) 16%, transparent) 0 8rem, transparent 8rem),
+    var(--color-surface);
+}
+
+.account-insight-card span {
+  display: inline-flex;
+  margin-bottom: 0.65rem;
+  color: var(--color-accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-insight-card h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.05rem;
+  line-height: 1.18;
+}
+
+.account-insight-card p {
+  margin: 0.65rem 0;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.account-insight-card strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
 
 .account-analysis-stat {
@@ -1552,6 +1595,10 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.65rem;
+}
+
+.account-analysis-show-more {
+  margin: -0.35rem 0 1rem;
 }
 
 .account-analysis-card {
@@ -1680,8 +1727,8 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   }
 
   .account-analysis-hero,
-  .account-analysis-summary-grid,
   .account-analysis-grid,
+  .account-insight-grid,
   .account-analysis-coverage,
   .account-analysis-queue {
     grid-template-columns: 1fr;

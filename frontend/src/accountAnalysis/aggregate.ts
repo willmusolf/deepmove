@@ -38,6 +38,13 @@ export interface WeaknessStats {
   count: number
 }
 
+export interface AccountInsight {
+  kind: 'building' | 'weakness' | 'opening' | 'color' | 'watchlist' | 'strength'
+  title: string
+  evidence: string
+  action: string
+}
+
 export interface AccountAnalysisSummary {
   scannedGames: ScannedAccountGame[]
   requestedGameCount: number
@@ -51,6 +58,7 @@ export interface AccountAnalysisSummary {
   }
   weaknesses: WeaknessStats[]
   takeaways: string[]
+  topInsights: AccountInsight[]
 }
 
 interface BuildAccountAnalysisInput {
@@ -66,6 +74,9 @@ interface BuildAccountAnalysisInput {
 const MIN_RECURRING_OPENING_SAMPLE = 5
 const MIN_WATCHLIST_OPENING_SAMPLE = 2
 const OPENING_TAKEAWAY_VISIBLE_LIMIT = 6
+const MIN_STRONG_INSIGHT_GAMES = 10
+const OPENING_TROUBLE_SCORE_MAX = 45
+const OPENING_STRENGTH_SCORE_MIN = 65
 
 function clampGameCount(count: number): number {
   if (!Number.isFinite(count)) return 50
@@ -219,14 +230,18 @@ function formatScore(stats: OpeningStats): string {
 }
 
 function lowestRecurringOpening(openings: OpeningStats[]): OpeningStats | null {
-  const recurring = openings.filter(opening => opening.games >= MIN_RECURRING_OPENING_SAMPLE)
+  const recurring = openings.filter(opening =>
+    opening.games >= MIN_RECURRING_OPENING_SAMPLE && opening.scorePct <= OPENING_TROUBLE_SCORE_MAX
+  )
   if (recurring.length === 0) return null
   return [...recurring].sort((a, b) => a.scorePct - b.scorePct || b.games - a.games)[0]
 }
 
 function lowestWatchlistOpening(openings: OpeningStats[]): OpeningStats | null {
   const watchlist = openings.filter(opening =>
-    opening.games >= MIN_WATCHLIST_OPENING_SAMPLE && opening.games < MIN_RECURRING_OPENING_SAMPLE
+    opening.games >= MIN_WATCHLIST_OPENING_SAMPLE &&
+    opening.games < MIN_RECURRING_OPENING_SAMPLE &&
+    opening.scorePct <= 55
   )
   if (watchlist.length === 0) return null
   return [...watchlist].sort((a, b) => a.scorePct - b.scorePct || b.games - a.games)[0]
@@ -294,6 +309,118 @@ export function buildAccountTakeaways(
   return takeaways.slice(0, 4)
 }
 
+function buildTopInsights(
+  summary: Pick<AccountAnalysisSummary, 'openingsByColor' | 'weaknesses' | 'analyzedGameCount' | 'scannedGames'>,
+): AccountInsight[] {
+  if (summary.scannedGames.length === 0) {
+    return [{
+      kind: 'building',
+      title: 'Connect an account to build Insights',
+      evidence: 'No recent games have been loaded yet.',
+      action: 'Link Chess.com or Lichess, then analyze recent games.',
+    }]
+  }
+
+  if (summary.analyzedGameCount < MIN_STRONG_INSIGHT_GAMES) {
+    return [{
+      kind: 'building',
+      title: 'Still building confidence',
+      evidence: `${summary.analyzedGameCount} games analyzed. DeepMove needs at least ${MIN_STRONG_INSIGHT_GAMES} reviewed games before making strong claims.`,
+      action: 'Analyze recent games to unlock reliable weakness and opening patterns.',
+    }]
+  }
+
+  const insights: AccountInsight[] = []
+  const topWeakness = summary.weaknesses[0]
+  if (topWeakness) {
+    insights.push({
+      kind: 'weakness',
+      title: `${topWeakness.name} keeps showing up`,
+      evidence: `${topWeakness.count} critical moment${topWeakness.count === 1 ? '' : 's'} across ${summary.analyzedGameCount} analyzed games.`,
+      action: `Before each candidate move, pause for one ${topWeakness.shortLabel.toLowerCase()} check.`,
+    })
+  }
+
+  const visibleOpenings = [
+    ...summary.openingsByColor.white.slice(0, OPENING_TAKEAWAY_VISIBLE_LIMIT),
+    ...summary.openingsByColor.black.slice(0, OPENING_TAKEAWAY_VISIBLE_LIMIT),
+  ]
+  const troubleOpening = visibleOpenings
+    .filter(opening => opening.games >= MIN_RECURRING_OPENING_SAMPLE && opening.scorePct <= OPENING_TROUBLE_SCORE_MAX)
+    .sort((a, b) => a.scorePct - b.scorePct || b.games - a.games)[0]
+  if (troubleOpening) {
+    insights.push({
+      kind: 'opening',
+      title: `${troubleOpening.opening} needs attention as ${troubleOpening.color}`,
+      evidence: `${formatScore(troubleOpening)} over ${troubleOpening.games} games.`,
+      action: 'Review one simple setup and the first middlegame plan from this opening.',
+    })
+  }
+
+  const whiteGames = summary.scannedGames.filter(game => game.isWhite)
+  const blackGames = summary.scannedGames.filter(game => !game.isWhite)
+  const whiteScore = scorePct({
+    games: whiteGames.length,
+    wins: whiteGames.filter(game => game.result === 'W').length,
+    draws: whiteGames.filter(game => game.result === 'D').length,
+  })
+  const blackScore = scorePct({
+    games: blackGames.length,
+    wins: blackGames.filter(game => game.result === 'W').length,
+    draws: blackGames.filter(game => game.result === 'D').length,
+  })
+  if (whiteGames.length >= 10 && blackGames.length >= 10 && Math.abs(whiteScore - blackScore) >= 15) {
+    const weaker = whiteScore < blackScore ? 'White' : 'Black'
+    const weakerScore = Math.min(whiteScore, blackScore)
+    const strongerScore = Math.max(whiteScore, blackScore)
+    insights.push({
+      kind: 'color',
+      title: `${weaker} is lagging behind`,
+      evidence: `${weaker} is scoring ${weakerScore}% vs ${strongerScore}% with the other color in this sample.`,
+      action: `Give your ${weaker} repertoire the next focused review session.`,
+    })
+  }
+
+  if (insights.length < 3) {
+    const strength = visibleOpenings
+      .filter(opening => opening.games >= MIN_RECURRING_OPENING_SAMPLE && opening.scorePct >= OPENING_STRENGTH_SCORE_MIN)
+      .sort((a, b) => b.scorePct - a.scorePct || b.games - a.games)[0]
+    if (strength) {
+      insights.push({
+        kind: 'strength',
+        title: `${strength.opening} is working`,
+        evidence: `${formatScore(strength)} over ${strength.games} games as ${strength.color}.`,
+        action: 'Keep this setup stable and spend study time on weaker repeated lines first.',
+      })
+    }
+  }
+
+  if (insights.length < 3) {
+    const watchlist = visibleOpenings
+      .filter(opening => opening.games >= MIN_WATCHLIST_OPENING_SAMPLE && opening.games < MIN_RECURRING_OPENING_SAMPLE)
+      .sort((a, b) => a.scorePct - b.scorePct || b.games - a.games)[0]
+    if (watchlist) {
+      insights.push({
+        kind: 'watchlist',
+        title: `${watchlist.opening} is a watchlist line`,
+        evidence: `${watchlist.games} games is not enough for a verdict yet.`,
+        action: 'Keep an eye on this line, but do not overreact until it reaches 5+ games.',
+      })
+    }
+  }
+
+  if (insights.length === 0) {
+    insights.push({
+      kind: 'building',
+      title: 'No sharp pattern yet',
+      evidence: `${summary.analyzedGameCount} games analyzed without one dominant recurring issue.`,
+      action: 'Analyze another batch to improve the signal.',
+    })
+  }
+
+  return insights.slice(0, 3)
+}
+
 export function buildAccountAnalysis(input: BuildAccountAnalysisInput): AccountAnalysisSummary {
   const requestedGameCount = clampGameCount(input.gameCount)
   const scannedGames = normalizeInputGames(input).slice(0, requestedGameCount)
@@ -320,5 +447,6 @@ export function buildAccountAnalysis(input: BuildAccountAnalysisInput): AccountA
   return {
     ...withoutTakeaways,
     takeaways: buildAccountTakeaways(withoutTakeaways),
+    topInsights: buildTopInsights(withoutTakeaways),
   }
 }

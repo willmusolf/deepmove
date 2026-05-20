@@ -262,4 +262,62 @@ describe('account analysis aggregation', () => {
     expect(hiddenOpening).toBeTruthy()
     expect(summary.takeaways.some(takeaway => hiddenOpening && takeaway.includes(hiddenOpening))).toBe(false)
   })
+
+  it('avoids strong insights until at least 10 games are analyzed', () => {
+    const summary = buildAccountAnalysis({
+      chesscomUsername: 'me',
+      chesscomGames: Array.from({ length: 10 }, (_, index) =>
+        chesscomGame(`g${index}`, ITALIAN_PGN, 300 - index, 'me', 'them', 'win', 'resigned')
+      ),
+      analyzedGames: [analyzedRecord('https://www.chess.com/game/live/g0', 'hung_piece')],
+      gameCount: 10,
+    })
+
+    expect(summary.topInsights).toHaveLength(1)
+    expect(summary.topInsights[0]).toMatchObject({
+      kind: 'building',
+      title: 'Still building confidence',
+    })
+  })
+
+  it('does not call a well-scoring opening a weakness', () => {
+    const games = Array.from({ length: 10 }, (_, index) =>
+      chesscomGame(`good-${index}`, ITALIAN_PGN, 500 - index, 'me', 'them', index < 8 ? 'win' : 'resigned', index < 8 ? 'resigned' : 'win')
+    )
+    const analyzedGames = games.map(game => analyzedRecord(game.url, 'hung_piece'))
+    const summary = buildAccountAnalysis({
+      chesscomUsername: 'me',
+      chesscomGames: games,
+      analyzedGames,
+      gameCount: 10,
+    })
+
+    expect(summary.topInsights.some(insight =>
+      insight.kind === 'opening' && insight.title.includes('Italian Game')
+    )).toBe(false)
+  })
+
+  it('builds compact top insights from analyzed weaknesses and poor repeated openings', () => {
+    const poorOpeningGames = Array.from({ length: 6 }, (_, index) =>
+      chesscomGame(`poor-${index}`, FRENCH_PGN, 600 - index, 'me', 'them', index === 0 ? 'win' : 'resigned', index === 0 ? 'resigned' : 'win')
+    )
+    const otherGames = Array.from({ length: 6 }, (_, index) =>
+      chesscomGame(`other-${index}`, ITALIAN_PGN, 500 - index, 'me', 'them', 'win', 'resigned')
+    )
+    const games = [...poorOpeningGames, ...otherGames]
+    const analyzedGames = games.map((game, index) =>
+      analyzedRecord(game.url, index < 7 ? 'hung_piece' : 'ignored_threat')
+    )
+
+    const summary = buildAccountAnalysis({
+      chesscomUsername: 'me',
+      chesscomGames: games,
+      analyzedGames,
+      gameCount: 12,
+    })
+
+    expect(summary.topInsights.length).toBeLessThanOrEqual(3)
+    expect(summary.topInsights[0].kind).toBe('weakness')
+    expect(summary.topInsights.some(insight => insight.kind === 'opening' && insight.title.includes('French'))).toBe(true)
+  })
 })

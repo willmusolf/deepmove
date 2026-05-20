@@ -53,7 +53,7 @@ describe('account analysis queue', () => {
     expect(missing.map(g => g.gameId)).toEqual(['partial', 'fresh'])
   })
 
-  it('prioritizes losses, then draws, then wins, with recency inside each bucket', () => {
+  it('prioritizes the most recent missing games', () => {
     const missing = getMissingAnalysisGames(
       [
         game('win-new', 'W', 40),
@@ -64,13 +64,14 @@ describe('account analysis queue', () => {
       [],
     )
 
-    expect(missing.map(g => g.gameId)).toEqual(['loss-new', 'loss-old', 'draw', 'win-new'])
+    expect(missing.map(g => g.gameId)).toEqual(['win-new', 'draw', 'loss-new', 'loss-old'])
   })
 
-  it('selects 10 games by default and can select all missing games', () => {
-    const games = Array.from({ length: 12 }, (_, index) => game(`g${index}`, 'L', index))
+  it('selects 25 games by default and can select all missing games', () => {
+    const games = Array.from({ length: 30 }, (_, index) => game(`g${index}`, 'L', index))
 
-    expect(selectAnalysisBatch(games, [])).toHaveLength(10)
-    expect(selectAnalysisBatch(games, [], 'all')).toHaveLength(12)
+    expect(selectAnalysisBatch(games, [])).toHaveLength(25)
+    expect(selectAnalysisBatch(games, [], 25)).toHaveLength(25)
+    expect(selectAnalysisBatch(games, [], 'all')).toHaveLength(30)
   })
 })

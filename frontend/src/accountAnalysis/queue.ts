@@ -9,12 +9,6 @@ export function getCompleteAnalyzedGameIds(analyzedGames: AnalyzedGameRecord[]):
   )
 }
 
-function resultPriority(result: ScannedAccountGame['result']): number {
-  if (result === 'L') return 0
-  if (result === 'D') return 1
-  return 2
-}
-
 export function getMissingAnalysisGames(
   scannedGames: ScannedAccountGame[],
   analyzedGames: AnalyzedGameRecord[],
@@ -22,13 +16,13 @@ export function getMissingAnalysisGames(
   const completeIds = getCompleteAnalyzedGameIds(analyzedGames)
   return scannedGames
     .filter(game => !completeIds.has(game.gameId))
-    .sort((a, b) => resultPriority(a.result) - resultPriority(b.result) || b.endTime - a.endTime)
+    .sort((a, b) => b.endTime - a.endTime)
 }
 
 export function selectAnalysisBatch(
   scannedGames: ScannedAccountGame[],
   analyzedGames: AnalyzedGameRecord[],
-  limit: number | 'all' = 10,
+  limit: number | 'all' = 25,
 ): ScannedAccountGame[] {
   const missing = getMissingAnalysisGames(scannedGames, analyzedGames)
   if (limit === 'all') return missing
