@@ -68,10 +68,13 @@ async def create_analysis_job(
 @limiter.limit("60/minute")
 async def get_latest_job(
     request: Request,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     job = latest_job(db, user.id)
+    if job and job.status == "queued":
+        background_tasks.add_task(run_queued_job_by_id, job.id)
     return _job_response(job) if job else None
 
 
@@ -80,12 +83,15 @@ async def get_latest_job(
 async def get_analysis_job(
     request: Request,
     job_id: int,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     job = db.query(AnalysisJob).filter(AnalysisJob.id == job_id, AnalysisJob.user_id == user.id).first()
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis job not found")
+    if job.status == "queued":
+        background_tasks.add_task(run_queued_job_by_id, job.id)
     report = db.query(AccountReport).filter(AccountReport.id == job.report_id, AccountReport.user_id == user.id).first() if job.report_id else None
     return JobReportResponse(job=_job_response(job), report=_report_response(report))
 
