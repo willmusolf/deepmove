@@ -634,6 +634,8 @@ export default function App() {
 
   // Trigger full-game analysis whenever a new game loads and the engine is ready
   const setSkipNextAnalysis = useGameStore(s => s.setSkipNextAnalysis)
+  const pendingReviewTarget = useGameStore(s => s.pendingReviewTarget)
+  const setPendingReviewTarget = useGameStore(s => s.setPendingReviewTarget)
   useEffect(() => {
     if (pgn && isReady) {
       // Always clear the position cache when a new game loads — even for cached
@@ -681,6 +683,15 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadRequestId, pgn, isReady])
+
+  useEffect(() => {
+    if (!isLoaded || !pendingReviewTarget) return
+    const currentId = useGameStore.getState().currentGameId
+    if (pendingReviewTarget.gameId && currentId && pendingReviewTarget.gameId !== currentId) return
+    pathKeyRef.current++
+    goToMove(pendingReviewTarget.plyIndex)
+    setPendingReviewTarget(null)
+  }, [goToMove, isLoaded, pendingReviewTarget, setPendingReviewTarget])
 
   const displayFen = isLoaded ? currentFen : analysisFen
   const loadedGameKey = isLoaded ? `${currentGameId ?? pgn ?? '__loaded-game__'}:${loadRequestId}` : null

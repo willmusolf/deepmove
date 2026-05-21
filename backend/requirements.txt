@@ -12,6 +12,7 @@ anthropic==0.102.0
 
 # HTTP client (for Chess.com / Lichess proxying if needed)
 httpx==0.28.1
+python-chess==1.999
 
 # Config / env
 pydantic==2.13.4

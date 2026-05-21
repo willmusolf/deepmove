@@ -50,6 +50,8 @@ class User(Base):
 
     # Relationships
     games = relationship("Game", back_populates="user", cascade="all, delete-orphan")
+    analysis_jobs = relationship("AnalysisJob", back_populates="user", cascade="all, delete-orphan")
+    account_reports = relationship("AccountReport", back_populates="user", cascade="all, delete-orphan")
     lessons = relationship("Lesson", back_populates="user", cascade="all, delete-orphan")
     principles = relationship("UserPrinciple", back_populates="user", cascade="all, delete-orphan")
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
