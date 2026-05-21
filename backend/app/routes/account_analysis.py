@@ -1,5 +1,5 @@
 """Account-wide Training Plan analysis endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
@@ -19,6 +19,7 @@ from app.services.account_analysis import (
     latest_job,
     latest_report,
     retry_job,
+    run_queued_job_by_id,
     start_analysis_job,
 )
 
@@ -52,11 +53,14 @@ def _report_response(report: AccountReport | None) -> TrainingPlanReport | None:
 async def create_analysis_job(
     request: Request,
     body: StartAnalysisRequest,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Start the first-run broad Training Plan scan, or return the active one."""
     job, active_existing = start_analysis_job(db, user, body)
+    if job.status == "queued":
+        background_tasks.add_task(run_queued_job_by_id, job.id)
     return StartAnalysisResponse(job=_job_response(job), active_existing=active_existing)
 
 
@@ -105,12 +109,15 @@ async def cancel_analysis_job(
 async def retry_analysis_job(
     request: Request,
     job_id: int,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     job = retry_job(db, user.id, job_id)
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis job not found")
+    if job.status == "queued":
+        background_tasks.add_task(run_queued_job_by_id, job.id)
     return _job_response(job)
 
 

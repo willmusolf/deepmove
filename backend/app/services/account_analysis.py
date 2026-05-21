@@ -171,6 +171,42 @@ def run_next_job(db: Session) -> AnalysisJob | None:
     return db.query(AnalysisJob).filter(AnalysisJob.id == job.id).first()
 
 
+def run_queued_job_by_id(job_id: int) -> None:
+    """Run one queued job from a fresh session.
+
+    This is a web-process safety net for environments where the dedicated
+    worker process has not been provisioned yet. Row locking keeps it compatible
+    with the real worker: whichever process claims the job first owns it.
+    """
+    from app.database import SessionLocal
+
+    if SessionLocal is None:
+        logger.warning("account analysis background kick skipped: database unavailable")
+        return
+
+    db = SessionLocal()
+    try:
+        query = db.query(AnalysisJob).filter(AnalysisJob.id == job_id, AnalysisJob.status == "queued")
+        try:
+            query = query.with_for_update(skip_locked=True)
+        except TypeError:
+            query = query.with_for_update()
+        job = query.first()
+        if job is None:
+            return
+        job.status = "running"
+        job.stage = "fetching_games"
+        job.progress_pct = JOB_STAGES["fetching_games"]
+        job.started_at = _now()
+        job.error = None
+        db.commit()
+        run_job(db, job_id)
+    except Exception:
+        logger.exception("account analysis background kick failed", extra={"job_id": job_id})
+    finally:
+        db.close()
+
+
 def run_job(db: Session, job_id: int) -> AnalysisJob:
     job = db.query(AnalysisJob).filter(AnalysisJob.id == job_id).first()
     if job is None:
