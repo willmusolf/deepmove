@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuthStore } from '../../stores/authStore'
 import { api } from '../../api/client'
+import { trackLaunchEvent } from '../../services/launchAnalytics'
 
 interface AuthModalProps {
   onClose: () => void
@@ -83,6 +84,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         await login(email, password)
       } else {
         await register(email, password)
+        void trackLaunchEvent('signup_complete', { method: 'email_password' }, { onceEverKey: 'signup_complete' })
       }
       const passwordCredentialCtor = (window as Window & { PasswordCredential?: PasswordCredentialCtor }).PasswordCredential
       if ('credentials' in navigator && passwordCredentialCtor) {

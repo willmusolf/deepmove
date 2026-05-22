@@ -84,3 +84,60 @@ def test_scan_segments_blitz_and_selects_candidates():
     assert report["time_control_breakdown"][0]["segment"] == "blitz"
     assert report["scan_summary"]["candidate_positions"] > 0
     assert report["review_moments"][0]["game_id"] == 1
+
+
+def test_didnt_castle_examples_do_not_start_on_move_one():
+    black_game = type("GameLike", (), {
+        "id": 2,
+        "platform": "chesscom",
+        "platform_game_id": "g2",
+        "pgn": """
+[Event "Live Chess"]
+[White "them"]
+[Black "me"]
+[Result "0-1"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 f6 4. d4 exd4 5. O-O d6 6. Nxd4 Nxd4 7. Qxd4 0-1
+""",
+        "user_color": "black",
+        "opponent": "them",
+        "result": "W",
+        "time_control": "300+0",
+        "end_time": int(datetime.now(UTC).timestamp() * 1000),
+    })()
+
+    report = build_training_plan_payload([black_game], {"months": 12, "max_games": 500})
+
+    assert report["review_moments"]
+    assert all(moment["move_number"] >= 6 for moment in report["review_moments"])
+
+
+def test_review_examples_prefer_unique_games_when_possible():
+    base_pgn = """
+[Event "Live Chess"]
+[White "me"]
+[Black "them"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. h4 Nf6 5. a3 d6 6. Rh3 O-O 7. Rg3 h6 8. d3 1-0
+"""
+    games = [
+        type("GameLike", (), {
+            "id": game_id,
+            "platform": "chesscom",
+            "platform_game_id": f"g{game_id}",
+            "pgn": base_pgn,
+            "user_color": "white",
+            "opponent": f"them-{game_id}",
+            "result": "W",
+            "time_control": "300+0",
+            "end_time": int(datetime.now(UTC).timestamp() * 1000) - game_id,
+        })()
+        for game_id in range(10, 13)
+    ]
+
+    report = build_training_plan_payload(games, {"months": 12, "max_games": 500})
+
+    review_game_ids = [moment["game_id"] for moment in report["review_moments"]]
+    assert len(review_game_ids) >= 2
+    assert len(review_game_ids) == len(set(review_game_ids))

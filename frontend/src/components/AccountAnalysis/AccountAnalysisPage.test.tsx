@@ -18,6 +18,10 @@ vi.mock('../../services/gameDB', () => ({
   getAnalyzedGame: vi.fn(() => Promise.resolve(undefined)),
 }))
 
+vi.mock('../../services/launchAnalytics', () => ({
+  trackLaunchEvent: vi.fn(() => Promise.resolve()),
+}))
+
 const user = {
   id: 1,
   email: 'test@deepmove.io',
@@ -85,8 +89,8 @@ describe('AccountAnalysisPage', () => {
 
     render(<AccountAnalysisPage />)
 
-    expect(await screen.findByText('Create your first Training Plan.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Create your Training Plan' })).toBeEnabled()
+    expect(await screen.findByText('Analyze account history.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Build beta report' })).toBeEnabled()
   })
 
   it('renders a completed report with collapsed technical evidence', async () => {
@@ -95,7 +99,7 @@ describe('AccountAnalysisPage', () => {
 
     render(<AccountAnalysisPage />)
 
-    expect(await screen.findByText('Your Training Plan is ready.')).toBeInTheDocument()
+    expect(await screen.findByText('Your beta training snapshot is ready.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start 10-minute review' })).toBeEnabled()
     expect(screen.getByText('Technical evidence')).toBeInTheDocument()
     expect(screen.queryByText('candidate note')).not.toBeVisible()
@@ -125,7 +129,7 @@ describe('AccountAnalysisPage', () => {
     })
 
     render(<AccountAnalysisPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Create your Training Plan' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Build beta report' }))
 
     await waitFor(() => expect(apiMocks.startTrainingPlanJob).toHaveBeenCalled())
     expect(await screen.findByText('Queued')).toBeInTheDocument()

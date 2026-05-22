@@ -30,8 +30,8 @@ const PAGE_META: Record<Page, { title: string, description: string }> = {
     description: 'Play against the DeepMove bot and send finished games straight into review.',
   },
   dashboard: {
-    title: 'DeepMove | Insights',
-    description: 'Analyze your recent Chess.com and Lichess games to find recurring chess patterns, weaknesses, and opening trends.',
+    title: 'DeepMove | Insights Beta',
+    description: 'Beta account-history snapshots for recurring chess patterns, review examples, and future training-plan work.',
   },
   settings: {
     title: 'DeepMove | Settings',

@@ -76,10 +76,12 @@ import {
   MOBILE_BANNER_PAGE_SET,
 } from './config/sponsor'
 import { SUPPORT_GITHUB_ISSUES_URL } from './config/contact'
+import { buildSupportIssueUrl } from './config/contact'
 import { getPageFromPathname, getPageMeta, getPathForPage, isIndexablePage } from './utils/pageMeta'
 import { normalizeRestoredPage } from './utils/navigation'
 import { reportFrontendPerf } from './services/monitoring'
 import { getIdentity } from './services/identity'
+import { trackLaunchEvent, trackReviewSessionWindow } from './services/launchAnalytics'
 
 // Lichess-style thickness brushes — all green, varying weight
 const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
@@ -515,15 +517,25 @@ export default function App() {
   const reloadUser = useAuthStore(s => s.reloadUser)
   const authUser = useAuthStore(s => s.user)
   const isPremium = useAuthStore(s => s.isPremium)
+  const reviewSessionKeyRef = useRef<string | null>(null)
+  const prevIsAnalyzingRef = useRef(false)
   useEffect(() => {
     void authRefresh()
   }, [authRefresh])
+
+  useEffect(() => {
+    void trackLaunchEvent('open_app', { route: window.location.pathname }, { oncePerSessionKey: 'open_app' })
+  }, [])
 
   // After an account-link redirect, reload user to get updated oauth flags
   useEffect(() => {
     const linkSuccess = sessionStorage.getItem('dm_link_success')
     if (linkSuccess) {
       sessionStorage.removeItem('dm_link_success')
+      void trackLaunchEvent('account_linked', {
+        method: 'oauth',
+        provider: linkSuccess,
+      }, { oncePerSessionKey: `account_linked_oauth_${linkSuccess}` })
       void reloadUser()
     }
   }, [reloadUser])
@@ -570,6 +582,52 @@ export default function App() {
     if (Object.keys(patch).length === 0) return
     void updateProfile(patch).catch(() => {})
   }, [authUser, updateProfile])
+
+  useEffect(() => {
+    if (currentPage !== 'dashboard') return
+    void trackLaunchEvent(
+      'training_plan_beta_opened',
+      { source: 'nav' },
+      { oncePerSessionKey: 'training_plan_beta_opened' },
+    )
+  }, [currentPage])
+
+  useEffect(() => {
+    const currentReviewKey = currentGameId ?? (pgn ? `pgn:${pgn.slice(0, 48)}` : null)
+    if (currentPage !== 'review' || !currentReviewKey) return
+    if (reviewSessionKeyRef.current === currentReviewKey) return
+    reviewSessionKeyRef.current = currentReviewKey
+
+    const source = currentGameId
+      ? (platform ?? 'linked-account')
+      : backendGameId
+        ? 'backend'
+        : 'pgn'
+
+    void trackLaunchEvent(
+      'review_session_started',
+      { source, has_backend_game: !!backendGameId },
+      { oncePerSessionKey: `review_session_${currentReviewKey}` },
+    )
+    void trackLaunchEvent(
+      'first_game_imported',
+      { source, has_backend_game: !!backendGameId },
+      { onceEverKey: 'first_game_imported' },
+    )
+    trackReviewSessionWindow()
+  }, [backendGameId, currentGameId, currentPage, pgn, platform])
+
+  useEffect(() => {
+    if (prevIsAnalyzingRef.current && !isAnalyzing && moveEvals.length > 0) {
+      const source = currentGameId ? (platform ?? 'linked-account') : 'pgn'
+      void trackLaunchEvent(
+        'first_analysis_completed',
+        { source, move_count: moveEvals.length },
+        { onceEverKey: 'first_analysis_completed' },
+      )
+    }
+    prevIsAnalyzingRef.current = isAnalyzing
+  }, [currentGameId, isAnalyzing, moveEvals.length, platform])
 
   // Initialize userElo from cached detected ratings (instant — cached at import time, no analysis needed)
   useEffect(() => {
@@ -1170,6 +1228,10 @@ export default function App() {
     }
     setCurrentPage(page)
   }, [cancelGameAnalysis, resetPositionAnalysisState, stopBranchAnalysis])
+  const feedbackUrl = useMemo(
+    () => buildSupportIssueUrl({ page: currentPage, section: 'app-footer' }),
+    [currentPage],
+  )
   const [showEvalBar, setShowEvalBar] = useState(savedUiState?.showEvalBar ?? true)
   const phoneViewport = usePhoneViewport()
   const isPhone = phoneViewport.matches
@@ -2919,6 +2981,11 @@ export default function App() {
           {currentPage === 'profile' && (
             <ProfilePage
               onUsernameLinked={(platform, username) => {
+                void trackLaunchEvent(
+                  'account_linked',
+                  { method: 'manual', platform },
+                  { oncePerSessionKey: `account_linked_manual_${platform}_${username.toLowerCase()}` },
+                )
                 if (platform === 'chesscom') {
                   setChesscomUsername(username)
                   setImportTab('chesscom')
@@ -2964,7 +3031,8 @@ export default function App() {
           <footer className="app-footer app-footer--stack">
             <button className="app-footer__link" onClick={() => goToPage('about')}>About</button>
             <button className="app-footer__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
-            <a className="app-footer__link" href={SUPPORT_GITHUB_ISSUES_URL} target="_blank" rel="noreferrer">GitHub / Bug Report</a>
+            <a className="app-footer__link" href={feedbackUrl} target="_blank" rel="noreferrer">Feedback / Bug Report</a>
+            <a className="app-footer__link" href={SUPPORT_GITHUB_ISSUES_URL} target="_blank" rel="noreferrer">GitHub</a>
           </footer>
         )}
         {shouldShowMobileSponsor && (

@@ -226,7 +226,6 @@ def run_job(db: Session, job_id: int) -> AnalysisJob:
         _set_stage(db, job, "analyzing_candidates")
         scan = build_training_plan_payload(eligible, job.filters)
         _set_stage(db, job, "deep_reviewing_examples")
-        scan["review_moments"] = scan["review_moments"][:3]
 
         _set_stage(db, job, "saving_report")
         report = AccountReport(
@@ -477,14 +476,7 @@ def build_training_plan_payload(games: list[Game], filters: dict[str, Any]) -> d
 
     top_category = _select_focus_category(trend_counts)
     current_focus = _focus_for_category(top_category, trend_counts[top_category], len(games))
-    review_moments = [
-        _candidate_to_review_moment(candidate)
-        for candidate in sorted(
-            [candidate for candidate in candidates if candidate["category"] == top_category],
-            key=lambda item: (item["severity"], item["end_time"]),
-            reverse=True,
-        )[:3]
-    ]
+    review_moments = _select_review_moments(candidates, top_category)
     top_trends = [
         {
             "category": category,
@@ -610,37 +602,38 @@ def _classify_candidate(
         return (
             "hung_piece",
             90 + min(20, (after_hanging - before_hanging) * 10),
-            "A piece became easier to attack or was left without enough support after this move.",
+            "A piece became easier to attack or lost support after this move. Review goal: identify which defender changed jobs.",
         )
     if previous_opponent_check and not is_capture and not gives_check:
         return (
             "ignored_threat",
             80,
-            "The previous move created forcing pressure; this response should be reviewed for threat awareness.",
+            "The previous move created forcing pressure. Review goal: name the threat before choosing your response.",
         )
     if not is_capture and not gives_check and forcing_count >= 4:
         return (
             "missed_tactic",
             70 + min(20, forcing_count),
-            "There were several forcing candidate moves available, but the game move was quiet.",
+            "There were several forcing candidate moves available, but the game move was quiet. Review goal: compare this move with the strongest forcing try.",
         )
-    if move_number <= 12 and _king_uncastled(board_after, user_color) and not _looks_like_castle(san):
+    if 6 <= move_number <= 12 and _king_uncastled(board_after, user_color) and not _looks_like_castle(san):
         return (
             "didnt_castle",
             60,
-            "King safety stayed unresolved while the opening was moving into the middlegame.",
+            "King safety stayed unresolved while the opening was moving into the middlegame. Review goal: find the move that would have made castling possible sooner.",
         )
     if move_number >= 14 and not is_capture and not gives_check and forcing_count <= 1:
         return (
             "aimless_move",
             45,
-            "This quiet move did not create an obvious forcing threat or resolve a visible tactical issue.",
+            "This quiet move did not create an obvious threat or fix a visible problem. Review goal: decide what job the move was supposed to do.",
         )
     return None, 0, ""
 
 
 def _candidate_to_review_moment(candidate: dict[str, Any]) -> dict[str, Any]:
     label = _category_label(candidate["category"])
+    move_ref = _move_reference(candidate["move_number"], candidate["color"], candidate["move_played"])
     return {
         "game_id": candidate["game_id"],
         "platform_game_id": candidate["platform_game_id"],
@@ -652,10 +645,16 @@ def _candidate_to_review_moment(candidate: dict[str, Any]) -> dict[str, Any]:
         "move_number": candidate["move_number"],
         "color": candidate["color"],
         "move_played": candidate["move_played"],
-        "title": f"{label}: move {candidate['move_number']} {candidate['move_played']}",
+        "title": f"{label}: {move_ref}",
         "coach_note": candidate["coach_note"],
         "pgn": candidate["pgn"],
     }
+
+
+def _move_reference(move_number: int, color: str, move_played: str) -> str:
+    if color == "black":
+        return f"{move_number}... {move_played}"
+    return f"{move_number}. {move_played}"
 
 
 def _hanging_piece_count(board: chess.Board, color: chess.Color) -> int:
@@ -696,31 +695,90 @@ def _select_focus_category(counts: Counter[str]) -> str:
     return sorted(counts, key=lambda key: (counts[key], priority.get(key, 0)), reverse=True)[0]
 
 
+def _select_review_moments(candidates: list[dict[str, Any]], category: str, max_examples: int = 5) -> list[dict[str, Any]]:
+    if not candidates or category == "baseline":
+        return []
+
+    focus_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate["category"] == category and _is_teachable_example(candidate)
+    ]
+    ranked = sorted(
+        focus_candidates,
+        key=lambda item: (_candidate_example_score(item), item["severity"], item["end_time"]),
+        reverse=True,
+    )
+
+    selected: list[dict[str, Any]] = []
+    seen_games: set[str] = set()
+
+    for candidate in ranked:
+        game_key = str(candidate["platform_game_id"] or candidate["game_id"])
+        if game_key in seen_games:
+            continue
+        selected.append(_candidate_to_review_moment(candidate))
+        seen_games.add(game_key)
+        if len(selected) >= max_examples:
+            return selected
+
+    return selected
+
+
+def _candidate_example_score(candidate: dict[str, Any]) -> int:
+    move_number = int(candidate.get("move_number") or 0)
+    category = str(candidate.get("category") or "")
+    severity = int(candidate.get("severity") or 0)
+
+    target_move = {
+        "didnt_castle": 8,
+        "hung_piece": 16,
+        "missed_tactic": 18,
+        "ignored_threat": 16,
+        "aimless_move": 18,
+    }.get(category, 16)
+
+    timing_bonus = max(0, 18 - abs(move_number - target_move))
+    loss_penalty = 10 if move_number > 28 else 0
+    return severity + timing_bonus - loss_penalty
+
+
+def _is_teachable_example(candidate: dict[str, Any]) -> bool:
+    move_number = int(candidate.get("move_number") or 0)
+    category = str(candidate.get("category") or "")
+
+    if category == "didnt_castle":
+        return 6 <= move_number <= 12
+    if category == "aimless_move":
+        return 14 <= move_number <= 26
+    return 4 <= move_number <= 28
+
+
 def _focus_for_category(category: str, count: int, game_count: int) -> dict[str, Any]:
     copy = {
         "hung_piece": (
             "Stop leaving pieces loose.",
-            "Loose-piece signals showed up repeatedly in the broad scan.",
+            "The broad scan kept finding positions where one move loosened a defender or left a piece easier to attack. Start with the clearest examples below.",
             ["What is attacked?", "What is undefended?", "What changes if I move this piece?"],
         ),
         "missed_tactic": (
             "Check forcing moves before quiet moves.",
-            "The scan found positions where checks, captures, or threats were available before a quiet move.",
+            "The broad scan found repeated spots where checks, captures, or direct threats were available before a quieter move. Review the examples below before turning this into practice.",
             ["List checks.", "List captures.", "List direct threats before choosing a quiet move."],
         ),
         "ignored_threat": (
             "Answer the opponent's last idea first.",
-            "Threat-awareness signals appeared in games where the previous move created forcing pressure.",
+            "Several games featured a forcing opponent move followed by a reply that did not fully answer the threat. Review the sharpest examples first.",
             ["What did their last move attack?", "What threat exists if I pass?", "Does my move answer it?"],
         ),
         "didnt_castle": (
             "Resolve king safety earlier.",
-            "Several openings kept the king in the center while the position was opening up.",
+            "Several openings kept the king in the center while the position was opening up. The examples below are the clearest places to review what would have made castling possible sooner.",
             ["Can I castle now?", "If not, what move makes castling possible?", "Is the center about to open?"],
         ),
         "aimless_move": (
             "Give quiet moves a job.",
-            "Quiet moves often appeared without an obvious forcing threat or defensive purpose.",
+            "The scan found quiet moves that did not clearly improve a piece, stop a threat, or create pressure. Review the examples below and ask what each move was trying to accomplish.",
             ["What piece improves?", "What threat is stopped?", "What pressure is created?"],
         ),
         "baseline": (
@@ -733,7 +791,7 @@ def _focus_for_category(category: str, count: int, game_count: int) -> dict[str,
     return {
         "category": category,
         "title": title,
-        "summary": f"{summary} Found {count} signal{'s' if count != 1 else ''} across {game_count} eligible games.",
+        "summary": summary if count > 0 and game_count > 0 else copy["baseline"][1],
         "habit": habit,
         "confidence": "verified_examples" if count > 0 else "trend_signal",
     }

@@ -15,6 +15,8 @@ import { cleanPgn } from '../../chess/pgn'
 import { getAnalyzedGame, type AnalyzedGameRecord } from '../../services/gameDB'
 import { useAuthStore } from '../../stores/authStore'
 import { useGameStore } from '../../stores/gameStore'
+import { buildSupportIssueUrl } from '../../config/contact'
+import { trackLaunchEvent } from '../../services/launchAnalytics'
 
 interface AccountAnalysisPageProps {
   onOpenReview?: () => void
@@ -28,7 +30,7 @@ const STAGE_COPY: Record<AnalysisJobStage, string> = {
   analyzing_candidates: 'Checking candidate moments',
   deep_reviewing_examples: 'Selecting review examples',
   saving_report: 'Saving report',
-  complete: 'Training Plan ready',
+  complete: 'Snapshot ready',
   failed: 'Needs attention',
   cancelled: 'Cancelled',
 }
@@ -141,7 +143,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
 
   useEffect(() => {
     void loadStatus().catch(err => {
-      setError(err instanceof Error ? err.message : 'Could not load your Training Plan.')
+      setError(err instanceof Error ? err.message : 'Could not load your beta report.')
     })
   }, [loadStatus])
 
@@ -160,6 +162,14 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     return () => window.clearInterval(handle)
   }, [job, jobActive])
 
+  useEffect(() => {
+    void trackLaunchEvent(
+      'training_plan_beta_opened',
+      { has_report: reportHasSignal(report) },
+      { oncePerSessionKey: 'training_plan_beta_opened' },
+    )
+  }, [report])
+
   const startReport = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -167,7 +177,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
       const response = await startTrainingPlanJob()
       setJob(response.job)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not start your Training Plan scan.')
+      setError(err instanceof Error ? err.message : 'Could not start your beta report scan.')
     } finally {
       setLoading(false)
     }
@@ -212,15 +222,19 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     const count = report.scan_summary.eligible_games ?? 0
     return `${count} eligible game${count === 1 ? '' : 's'} scanned across the last 12 months.`
   }, [report])
+  const feedbackUrl = useMemo(
+    () => buildSupportIssueUrl({ page: 'insights-beta', section: 'account-snapshot' }),
+    [],
+  )
 
   if (!accessToken) {
     return (
       <div className="account-analysis-page">
         <section className="account-analysis-hero">
           <div>
-            <p className="account-analysis-kicker">Training Plan</p>
-            <h1>Create your chess baseline.</h1>
-            <p>Sign in and connect an account so DeepMove can scan your recent games and build a saved Training Plan.</p>
+            <p className="account-analysis-kicker">Insights Beta</p>
+            <h1>Analyze account history.</h1>
+            <p>Sign in and connect an account so DeepMove can store a beta snapshot from your recent games and improve it as stronger examples are verified.</p>
           </div>
         </section>
       </div>
@@ -231,21 +245,25 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     <div className="account-analysis-page">
       <section className="account-analysis-hero">
         <div>
-          <p className="account-analysis-kicker">Training Plan</p>
-          <h1>{reportReady ? 'Your Training Plan is ready.' : 'Create your first Training Plan.'}</h1>
+          <p className="account-analysis-kicker">Insights Beta</p>
+          <h1>{reportReady ? 'Your beta training snapshot is ready.' : 'Analyze account history.'}</h1>
           <p>
-            DeepMove scans up to 500 blitz-and-longer games from the last year, finds recurring trends,
-            then picks review moments from your own games.
+            DeepMove stores a snapshot from up to 500 blitz-and-longer games from the last year, looks
+            for recurring trends, then keeps the clearest review examples from your own games.
+          </p>
+          <p className="account-analysis-controls__note">
+            Beta report snapshot: useful for broader direction, still being tightened before it becomes
+            the main product promise.
           </p>
         </div>
-        <div className="account-analysis-controls" aria-label="Training Plan controls">
+        <div className="account-analysis-controls" aria-label="Insights Beta controls">
           <button
             type="button"
             className="btn btn-primary"
             onClick={() => void startReport()}
             disabled={loading || jobActive || !hasLinkedAccount}
           >
-            {loading ? 'Starting...' : reportReady ? 'Create new report' : 'Create your Training Plan'}
+            {loading ? 'Starting...' : reportReady ? 'Save new snapshot' : 'Build beta report'}
           </button>
           {jobActive && (
             <button type="button" className="btn btn-secondary" onClick={() => void cancelReport()}>
@@ -254,10 +272,13 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           )}
           {!hasLinkedAccount && (
             <>
-              <p className="account-analysis-controls__note">Connect Chess.com or Lichess before creating a Training Plan.</p>
+              <p className="account-analysis-controls__note">Connect Chess.com or Lichess before building a beta report.</p>
               {onOpenProfile && <button type="button" className="btn btn-secondary" onClick={onOpenProfile}>Open profile</button>}
             </>
           )}
+          <a className="btn btn-secondary" href={feedbackUrl} target="_blank" rel="noreferrer">
+            Share beta feedback
+          </a>
         </div>
       </section>
 
@@ -291,7 +312,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
         <>
           <section className="account-analysis-coverage account-analysis-coverage--high">
             <div>
-              <span>Training Plan ready</span>
+              <span>Snapshot ready</span>
               <strong>{report.current_focus.title}</strong>
               <p>{focusSummary} Saved {formatReportDate(report.created_at)}.</p>
             </div>
@@ -318,7 +339,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
                 <p>{report.current_focus.summary}</p>
               </div>
               <div>
-                <span>This week</span>
+                <span>What to do now</span>
                 <p>{report.current_focus.habit.join(' ')}</p>
               </div>
             </div>
@@ -326,13 +347,13 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
             {report.review_moments.length > 0 && (
               <div className="account-evidence-moments">
                 <div className="account-evidence-moments__title">
-                  <strong>Review these moments</strong>
-                  <span>Each one opens your game at the move DeepMove selected.</span>
+                  <strong>Selected review examples</strong>
+                  <span>Each one opens your game at the move DeepMove thinks is most teachable right now.</span>
                 </div>
-                {report.review_moments.map(moment => (
+                {report.review_moments.map((moment, index) => (
                   <div className="account-evidence-row" key={`${moment.game_id}:${moment.move_number}:${moment.color}`}>
                     <div>
-                      <strong>{moment.title}</strong>
+                      <strong>{`Example ${index + 1}: ${moment.title}`}</strong>
                       <span>
                         {formatResult(moment.result)} vs {moment.opponent ?? 'opponent'} - {moment.segment} - {moment.coach_note}
                       </span>
@@ -349,7 +370,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           <details className="account-analysis-card account-pattern-evidence">
             <summary>
               <span>Trend context</span>
-              <em>{report.top_trends.length} trend signal{report.top_trends.length === 1 ? '' : 's'}</em>
+              <em>{report.top_trends.length} tracked pattern{report.top_trends.length === 1 ? '' : 's'}</em>
             </summary>
             <div className="account-weakness-list">
               {report.top_trends.map(trend => (
@@ -358,7 +379,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
                     <strong>{trend.label}</strong>
                     <span>{trend.confidence === 'verified_examples' ? 'Backed by selected review examples' : 'Broad scan signal'}</span>
                   </div>
-                  <em>{trend.count}</em>
+                  <em>{trend.count} signals</em>
                 </div>
               ))}
             </div>
