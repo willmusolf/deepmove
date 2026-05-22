@@ -2134,6 +2134,9 @@ export default function App() {
       dest: line.pv[0].slice(2, 4) as Key,
       brush: LINE_BRUSHES[i] ?? 'okMove',
     })), [visibleLines])
+  const lessonEngineUnlocked = !lessonReviewContext || lessonAnswerRevealed
+  const lessonVisibleLines = lessonEngineUnlocked ? visibleLines : []
+  const lessonBoardShapes = lessonEngineUnlocked ? boardShapes : []
 
   // ── Misc ───────────────────────────────────────────────────────────────────
 
@@ -2478,7 +2481,7 @@ export default function App() {
                 if (panelTab !== 'coach') setPanelTab('analysis')
               }
                       }
-                      shapes={showArrows ? boardShapes : []}
+                      shapes={showArrows ? lessonBoardShapes : []}
                       lastMove={isLoaded ? boardLastMove : (
                         analysisPath.length > 0
                           ? [analysisTree[analysisPath[analysisPath.length - 1]]?.from, analysisTree[analysisPath[analysisPath.length - 1]]?.to] as [Key, Key] | undefined
@@ -2791,10 +2794,10 @@ export default function App() {
                         <EvalDisplay {...evalDisplayProps} />
                       )}
 
-                      {!hideLoadedReviewArtifacts && showBestLines && (
+                      {!hideLoadedReviewArtifacts && showBestLines && lessonEngineUnlocked && (
                         <BestLines
                           key={bestLinesComponentKey}
-                          lines={visibleLines}
+                          lines={lessonVisibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
                           maxLines={engineLines}
                           onLineClick={handleAnalysisBestLineClick}
@@ -2861,9 +2864,9 @@ export default function App() {
                         <div>
                           <span>{lessonReviewContext.betterMoveSan ? 'Better idea' : 'Review goal'}</span>
                           <strong>
-                            {lessonAnswerRevealed
-                              ? lessonReviewContext.betterMoveSan ?? 'Use the engine line to compare ideas'
-                              : 'Hidden until reveal'}
+                            {lessonReviewContext.betterMoveSan
+                              ? (lessonAnswerRevealed ? lessonReviewContext.betterMoveSan : 'Hidden until reveal')
+                              : (lessonAnswerRevealed ? 'Engine review is unlocked' : 'Think first, then unlock engine review')}
                           </strong>
                         </div>
                       </div>
@@ -2883,7 +2886,9 @@ export default function App() {
                       )}
                       <div className="insights-lesson-panel__actions">
                         <button type="button" className="btn btn-primary" onClick={handleRevealLessonAnswer}>
-                          {lessonAnswerRevealed ? 'Answer revealed' : lessonReviewContext.betterMoveSan ? 'Reveal better idea' : 'Start engine review'}
+                          {lessonReviewContext.betterMoveSan
+                            ? (lessonAnswerRevealed ? 'Answer revealed' : 'Reveal better idea')
+                            : (lessonAnswerRevealed ? 'Engine lines unlocked' : 'Unlock engine review')}
                         </button>
                         <button
                           type="button"
@@ -2995,10 +3000,10 @@ export default function App() {
                         <EvalDisplay {...evalDisplayProps} />
                       )}
 
-                      {showBestLines && (
+                      {showBestLines && lessonEngineUnlocked && (
                         <BestLines
                           key={bestLinesComponentKey}
-                          lines={visibleLines}
+                          lines={lessonVisibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
                           maxLines={engineLines}
                           onLineClick={handleAnalysisBestLineClick}

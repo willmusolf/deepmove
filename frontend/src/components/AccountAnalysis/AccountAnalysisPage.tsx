@@ -46,6 +46,10 @@ function formatResult(result: ReviewMoment['result']): string {
   return 'Game'
 }
 
+function formatSignalCount(count: number): string {
+  return new Intl.NumberFormat().format(count)
+}
+
 function reportHasSignal(report: TrainingPlanReport | null): boolean {
   return !!report && (report.scan_summary.eligible_games ?? 0) > 0
 }
@@ -463,17 +467,10 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
               <span>Other patterns noticed</span>
               <em>{report.top_trends.length} tracked pattern{report.top_trends.length === 1 ? '' : 's'}</em>
             </summary>
-            <div className="account-weakness-list">
-              {report.top_trends.map(trend => (
-                <div className="account-weakness-row" key={trend.category}>
-                  <div>
-                    <strong>{trend.label}</strong>
-                    <span>{hasVerifiedLesson && trend.confidence === 'verified_examples' ? 'Backed by lesson examples' : 'Secondary pattern'}</span>
-                  </div>
-                  <em>{trend.count} signals</em>
-                </div>
-              ))}
-            </div>
+            <PatternTrendRows
+              trends={report.top_trends}
+              hasVerifiedLesson={hasVerifiedLesson}
+            />
           </details>
 
           <details className="account-analysis-card account-pattern-evidence">
@@ -485,6 +482,42 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           </details>
         </>
       )}
+    </div>
+  )
+}
+
+function PatternTrendRows({
+  trends,
+  hasVerifiedLesson,
+}: {
+  trends: TrainingPlanReport['top_trends']
+  hasVerifiedLesson: boolean
+}) {
+  const maxCount = trends.reduce((largest, trend) => Math.max(largest, trend.count), 0)
+
+  return (
+    <div className="account-weakness-list">
+      {trends.map(trend => {
+        const fillPct = maxCount > 0 ? Math.max(14, Math.round((trend.count / maxCount) * 100)) : 0
+        const status = hasVerifiedLesson && trend.confidence === 'verified_examples'
+          ? 'Backed by lesson examples'
+          : 'Secondary pattern'
+        return (
+          <div className="account-weakness-row" key={trend.category}>
+            <div className="account-weakness-row__meta">
+              <strong>{trend.label}</strong>
+              <span>{status}</span>
+            </div>
+            <div className="account-weakness-row__meter" aria-hidden="true">
+              <div style={{ width: `${fillPct}%` }} />
+            </div>
+            <div className="account-weakness-row__count">
+              <strong>{formatSignalCount(trend.count)}</strong>
+              <span>signals</span>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

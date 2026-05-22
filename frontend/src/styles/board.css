@@ -1830,20 +1830,45 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 }
 
 .account-weakness-row {
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1.2fr) minmax(6rem, 0.9fr) auto;
 }
 
-.account-weakness-row em {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2rem;
-  min-height: 2rem;
+.account-weakness-row__meta {
+  min-width: 0;
+}
+
+.account-weakness-row__meter {
+  position: relative;
+  height: 0.45rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
-  color: var(--color-text);
-  font-style: normal;
-  font-weight: 800;
+  background: color-mix(in srgb, var(--color-border) 72%, transparent);
+  overflow: hidden;
+}
+
+.account-weakness-row__meter div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 55%, #f2c46d 45%), var(--color-accent));
+}
+
+.account-weakness-row__count {
+  min-width: 4.75rem;
+  text-align: right;
+}
+
+.account-weakness-row__count strong,
+.account-weakness-row__count span {
+  display: block;
+  margin: 0;
+}
+
+.account-weakness-row__count strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.account-weakness-row__count span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
 }
 
 .account-weakness-dot {
@@ -1959,6 +1984,15 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 
   .account-evidence-moments__title span,
   .account-pattern-evidence summary em {
+    text-align: left;
+  }
+
+  .account-weakness-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.55rem;
+  }
+
+  .account-weakness-row__count {
     text-align: left;
   }
 
