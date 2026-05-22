@@ -259,19 +259,23 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     () => allExamples.filter(hasTrustedBetterMove),
     [allExamples],
   )
+  const visibleMoments = examples.length > 0 ? examples : allExamples
   const reviewPromptsNeedingCheck = allExamples.length - examples.length
   const openMoment = useCallback(async (moment: ReviewMoment, index = 0) => {
     const cached = await getAnalyzedGame(buildMomentGameId(moment))
     if (cached) hydrateStoreFromRecord(cached, moment)
     else hydrateStoreFromMoment(moment)
-    if (report) setLessonReviewContext(report, moment, index, examples)
+    const contextMoments = hasTrustedBetterMove(moment) ? examples : allExamples
+    const contextIndex = Math.max(0, contextMoments.findIndex(item => item.example_id === moment.example_id))
+    if (report) setLessonReviewContext(report, moment, contextIndex >= 0 ? contextIndex : index, contextMoments)
     onOpenReview?.('lesson')
-  }, [examples, onOpenReview, report])
+  }, [allExamples, examples, onOpenReview, report])
 
-  const primaryMoment = examples[0] ?? null
+  const primaryMoment = visibleMoments[0] ?? null
   const stageLabel = job ? STAGE_COPY[job.stage] : 'Ready'
   const reportReady = reportHasSignal(report)
   const hasVerifiedLesson = examples.length > 0
+  const hasProvisionalFocus = !hasVerifiedLesson && visibleMoments.length > 0
 
   const focusSummary = useMemo(() => {
     if (!report) return null
@@ -280,13 +284,19 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
   }, [report])
   const displayLessonTitle = hasVerifiedLesson
     ? report?.lesson_context?.report_title ?? report?.current_focus.title ?? 'Your lesson'
-    : 'No verified lesson yet.'
+    : hasProvisionalFocus
+      ? `Provisional focus: ${report?.lesson_context?.report_title ?? report?.current_focus.title ?? 'Review candidate moments'}`
+      : 'No clear focus yet.'
   const displayLessonSummary = hasVerifiedLesson
     ? report?.lesson_context?.summary ?? report?.current_focus.summary ?? ''
-    : 'DeepMove found broad review patterns, but none have engine-verified examples strong enough to teach as flagship evidence yet.'
+    : hasProvisionalFocus
+      ? 'The broad scan found a repeated pattern. These positions are review prompts, not verified lesson evidence yet.'
+      : 'DeepMove did not find enough clean evidence to choose a focus from this scan.'
   const displayLessonHabit = hasVerifiedLesson
     ? report?.lesson_context?.habit ?? report?.current_focus.habit ?? []
-    : ['Use Review for now.', 'Rebuild the snapshot after engine verification is enabled.']
+    : hasProvisionalFocus
+      ? report?.lesson_context?.habit ?? report?.current_focus.habit ?? ['Open a prompt.', 'Check it with the engine.', 'Keep only examples where the better idea clearly matters.']
+      : ['Review one recent loss.', 'Run Insights again after more games.']
   const feedbackUrl = useMemo(
     () => buildSupportIssueUrl({ page: 'insights-beta', section: 'account-snapshot' }),
     [],
@@ -383,7 +393,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
             {primaryMoment && (
               <div className="account-analysis-queue-actions">
                 <button type="button" className="btn btn-primary" onClick={() => void openMoment(primaryMoment, 0)}>
-                  Study this lesson
+                  {hasVerifiedLesson ? 'Study this lesson' : 'Open strongest prompt'}
                 </button>
               </div>
             )}
@@ -392,10 +402,16 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           <section className="account-coach-brief account-coach-brief--weakness">
             <div className="account-coach-brief__header">
               <div>
-                <span>{hasVerifiedLesson ? 'Your lesson' : 'Verification needed'}</span>
+                <span>{hasVerifiedLesson ? 'Your lesson' : hasProvisionalFocus ? 'Provisional focus' : 'Verification needed'}</span>
                 <h3>{displayLessonTitle}</h3>
               </div>
-              <em>{hasVerifiedLesson ? `${examples.length} verified example${examples.length === 1 ? '' : 's'}` : 'Needs engine check'}</em>
+              <em>
+                {hasVerifiedLesson
+                  ? `${examples.length} verified example${examples.length === 1 ? '' : 's'}`
+                  : hasProvisionalFocus
+                    ? `${visibleMoments.length} prompt${visibleMoments.length === 1 ? '' : 's'}`
+                    : 'Needs engine check'}
+              </em>
             </div>
             <div className="account-coach-brief__grid">
               <div>
@@ -408,13 +424,17 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
               </div>
             </div>
 
-            {examples.length > 0 ? (
+            {visibleMoments.length > 0 ? (
               <div className="account-evidence-moments">
                 <div className="account-evidence-moments__title">
-                  <strong>Examples from your games</strong>
-                  <span>Only engine-verified examples are shown here.</span>
+                  <strong>{hasVerifiedLesson ? 'Examples from your games' : 'Review prompts from your games'}</strong>
+                  <span>
+                    {hasVerifiedLesson
+                      ? 'Only engine-verified examples are shown here.'
+                      : 'Open these as candidate positions; do not treat them as proof until the engine confirms the idea matters.'}
+                  </span>
                 </div>
-                {examples.map((moment, index) => (
+                {visibleMoments.map((moment, index) => (
                   <div className="account-evidence-row" key={`${moment.game_id}:${moment.move_number}:${moment.color}`}>
                     <div>
                       <strong>{`Example ${index + 1}: ${moment.title}`}</strong>
@@ -424,7 +444,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
                       <small>{exampleStatusCopy(moment)}</small>
                     </div>
                     <button type="button" className="btn btn-secondary" onClick={() => void openMoment(moment, index)}>
-                      Study example
+                      {hasTrustedBetterMove(moment) ? 'Study example' : 'Open prompt'}
                     </button>
                   </div>
                 ))}

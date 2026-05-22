@@ -7,7 +7,7 @@ import logging
 import re
 import time
 from collections import Counter, defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -33,11 +33,11 @@ logger = logging.getLogger(__name__)
 ACTIVE_JOB_STATUSES = ("queued", "running")
 JOB_STAGES = {
     "queued": 0,
-    "fetching_games": 10,
-    "scanning_metadata": 30,
-    "analyzing_candidates": 60,
-    "deep_reviewing_examples": 82,
-    "saving_report": 94,
+    "fetching_games": 8,
+    "scanning_metadata": 24,
+    "analyzing_candidates": 30,
+    "deep_reviewing_examples": 86,
+    "saving_report": 96,
     "complete": 100,
     "failed": 100,
     "cancelled": 100,
@@ -233,7 +233,11 @@ def run_job(db: Session, job_id: int) -> AnalysisJob:
         _set_stage(db, job, "scanning_metadata")
         eligible = _filter_eligible_games(games, job.filters)
         _set_stage(db, job, "analyzing_candidates")
-        scan = build_training_plan_payload(eligible, job.filters)
+        scan = build_training_plan_payload(
+            eligible,
+            job.filters,
+            progress_callback=lambda scanned, total: _set_scan_progress(db, job, scanned, total),
+        )
         _set_stage(db, job, "deep_reviewing_examples")
 
         _set_stage(db, job, "saving_report")
@@ -280,6 +284,24 @@ def _set_stage(db: Session, job: AnalysisJob, stage: str) -> None:
     job.status = "running"
     job.stage = stage
     job.progress_pct = JOB_STAGES[stage]
+    db.commit()
+    db.refresh(job)
+
+
+def _set_scan_progress(db: Session, job: AnalysisJob, scanned: int, total: int) -> None:
+    if total <= 0:
+        return
+    db.refresh(job)
+    if job.status == "cancelled":
+        raise RuntimeError("Analysis job was cancelled")
+    start = JOB_STAGES["analyzing_candidates"]
+    end = JOB_STAGES["deep_reviewing_examples"] - 1
+    pct = start + round((end - start) * min(scanned, total) / total)
+    if pct <= job.progress_pct:
+        return
+    job.status = "running"
+    job.stage = "analyzing_candidates"
+    job.progress_pct = min(end, pct)
     db.commit()
     db.refresh(job)
 
@@ -531,6 +553,7 @@ def build_training_plan_payload(
     games: list[Game],
     filters: dict[str, Any],
     verifier: CandidateVerifier | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> dict[str, Any]:
     candidates: list[dict[str, Any]] = []
     segment_counts: Counter[str] = Counter()
@@ -542,7 +565,8 @@ def build_training_plan_payload(
     parsed_games = 0
     verifier = verifier or HeuristicCandidateVerifier()
 
-    for game in games:
+    total_games = len(games)
+    for index, game in enumerate(games, start=1):
         segment = _time_control_segment(game.time_control)
         segment_counts[segment] += 1
         result_counts[game.result or "unknown"] += 1
@@ -557,6 +581,8 @@ def build_training_plan_payload(
             candidates.append(candidate)
             trend_counts[candidate["category"]] += 1
             trend_segments[candidate["category"]][segment] += 1
+        if progress_callback and (index == total_games or index == 1 or index % 20 == 0):
+            progress_callback(index, total_games)
 
     small_sample = len(games) < MIN_LESSON_SAMPLE_GAMES
     selected_lesson, verified_candidates, rejected = (

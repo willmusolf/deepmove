@@ -178,3 +178,33 @@ def test_review_examples_prefer_unique_games_when_possible():
     assert len(review_game_ids) >= 2
     assert len(review_game_ids) == len(set(review_game_ids))
     assert report["technical_evidence"]["lesson_context"]["id"] != "small_sample"
+
+
+def test_build_payload_reports_scan_progress_by_game_count():
+    games = [
+        type("GameLike", (), {
+            "id": game_id,
+            "platform": "chesscom",
+            "platform_game_id": f"g{game_id}",
+            "pgn": SAMPLE_PGN,
+            "user_color": "white",
+            "opponent": f"them-{game_id}",
+            "result": "W",
+            "time_control": "300+0",
+            "end_time": int(datetime.now(UTC).timestamp() * 1000) - game_id,
+        })()
+        for game_id in range(1, 62)
+    ]
+    updates = []
+
+    build_training_plan_payload(
+        games,
+        {"months": 12, "max_games": 500},
+        progress_callback=lambda scanned, total: updates.append((scanned, total)),
+    )
+
+    assert updates[0] == (1, 61)
+    assert (20, 61) in updates
+    assert (40, 61) in updates
+    assert (60, 61) in updates
+    assert updates[-1] == (61, 61)

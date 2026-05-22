@@ -169,11 +169,14 @@ describe('AccountAnalysisPage', () => {
 
     render(<AccountAnalysisPage />)
 
-    expect((await screen.findAllByText('No verified lesson yet.')).length).toBeGreaterThan(0)
+    expect(await screen.findByText('Provisional focus')).toBeInTheDocument()
+    expect(screen.getAllByText(/Provisional focus: Stop leaving pieces loose/i).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Open strongest prompt' })).toBeEnabled()
+    expect(screen.getByText('Review prompts from your games')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Study this lesson' })).not.toBeInTheDocument()
     expect(screen.queryByText(/Qxc2/)).not.toBeInTheDocument()
     expect(screen.queryByText('Backed by lesson examples')).not.toBeInTheDocument()
-    expect(screen.getByText(/none have engine-verified lesson evidence yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/do not treat them as proof until the engine confirms/i)).toBeInTheDocument()
   })
 
   it('starts a backend job from the CTA', async () => {
