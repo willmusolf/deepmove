@@ -12,7 +12,7 @@ from app.services.account_analysis import (
 
 
 class FakeVerifier(CandidateVerifier):
-    method = "fake_engine"
+    method = "engine"
 
     def verify(self, candidate, lesson):
         return VerificationResult(

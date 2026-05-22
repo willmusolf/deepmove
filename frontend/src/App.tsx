@@ -746,12 +746,11 @@ export default function App() {
 
   useEffect(() => {
     if (!isLoaded || !pendingReviewTarget) return
-    const currentId = useGameStore.getState().currentGameId
-    if (pendingReviewTarget.gameId && currentId && pendingReviewTarget.gameId !== currentId) return
+    if (pendingReviewTarget.gameId && currentGameId && pendingReviewTarget.gameId !== currentGameId) return
     pathKeyRef.current++
     goToMove(pendingReviewTarget.plyIndex)
     setPendingReviewTarget(null)
-  }, [goToMove, isLoaded, pendingReviewTarget, setPendingReviewTarget])
+  }, [currentGameId, goToMove, isLoaded, pendingReviewTarget, setPendingReviewTarget])
 
   const displayFen = isLoaded ? currentFen : analysisFen
   const loadedGameKey = isLoaded ? `${currentGameId ?? pgn ?? '__loaded-game__'}:${loadRequestId}` : null
@@ -2819,8 +2818,8 @@ export default function App() {
                           <strong>{lessonReviewContext.movePlayed}</strong>
                         </div>
                         <div>
-                          <span>Better idea</span>
-                          <strong>{lessonReviewContext.betterMoveSan ?? 'Reveal with the engine line'}</strong>
+                          <span>Review goal</span>
+                          <strong>{lessonReviewContext.betterMoveSan ?? 'Use the engine line to compare ideas'}</strong>
                         </div>
                       </div>
                       <p className="insights-lesson-panel__note">{lessonReviewContext.coachNote}</p>

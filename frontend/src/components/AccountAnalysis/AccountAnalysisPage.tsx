@@ -58,6 +58,10 @@ function buildMomentPlyBefore(target: ReviewMoment): number {
   return Math.max(0, (target.move_number - 1) * 2 + (target.color === 'white' ? 0 : 1))
 }
 
+function hasTrustedBetterMove(moment: ReviewMoment): boolean {
+  return moment.verified === true && moment.verification_method === 'engine'
+}
+
 function hydrateStoreFromRecord(record: AnalyzedGameRecord, target: ReviewMoment): void {
   const store = useGameStore.getState()
   const gameId = record.id
@@ -142,8 +146,8 @@ function setLessonReviewContext(
     exampleIndex: index,
     exampleCount: examples.length,
     movePlayed: moment.played_san ?? moment.move_played,
-    betterMoveSan: moment.better_move_san ?? null,
-    betterMoveUci: moment.better_move_uci ?? null,
+    betterMoveSan: hasTrustedBetterMove(moment) ? moment.better_move_san ?? null : null,
+    betterMoveUci: hasTrustedBetterMove(moment) ? moment.better_move_uci ?? null : null,
     coachNote: moment.coach_note,
     practicePrompt: moment.practice_prompt ?? lesson.practice_prompt ?? '',
     themeFacts: moment.theme_facts ?? [],
@@ -285,7 +289,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           <h1>{reportReady ? 'Your beta training snapshot is ready.' : 'Analyze account history.'}</h1>
           <p>
             DeepMove scans up to 500 blitz-and-longer games from the last year, finds the lesson your
-            games are asking for, then teaches it with checked examples from your own games.
+            games are asking for, then opens review prompts from your own games.
           </p>
           <p className="account-analysis-controls__note">
             Beta lesson snapshot: strongest with 50+ eligible games.
@@ -383,7 +387,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
               <div className="account-evidence-moments">
                 <div className="account-evidence-moments__title">
                   <strong>Examples from your games</strong>
-                  <span>Each one opens before the key decision so you can try to find the better idea.</span>
+                  <span>Each one opens before the key decision so you can compare your idea with the engine.</span>
                 </div>
                 {examples.map((moment, index) => (
                   <div className="account-evidence-row" key={`${moment.game_id}:${moment.move_number}:${moment.color}`}>
@@ -392,7 +396,9 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
                       <span>
                         {formatResult(moment.result)} vs {moment.opponent ?? 'opponent'} - {moment.segment} - {moment.coach_note}
                       </span>
-                      {moment.better_move_san && <small>Better idea to find: {moment.better_move_san}</small>}
+                      {hasTrustedBetterMove(moment)
+                        ? <small>Better idea to find: {moment.better_move_san}</small>
+                        : <small>Beta prompt: open the position and use the engine line to test candidate moves.</small>}
                     </div>
                     <button type="button" className="btn btn-secondary" onClick={() => void openMoment(moment, index)}>
                       Study example

@@ -483,6 +483,8 @@ class CandidateVerifier:
 
 
 class HeuristicCandidateVerifier(CandidateVerifier):
+    method = "lesson_prompt"
+
     def verify(self, candidate: dict[str, Any], lesson: LessonDefinition) -> VerificationResult | None:
         if int(candidate.get("legal_move_count") or 0) <= 1:
             return None
@@ -888,7 +890,7 @@ def _select_verified_lesson(
             verified_candidate = {
                 **candidate,
                 "lesson_id": lesson.id,
-                "verified": True,
+                "verified": verifier.method == "engine",
                 "verification_method": verifier.method,
                 "better_move_san": result.better_move_san,
                 "better_move_uci": result.better_move_uci,
