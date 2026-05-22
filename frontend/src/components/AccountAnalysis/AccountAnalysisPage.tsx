@@ -62,6 +62,16 @@ function hasTrustedBetterMove(moment: ReviewMoment): boolean {
   return moment.verified === true && moment.verification_method === 'engine'
 }
 
+function safeCoachNote(moment: ReviewMoment): string {
+  if (hasTrustedBetterMove(moment)) return moment.coach_note
+  return 'Matched a broad-scan review pattern. DeepMove still needs engine verification before naming this as a lesson example.'
+}
+
+function exampleStatusCopy(moment: ReviewMoment): string {
+  if (hasTrustedBetterMove(moment)) return `Better idea to find: ${moment.better_move_san}`
+  return 'Needs engine verification before this can be used as lesson evidence.'
+}
+
 function hydrateStoreFromRecord(record: AnalyzedGameRecord, target: ReviewMoment): void {
   const store = useGameStore.getState()
   const gameId = record.id
@@ -148,9 +158,9 @@ function setLessonReviewContext(
     movePlayed: moment.played_san ?? moment.move_played,
     betterMoveSan: hasTrustedBetterMove(moment) ? moment.better_move_san ?? null : null,
     betterMoveUci: hasTrustedBetterMove(moment) ? moment.better_move_uci ?? null : null,
-    coachNote: moment.coach_note,
+    coachNote: safeCoachNote(moment),
     practicePrompt: moment.practice_prompt ?? lesson.practice_prompt ?? '',
-    themeFacts: moment.theme_facts ?? [],
+    themeFacts: hasTrustedBetterMove(moment) ? moment.theme_facts ?? [] : [],
   })
 }
 
@@ -241,10 +251,15 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     }
   }, [job])
 
-  const examples = useMemo(
+  const allExamples = useMemo(
     () => report?.verified_examples?.length ? report.verified_examples : report?.review_moments ?? [],
     [report],
   )
+  const examples = useMemo(
+    () => allExamples.filter(hasTrustedBetterMove),
+    [allExamples],
+  )
+  const reviewPromptsNeedingCheck = allExamples.length - examples.length
   const openMoment = useCallback(async (moment: ReviewMoment, index = 0) => {
     const cached = await getAnalyzedGame(buildMomentGameId(moment))
     if (cached) hydrateStoreFromRecord(cached, moment)
@@ -256,12 +271,22 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
   const primaryMoment = examples[0] ?? null
   const stageLabel = job ? STAGE_COPY[job.stage] : 'Ready'
   const reportReady = reportHasSignal(report)
+  const hasVerifiedLesson = examples.length > 0
 
   const focusSummary = useMemo(() => {
     if (!report) return null
     const count = report.scan_summary.eligible_games ?? 0
     return `${count} eligible game${count === 1 ? '' : 's'} scanned across the last 12 months.`
   }, [report])
+  const displayLessonTitle = hasVerifiedLesson
+    ? report?.lesson_context?.report_title ?? report?.current_focus.title ?? 'Your lesson'
+    : 'No verified lesson yet.'
+  const displayLessonSummary = hasVerifiedLesson
+    ? report?.lesson_context?.summary ?? report?.current_focus.summary ?? ''
+    : 'DeepMove found broad review patterns, but none have engine-verified examples strong enough to teach as flagship evidence yet.'
+  const displayLessonHabit = hasVerifiedLesson
+    ? report?.lesson_context?.habit ?? report?.current_focus.habit ?? []
+    : ['Use Review for now.', 'Rebuild the snapshot after engine verification is enabled.']
   const feedbackUrl = useMemo(
     () => buildSupportIssueUrl({ page: 'insights-beta', section: 'account-snapshot' }),
     [],
@@ -288,8 +313,8 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           <p className="account-analysis-kicker">Insights Beta</p>
           <h1>{reportReady ? 'Your beta training snapshot is ready.' : 'Analyze account history.'}</h1>
           <p>
-            DeepMove scans up to 500 blitz-and-longer games from the last year, finds the lesson your
-            games are asking for, then opens review prompts from your own games.
+            DeepMove scans up to 500 blitz-and-longer games from the last year, looks for lesson
+            patterns, then only promotes examples after they have stronger review evidence.
           </p>
           <p className="account-analysis-controls__note">
             Beta lesson snapshot: strongest with 50+ eligible games.
@@ -352,7 +377,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           <section className="account-analysis-coverage account-analysis-coverage--high">
             <div>
               <span>Snapshot ready</span>
-              <strong>{report.lesson_context?.report_title ?? report.current_focus.title}</strong>
+              <strong>{displayLessonTitle}</strong>
               <p>{focusSummary} Saved {formatReportDate(report.created_at)}.</p>
             </div>
             {primaryMoment && (
@@ -367,19 +392,19 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           <section className="account-coach-brief account-coach-brief--weakness">
             <div className="account-coach-brief__header">
               <div>
-                <span>{examples.length > 0 ? 'Your lesson' : 'Building lesson'}</span>
-                <h3>{report.lesson_context?.report_title ?? report.current_focus.title}</h3>
+                <span>{hasVerifiedLesson ? 'Your lesson' : 'Verification needed'}</span>
+                <h3>{displayLessonTitle}</h3>
               </div>
-              <em>{examples.length > 0 ? `${examples.length} example${examples.length === 1 ? '' : 's'}` : 'Needs more games'}</em>
+              <em>{hasVerifiedLesson ? `${examples.length} verified example${examples.length === 1 ? '' : 's'}` : 'Needs engine check'}</em>
             </div>
             <div className="account-coach-brief__grid">
               <div>
                 <span>Why</span>
-                <p>{report.lesson_context?.summary ?? report.current_focus.summary}</p>
+                <p>{displayLessonSummary}</p>
               </div>
               <div>
                 <span>What to do now</span>
-                <p>{(report.lesson_context?.habit ?? report.current_focus.habit).join(' ')}</p>
+                <p>{displayLessonHabit.join(' ')}</p>
               </div>
             </div>
 
@@ -387,18 +412,16 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
               <div className="account-evidence-moments">
                 <div className="account-evidence-moments__title">
                   <strong>Examples from your games</strong>
-                  <span>Each one opens before the key decision so you can compare your idea with the engine.</span>
+                  <span>Only engine-verified examples are shown here.</span>
                 </div>
                 {examples.map((moment, index) => (
                   <div className="account-evidence-row" key={`${moment.game_id}:${moment.move_number}:${moment.color}`}>
                     <div>
                       <strong>{`Example ${index + 1}: ${moment.title}`}</strong>
                       <span>
-                        {formatResult(moment.result)} vs {moment.opponent ?? 'opponent'} - {moment.segment} - {moment.coach_note}
+                        {formatResult(moment.result)} vs {moment.opponent ?? 'opponent'} - {moment.segment} - {safeCoachNote(moment)}
                       </span>
-                      {hasTrustedBetterMove(moment)
-                        ? <small>Better idea to find: {moment.better_move_san}</small>
-                        : <small>Beta prompt: open the position and use the engine line to test candidate moves.</small>}
+                      <small>{exampleStatusCopy(moment)}</small>
                     </div>
                     <button type="button" className="btn btn-secondary" onClick={() => void openMoment(moment, index)}>
                       Study example
@@ -408,7 +431,9 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
               </div>
             ) : (
               <div className="account-analysis-empty-copy">
-                DeepMove needs about {report.scan_summary.minimum_lesson_games ?? 50} eligible games before it can trust an account-wide lesson.
+                {reviewPromptsNeedingCheck > 0
+                  ? `${reviewPromptsNeedingCheck} review prompt${reviewPromptsNeedingCheck === 1 ? '' : 's'} matched the broad scan, but none have engine-verified lesson evidence yet.`
+                  : `DeepMove needs about ${report.scan_summary.minimum_lesson_games ?? 50} eligible games before it can trust an account-wide lesson.`}
               </div>
             )}
           </section>
@@ -423,7 +448,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
                 <div className="account-weakness-row" key={trend.category}>
                   <div>
                     <strong>{trend.label}</strong>
-                    <span>{trend.confidence === 'verified_examples' ? 'Backed by lesson examples' : 'Secondary pattern'}</span>
+                    <span>{hasVerifiedLesson && trend.confidence === 'verified_examples' ? 'Backed by lesson examples' : 'Secondary pattern'}</span>
                   </div>
                   <em>{trend.count} signals</em>
                 </div>

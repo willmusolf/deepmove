@@ -154,6 +154,28 @@ describe('AccountAnalysisPage', () => {
     expect(screen.queryByText('candidate note')).not.toBeInTheDocument()
   })
 
+  it('does not promote unverified review prompts as lesson evidence', async () => {
+    const unverifiedReport = JSON.parse(JSON.stringify(report))
+    unverifiedReport.verified_examples = unverifiedReport.verified_examples.map((moment: typeof report.verified_examples[number]) => ({
+      ...moment,
+      verified: false,
+      verification_method: 'lesson_prompt',
+      better_move_san: 'Qxc2+',
+      coach_note: 'Qxc2+ was the forcing move to check before playing quietly.',
+    }))
+    unverifiedReport.review_moments = unverifiedReport.verified_examples
+    apiMocks.getLatestTrainingPlanJob.mockResolvedValue(null)
+    apiMocks.getLatestTrainingPlanReport.mockResolvedValue(unverifiedReport)
+
+    render(<AccountAnalysisPage />)
+
+    expect((await screen.findAllByText('No verified lesson yet.')).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Study this lesson' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Qxc2/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Backed by lesson examples')).not.toBeInTheDocument()
+    expect(screen.getByText(/none have engine-verified lesson evidence yet/i)).toBeInTheDocument()
+  })
+
   it('starts a backend job from the CTA', async () => {
     apiMocks.getLatestTrainingPlanJob.mockResolvedValue(null)
     apiMocks.getLatestTrainingPlanReport.mockResolvedValue(null)

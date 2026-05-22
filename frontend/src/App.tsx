@@ -1280,6 +1280,16 @@ export default function App() {
   const [showEvalGraph, setShowEvalGraph] = useState(savedUiState?.showEvalGraph ?? true)
   const [showReport, setShowReport] = useState(savedUiState?.showReport ?? true)
   const [resetConfirmArmed, setResetConfirmArmed] = useState(false)
+  const [lessonAnswerRevealed, setLessonAnswerRevealed] = useState(false)
+
+  useEffect(() => {
+    setLessonAnswerRevealed(false)
+  }, [
+    lessonReviewContext?.lessonId,
+    lessonReviewContext?.exampleIndex,
+    lessonReviewContext?.movePlayed,
+    lessonReviewContext?.betterMoveSan,
+  ])
 
   useEffect(() => {
     if (!resetConfirmArmed) return
@@ -1765,6 +1775,38 @@ export default function App() {
         // Invalid SAN should not break the review UI.
       }
     })
+  }
+
+  function handleRevealLessonAnswer() {
+    setLessonAnswerRevealed(true)
+    if (!lessonReviewContext?.betterMoveSan) {
+      setShowBestLines(true)
+      return
+    }
+    try {
+      const chess = new Chess(displayFen)
+      const sanMove = chess.move(lessonReviewContext.betterMoveSan)
+      if (sanMove) {
+        addVariationMove(sanMove.from, sanMove.to, sanMove.san, chess.fen())
+        return
+      }
+    } catch {
+      // Fall through to UCI parsing below.
+    }
+
+    if (!lessonReviewContext.betterMoveUci) return
+    try {
+      const chess = new Chess(displayFen)
+      const uci = lessonReviewContext.betterMoveUci
+      const move = chess.move({
+        from: uci.slice(0, 2),
+        to: uci.slice(2, 4),
+        promotion: uci.length > 4 ? uci.slice(4, 5) : undefined,
+      })
+      if (move) addVariationMove(move.from, move.to, move.san, chess.fen())
+    } catch {
+      // Invalid stored move data should not break the lesson panel.
+    }
   }
 
   function handleNavigateTo(path: string[]) {
@@ -2807,7 +2849,6 @@ export default function App() {
                         Example {lessonReviewContext.exampleIndex + 1} of {lessonReviewContext.exampleCount}
                       </div>
                       <h3>{lessonReviewContext.lessonTitle}</h3>
-                      <p>{lessonReviewContext.lessonSummary}</p>
                       <div className="insights-lesson-panel__prompt">
                         <span>Pause here</span>
                         <strong>{lessonReviewContext.practicePrompt || 'Find the better move or idea before revealing the answer.'}</strong>
@@ -2818,25 +2859,31 @@ export default function App() {
                           <strong>{lessonReviewContext.movePlayed}</strong>
                         </div>
                         <div>
-                          <span>Review goal</span>
-                          <strong>{lessonReviewContext.betterMoveSan ?? 'Use the engine line to compare ideas'}</strong>
+                          <span>{lessonReviewContext.betterMoveSan ? 'Better idea' : 'Review goal'}</span>
+                          <strong>
+                            {lessonAnswerRevealed
+                              ? lessonReviewContext.betterMoveSan ?? 'Use the engine line to compare ideas'
+                              : 'Hidden until reveal'}
+                          </strong>
                         </div>
                       </div>
-                      <p className="insights-lesson-panel__note">{lessonReviewContext.coachNote}</p>
+                      {lessonAnswerRevealed && (
+                        <p className="insights-lesson-panel__note">{lessonReviewContext.coachNote}</p>
+                      )}
                       {lessonReviewContext.habit.length > 0 && (
                         <div className="insights-lesson-panel__habit">
                           <span>Habit for the next game</span>
                           {lessonReviewContext.habit.map(item => <em key={item}>{item}</em>)}
                         </div>
                       )}
-                      {lessonReviewContext.themeFacts.length > 0 && (
+                      {lessonAnswerRevealed && lessonReviewContext.themeFacts.length > 0 && (
                         <div className="insights-lesson-panel__facts">
                           {lessonReviewContext.themeFacts.map(fact => <span key={fact}>{fact}</span>)}
                         </div>
                       )}
                       <div className="insights-lesson-panel__actions">
-                        <button type="button" className="btn btn-primary" onClick={handleShowBestMove}>
-                          Show better idea
+                        <button type="button" className="btn btn-primary" onClick={handleRevealLessonAnswer}>
+                          {lessonAnswerRevealed ? 'Answer revealed' : lessonReviewContext.betterMoveSan ? 'Reveal better idea' : 'Start engine review'}
                         </button>
                         <button
                           type="button"

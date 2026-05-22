@@ -562,15 +562,16 @@ def build_training_plan_payload(
     selected_lesson, verified_candidates, rejected = (
         (None, [], []) if small_sample else _select_verified_lesson(candidates, trend_counts, verifier)
     )
+    trusted_count = sum(1 for candidate in verified_candidates if candidate.get("verified") is True)
     top_category = selected_lesson.category if selected_lesson else _select_focus_category(trend_counts)
-    current_focus = _focus_for_lesson(selected_lesson, len(verified_candidates), len(games), small_sample)
+    current_focus = _focus_for_lesson(selected_lesson, trusted_count, len(games), small_sample)
     review_moments = [_candidate_to_review_moment(candidate) for candidate in verified_candidates]
     top_trends = [
         {
             "category": category,
             "label": _category_label(category),
             "count": count,
-            "confidence": "verified_examples" if category == top_category and review_moments else "trend_signal",
+            "confidence": "verified_examples" if category == top_category and trusted_count > 0 else "trend_signal",
             "segments": dict(trend_segments[category]),
         }
         for category, count in trend_counts.most_common(5)
@@ -615,7 +616,8 @@ def build_training_plan_payload(
             "quality_summary": {
                 "candidate_count": len(candidates),
                 "checked_count": min(len(candidates), MAX_VERIFICATION_CANDIDATES),
-                "verified_count": len(verified_candidates),
+                "verified_count": trusted_count,
+                "review_prompt_count": len(verified_candidates) - trusted_count,
                 "rejected_count": len(rejected),
                 "rejected_reasons": dict(Counter(item["reason"] for item in rejected)),
             },
@@ -864,6 +866,9 @@ def _select_verified_lesson(
     best_verified: list[dict[str, Any]] = []
 
     for lesson in lesson_order:
+        if not _lesson_allowed_for_verifier(lesson, verifier):
+            rejected.append({"category": lesson.category, "reason": "needs_engine_verification"})
+            continue
         lesson_candidates = sorted(
             [
                 candidate
@@ -887,17 +892,18 @@ def _select_verified_lesson(
             if result is None:
                 rejected.append({"category": lesson.category, "reason": "no_clear_fix"})
                 continue
+            is_engine_verified = verifier.method == "engine"
             verified_candidate = {
                 **candidate,
                 "lesson_id": lesson.id,
-                "verified": verifier.method == "engine",
+                "verified": is_engine_verified,
                 "verification_method": verifier.method,
-                "better_move_san": result.better_move_san,
-                "better_move_uci": result.better_move_uci,
+                "better_move_san": result.better_move_san if is_engine_verified else None,
+                "better_move_uci": result.better_move_uci if is_engine_verified else None,
                 "eval_loss_cp": result.eval_loss_cp,
                 "win_pct_loss": result.win_pct_loss,
-                "verification_reason": result.reason,
-                "theme_facts": result.theme_facts,
+                "verification_reason": result.reason if is_engine_verified else _review_prompt_reason(lesson),
+                "theme_facts": result.theme_facts if is_engine_verified else [_review_prompt_reason(lesson)],
                 "practice_prompt": lesson.practice_prompt,
             }
             verified.append(verified_candidate)
@@ -916,6 +922,29 @@ def _select_verified_lesson(
     if best_verified:
         return best_lesson, best_verified, rejected
     return None, [], rejected
+
+
+def _lesson_allowed_for_verifier(lesson: LessonDefinition, verifier: CandidateVerifier) -> bool:
+    if verifier.method == "engine":
+        return True
+    # A missed-tactic lesson is only useful when deeper review proves the tactic
+    # actually matters. Cheap "a check existed" heuristics produce too many
+    # trivial pawn wins and already-winning positions.
+    return lesson.category != "missed_tactic"
+
+
+def _review_prompt_reason(lesson: LessonDefinition) -> str:
+    if lesson.category == "hung_piece":
+        return "This position matched a loose-piece pattern, but it still needs engine review before DeepMove can name a best move."
+    if lesson.category == "ignored_threat":
+        return "This position matched an opponent-threat pattern, but it still needs engine review before DeepMove can name the answer."
+    if lesson.category == "didnt_castle":
+        return "This position matched a king-safety pattern, but it still needs engine review before DeepMove can name the cleanest fix."
+    if lesson.category == "didnt_develop":
+        return "This position matched a development pattern, but it still needs engine review before DeepMove can name the cleanest move."
+    if lesson.category == "aimless_move":
+        return "This position matched a quiet-move pattern, but it still needs engine review before DeepMove can name a better plan."
+    return "This position matched a lesson pattern, but it still needs engine review before DeepMove can name a best move."
 
 
 PIECE_CP = {
