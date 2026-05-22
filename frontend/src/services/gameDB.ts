@@ -3,7 +3,7 @@
 // Phase 1: client-side only. Phase 2 (Track D): add backend sync.
 
 import { openDB, type IDBPDatabase } from 'idb'
-import type { MoveEval } from '../engine/analysis'
+import type { MoveEval, MoveGrade } from '../engine/analysis'
 import type { CriticalMoment, MoveNode } from '../chess/types'
 import type { ChessComGame } from '../api/chesscom'
 import type { LichessGame } from '../api/lichess'
@@ -40,6 +40,8 @@ export interface AnalyzedGameRecord {
   backendGameId: number | null            // DB primary key after sync (null until uploaded)
   partial?: boolean                         // true = analysis incomplete, safe to resume
   branchState?: SerializedBranchState        // user-explored variations, persisted across sessions
+  branchGrades?: Record<string, MoveGrade>   // user-created branch node id → grade badge
+  branchDeltas?: Record<string, number>      // user-created branch node id → player-perspective cp delta
 }
 
 // ─── DB setup ──────────────────────────────────────────────────────────────
@@ -80,7 +82,13 @@ function getDB() {
 
 export async function saveAnalyzedGame(record: AnalyzedGameRecord): Promise<void> {
   const db = await getDB()
-  await db.put(STORE, record)
+  const existing = await db.get(STORE, record.id) as AnalyzedGameRecord | undefined
+  await db.put(STORE, {
+    ...record,
+    branchState: record.branchState ?? existing?.branchState,
+    branchGrades: record.branchGrades ?? existing?.branchGrades,
+    branchDeltas: record.branchDeltas ?? existing?.branchDeltas,
+  })
 }
 
 export async function getAnalyzedGame(id: string): Promise<AnalyzedGameRecord | undefined> {
@@ -99,7 +107,35 @@ export async function updateBranchState(
   if (!existing) return
   const next: AnalyzedGameRecord = { ...existing }
   if (branchState) next.branchState = branchState
-  else delete next.branchState
+  else {
+    delete next.branchState
+    delete next.branchGrades
+    delete next.branchDeltas
+  }
+  await db.put(STORE, next)
+}
+
+/** Update only persisted branch badge annotations on an existing analyzed game.
+ *  Kept separate from branchState so debounced variation-tree writes cannot
+ *  clobber completed badge grading. Pass null to clear annotations. */
+export async function updateBranchAnnotations(
+  id: string,
+  annotations: {
+    branchGrades?: Record<string, MoveGrade>
+    branchDeltas?: Record<string, number>
+  } | null,
+): Promise<void> {
+  const db = await getDB()
+  const existing = await db.get(STORE, id) as AnalyzedGameRecord | undefined
+  if (!existing) return
+  const next: AnalyzedGameRecord = { ...existing }
+  if (annotations === null) {
+    delete next.branchGrades
+    delete next.branchDeltas
+  } else {
+    if (annotations.branchGrades !== undefined) next.branchGrades = annotations.branchGrades
+    if (annotations.branchDeltas !== undefined) next.branchDeltas = annotations.branchDeltas
+  }
   await db.put(STORE, next)
 }
 

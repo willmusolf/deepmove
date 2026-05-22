@@ -54,7 +54,7 @@ import type { Key } from 'chessground/types'
 import { cacheRatingsFromGameList, readCachedRatings } from './components/Import/normalizeGame'
 import { formatEval } from './utils/format'
 import { prunePendingNodes, pruneReviewPendingNodes, shouldTrackReviewPendingNode } from './utils/reviewPending'
-import { readSessionJson, writeSessionJson } from './utils/sessionStorage'
+import { readSessionJson, removeSessionValue, writeSessionJson } from './utils/sessionStorage'
 import {
   positionCacheKey,
   restorePositionCache,
@@ -82,6 +82,7 @@ import { normalizeRestoredPage } from './utils/navigation'
 import { reportFrontendPerf } from './services/monitoring'
 import { getIdentity } from './services/identity'
 import { trackLaunchEvent, trackReviewSessionWindow } from './services/launchAnalytics'
+import { getAnalyzedGame, updateBranchAnnotations } from './services/gameDB'
 
 // Lichess-style thickness brushes — all green, varying weight
 const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
@@ -105,6 +106,9 @@ const DEPTH_FOR_PRESET: Record<EngineDepthPreset, number> = {
   standard: 25,
   max: 27,
 }
+
+const BRANCH_BADGE_DEPTH = 18
+const POSITION_MIN_VISIBLE_DEPTH = 18
 
 export function depthForPreset(preset: EngineDepthPreset): number {
   return DEPTH_FOR_PRESET[preset]
@@ -160,6 +164,14 @@ function nowMs(): number {
 
 function roundDuration(durationMs: number): number {
   return Math.round(durationMs * 10) / 10
+}
+
+function branchGradesSessionKey(gameId: string): string {
+  return `deepmove_bg_${gameId}`
+}
+
+function branchDeltasSessionKey(gameId: string): string {
+  return `deepmove_bd_${gameId}`
 }
 
 function renderNavChevron(direction: 'left' | 'right') {
@@ -698,6 +710,7 @@ export default function App() {
   const setPendingReviewTarget = useGameStore(s => s.setPendingReviewTarget)
   useEffect(() => {
     if (pgn && isReady) {
+      let cancelled = false
       // Always clear the position cache when a new game loads — even for cached
       // games where skipNextAnalysis is true — so stale per-position multi-PV
       // results from the previous game never bleed into the new one.
@@ -709,7 +722,7 @@ export default function App() {
       const bgGameId = useGameStore.getState().currentGameId
       branchGradesKeyRef.current = bgGameId  // capture so write effect uses the right key
       const storedBg = bgGameId
-        ? readSessionJson<Record<string, string>>(`deepmove_bg_${bgGameId}`)
+        ? readSessionJson<Record<string, MoveGrade>>(branchGradesSessionKey(bgGameId))
         : null
       lastGradedNodeIdRef.current = null
       setBranchGrades(
@@ -718,13 +731,34 @@ export default function App() {
           : new Map()
       )
       const storedBd = bgGameId
-        ? readSessionJson<Record<string, number>>(`deepmove_bd_${bgGameId}`)
+        ? readSessionJson<Record<string, number>>(branchDeltasSessionKey(bgGameId))
         : null
       setBranchDeltas(
         storedBd && Object.keys(storedBd).length > 0
           ? new Map(Object.entries(storedBd))
           : new Map()
       )
+      if (bgGameId) {
+        void getAnalyzedGame(bgGameId)
+          .then(record => {
+            if (cancelled || branchGradesKeyRef.current !== bgGameId) return
+            if (record?.branchGrades && Object.keys(record.branchGrades).length > 0) {
+              setBranchGrades(prev => {
+                const next = new Map(Object.entries(record.branchGrades!) as [string, MoveGrade][])
+                for (const [nodeId, grade] of prev) next.set(nodeId, grade)
+                return next
+              })
+            }
+            if (record?.branchDeltas && Object.keys(record.branchDeltas).length > 0) {
+              setBranchDeltas(prev => {
+                const next = new Map(Object.entries(record.branchDeltas!))
+                for (const [nodeId, delta] of prev) next.set(nodeId, delta)
+                return next
+              })
+            }
+          })
+          .catch(() => {})
+      }
       setPendingBranchNodes(new Set())
       lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
       // Restore persisted position cache for this game (same-tab refresh fast path)
@@ -736,10 +770,13 @@ export default function App() {
       )
       if (useGameStore.getState().skipNextAnalysis) {
         setSkipNextAnalysis(false)
-        return
+        return () => { cancelled = true }
       }
       const t = setTimeout(() => { void runAnalysis(pgn) }, 0)
-      return () => clearTimeout(t)
+      return () => {
+        cancelled = true
+        clearTimeout(t)
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadRequestId, pgn, isReady])
@@ -901,6 +938,11 @@ export default function App() {
     analyzePositionLines(fen, depth, numLines, (lines, d) => {
       if (positionTokenRef.current !== token) return
       if (d <= resumeFromDepth) return  // skip already-seen depths
+      const stableLines = mergeStreamingTopLines(lines)
+      if (stableLines.length > 0) seedPositionCache(fen, stableLines)
+      setCurrentAnalysisDepth(d)
+      if (d < POSITION_MIN_VISIBLE_DEPTH) return
+
       const perfState = positionPerfRef.current
       if (
         perfState
@@ -916,10 +958,7 @@ export default function App() {
           mode: isLoaded ? 'review' : 'sandbox',
         })
       }
-      const stableLines = mergeStreamingTopLines(lines)
       setCurrentPositionLines(stableLines)
-      setCurrentAnalysisDepth(d)
-      if (stableLines.length > 0) seedPositionCache(fen, stableLines)
     })
       .then(lines => {
         if (positionTokenRef.current !== token) return
@@ -1001,19 +1040,25 @@ export default function App() {
 
     const cached = positionCache.current.get(displayFen)
 
-    // Always show any cached result immediately (partial or full depth)
+    // Show cached suggestions only once they are deep enough to be useful.
+    // Shallower cached depths still resume the counter and continue silently.
     if (cached && cached.length > 0) {
-      setCurrentPositionLines(cached)
-      setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
+      const cachedDepth = cached[0]?.depth ?? 0
+      if (cachedDepth >= POSITION_MIN_VISIBLE_DEPTH) {
+        setCurrentPositionLines(cached)
+      } else {
+        setCurrentPositionLines([])
+      }
+      setCurrentAnalysisDepth(cachedDepth)
       if (!hasReportedPositionCacheHitRef.current) {
         hasReportedPositionCacheHitRef.current = true
         reportFrontendPerf('position_analysis_cache_hit', {
-          complete: (cached[0]?.depth ?? 0) >= positionMaxDepth,
-          depth: cached[0]?.depth ?? 0,
+          complete: cachedDepth >= positionMaxDepth,
+          depth: cachedDepth,
           mode: isLoaded ? 'review' : 'sandbox',
         })
       }
-      if ((cached[0]?.depth ?? 0) >= positionMaxDepth) {
+      if (cachedDepth >= positionMaxDepth) {
         // Full depth — no further analysis needed
         setAnalyzingPosition(false)
         return
@@ -1151,7 +1196,9 @@ export default function App() {
     if (branchGrades.size === 0) return
     const gameId = branchGradesKeyRef.current
     if (!gameId) return
-    writeSessionJson(`deepmove_bg_${gameId}`, Object.fromEntries(branchGrades))
+    const serialized = Object.fromEntries(branchGrades) as Record<string, MoveGrade>
+    writeSessionJson(branchGradesSessionKey(gameId), serialized)
+    void updateBranchAnnotations(gameId, { branchGrades: serialized }).catch(() => {})
   }, [branchGrades])
 
   // Persist branch deltas alongside grades. Without this, evaluateBranchMove's
@@ -1162,7 +1209,9 @@ export default function App() {
     if (branchDeltas.size === 0) return
     const gameId = branchGradesKeyRef.current
     if (!gameId) return
-    writeSessionJson(`deepmove_bd_${gameId}`, Object.fromEntries(branchDeltas))
+    const serialized = Object.fromEntries(branchDeltas) as Record<string, number>
+    writeSessionJson(branchDeltasSessionKey(gameId), serialized)
+    void updateBranchAnnotations(gameId, { branchDeltas: serialized }).catch(() => {})
   }, [branchDeltas])
 
   // Recovery effect: on refresh, currentGameId may be restored by Zustand after pgn+isReady
@@ -1172,14 +1221,33 @@ export default function App() {
     if (branchGradesKeyRef.current === currentGameId) return  // already set correctly
     branchGradesKeyRef.current = currentGameId
     if (branchGrades.size > 0) return  // grades already present, don't overwrite
-    const storedBg = readSessionJson<Record<string, string>>(`deepmove_bg_${currentGameId}`)
+    const storedBg = readSessionJson<Record<string, MoveGrade>>(branchGradesSessionKey(currentGameId))
     if (storedBg && Object.keys(storedBg).length > 0) {
       setBranchGrades(new Map(Object.entries(storedBg) as [string, MoveGrade][]))
     }
-    const storedBd = readSessionJson<Record<string, number>>(`deepmove_bd_${currentGameId}`)
+    const storedBd = readSessionJson<Record<string, number>>(branchDeltasSessionKey(currentGameId))
     if (storedBd && Object.keys(storedBd).length > 0) {
       setBranchDeltas(new Map(Object.entries(storedBd)))
     }
+    void getAnalyzedGame(currentGameId)
+      .then(record => {
+        if (branchGradesKeyRef.current !== currentGameId) return
+        if (record?.branchGrades && Object.keys(record.branchGrades).length > 0) {
+          setBranchGrades(prev => {
+            const next = new Map(Object.entries(record.branchGrades!) as [string, MoveGrade][])
+            for (const [nodeId, grade] of prev) next.set(nodeId, grade)
+            return next
+          })
+        }
+        if (record?.branchDeltas && Object.keys(record.branchDeltas).length > 0) {
+          setBranchDeltas(prev => {
+            const next = new Map(Object.entries(record.branchDeltas!))
+            for (const [nodeId, delta] of prev) next.set(nodeId, delta)
+            return next
+          })
+        }
+      })
+      .catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentGameId])
 
@@ -1418,6 +1486,7 @@ export default function App() {
     analysisBoardReset()
     lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
+    setBranchDeltas(new Map())
     setPendingBranchNodes(new Set())
 
     // loadedGameKey is included in the position-analysis effect dependencies, so
@@ -1575,6 +1644,7 @@ export default function App() {
     positionCache.current.clear()
     lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
+    setBranchDeltas(new Map())
     setPendingBranchNodes(new Set())
     analysisBoardReset()
     setOpeningName(null)
@@ -1604,9 +1674,24 @@ export default function App() {
     analysisBoardReset()
     lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
+    setBranchDeltas(new Map())
     setPendingBranchNodes(new Set())
     setOpeningName(null)
     setResetConfirmArmed(false)
+  }
+
+  function handleClearVariations() {
+    const gameId = branchGradesKeyRef.current
+    resetBranches()
+    lastGradedNodeIdRef.current = null
+    setBranchGrades(new Map())
+    setBranchDeltas(new Map())
+    setPendingBranchNodes(new Set())
+    if (gameId) {
+      removeSessionValue(branchGradesSessionKey(gameId))
+      removeSessionValue(branchDeltasSessionKey(gameId))
+      void updateBranchAnnotations(gameId, null).catch(() => {})
+    }
   }
 
   // Called by GameSelector before loading a new game — stops any in-flight
@@ -1660,11 +1745,17 @@ export default function App() {
       const inCheck = chess.isCheck()
       const color: 'white' | 'black' = parentFen.split(' ')[1] === 'w' ? 'white' : 'black'
 
-      const cachedParentTopLine = positionCache.current.get(parentFen)?.[0] ?? null
-      const cachedAfterTopLine = positionCache.current.get(newFen)?.[0] ?? null
+      const cachedParentLine = positionCache.current.get(parentFen)?.[0] ?? null
+      const cachedAfterLine = positionCache.current.get(newFen)?.[0] ?? null
+      const cachedParentTopLine = cachedParentLine && cachedParentLine.depth >= BRANCH_BADGE_DEPTH
+        ? cachedParentLine
+        : null
+      const cachedAfterTopLine = cachedAfterLine && cachedAfterLine.depth >= BRANCH_BADGE_DEPTH
+        ? cachedAfterLine
+        : null
       const parentResult = cachedParentTopLine
         ? { score: cachedParentTopLine.score, pv: cachedParentTopLine.pv }
-        : await analyzePositionSingleBranch(parentFen, 14)
+        : await analyzePositionSingleBranch(parentFen, BRANCH_BADGE_DEPTH)
       // If newFen is a terminal position (checkmate/stalemate), Stockfish returns
       // bestmove (none) which can hang or produce nonsense evals. Derive the score directly.
       const afterChess = new Chess(newFen)
@@ -1677,7 +1768,7 @@ export default function App() {
             pv: [] }
         : cachedAfterTopLine
           ? { score: cachedAfterTopLine.score, pv: cachedAfterTopLine.pv }
-          : await analyzePositionSingleBranch(newFen, 14)
+          : await analyzePositionSingleBranch(newFen, BRANCH_BADGE_DEPTH)
 
       if (!parentResult || !afterResult) {
         lastGradedNodeIdRef.current = nodeId
@@ -2080,7 +2171,7 @@ export default function App() {
     autoAnalyze,
     setAutoAnalyze,
     onAnalyzeNow: handleAnalyzeNow,
-    onClearVariations: resetBranches,
+    onClearVariations: handleClearVariations,
     onExportPgn: handleExportPgn,
     onExportDeepMoveStats: handleExportDeepMoveStats,
     hasVariations: hasReviewVariations,
