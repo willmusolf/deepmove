@@ -463,6 +463,8 @@ export default function App() {
   const currentGameMeta = useGameStore(s => s.currentGameMeta)
   const currentGameId = useGameStore(s => s.currentGameId)
   const backendGameId = useGameStore(s => s.backendGameId)
+  const lessonReviewContext = useGameStore(s => s.lessonReviewContext)
+  const setLessonReviewContext = useGameStore(s => s.setLessonReviewContext)
   const loadRequestId = useGameStore(s => s.loadRequestId)
   const [panelTab, setPanelTab] = useState<PanelTab>(savedUiState?.panelTab ?? 'load')
   const [importTab, setImportTab] = useState<ImportTab>(savedUiState?.importTab ?? 'chesscom')
@@ -501,7 +503,7 @@ export default function App() {
     lessons: coachLessons,
     moveComments: coachMoveComments,
   } = useCoaching({
-    enabled: COACHING_ENABLED && panelTab === 'coach' && isLoaded,
+    enabled: COACHING_ENABLED && panelTab === 'coach' && isLoaded && !lessonReviewContext,
     criticalMoments,
     moveEvals,
     pgn: pgn ?? '',
@@ -2124,6 +2126,7 @@ export default function App() {
   const reviewBoundaryKey = `${currentGameId ?? 'sandbox'}:${panelTab}:${importTab}:${isLoaded ? 'loaded' : 'sandbox'}`
   const boardBoundaryKey = `${reviewBoundaryKey}:${orientation}`
   const selfDisplayName = useMemo(() => getSelfDisplayName(authUser), [authUser])
+  const showLessonTab = COACHING_ENABLED || lessonReviewContext !== null
 
   useEffect(() => {
     if (importTab !== 'chesscom' && importTab !== 'lichess') return
@@ -2700,12 +2703,12 @@ export default function App() {
                   >
                     Analysis
                   </button>
-                  {COACHING_ENABLED && (
+                  {showLessonTab && (
                     <button
                       className={`panel-tab${panelTab === 'coach' ? ' active' : ''}`}
                       onClick={() => setPanelTab('coach')}
                     >
-                      Coach
+                      Lesson
                     </button>
                   )}
                 </div>
@@ -2799,14 +2802,79 @@ export default function App() {
                     </>
                   )}
 
-                  {panelTab === 'coach' && isLoaded && !COACHING_ENABLED && (
+                  {panelTab === 'coach' && isLoaded && lessonReviewContext && (
+                    <div className="insights-lesson-panel">
+                      <div className="insights-lesson-panel__eyebrow">
+                        Example {lessonReviewContext.exampleIndex + 1} of {lessonReviewContext.exampleCount}
+                      </div>
+                      <h3>{lessonReviewContext.lessonTitle}</h3>
+                      <p>{lessonReviewContext.lessonSummary}</p>
+                      <div className="insights-lesson-panel__prompt">
+                        <span>Pause here</span>
+                        <strong>{lessonReviewContext.practicePrompt || 'Find the better move or idea before revealing the answer.'}</strong>
+                      </div>
+                      <div className="insights-lesson-panel__compare">
+                        <div>
+                          <span>Your game move</span>
+                          <strong>{lessonReviewContext.movePlayed}</strong>
+                        </div>
+                        <div>
+                          <span>Better idea</span>
+                          <strong>{lessonReviewContext.betterMoveSan ?? 'Reveal with the engine line'}</strong>
+                        </div>
+                      </div>
+                      <p className="insights-lesson-panel__note">{lessonReviewContext.coachNote}</p>
+                      {lessonReviewContext.habit.length > 0 && (
+                        <div className="insights-lesson-panel__habit">
+                          <span>Habit for the next game</span>
+                          {lessonReviewContext.habit.map(item => <em key={item}>{item}</em>)}
+                        </div>
+                      )}
+                      {lessonReviewContext.themeFacts.length > 0 && (
+                        <div className="insights-lesson-panel__facts">
+                          {lessonReviewContext.themeFacts.map(fact => <span key={fact}>{fact}</span>)}
+                        </div>
+                      )}
+                      <div className="insights-lesson-panel__actions">
+                        <button type="button" className="btn btn-primary" onClick={handleShowBestMove}>
+                          Show better idea
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            setLessonReviewContext(null)
+                            goToPage('dashboard')
+                          }}
+                        >
+                          Back to Insights
+                        </button>
+                      </div>
+
+                      <MoveList
+                        tree={moveTree}
+                        rootId={rootId}
+                        currentPath={currentPath}
+                        moveGrades={moveGrades}
+                        moveDeltas={moveDeltas}
+                        branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
+                        branchDeltas={showGrades && !hideLoadedReviewArtifacts ? branchDeltas : undefined}
+                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
+                        onNodeClick={handleNavigateTo}
+                        isAnalyzing={showAnalyzingBar || !showGrades}
+                        rootBranchIds={rootBranchIds}
+                      />
+                    </div>
+                  )}
+
+                  {panelTab === 'coach' && isLoaded && !COACHING_ENABLED && !lessonReviewContext && (
                     <div className="coming-soon-panel">
                       <h3>AI Coaching</h3>
                       <p>Our AI coach is coming soon &mdash; it analyzes your critical moments and teaches you the chess principles behind why positions go wrong.</p>
                       <p className="coming-soon-sub">Game review, eval bar, and best lines are fully live now.</p>
                     </div>
                   )}
-                  {panelTab === 'coach' && isLoaded && COACHING_ENABLED && (
+                  {panelTab === 'coach' && isLoaded && COACHING_ENABLED && !lessonReviewContext && (
                     <>
                       {/* Engine / analyzing status */}
                       {engineStatus === 'error' && (
@@ -2953,7 +3021,10 @@ export default function App() {
 
           {currentPage === 'dashboard' && (
             <AccountAnalysisPage
-              onOpenReview={() => goToPage('review')}
+              onOpenReview={(mode) => {
+                if (mode === 'lesson') setPanelTab('coach')
+                goToPage('review')
+              }}
               onOpenProfile={() => goToPage('profile')}
             />
           )}

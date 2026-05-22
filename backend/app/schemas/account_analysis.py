@@ -27,6 +27,9 @@ class TrainingPlanFocus(BaseModel):
 
 
 class ReviewMoment(BaseModel):
+    id: str | None = None
+    example_id: str | None = None
+    lesson_id: str | None = None
     game_id: int
     platform_game_id: str | None
     platform: str
@@ -37,6 +40,17 @@ class ReviewMoment(BaseModel):
     move_number: int
     color: Literal["white", "black"]
     move_played: str
+    played_san: str | None = None
+    fen_before: str | None = None
+    fen_after: str | None = None
+    better_move_san: str | None = None
+    better_move_uci: str | None = None
+    eval_loss_cp: int | None = None
+    win_pct_loss: float | None = None
+    verification_method: str | None = None
+    verified: bool = False
+    theme_facts: list[str] = Field(default_factory=list)
+    practice_prompt: str | None = None
     title: str
     coach_note: str
     pgn: str
@@ -54,6 +68,9 @@ class TrainingPlanReport(BaseModel):
     review_moments: list[ReviewMoment]
     opening_context: list[dict[str, Any]]
     technical_evidence: dict[str, Any]
+    lesson_context: dict[str, Any] = Field(default_factory=dict)
+    verified_examples: list[ReviewMoment] = Field(default_factory=list)
+    quality_summary: dict[str, Any] = Field(default_factory=dict)
 
 
 class AnalysisJobResponse(BaseModel):

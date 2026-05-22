@@ -33,6 +33,9 @@ def _job_response(job: AnalysisJob) -> AnalysisJobResponse:
 def _report_response(report: AccountReport | None) -> TrainingPlanReport | None:
     if report is None:
         return None
+    lesson_context = report.technical_evidence.get("lesson_context", {}) if isinstance(report.technical_evidence, dict) else {}
+    verified_examples = report.technical_evidence.get("verified_examples", report.review_moments) if isinstance(report.technical_evidence, dict) else report.review_moments
+    quality_summary = report.technical_evidence.get("quality_summary", {}) if isinstance(report.technical_evidence, dict) else {}
     return TrainingPlanReport.model_validate({
         "id": report.id,
         "created_at": report.created_at,
@@ -45,6 +48,9 @@ def _report_response(report: AccountReport | None) -> TrainingPlanReport | None:
         "review_moments": report.review_moments,
         "opening_context": report.opening_context,
         "technical_evidence": report.technical_evidence,
+        "lesson_context": lesson_context,
+        "verified_examples": verified_examples,
+        "quality_summary": quality_summary,
     })
 
 

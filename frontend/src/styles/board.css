@@ -1729,6 +1729,14 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   line-height: 1.35;
 }
 
+.account-evidence-row small {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--color-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .account-coach-brief__actions {
   display: flex;
   flex-wrap: wrap;
@@ -1759,6 +1767,33 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
 .account-weakness-list {
   display: grid;
   gap: 0.65rem;
+}
+
+.account-opening-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  padding: 0 1.1rem 1.1rem;
+}
+
+.account-opening-group {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+}
+
+.account-opening-group > strong {
+  color: var(--color-text);
+  font-size: 0.86rem;
+}
+
+.account-opening-empty {
+  display: block;
+  padding: 0.75rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 10px;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
 }
 
 .account-opening-row,
@@ -1857,6 +1892,10 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   padding: 0 1.1rem 1.1rem;
 }
 
+.account-pattern-evidence .account-opening-groups .account-opening-list {
+  padding: 0;
+}
+
 .account-analysis-takeaways ol {
   display: grid;
   gap: 0.65rem;
@@ -1903,6 +1942,7 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   .account-analysis-grid,
   .account-insight-grid,
   .account-coach-brief__grid,
+  .account-opening-groups,
   .account-analysis-coverage,
   .account-analysis-queue {
     grid-template-columns: 1fr;
@@ -4870,6 +4910,92 @@ html.theme-light .analysis-settings-popover {
   font-style: italic;
   text-align: center;
   padding: 0.5rem 0;
+}
+
+.insights-lesson-panel {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.insights-lesson-panel__eyebrow,
+.insights-lesson-panel__prompt span,
+.insights-lesson-panel__compare span,
+.insights-lesson-panel__habit span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.insights-lesson-panel h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+.insights-lesson-panel p {
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.insights-lesson-panel__prompt,
+.insights-lesson-panel__note,
+.insights-lesson-panel__habit,
+.insights-lesson-panel__facts {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-bg) 32%, transparent);
+}
+
+.insights-lesson-panel__prompt strong {
+  color: var(--color-text);
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.insights-lesson-panel__compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.insights-lesson-panel__compare div {
+  min-width: 0;
+  padding: 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.insights-lesson-panel__compare strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.insights-lesson-panel__note {
+  color: var(--color-text);
+}
+
+.insights-lesson-panel__habit em,
+.insights-lesson-panel__facts span {
+  color: var(--color-text);
+  font-size: 0.84rem;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.insights-lesson-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
 }
 
 /* ── Blunder-Check Checklist ───────────────────────────────────────────── */

@@ -19,7 +19,7 @@ import { buildSupportIssueUrl } from '../../config/contact'
 import { trackLaunchEvent } from '../../services/launchAnalytics'
 
 interface AccountAnalysisPageProps {
-  onOpenReview?: () => void
+  onOpenReview?: (mode?: 'lesson') => void
   onOpenProfile?: () => void
 }
 
@@ -54,10 +54,14 @@ function buildMomentGameId(moment: ReviewMoment): string {
   return moment.platform_game_id ?? `backend:${moment.game_id}`
 }
 
+function buildMomentPlyBefore(target: ReviewMoment): number {
+  return Math.max(0, (target.move_number - 1) * 2 + (target.color === 'white' ? 0 : 1))
+}
+
 function hydrateStoreFromRecord(record: AnalyzedGameRecord, target: ReviewMoment): void {
   const store = useGameStore.getState()
   const gameId = record.id
-  const plyIndex = (target.move_number - 1) * 2 + (target.color === 'white' ? 1 : 2)
+  const plyIndex = buildMomentPlyBefore(target)
   store.reset()
   store.setCurrentGameId(gameId)
   store.setCurrentGameMeta({
@@ -90,7 +94,7 @@ function hydrateStoreFromRecord(record: AnalyzedGameRecord, target: ReviewMoment
 function hydrateStoreFromMoment(moment: ReviewMoment): void {
   const store = useGameStore.getState()
   const gameId = buildMomentGameId(moment)
-  const plyIndex = (moment.move_number - 1) * 2 + (moment.color === 'white' ? 1 : 2)
+  const plyIndex = buildMomentPlyBefore(moment)
   store.reset()
   store.setCurrentGameId(gameId)
   store.setCurrentGameMeta({
@@ -117,6 +121,33 @@ function hydrateStoreFromMoment(moment: ReviewMoment): void {
     color: moment.color,
   })
   store.bumpLoadRequestId()
+}
+
+function setLessonReviewContext(
+  report: TrainingPlanReport,
+  moment: ReviewMoment,
+  index: number,
+  examples: ReviewMoment[],
+): void {
+  const lesson = report.lesson_context ?? {}
+  const title = lesson.report_title ?? lesson.title ?? report.current_focus.title
+  const summary = lesson.summary ?? report.current_focus.summary
+  const habit = lesson.habit?.length ? lesson.habit : report.current_focus.habit
+  useGameStore.getState().setLessonReviewContext({
+    source: 'insights',
+    lessonId: lesson.id ?? moment.lesson_id ?? report.current_focus.category,
+    lessonTitle: title,
+    lessonSummary: summary,
+    habit,
+    exampleIndex: index,
+    exampleCount: examples.length,
+    movePlayed: moment.played_san ?? moment.move_played,
+    betterMoveSan: moment.better_move_san ?? null,
+    betterMoveUci: moment.better_move_uci ?? null,
+    coachNote: moment.coach_note,
+    practicePrompt: moment.practice_prompt ?? lesson.practice_prompt ?? '',
+    themeFacts: moment.theme_facts ?? [],
+  })
 }
 
 export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: AccountAnalysisPageProps) {
@@ -206,14 +237,19 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
     }
   }, [job])
 
-  const openMoment = useCallback(async (moment: ReviewMoment) => {
+  const examples = useMemo(
+    () => report?.verified_examples?.length ? report.verified_examples : report?.review_moments ?? [],
+    [report],
+  )
+  const openMoment = useCallback(async (moment: ReviewMoment, index = 0) => {
     const cached = await getAnalyzedGame(buildMomentGameId(moment))
     if (cached) hydrateStoreFromRecord(cached, moment)
     else hydrateStoreFromMoment(moment)
-    onOpenReview?.()
-  }, [onOpenReview])
+    if (report) setLessonReviewContext(report, moment, index, examples)
+    onOpenReview?.('lesson')
+  }, [examples, onOpenReview, report])
 
-  const primaryMoment = report?.review_moments[0] ?? null
+  const primaryMoment = examples[0] ?? null
   const stageLabel = job ? STAGE_COPY[job.stage] : 'Ready'
   const reportReady = reportHasSignal(report)
 
@@ -248,12 +284,11 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           <p className="account-analysis-kicker">Insights Beta</p>
           <h1>{reportReady ? 'Your beta training snapshot is ready.' : 'Analyze account history.'}</h1>
           <p>
-            DeepMove stores a snapshot from up to 500 blitz-and-longer games from the last year, looks
-            for recurring trends, then keeps the clearest review examples from your own games.
+            DeepMove scans up to 500 blitz-and-longer games from the last year, finds the lesson your
+            games are asking for, then teaches it with checked examples from your own games.
           </p>
           <p className="account-analysis-controls__note">
-            Beta report snapshot: useful for broader direction, still being tightened before it becomes
-            the main product promise.
+            Beta lesson snapshot: strongest with 50+ eligible games.
           </p>
         </div>
         <div className="account-analysis-controls" aria-label="Insights Beta controls">
@@ -290,8 +325,8 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
             <span>{stageLabel}</span>
             <strong>{job.progress_pct}% complete</strong>
             <p>
-              Backend analysis can continue after this page closes. The worker fetches games, scans candidate
-              moments, and saves a report snapshot when it finishes.
+                Backend analysis can continue after this page closes. The worker fetches games, looks
+                for lesson patterns, and saves a snapshot when it finishes.
             </p>
             <div className="account-analysis-meter" aria-hidden="true">
               <div style={{ width: `${job.progress_pct}%` }} />
@@ -313,13 +348,13 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           <section className="account-analysis-coverage account-analysis-coverage--high">
             <div>
               <span>Snapshot ready</span>
-              <strong>{report.current_focus.title}</strong>
+              <strong>{report.lesson_context?.report_title ?? report.current_focus.title}</strong>
               <p>{focusSummary} Saved {formatReportDate(report.created_at)}.</p>
             </div>
             {primaryMoment && (
               <div className="account-analysis-queue-actions">
-                <button type="button" className="btn btn-primary" onClick={() => void openMoment(primaryMoment)}>
-                  Start 10-minute review
+                <button type="button" className="btn btn-primary" onClick={() => void openMoment(primaryMoment, 0)}>
+                  Study this lesson
                 </button>
               </div>
             )}
@@ -328,48 +363,53 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
           <section className="account-coach-brief account-coach-brief--weakness">
             <div className="account-coach-brief__header">
               <div>
-                <span>{report.current_focus.confidence === 'verified_examples' ? 'Verified examples' : 'Trend signal'}</span>
-                <h3>{report.current_focus.title}</h3>
+                <span>{examples.length > 0 ? 'Your lesson' : 'Building lesson'}</span>
+                <h3>{report.lesson_context?.report_title ?? report.current_focus.title}</h3>
               </div>
-              <em>Current focus</em>
+              <em>{examples.length > 0 ? `${examples.length} example${examples.length === 1 ? '' : 's'}` : 'Needs more games'}</em>
             </div>
             <div className="account-coach-brief__grid">
               <div>
                 <span>Why</span>
-                <p>{report.current_focus.summary}</p>
+                <p>{report.lesson_context?.summary ?? report.current_focus.summary}</p>
               </div>
               <div>
                 <span>What to do now</span>
-                <p>{report.current_focus.habit.join(' ')}</p>
+                <p>{(report.lesson_context?.habit ?? report.current_focus.habit).join(' ')}</p>
               </div>
             </div>
 
-            {report.review_moments.length > 0 && (
+            {examples.length > 0 ? (
               <div className="account-evidence-moments">
                 <div className="account-evidence-moments__title">
-                  <strong>Selected review examples</strong>
-                  <span>Each one opens your game at the move DeepMove thinks is most teachable right now.</span>
+                  <strong>Examples from your games</strong>
+                  <span>Each one opens before the key decision so you can try to find the better idea.</span>
                 </div>
-                {report.review_moments.map((moment, index) => (
+                {examples.map((moment, index) => (
                   <div className="account-evidence-row" key={`${moment.game_id}:${moment.move_number}:${moment.color}`}>
                     <div>
                       <strong>{`Example ${index + 1}: ${moment.title}`}</strong>
                       <span>
                         {formatResult(moment.result)} vs {moment.opponent ?? 'opponent'} - {moment.segment} - {moment.coach_note}
                       </span>
+                      {moment.better_move_san && <small>Better idea to find: {moment.better_move_san}</small>}
                     </div>
-                    <button type="button" className="btn btn-secondary" onClick={() => void openMoment(moment)}>
-                      Review this moment
+                    <button type="button" className="btn btn-secondary" onClick={() => void openMoment(moment, index)}>
+                      Study example
                     </button>
                   </div>
                 ))}
+              </div>
+            ) : (
+              <div className="account-analysis-empty-copy">
+                DeepMove needs about {report.scan_summary.minimum_lesson_games ?? 50} eligible games before it can trust an account-wide lesson.
               </div>
             )}
           </section>
 
           <details className="account-analysis-card account-pattern-evidence">
             <summary>
-              <span>Trend context</span>
+              <span>Other patterns noticed</span>
               <em>{report.top_trends.length} tracked pattern{report.top_trends.length === 1 ? '' : 's'}</em>
             </summary>
             <div className="account-weakness-list">
@@ -377,7 +417,7 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
                 <div className="account-weakness-row" key={trend.category}>
                   <div>
                     <strong>{trend.label}</strong>
-                    <span>{trend.confidence === 'verified_examples' ? 'Backed by selected review examples' : 'Broad scan signal'}</span>
+                    <span>{trend.confidence === 'verified_examples' ? 'Backed by lesson examples' : 'Secondary pattern'}</span>
                   </div>
                   <em>{trend.count} signals</em>
                 </div>
@@ -390,40 +430,39 @@ export default function AccountAnalysisPage({ onOpenReview, onOpenProfile }: Acc
               <span>Opening context</span>
               <em>{report.opening_context.length} opening group{report.opening_context.length === 1 ? '' : 's'}</em>
             </summary>
-            <div className="account-opening-list">
-              {report.opening_context.map(opening => (
-                <div className="account-opening-row" key={opening.opening}>
-                  <div>
-                    <strong>{opening.opening}</strong>
-                    <span>{opening.games} game{opening.games === 1 ? '' : 's'}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </details>
-
-          <details className="account-analysis-card account-pattern-evidence">
-            <summary>
-              <span>Technical evidence</span>
-              <em>{report.scan_summary.candidate_positions ?? 0} candidate positions</em>
-            </summary>
-            <p className="account-analysis-empty-copy">
-              {report.scan_summary.engine_note ?? 'Broad scan evidence is saved with this report snapshot.'}
-            </p>
-            <div className="account-weakness-list">
-              {report.time_control_breakdown.map(segment => (
-                <div className="account-weakness-row" key={segment.segment}>
-                  <div>
-                    <strong>{segment.segment}</strong>
-                    <span>Included in this report</span>
-                  </div>
-                  <em>{segment.games}</em>
-                </div>
-              ))}
-            </div>
+            <OpeningContextRows openings={report.opening_context} />
           </details>
         </>
       )}
+    </div>
+  )
+}
+
+function OpeningContextRows({ openings }: { openings: TrainingPlanReport['opening_context'] }) {
+  const white = openings.filter(opening => opening.color !== 'black')
+  const black = openings.filter(opening => opening.color === 'black')
+  return (
+    <div className="account-opening-groups">
+      {([
+        ['White', white],
+        ['Black', black],
+      ] as const).map(([label, rows]) => (
+        <div className="account-opening-group" key={label}>
+          <strong>{label}</strong>
+          <div className="account-opening-list">
+            {rows.length === 0 ? (
+              <span className="account-opening-empty">No repeated {label.toLowerCase()} openings in this scan.</span>
+            ) : rows.map(opening => (
+              <div className="account-opening-row" key={`${opening.color ?? label}:${opening.opening}`}>
+                <div>
+                  <strong>{opening.opening}</strong>
+                  <span>{opening.games} game{opening.games === 1 ? '' : 's'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

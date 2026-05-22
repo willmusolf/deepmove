@@ -8,6 +8,7 @@ import re
 import time
 from collections import Counter, defaultdict
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -20,6 +21,12 @@ from app.models.account_analysis import AccountReport, AnalysisJob
 from app.models.game import Game
 from app.models.user import User
 from app.schemas.account_analysis import StartAnalysisRequest
+from app.services.lesson_catalog import (
+    LESSONS,
+    LessonDefinition,
+    lesson_for_category,
+    lesson_payload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +44,8 @@ JOB_STAGES = {
 }
 CHESSCOM_HEADERS = {"User-Agent": "DeepMove/1.0 Chess Coaching App (contact: hello@deepmove.app)"}
 SECONDS_PER_MONTH = 31 * 24 * 60 * 60
+MIN_LESSON_SAMPLE_GAMES = 50
+MAX_VERIFICATION_CANDIDATES = 40
 
 
 def _now() -> datetime:
@@ -449,15 +458,87 @@ def _filter_eligible_games(games: list[Game], filters: dict[str, Any]) -> list[G
     return sorted(eligible, key=lambda game: game.end_time or 0, reverse=True)[:max_games]
 
 
-def build_training_plan_payload(games: list[Game], filters: dict[str, Any]) -> dict[str, Any]:
+@dataclass(frozen=True)
+class VerificationResult:
+    better_move_san: str
+    better_move_uci: str
+    eval_loss_cp: int
+    win_pct_loss: float
+    reason: str
+    theme_facts: list[str]
+
+
+class CandidateVerifier:
+    """Adapter seam for deeper engine review.
+
+    Production can replace the default heuristic implementation with Stockfish
+    without changing the account-analysis report builder. Tests inject fakes
+    through `build_training_plan_payload(..., verifier=...)`.
+    """
+
+    method = "lesson_heuristic"
+
+    def verify(self, candidate: dict[str, Any], lesson: LessonDefinition) -> VerificationResult | None:
+        raise NotImplementedError
+
+
+class HeuristicCandidateVerifier(CandidateVerifier):
+    def verify(self, candidate: dict[str, Any], lesson: LessonDefinition) -> VerificationResult | None:
+        if int(candidate.get("legal_move_count") or 0) <= 1:
+            return None
+        if candidate.get("move_number", 0) < lesson.min_move or candidate.get("move_number", 0) > lesson.max_move:
+            return None
+
+        try:
+            board = chess.Board(candidate["fen_before"])
+        except Exception:
+            return None
+
+        played_uci = str(candidate.get("move_uci") or "")
+        best = _best_lesson_move(board, lesson, played_uci)
+        if best is None:
+            return None
+
+        try:
+            best_san = board.san(best)
+        except Exception:
+            best_san = best.uci()
+
+        if best.uci() == played_uci or best_san == candidate.get("move_played"):
+            return None
+
+        severity = int(candidate.get("severity") or 0)
+        eval_loss_cp = max(90, min(500, severity * 2))
+        if lesson.category in ("hung_piece", "missed_tactic", "ignored_threat"):
+            eval_loss_cp = max(eval_loss_cp, 180)
+
+        return VerificationResult(
+            better_move_san=best_san,
+            better_move_uci=best.uci(),
+            eval_loss_cp=eval_loss_cp,
+            win_pct_loss=round(min(35.0, eval_loss_cp / 18), 1),
+            reason=_verification_reason(lesson, best_san),
+            theme_facts=[
+                candidate.get("coach_note") or lesson.summary,
+                _verification_reason(lesson, best_san),
+            ],
+        )
+
+
+def build_training_plan_payload(
+    games: list[Game],
+    filters: dict[str, Any],
+    verifier: CandidateVerifier | None = None,
+) -> dict[str, Any]:
     candidates: list[dict[str, Any]] = []
     segment_counts: Counter[str] = Counter()
     result_counts: Counter[str] = Counter()
     platform_counts: Counter[str] = Counter()
-    opening_counts: Counter[str] = Counter()
+    opening_counts: Counter[tuple[str, str]] = Counter()
     trend_counts: Counter[str] = Counter()
     trend_segments: dict[str, Counter[str]] = defaultdict(Counter)
     parsed_games = 0
+    verifier = verifier or HeuristicCandidateVerifier()
 
     for game in games:
         segment = _time_control_segment(game.time_control)
@@ -465,7 +546,8 @@ def build_training_plan_payload(games: list[Game], filters: dict[str, Any]) -> d
         result_counts[game.result or "unknown"] += 1
         platform_counts[game.platform] += 1
         opening = _opening_name(game.pgn)
-        opening_counts[opening] += 1
+        color = game.user_color if game.user_color in ("white", "black") else "white"
+        opening_counts[(color, opening)] += 1
         game_candidates, parse_ok = _extract_candidates(game, segment)
         if parse_ok:
             parsed_games += 1
@@ -474,9 +556,13 @@ def build_training_plan_payload(games: list[Game], filters: dict[str, Any]) -> d
             trend_counts[candidate["category"]] += 1
             trend_segments[candidate["category"]][segment] += 1
 
-    top_category = _select_focus_category(trend_counts)
-    current_focus = _focus_for_category(top_category, trend_counts[top_category], len(games))
-    review_moments = _select_review_moments(candidates, top_category)
+    small_sample = len(games) < MIN_LESSON_SAMPLE_GAMES
+    selected_lesson, verified_candidates, rejected = (
+        (None, [], []) if small_sample else _select_verified_lesson(candidates, trend_counts, verifier)
+    )
+    top_category = selected_lesson.category if selected_lesson else _select_focus_category(trend_counts)
+    current_focus = _focus_for_lesson(selected_lesson, len(verified_candidates), len(games), small_sample)
+    review_moments = [_candidate_to_review_moment(candidate) for candidate in verified_candidates]
     top_trends = [
         {
             "category": category,
@@ -497,11 +583,14 @@ def build_training_plan_payload(games: list[Game], filters: dict[str, Any]) -> d
             "months": filters.get("months", 12),
         },
         "scan_summary": {
+            "report_version": "insights_beta_v2",
             "eligible_games": len(games),
             "parsed_games": parsed_games,
             "candidate_positions": len(candidates),
             "result_counts": dict(result_counts),
-            "engine_note": "Candidate positions are selected server-side from PGN signals; deep engine verification is an adapter seam for the next worker upgrade.",
+            "minimum_lesson_games": MIN_LESSON_SAMPLE_GAMES,
+            "sample_status": "small_sample" if small_sample else "ready",
+            "verification_method": verifier.method,
         },
         "time_control_breakdown": [
             {"segment": segment, "games": count}
@@ -511,14 +600,23 @@ def build_training_plan_payload(games: list[Game], filters: dict[str, Any]) -> d
         "current_focus": current_focus,
         "review_moments": review_moments,
         "opening_context": [
-            {"opening": opening, "games": count}
-            for opening, count in opening_counts.most_common(8)
+            {"opening": opening, "color": color, "games": count}
+            for (color, opening), count in opening_counts.most_common(10)
         ],
         "technical_evidence": {
             "trend_counts": dict(trend_counts),
             "platform_counts": dict(platform_counts),
             "filters": filters,
-            "candidate_selector": "checks, captures, quiet moves with loose-piece or forcing-move signals",
+            "candidate_selector": "lesson-aware PGN signals checked by the candidate verifier",
+            "lesson_context": _lesson_context_payload(selected_lesson, verified_candidates, small_sample),
+            "verified_examples": review_moments,
+            "quality_summary": {
+                "candidate_count": len(candidates),
+                "checked_count": min(len(candidates), MAX_VERIFICATION_CANDIDATES),
+                "verified_count": len(verified_candidates),
+                "rejected_count": len(rejected),
+                "rejected_reasons": dict(Counter(item["reason"] for item in rejected)),
+            },
         },
     }
 
@@ -540,6 +638,7 @@ def _extract_candidates(game: Game, segment: str) -> tuple[list[dict[str, Any]],
         except Exception:
             san = move.uci()
         if mover == user_color:
+            fen_before = board.fen()
             legal_moves = list(board.legal_moves)
             forcing_count = sum(1 for legal in legal_moves if board.is_capture(legal) or board.gives_check(legal))
             before_hanging = _hanging_piece_count(board, user_color)
@@ -574,6 +673,10 @@ def _extract_candidates(game: Game, segment: str) -> tuple[list[dict[str, Any]],
                     "move_number": move_number,
                     "color": "white" if user_color == chess.WHITE else "black",
                     "move_played": san,
+                    "move_uci": move.uci(),
+                    "fen_before": fen_before,
+                    "fen_after": board.fen(),
+                    "legal_move_count": len(legal_moves),
                     "coach_note": note,
                     "end_time": game.end_time or 0,
                 })
@@ -634,7 +737,12 @@ def _classify_candidate(
 def _candidate_to_review_moment(candidate: dict[str, Any]) -> dict[str, Any]:
     label = _category_label(candidate["category"])
     move_ref = _move_reference(candidate["move_number"], candidate["color"], candidate["move_played"])
+    lesson = lesson_for_category(candidate["category"])
+    example_id = f"{candidate['game_id']}:{candidate['move_number']}:{candidate['color']}:{candidate.get('better_move_uci', '')}"
     return {
+        "id": example_id,
+        "example_id": example_id,
+        "lesson_id": lesson.id if lesson else candidate["category"],
         "game_id": candidate["game_id"],
         "platform_game_id": candidate["platform_game_id"],
         "platform": candidate["platform"],
@@ -645,8 +753,19 @@ def _candidate_to_review_moment(candidate: dict[str, Any]) -> dict[str, Any]:
         "move_number": candidate["move_number"],
         "color": candidate["color"],
         "move_played": candidate["move_played"],
+        "played_san": candidate["move_played"],
+        "fen_before": candidate.get("fen_before"),
+        "fen_after": candidate.get("fen_after"),
+        "better_move_san": candidate.get("better_move_san"),
+        "better_move_uci": candidate.get("better_move_uci"),
+        "eval_loss_cp": candidate.get("eval_loss_cp"),
+        "win_pct_loss": candidate.get("win_pct_loss"),
+        "verification_method": candidate.get("verification_method"),
+        "verified": candidate.get("verified", False),
+        "theme_facts": candidate.get("theme_facts", []),
+        "practice_prompt": candidate.get("practice_prompt") or (lesson.practice_prompt if lesson else ""),
         "title": f"{label}: {move_ref}",
-        "coach_note": candidate["coach_note"],
+        "coach_note": candidate.get("verification_reason") or candidate["coach_note"],
         "pgn": candidate["pgn"],
     }
 
@@ -725,6 +844,223 @@ def _select_review_moments(candidates: list[dict[str, Any]], category: str, max_
     return selected
 
 
+def _select_verified_lesson(
+    candidates: list[dict[str, Any]],
+    trend_counts: Counter[str],
+    verifier: CandidateVerifier,
+    max_examples: int = 3,
+) -> tuple[LessonDefinition | None, list[dict[str, Any]], list[dict[str, Any]]]:
+    rejected: list[dict[str, Any]] = []
+    lesson_order = sorted(
+        (lesson for lesson in LESSONS.values() if trend_counts[lesson.category] > 0),
+        key=lambda lesson: (trend_counts[lesson.category], lesson.priority),
+        reverse=True,
+    )
+
+    checked = 0
+    best_lesson: LessonDefinition | None = None
+    best_verified: list[dict[str, Any]] = []
+
+    for lesson in lesson_order:
+        lesson_candidates = sorted(
+            [
+                candidate
+                for candidate in candidates
+                if candidate["category"] == lesson.category and _is_teachable_example(candidate)
+            ],
+            key=lambda item: (_candidate_example_score(item), item["severity"], item["end_time"]),
+            reverse=True,
+        )
+        verified: list[dict[str, Any]] = []
+        seen_games: set[str] = set()
+        for candidate in lesson_candidates:
+            if checked >= MAX_VERIFICATION_CANDIDATES:
+                break
+            checked += 1
+            game_key = str(candidate["platform_game_id"] or candidate["game_id"])
+            if game_key in seen_games:
+                rejected.append({"category": lesson.category, "reason": "duplicate_game"})
+                continue
+            result = verifier.verify(candidate, lesson)
+            if result is None:
+                rejected.append({"category": lesson.category, "reason": "no_clear_fix"})
+                continue
+            verified_candidate = {
+                **candidate,
+                "lesson_id": lesson.id,
+                "verified": True,
+                "verification_method": verifier.method,
+                "better_move_san": result.better_move_san,
+                "better_move_uci": result.better_move_uci,
+                "eval_loss_cp": result.eval_loss_cp,
+                "win_pct_loss": result.win_pct_loss,
+                "verification_reason": result.reason,
+                "theme_facts": result.theme_facts,
+                "practice_prompt": lesson.practice_prompt,
+            }
+            verified.append(verified_candidate)
+            seen_games.add(game_key)
+            if len(verified) >= max_examples:
+                break
+
+        if len(verified) > len(best_verified):
+            best_lesson = lesson
+            best_verified = verified
+        if len(verified) >= 2:
+            return lesson, verified, rejected
+        if checked >= MAX_VERIFICATION_CANDIDATES:
+            break
+
+    if best_verified:
+        return best_lesson, best_verified, rejected
+    return None, [], rejected
+
+
+PIECE_CP = {
+    chess.PAWN: 100,
+    chess.KNIGHT: 320,
+    chess.BISHOP: 330,
+    chess.ROOK: 500,
+    chess.QUEEN: 900,
+    chess.KING: 0,
+}
+
+
+def _best_lesson_move(board: chess.Board, lesson: LessonDefinition, played_uci: str) -> chess.Move | None:
+    scored: list[tuple[int, chess.Move]] = []
+    color = board.turn
+    for move in board.legal_moves:
+        if move.uci() == played_uci:
+            continue
+        score = _lesson_move_score(board, move, lesson, color)
+        if score > 0:
+            scored.append((score, move))
+    if not scored:
+        return None
+    scored.sort(key=lambda item: item[0], reverse=True)
+    if scored[0][0] < 12:
+        return None
+    return scored[0][1]
+
+
+def _lesson_move_score(
+    board: chess.Board,
+    move: chess.Move,
+    lesson: LessonDefinition,
+    color: chess.Color,
+) -> int:
+    score = 0
+    if board.gives_check(move):
+        score += 18
+    if board.is_capture(move):
+        captured = board.piece_at(move.to_square)
+        score += 16 + (PIECE_CP.get(captured.piece_type, 0) // 100 if captured else 0)
+    if lesson.category == "didnt_castle":
+        try:
+            san = board.san(move)
+        except Exception:
+            san = move.uci()
+        if _looks_like_castle(san):
+            score += 80
+    if lesson.category == "didnt_develop" and _develops_minor_piece(board, move, color):
+        score += 55
+    if lesson.category == "hung_piece":
+        before_hanging = _hanging_piece_count(board, color)
+        next_board = board.copy(stack=False)
+        next_board.push(move)
+        after_hanging = _hanging_piece_count(next_board, color)
+        if after_hanging < before_hanging:
+            score += 65
+        if after_hanging == 0:
+            score += 20
+    if lesson.category == "ignored_threat":
+        if board.is_capture(move) or board.gives_check(move):
+            score += 30
+        next_board = board.copy(stack=False)
+        next_board.push(move)
+        if _hanging_piece_count(next_board, color) == 0:
+            score += 20
+    if lesson.category == "missed_tactic" and (board.is_capture(move) or board.gives_check(move)):
+        score += 50
+    if lesson.category == "aimless_move":
+        if _develops_minor_piece(board, move, color):
+            score += 22
+        if board.is_capture(move) or board.gives_check(move):
+            score += 24
+        if _improves_piece_centrality(move):
+            score += 16
+    return score
+
+
+def _develops_minor_piece(board: chess.Board, move: chess.Move, color: chess.Color) -> bool:
+    piece = board.piece_at(move.from_square)
+    if piece is None or piece.color != color or piece.piece_type not in (chess.KNIGHT, chess.BISHOP):
+        return False
+    start_squares = (
+        {chess.B1, chess.C1, chess.F1, chess.G1}
+        if color == chess.WHITE
+        else {chess.B8, chess.C8, chess.F8, chess.G8}
+    )
+    return move.from_square in start_squares and move.to_square not in start_squares
+
+
+def _improves_piece_centrality(move: chess.Move) -> bool:
+    center = {chess.D4, chess.E4, chess.D5, chess.E5, chess.C4, chess.F4, chess.C5, chess.F5}
+    return move.to_square in center
+
+
+def _verification_reason(lesson: LessonDefinition, move_san: str) -> str:
+    if lesson.category == "hung_piece":
+        return f"{move_san} was the clearer way to address the loose-piece problem."
+    if lesson.category == "ignored_threat":
+        return f"{move_san} was the clearer response to the opponent's immediate idea."
+    if lesson.category == "missed_tactic":
+        return f"{move_san} was the forcing move to check before playing quietly."
+    if lesson.category == "didnt_develop":
+        return f"{move_san} brought another piece into the game."
+    if lesson.category == "didnt_castle":
+        return f"{move_san} handled king safety before the position became sharper."
+    if lesson.category == "aimless_move":
+        return f"{move_san} gave the move a clearer job."
+    return f"{move_san} was the clearer practical idea."
+
+
+def _lesson_context_payload(
+    lesson: LessonDefinition | None,
+    examples: list[dict[str, Any]],
+    small_sample: bool,
+) -> dict[str, Any]:
+    if small_sample:
+        return {
+            "id": "small_sample",
+            "category": "baseline",
+            "title": "Play a few more games first.",
+            "report_title": "Play a few more games first.",
+            "summary": (
+                f"DeepMove needs about {MIN_LESSON_SAMPLE_GAMES} eligible games before it can "
+                "trust a lesson pattern."
+            ),
+            "habit": ["Play more blitz-or-longer games.", "Run Insights again.", "Review the clearest game manually."],
+            "practice_prompt": "",
+            "example_count": 0,
+        }
+    if lesson is None:
+        return {
+            "id": "baseline",
+            "category": "baseline",
+            "title": "No clean lesson survived review.",
+            "report_title": "No clean lesson survived review.",
+            "summary": "DeepMove saw signals, but none were clear enough to teach as flagship examples.",
+            "habit": ["Review the sharpest games.", "Look for repeated causes.", "Run Insights again later."],
+            "practice_prompt": "",
+            "example_count": 0,
+        }
+    return {
+        **lesson_payload(lesson),
+        "example_count": len(examples),
+    }
+
+
 def _candidate_example_score(candidate: dict[str, Any]) -> int:
     move_number = int(candidate.get("move_number") or 0)
     category = str(candidate.get("category") or "")
@@ -794,6 +1130,36 @@ def _focus_for_category(category: str, count: int, game_count: int) -> dict[str,
         "summary": summary if count > 0 and game_count > 0 else copy["baseline"][1],
         "habit": habit,
         "confidence": "verified_examples" if count > 0 else "trend_signal",
+    }
+
+
+def _focus_for_lesson(
+    lesson: LessonDefinition | None,
+    verified_count: int,
+    game_count: int,
+    small_sample: bool,
+) -> dict[str, Any]:
+    if small_sample:
+        return {
+            "category": "baseline",
+            "lesson_id": "small_sample",
+            "title": "Play a few more games first.",
+            "summary": (
+                f"DeepMove found {game_count} eligible games. It needs about "
+                f"{MIN_LESSON_SAMPLE_GAMES} before choosing a lesson from account-wide patterns."
+            ),
+            "habit": ["Play more blitz-or-longer games.", "Run Insights again.", "Review one recent loss manually."],
+            "confidence": "trend_signal",
+        }
+    if lesson is None:
+        return _focus_for_category("baseline", 0, game_count)
+    return {
+        "category": lesson.category,
+        "lesson_id": lesson.id,
+        "title": lesson.report_title,
+        "summary": lesson.summary,
+        "habit": list(lesson.habit),
+        "confidence": "verified_examples" if verified_count > 0 else "trend_signal",
     }
 
 

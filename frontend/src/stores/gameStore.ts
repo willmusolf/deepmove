@@ -32,6 +32,7 @@ interface PersistedGameState {
   skipNextAnalysis: boolean
   resumeFromIndex: number
   pendingReviewTarget: ReviewTarget | null
+  lessonReviewContext: LessonReviewContext | null
 }
 
 export interface ReviewTarget {
@@ -39,6 +40,22 @@ export interface ReviewTarget {
   plyIndex: number
   moveNumber: number
   color: 'white' | 'black'
+}
+
+export interface LessonReviewContext {
+  source: 'insights'
+  lessonId: string
+  lessonTitle: string
+  lessonSummary: string
+  habit: string[]
+  exampleIndex: number
+  exampleCount: number
+  movePlayed: string
+  betterMoveSan: string | null
+  betterMoveUci: string | null
+  coachNote: string
+  practicePrompt: string
+  themeFacts: string[]
 }
 
 interface GameState {
@@ -61,6 +78,7 @@ interface GameState {
   backendGameId: number | null      // DB primary key after sync (null until uploaded)
   currentGameMeta: GameMeta | null  // display metadata for IndexedDB record
   pendingReviewTarget: ReviewTarget | null
+  lessonReviewContext: LessonReviewContext | null
 
   // Actions
   setPgn: (pgn: string) => void
@@ -84,6 +102,7 @@ interface GameState {
   resumeFromIndex: number              // 0 = fresh analysis, N = resume from move N
   setResumeFromIndex: (n: number) => void
   setPendingReviewTarget: (target: ReviewTarget | null) => void
+  setLessonReviewContext: (context: LessonReviewContext | null) => void
   reset: () => void
 }
 
@@ -108,6 +127,7 @@ const initialState: {
   loadRequestId: number
   resumeFromIndex: number
   pendingReviewTarget: ReviewTarget | null
+  lessonReviewContext: LessonReviewContext | null
 } = {
   pgn: null,
   rawPgn: null,
@@ -129,6 +149,7 @@ const initialState: {
   skipNextAnalysis: false,
   resumeFromIndex: 0,
   pendingReviewTarget: null,
+  lessonReviewContext: null,
 }
 
 function sanitizeMoveEvals(value: unknown): MoveEval[] {
@@ -172,6 +193,38 @@ function sanitizeReviewTarget(value: unknown): ReviewTarget | null {
   }
 }
 
+function sanitizeLessonReviewContext(value: unknown): LessonReviewContext | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const context = value as Partial<LessonReviewContext>
+  if (context.source !== 'insights') return null
+  if (typeof context.lessonId !== 'string') return null
+  if (typeof context.lessonTitle !== 'string') return null
+  if (typeof context.lessonSummary !== 'string') return null
+  if (!Array.isArray(context.habit) || !context.habit.every(item => typeof item === 'string')) return null
+  if (typeof context.exampleIndex !== 'number') return null
+  if (typeof context.exampleCount !== 'number') return null
+  if (typeof context.movePlayed !== 'string') return null
+  if (typeof context.coachNote !== 'string') return null
+  if (typeof context.practicePrompt !== 'string') return null
+  if (!Array.isArray(context.themeFacts) || !context.themeFacts.every(item => typeof item === 'string')) return null
+
+  return {
+    source: 'insights',
+    lessonId: context.lessonId,
+    lessonTitle: context.lessonTitle,
+    lessonSummary: context.lessonSummary,
+    habit: context.habit,
+    exampleIndex: Math.max(0, Math.floor(context.exampleIndex)),
+    exampleCount: Math.max(0, Math.floor(context.exampleCount)),
+    movePlayed: context.movePlayed,
+    betterMoveSan: typeof context.betterMoveSan === 'string' ? context.betterMoveSan : null,
+    betterMoveUci: typeof context.betterMoveUci === 'string' ? context.betterMoveUci : null,
+    coachNote: context.coachNote,
+    practicePrompt: context.practicePrompt,
+    themeFacts: context.themeFacts,
+  }
+}
+
 function loadGameState(): typeof initialState {
   const parsed = readSessionJson<Partial<PersistedGameState>>(GAME_SESSION_KEY)
   if (!parsed || typeof parsed !== 'object' || typeof parsed.pgn !== 'string') {
@@ -205,6 +258,7 @@ function loadGameState(): typeof initialState {
     skipNextAnalysis: parsed.skipNextAnalysis === true,
     resumeFromIndex,
     pendingReviewTarget: sanitizeReviewTarget(parsed.pendingReviewTarget),
+    lessonReviewContext: sanitizeLessonReviewContext(parsed.lessonReviewContext),
   }
 }
 
@@ -225,6 +279,7 @@ function toPersistedGameState(state: GameState): PersistedGameState {
     skipNextAnalysis: state.skipNextAnalysis,
     resumeFromIndex: state.resumeFromIndex,
     pendingReviewTarget: state.pendingReviewTarget,
+    lessonReviewContext: state.lessonReviewContext,
   }
 }
 
@@ -249,6 +304,7 @@ function hasPersistedGameStateChanged(
     || prev.skipNextAnalysis !== next.skipNextAnalysis
     || prev.resumeFromIndex !== next.resumeFromIndex
     || prev.pendingReviewTarget !== next.pendingReviewTarget
+    || prev.lessonReviewContext !== next.lessonReviewContext
 }
 
 const hydratedInitialState = loadGameState()
@@ -280,6 +336,7 @@ export const useGameStore = create<GameState>(set => ({
   setSkipNextAnalysis: skipNextAnalysis => set({ skipNextAnalysis }),
   setResumeFromIndex: resumeFromIndex => set({ resumeFromIndex }),
   setPendingReviewTarget: pendingReviewTarget => set({ pendingReviewTarget }),
+  setLessonReviewContext: lessonReviewContext => set({ lessonReviewContext }),
   reset: () => {
     removeSessionValue(GAME_SESSION_KEY)
     set(initialState)

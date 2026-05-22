@@ -3,7 +3,26 @@ from datetime import UTC, datetime
 
 from app.models.account_analysis import AccountReport, AnalysisJob
 from app.models.game import Game
-from app.services.account_analysis import build_training_plan_payload, run_job
+from app.services.account_analysis import (
+    CandidateVerifier,
+    VerificationResult,
+    build_training_plan_payload,
+    run_job,
+)
+
+
+class FakeVerifier(CandidateVerifier):
+    method = "fake_engine"
+
+    def verify(self, candidate, lesson):
+        return VerificationResult(
+            better_move_san="O-O" if lesson.category == "didnt_castle" else "Nf3",
+            better_move_uci="e1g1" if lesson.category == "didnt_castle" else "g1f3",
+            eval_loss_cp=220,
+            win_pct_loss=12.2,
+            reason="Fake engine found a clearer lesson move.",
+            theme_facts=["verified fact one", "verified fact two"],
+        )
 
 SAMPLE_PGN = """
 [Event "Live Chess"]
@@ -83,7 +102,8 @@ def test_scan_segments_blitz_and_selects_candidates():
 
     assert report["time_control_breakdown"][0]["segment"] == "blitz"
     assert report["scan_summary"]["candidate_positions"] > 0
-    assert report["review_moments"][0]["game_id"] == 1
+    assert report["scan_summary"]["sample_status"] == "small_sample"
+    assert report["review_moments"] == []
 
 
 def test_didnt_castle_examples_do_not_start_on_move_one():
@@ -106,10 +126,26 @@ def test_didnt_castle_examples_do_not_start_on_move_one():
         "end_time": int(datetime.now(UTC).timestamp() * 1000),
     })()
 
-    report = build_training_plan_payload([black_game], {"months": 12, "max_games": 500})
+    games = [
+        type("GameLike", (), {
+            "id": game_id,
+            "platform": black_game.platform,
+            "platform_game_id": f"g{game_id}",
+            "pgn": black_game.pgn,
+            "user_color": black_game.user_color,
+            "opponent": black_game.opponent,
+            "result": black_game.result,
+            "time_control": black_game.time_control,
+            "end_time": int(datetime.now(UTC).timestamp() * 1000) - game_id,
+        })()
+        for game_id in range(2, 55)
+    ]
+
+    report = build_training_plan_payload(games, {"months": 12, "max_games": 500}, verifier=FakeVerifier())
 
     assert report["review_moments"]
     assert all(moment["move_number"] >= 6 for moment in report["review_moments"])
+    assert report["review_moments"][0]["verified"] is True
 
 
 def test_review_examples_prefer_unique_games_when_possible():
@@ -133,11 +169,12 @@ def test_review_examples_prefer_unique_games_when_possible():
             "time_control": "300+0",
             "end_time": int(datetime.now(UTC).timestamp() * 1000) - game_id,
         })()
-        for game_id in range(10, 13)
+        for game_id in range(10, 70)
     ]
 
-    report = build_training_plan_payload(games, {"months": 12, "max_games": 500})
+    report = build_training_plan_payload(games, {"months": 12, "max_games": 500}, verifier=FakeVerifier())
 
     review_game_ids = [moment["game_id"] for moment in report["review_moments"]]
     assert len(review_game_ids) >= 2
     assert len(review_game_ids) == len(set(review_game_ids))
+    assert report["technical_evidence"]["lesson_context"]["id"] != "small_sample"
