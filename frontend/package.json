@@ -46,7 +46,7 @@
     "patch-package": "^8.0.1",
     "stockfish": "18.0.7",
     "typescript": "6.0.3",
-    "vite": "8.0.13",
-    "vitest": "4.1.6"
+    "vite": "8.0.14",
+    "vitest": "4.1.7"
   }
 }
