@@ -20,8 +20,8 @@
     "postinstall": "patch-package && node scripts/copy-stockfish-assets.mjs && node scripts/verify-install.mjs"
   },
   "optionalDependencies": {
-    "@rolldown/binding-darwin-arm64": "1.0.1",
-    "@rolldown/binding-darwin-x64": "1.0.1"
+    "@rolldown/binding-darwin-arm64": "1.0.2",
+    "@rolldown/binding-darwin-x64": "1.0.2"
   },
   "dependencies": {
     "@sentry/react": "^10.53.1",
