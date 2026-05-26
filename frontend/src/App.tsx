@@ -107,7 +107,7 @@ const DEPTH_FOR_PRESET: Record<EngineDepthPreset, number> = {
   max: 27,
 }
 
-const BRANCH_BADGE_DEPTH = 20
+const BRANCH_BADGE_DEPTH = 14
 const POSITION_MIN_VISIBLE_DEPTH = 20
 
 export function depthForPreset(preset: EngineDepthPreset): number {
