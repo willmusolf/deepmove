@@ -1050,7 +1050,7 @@ export default function App() {
       } else {
         setCurrentPositionLines([])
       }
-      setCurrentAnalysisDepth(cachedDepth)
+      setCurrentAnalysisDepth(cachedDepth >= POSITION_MIN_VISIBLE_DEPTH ? cachedDepth : 0)
       if (!hasReportedPositionCacheHitRef.current) {
         hasReportedPositionCacheHitRef.current = true
         reportFrontendPerf('position_analysis_cache_hit', {
