@@ -31,7 +31,6 @@ import BotPlayPage from './components/Play/BotPlayPage'
 import ErrorBoundary from './components/ErrorBoundary'
 import AboutPage from './components/AboutPage'
 import PrivacyPage from './components/PrivacyPage'
-import AccountAnalysisPage from './components/AccountAnalysis/AccountAnalysisPage'
 import ResetPasswordPage from './components/Auth/ResetPasswordPage'
 import AdBanner from './components/AdBanner'
 import MobileAdBanner from './components/MobileAdBanner'
@@ -154,6 +153,27 @@ function renderBoundaryFallback(title: string, message: string) {
       <button className="btn btn-secondary" onClick={() => window.location.reload()}>
         Reload
       </button>
+    </div>
+  )
+}
+
+function InsightsComingSoonPage() {
+  return (
+    <div className="practice-coming-soon-page">
+      <div className="practice-coming-soon-board">
+        <ChessBoard
+          fen="r2q1rk1/pp2bppp/2npbn2/2p1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8"
+          orientation="white"
+          interactive={false}
+          pathKey={0}
+        />
+      </div>
+      <div className="coming-soon-overlay">
+        <div className="coming-soon-card">
+          <h2>Insights Coming Soon</h2>
+          <p>Account-history trends and recurring-weakness reports are being tightened before launch.<br />Free game review and analysis are live now.</p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -2988,10 +3008,10 @@ export default function App() {
                           className="btn btn-secondary"
                           onClick={() => {
                             setLessonReviewContext(null)
-                            goToPage('dashboard')
+                            goToPage('review')
                           }}
                         >
-                          Back to Insights
+                          Back to Review
                         </button>
                       </div>
 
@@ -3164,13 +3184,7 @@ export default function App() {
           )}
 
           {currentPage === 'dashboard' && (
-            <AccountAnalysisPage
-              onOpenReview={(mode) => {
-                if (mode === 'lesson') setPanelTab('coach')
-                goToPage('review')
-              }}
-              onOpenProfile={() => goToPage('profile')}
-            />
+            <InsightsComingSoonPage />
           )}
           {currentPage === 'practice' && (
             <div className="practice-coming-soon-page">

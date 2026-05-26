@@ -1,6 +1,9 @@
 """Coverage for account-wide Training Plan analysis."""
 from datetime import UTC, datetime
 
+from fastapi.testclient import TestClient
+
+from app.main import app
 from app.models.account_analysis import AccountReport, AnalysisJob
 from app.models.game import Game
 from app.services.account_analysis import (
@@ -35,15 +38,10 @@ SAMPLE_PGN = """
 """
 
 
-def test_start_job_prevents_duplicate_active_job(auth_client):
-    client, _token, _user = auth_client
-    first = client.post("/account-analysis/jobs", json={"max_games": 500, "months": 12})
-    assert first.status_code == 201, first.text
-    second = client.post("/account-analysis/jobs", json={"max_games": 500, "months": 12})
-    assert second.status_code == 201, second.text
-
-    assert first.json()["job"]["id"] == second.json()["job"]["id"]
-    assert second.json()["active_existing"] is True
+def test_account_analysis_api_is_gated_while_insights_are_coming_soon():
+    client = TestClient(app)
+    response = client.post("/account-analysis/jobs", json={"max_games": 500, "months": 12})
+    assert response.status_code == 404
 
 
 def test_run_job_stores_report_snapshot(db_session, auth_client):

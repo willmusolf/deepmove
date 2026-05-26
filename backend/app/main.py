@@ -16,7 +16,7 @@ from app.config import settings
 from app.database import engine
 from app.logging_utils import configure_logging, log_event, reset_request_id, set_request_id
 from app.rate_limiting import limiter
-from app.routes import account_analysis, admin, analytics, auth, coaching, games, payments, users
+from app.routes import admin, analytics, auth, coaching, games, payments, users
 from app.services import coaching as coaching_service
 
 configure_logging(settings.environment)
@@ -150,7 +150,6 @@ app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(games.router, prefix="/games", tags=["games"])
 app.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
-app.include_router(account_analysis.router, prefix="/account-analysis", tags=["account-analysis"])
 app.include_router(coaching.router, prefix="/coaching", tags=["coaching"])
 app.include_router(admin.router, prefix="/admin", tags=["admin"])
 app.include_router(payments.router, prefix="/payments", tags=["payments"])

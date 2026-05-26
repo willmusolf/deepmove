@@ -16,7 +16,7 @@ const DIFFERENTIATORS = [
   },
   {
     title: 'Training plan in progress',
-    text: 'Broader account-history insights and recurring-weakness training are still beta work. The flagship product today is game review that leads into improvement.',
+    text: 'Broader account-history insights and recurring-weakness training are coming soon. The flagship product today is free game review that leads into improvement.',
   },
 ] as const
 
@@ -25,13 +25,12 @@ const TODAY_ITEMS = [
   'Review moves with eval swings, best lines, move grades, and critical moments.',
   'Play against the bot, then send finished games straight into review.',
   'Save account preferences and linked chess profiles for faster repeat use.',
-  'Open beta account snapshots after sign-in if you want a broader look at recurring trends.',
 ] as const
 
 const BETA_ITEMS = [
-  'Insights Beta stores an account-history snapshot instead of acting like a live dashboard.',
-  'Trend labels and selected examples are still being tightened before DeepMove leans on them as a primary promise.',
-  'The long-term goal is report -> lesson -> practice, but the review flow comes first.',
+  'Account-history Insights are behind a coming-soon gate while trend quality is tightened.',
+  'The long-term goal is report -> lesson -> practice, but review stays the launch promise.',
+  'DeepMove will only lean on recurring-weakness claims after they are backed by stronger review examples.',
 ] as const
 
 const ROADMAP_ITEMS = [
@@ -124,10 +123,10 @@ export default function AboutPage({ onOpenApp, onOpenPrivacy }: AboutPageProps) 
 
         <section className="about-page__section">
           <div className="about-page__section-head">
-            <h2>What is beta right now</h2>
+            <h2>What is coming soon</h2>
             <p>
-              Account-wide training snapshots are live, but they are still secondary to review and
-              should be treated as an experimental layer rather than the whole product promise.
+              Account-wide training snapshots are planned, but they are not part of the launch
+              promise. DeepMove is keeping that work gated until it is trustworthy enough to ship.
             </p>
           </div>
           <ul className="about-page__list">

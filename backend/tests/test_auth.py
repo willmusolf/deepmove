@@ -11,6 +11,15 @@ from app.config import settings
 from app.models.user import User
 from app.routes import auth as auth_routes
 
+
+def test_refresh_cookie_secure_policy_includes_staging(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "staging")
+    assert auth_routes._refresh_cookie_secure() is True
+
+    monkeypatch.setattr(settings, "environment", "development")
+    assert auth_routes._refresh_cookie_secure() is False
+
+
 # ── Registration ─────────────────────────────────────────────────────────────
 
 class TestRegister:

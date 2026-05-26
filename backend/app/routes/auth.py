@@ -43,6 +43,10 @@ logger = logging.getLogger(__name__)
 _PASSWORD_RE = re.compile(r"(?=.*[A-Za-z])(?=.*[0-9])")
 
 
+def _refresh_cookie_secure() -> bool:
+    return settings.environment in ("production", "staging")
+
+
 def _validate_password(password: str) -> None:
     """Raise 422 if password doesn't meet minimum complexity."""
     if len(password) < 8:
@@ -63,7 +67,7 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
         key=settings.refresh_cookie_name,
         value=token,
         httponly=True,
-        secure=settings.environment == "production",  # HTTPS only in prod
+        secure=_refresh_cookie_secure(),
         samesite="lax",
         max_age=settings.refresh_token_expire_days * 86400,
         path="/auth",  # Only sent to /auth/* endpoints
@@ -75,7 +79,7 @@ def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(
         key=settings.refresh_cookie_name,
         path="/auth",
-        secure=settings.environment == "production",
+        secure=_refresh_cookie_secure(),
         httponly=True,
         samesite="lax",
     )
