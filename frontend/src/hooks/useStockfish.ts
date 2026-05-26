@@ -6,9 +6,9 @@
 //   branchEngine      — branch badge grading so variation evals stay responsive
 
 function getAnalysisDepth(elo: number): number {
-  if (!elo || elo < 1600) return 18
-  if (elo < 2000) return 20
-  return 22
+  if (!elo || elo < 1600) return 20
+  if (elo < 2000) return 22
+  return 24
 }
 
 const ANALYSIS_PROGRESS_FLUSH_MS = 180
