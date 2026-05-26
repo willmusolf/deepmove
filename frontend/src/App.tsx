@@ -2156,6 +2156,7 @@ export default function App() {
   const evalDisplayProps = {
     displayedEvalText,
     currentAnalysisDepth,
+    visibleStartDepth: POSITION_MIN_VISIBLE_DEPTH,
     positionMaxDepth,
     isAnalyzingPosition,
     fallbackDepthLabel: evalDisplayFallback,
