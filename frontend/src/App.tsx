@@ -940,8 +940,8 @@ export default function App() {
       if (d <= resumeFromDepth) return  // skip already-seen depths
       const stableLines = mergeStreamingTopLines(lines)
       if (stableLines.length > 0) seedPositionCache(fen, stableLines)
-      setCurrentAnalysisDepth(d)
       if (d < POSITION_MIN_VISIBLE_DEPTH) return
+      setCurrentAnalysisDepth(d)
 
       const perfState = positionPerfRef.current
       if (
@@ -964,7 +964,8 @@ export default function App() {
         if (positionTokenRef.current !== token) return
         if (lines.length > 0) seedPositionCache(fen, lines)
         setCurrentPositionLines(lines)
-        setCurrentAnalysisDepth(lines[0]?.depth ?? 0)
+        const finalDepth = lines[0]?.depth ?? 0
+        setCurrentAnalysisDepth(finalDepth >= POSITION_MIN_VISIBLE_DEPTH ? finalDepth : 0)
         setAnalyzingPosition(false)
       })
       .catch(() => {
