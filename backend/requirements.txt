@@ -16,7 +16,7 @@ python-chess==1.999
 
 # Config / env
 pydantic==2.13.4
-pydantic-core==2.47.0
+pydantic-core==2.46.4
 pydantic-settings==2.14.1
 python-dotenv==1.2.2
 python-json-logger==2.0.7

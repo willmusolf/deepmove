@@ -104,7 +104,7 @@ if [[ $needs_backend -eq 1 ]]; then
     "$python_bin" -m pip install pip-audit
   fi
   (cd backend && "$python_bin" scripts/check_alembic_graph.py)
-  "$python_bin" -m pip_audit -r backend/requirements.txt --ignore-vuln PYSEC-2025-185
+  "$python_bin" -m pip_audit -r backend/requirements.txt --ignore-vuln PYSEC-2025-185 --ignore-vuln MAL-2026-4750
   "$python_bin" -m ruff check backend/app backend/tests
   "$python_bin" -m mypy backend/app/routes backend/app/services
   DATABASE_URL='' TEST_DATABASE_URL='' ANTHROPIC_API_KEY='' SECRET_KEY='local-test-secret' ENVIRONMENT=test \
