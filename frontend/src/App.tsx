@@ -862,6 +862,15 @@ export default function App() {
       .slice(0, targetCount)
   }
 
+  function getTargetLineCountForFen(fen: string, requestedLines = engineLinesRef.current): number {
+    try {
+      const legalMoveCount = new Chess(fen).moves().length
+      return Math.min(requestedLines, legalMoveCount)
+    } catch {
+      return requestedLines
+    }
+  }
+
   useEffect(() => {
     if (seededPositionCacheCountRef.current > moveEvals.length) {
       seededPositionCacheCountRef.current = 0
@@ -924,25 +933,26 @@ export default function App() {
 
     // Cap multi-PV to legal move count (avoids duplicate arrows on forced moves)
     const requestedLines = engineLinesRef.current
-    let numLines: number = requestedLines
-    try {
-      const chess = new Chess(fen)
-      const legalMoveCount = chess.moves().length
-      if (legalMoveCount === 0) {
-        // Terminal position (checkmate/stalemate) — nothing to analyze
-        setCurrentPositionLines([])
-        setAnalyzingPosition(false)
-        return
-      }
-      numLines = Math.min(requestedLines, legalMoveCount)
-    } catch { /* invalid FEN — fall through with requested line count */ }
+    const numLines = getTargetLineCountForFen(fen, requestedLines)
+    if (numLines === 0) {
+      // Terminal position (checkmate/stalemate) — nothing to analyze
+      setCurrentPositionLines([])
+      setAnalyzingPosition(false)
+      return
+    }
 
     const token = ++positionTokenRef.current
     setAnalyzingPosition(true)
-    // Snapshot cached depth at the start of this analysis run.
-    // onUpdate skips any depth ≤ resumeFromDepth so the counter never goes backward:
-    // if we left at depth 12, we show 12 from cache, then continue at 13, 14...
-    const resumeFromDepth = positionCache.current.get(fen)?.[0]?.depth ?? 0
+    // Snapshot cache at the start of this analysis run. A single-PV cache entry
+    // from full-game or branch analysis should not block same-depth MultiPV
+    // updates; otherwise the UI sits at "depth 20" with only one line until the
+    // engine reaches depth 21.
+    const cachedAtStart = positionCache.current.get(fen) ?? []
+    const resumeFromDepth = cachedAtStart[0]?.depth ?? 0
+    const cachedHasRequestedLines = cachedAtStart.length >= numLines
+    const effectiveResumeDepth = cachedHasRequestedLines
+      ? resumeFromDepth
+      : Math.min(resumeFromDepth, POSITION_MIN_VISIBLE_DEPTH - 1)
     positionPerfRef.current = {
       startedAt: nowMs(),
       cacheState: resumeFromDepth > 0 ? 'resume' : 'cold',
@@ -959,7 +969,7 @@ export default function App() {
 
     analyzePositionLines(fen, depth, numLines, (lines, d) => {
       if (positionTokenRef.current !== token) return
-      if (d <= resumeFromDepth) return  // skip already-seen depths
+      if (d <= effectiveResumeDepth) return  // skip already-seen complete depths
       const stableLines = mergeStreamingTopLines(lines)
       if (stableLines.length > 0) seedPositionCache(fen, stableLines)
       if (d < POSITION_MIN_VISIBLE_DEPTH) return
@@ -1068,17 +1078,19 @@ export default function App() {
     // place, but users should not see a blank shimmer on every move.
     if (cached && cached.length > 0) {
       const cachedDepth = cached[0]?.depth ?? 0
+      const targetLineCount = getTargetLineCountForFen(displayFen, engineLines)
+      const cacheHasRequestedLines = cached.length >= targetLineCount
       setCurrentPositionLines(cached)
       setCurrentAnalysisDepth(cachedDepth >= POSITION_MIN_VISIBLE_DEPTH ? cachedDepth : 0)
       if (!hasReportedPositionCacheHitRef.current) {
         hasReportedPositionCacheHitRef.current = true
         reportFrontendPerf('position_analysis_cache_hit', {
-          complete: cachedDepth >= positionMaxDepth,
+          complete: cachedDepth >= positionMaxDepth && cacheHasRequestedLines,
           depth: cachedDepth,
           mode: isLoaded ? 'review' : 'sandbox',
         })
       }
-      if (cachedDepth >= positionMaxDepth) {
+      if (cachedDepth >= positionMaxDepth && cacheHasRequestedLines) {
         // Full depth — no further analysis needed
         setAnalyzingPosition(false)
         return
