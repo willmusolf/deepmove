@@ -941,6 +941,7 @@ export default function App() {
     // onUpdate skips any depth ≤ resumeFromDepth so the counter never goes backward:
     // if we left at depth 12, we show 12 from cache, then continue at 13, 14...
     const resumeFromDepth = positionCache.current.get(fen)?.[0]?.depth ?? 0
+    const holdFirstVisibleUpdate = resumeFromDepth > 0 && resumeFromDepth < POSITION_MIN_VISIBLE_DEPTH
     positionPerfRef.current = {
       startedAt: nowMs(),
       cacheState: resumeFromDepth > 0 ? 'resume' : 'cold',
@@ -961,6 +962,7 @@ export default function App() {
       const stableLines = mergeStreamingTopLines(lines)
       if (stableLines.length > 0) seedPositionCache(fen, stableLines)
       if (d < POSITION_MIN_VISIBLE_DEPTH) return
+      if (holdFirstVisibleUpdate && d === POSITION_MIN_VISIBLE_DEPTH) return
       setCurrentAnalysisDepth(d)
 
       const perfState = positionPerfRef.current
