@@ -8,7 +8,6 @@ import type { EngineDepthPreset, EngineLineCount } from '../../App'
 interface Props {
   displayedEvalText: string | null
   currentAnalysisDepth: number
-  visibleStartDepth: number
   positionMaxDepth: number
   isAnalyzingPosition: boolean
   fallbackDepthLabel?: string | null   // e.g. "depth 22" when no live analysis is running
@@ -37,7 +36,6 @@ interface Props {
 export default function EvalDisplay({
   displayedEvalText,
   currentAnalysisDepth,
-  visibleStartDepth,
   positionMaxDepth,
   isAnalyzingPosition,
   fallbackDepthLabel,
@@ -74,7 +72,7 @@ export default function EvalDisplay({
         </span>
       ) : isAnalyzingPosition ? (
         <span className="eval-display-depth">
-          depth: {visibleStartDepth} / {positionMaxDepth} …
+          depth: … / {positionMaxDepth}
         </span>
       ) : fallbackDepthLabel ? (
         <span className="eval-display-depth">{fallbackDepthLabel}</span>
