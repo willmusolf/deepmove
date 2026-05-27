@@ -2237,6 +2237,29 @@ export default function App() {
     })
   }, [currentPositionLines, isBestLineJumping])
 
+  const currentDisplayPositionIsTerminal = useMemo(() => {
+    try {
+      return new Chess(displayFen).moves().length === 0
+    } catch {
+      return false
+    }
+  }, [displayFen])
+
+  const activeBranchNodeIdForEngineGate = isLoaded
+    ? (inBranch ? currentNodeId : null)
+    : sandboxCurrentNodeId
+  const activeBranchEngineSurfaceReady = !activeBranchNodeIdForEngineGate
+    || !autoAnalyze
+    || currentDisplayPositionIsTerminal
+    || visibleLines.length > 0
+
+  const displayedPendingBranchNodes = useMemo(() => {
+    if (!activeBranchNodeIdForEngineGate || activeBranchEngineSurfaceReady) return pendingBranchNodes
+    const next = new Set(pendingBranchNodes)
+    next.add(activeBranchNodeIdForEngineGate)
+    return next
+  }, [activeBranchEngineSurfaceReady, activeBranchNodeIdForEngineGate, pendingBranchNodes])
+
   const boardShapes: DrawShape[] = useMemo(() => visibleLines
     .filter(l => l.pv.length >= 1)
     .map((line, i) => ({
@@ -2621,7 +2644,7 @@ export default function App() {
                       // (mainEval?.grade not yet populated for this move index).
                       const isMainLinePending = isLoaded && !inBranch && !hideLoadedReviewArtifacts && isAnalyzing && !mainEval?.grade && !!boardLastMove
                       const isPendingOnBoard = showGrades && !hideLoadedReviewArtifacts && (
-                        (boardNodeId !== null && pendingBranchNodes.has(boardNodeId)) ||
+                        (boardNodeId !== null && displayedPendingBranchNodes.has(boardNodeId)) ||
                         isMainLinePending
                       )
                       if (isPendingOnBoard && destSquare) {
@@ -2820,7 +2843,7 @@ export default function App() {
                     moveGrades={moveGrades}
                     moveDeltas={moveDeltas}
                     branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
-                    pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
+                    pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? displayedPendingBranchNodes : undefined}
                     onNodeClick={handleNavigateTo}
                     isAnalyzing={showAnalyzingBar || !showGrades}
                     rootBranchIds={rootBranchIds}
@@ -2833,7 +2856,7 @@ export default function App() {
                     currentPath={analysisPath}
                     moveGrades={[]}
                     branchGrades={showGrades ? branchGrades : undefined}
-                    pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
+                    pendingBranchNodes={showGrades ? displayedPendingBranchNodes : undefined}
                     onNodeClick={handleAnalysisNavigateTo}
                     isAnalyzing={!showGrades}
                     rootBranchIds={analysisRootBranchIds}
@@ -2948,7 +2971,7 @@ export default function App() {
                         moveDeltas={moveDeltas}
                         branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
                         branchDeltas={showGrades && !hideLoadedReviewArtifacts ? branchDeltas : undefined}
-                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
+                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? displayedPendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
                         isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
@@ -3020,7 +3043,7 @@ export default function App() {
                         moveDeltas={moveDeltas}
                         branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
                         branchDeltas={showGrades && !hideLoadedReviewArtifacts ? branchDeltas : undefined}
-                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
+                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? displayedPendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
                         isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
@@ -3077,7 +3100,7 @@ export default function App() {
                         moveDeltas={moveDeltas}
                         branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
                         branchDeltas={showGrades && !hideLoadedReviewArtifacts ? branchDeltas : undefined}
-                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
+                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? displayedPendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
                         isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
@@ -3091,7 +3114,7 @@ export default function App() {
                       lessons={[]}
                       currentMoveIndex={0}
                       branchComment={sandboxBranchComment}
-                      inBranch={sandboxCurrentNodeId !== null && (sandboxBranchComment !== null || pendingBranchNodes.has(sandboxCurrentNodeId))}
+                      inBranch={sandboxCurrentNodeId !== null && (sandboxBranchComment !== null || displayedPendingBranchNodes.has(sandboxCurrentNodeId))}
                     />
                   )}
 
@@ -3132,7 +3155,7 @@ export default function App() {
                             moveGrades={[]}
                             branchGrades={showGrades ? branchGrades : undefined}
                             branchDeltas={showGrades ? branchDeltas : undefined}
-                            pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
+                            pendingBranchNodes={showGrades ? displayedPendingBranchNodes : undefined}
                             onNodeClick={handleAnalysisNavigateTo}
                             isAnalyzing={!showGrades}
                             rootBranchIds={analysisRootBranchIds}
