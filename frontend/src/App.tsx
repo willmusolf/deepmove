@@ -810,6 +810,8 @@ export default function App() {
   }, [currentGameId, goToMove, isLoaded, pendingReviewTarget, setPendingReviewTarget])
 
   const displayFen = isLoaded ? currentFen : analysisFen
+  const displayFenRef = useRef(displayFen)
+  displayFenRef.current = displayFen
   const loadedGameKey = isLoaded ? `${currentGameId ?? pgn ?? '__loaded-game__'}:${loadRequestId}` : null
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
@@ -1804,6 +1806,40 @@ export default function App() {
       // Discard result if the user already switched to a different game
       if (branchGradesKeyRef.current !== gameIdAtStart) return
 
+      let afterTopLines: TopLine[] = []
+      if (cachedAfterTopLine) {
+        afterTopLines = [cachedAfterTopLine]
+      } else if ('fen' in afterResult) {
+        afterTopLines = evalResultToTopLines(afterResult)
+      } else if (afterIsTerminal) {
+        afterTopLines = [{
+          rank: 1,
+          score: afterResult.score,
+          isMate: afterChess.isCheckmate(),
+          mateIn: null,
+          pv: [],
+          san: '',
+          depth: BRANCH_BADGE_DEPTH,
+        }]
+      }
+
+      // The branch-grade engine is shallower than the main MultiPV pass, but it
+      // is much faster. Use it to hydrate the active branch surface immediately;
+      // the deeper per-position analysis will overwrite this when it reaches the
+      // normal visible depth.
+      if (
+        afterTopLines.length > 0
+        && activeBranchNodeIdForEngineGateRef.current === nodeId
+        && displayFenRef.current === newFen
+      ) {
+        const currentDepth = useGameStore.getState().currentPositionLines[0]?.depth ?? 0
+        const branchDepth = afterTopLines[0]?.depth ?? 0
+        if (currentDepth < branchDepth) {
+          setCurrentPositionLines(afterTopLines)
+          setCurrentAnalysisDepth(branchDepth >= POSITION_MIN_VISIBLE_DEPTH ? branchDepth : 0)
+        }
+      }
+
       const evalBefore = parentResult.score
       const evalAfter = afterResult.score
 
@@ -2248,6 +2284,8 @@ export default function App() {
   const activeBranchNodeIdForEngineGate = isLoaded
     ? (inBranch ? currentNodeId : null)
     : sandboxCurrentNodeId
+  const activeBranchNodeIdForEngineGateRef = useRef(activeBranchNodeIdForEngineGate)
+  activeBranchNodeIdForEngineGateRef.current = activeBranchNodeIdForEngineGate
   const activeBranchEngineSurfaceReady = !activeBranchNodeIdForEngineGate
     || !autoAnalyze
     || currentDisplayPositionIsTerminal
