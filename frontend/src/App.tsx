@@ -871,13 +871,13 @@ export default function App() {
     }
   }
 
-  function getCompleteDisplayedDepthForFen(fen: string, lines: TopLine[], requestedLines = engineLinesRef.current): number {
+  function getDisplayedDepthForFen(fen: string, lines: TopLine[], requestedLines = engineLinesRef.current): number {
     const targetLineCount = getTargetLineCountForFen(fen, requestedLines)
-    if (targetLineCount === 0 || lines.length < targetLineCount) return 0
+    if (targetLineCount === 0 || lines.length === 0) return 0
 
     const displayedLines = lines.slice(0, targetLineCount)
     const displayedDepth = Math.min(...displayedLines.map(line => line.depth))
-    return displayedDepth >= POSITION_MIN_VISIBLE_DEPTH ? displayedDepth : 0
+    return displayedDepth > 0 ? displayedDepth : 0
   }
 
   useEffect(() => {
@@ -981,7 +981,7 @@ export default function App() {
       if (d <= effectiveResumeDepth) return  // skip already-seen complete depths
       const stableLines = mergeStreamingTopLines(lines)
       if (stableLines.length > 0) seedPositionCache(fen, stableLines)
-      const displayedDepth = getCompleteDisplayedDepthForFen(fen, stableLines, requestedLines)
+      const displayedDepth = getDisplayedDepthForFen(fen, stableLines, requestedLines)
       if (displayedDepth === 0) return
       setCurrentAnalysisDepth(displayedDepth)
 
@@ -1006,7 +1006,7 @@ export default function App() {
         if (positionTokenRef.current !== token) return
         if (lines.length > 0) seedPositionCache(fen, lines)
         setCurrentPositionLines(lines)
-        setCurrentAnalysisDepth(getCompleteDisplayedDepthForFen(fen, lines, requestedLines))
+        setCurrentAnalysisDepth(getDisplayedDepthForFen(fen, lines, requestedLines))
         setAnalyzingPosition(false)
       })
       .catch(() => {
@@ -1090,12 +1090,12 @@ export default function App() {
       const targetLineCount = getTargetLineCountForFen(displayFen, engineLines)
       const cacheHasRequestedLines = cached.length >= targetLineCount
       setCurrentPositionLines(cached)
-      setCurrentAnalysisDepth(getCompleteDisplayedDepthForFen(displayFen, cached, engineLines))
+      setCurrentAnalysisDepth(getDisplayedDepthForFen(displayFen, cached, engineLines))
       if (!hasReportedPositionCacheHitRef.current) {
         hasReportedPositionCacheHitRef.current = true
         reportFrontendPerf('position_analysis_cache_hit', {
           complete: cachedDepth >= positionMaxDepth && cacheHasRequestedLines,
-          depth: cachedDepth,
+          depth: getDisplayedDepthForFen(displayFen, cached, engineLines),
           mode: isLoaded ? 'review' : 'sandbox',
         })
       }
@@ -1857,7 +1857,7 @@ export default function App() {
         const branchDepth = afterTopLines[0]?.depth ?? 0
         if (currentDepth < branchDepth) {
           setCurrentPositionLines(afterTopLines)
-          setCurrentAnalysisDepth(getCompleteDisplayedDepthForFen(newFen, afterTopLines))
+          setCurrentAnalysisDepth(getDisplayedDepthForFen(newFen, afterTopLines))
         }
       }
 
@@ -2082,9 +2082,10 @@ export default function App() {
     const cached = positionCache.current.get(finalTargetFen)
     if (cached && cached.length > 0) {
       setCurrentPositionLines(cached)
-      const cachedDisplayedDepth = getCompleteDisplayedDepthForFen(finalTargetFen, cached)
+      const cachedDisplayedDepth = getDisplayedDepthForFen(finalTargetFen, cached)
       setCurrentAnalysisDepth(cachedDisplayedDepth)
-      if (cachedDisplayedDepth >= positionMaxDepth) {
+      const targetLineCount = getTargetLineCountForFen(finalTargetFen)
+      if (cached.length >= targetLineCount && cachedDisplayedDepth >= positionMaxDepth) {
         setBestLineJumping(false)
         setAnalyzingPosition(false)
         return

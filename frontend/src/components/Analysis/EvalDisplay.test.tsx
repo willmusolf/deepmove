@@ -36,4 +36,10 @@ describe('EvalDisplay', () => {
 
     expect(screen.getByText('depth: 20 / 27 …')).toBeInTheDocument()
   })
+
+  it('shows lower real displayed depths instead of waiting to jump to 20', () => {
+    render(<EvalDisplay {...baseProps} currentAnalysisDepth={14} isAnalyzingPosition />)
+
+    expect(screen.getByText('depth: 14 / 27 …')).toBeInTheDocument()
+  })
 })
