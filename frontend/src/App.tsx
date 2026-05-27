@@ -107,7 +107,7 @@ const DEPTH_FOR_PRESET: Record<EngineDepthPreset, number> = {
 }
 
 const BRANCH_BADGE_DEPTH = 14
-const POSITION_MIN_VISIBLE_DEPTH = 18
+const POSITION_MIN_VISIBLE_DEPTH = 20
 
 export function depthForPreset(preset: EngineDepthPreset): number {
   return DEPTH_FOR_PRESET[preset]
@@ -1067,7 +1067,7 @@ export default function App() {
     if (cached && cached.length > 0) {
       const cachedDepth = cached[0]?.depth ?? 0
       setCurrentPositionLines(cached)
-      setCurrentAnalysisDepth(cachedDepth)
+      setCurrentAnalysisDepth(cachedDepth >= POSITION_MIN_VISIBLE_DEPTH ? cachedDepth : 0)
       if (!hasReportedPositionCacheHitRef.current) {
         hasReportedPositionCacheHitRef.current = true
         reportFrontendPerf('position_analysis_cache_hit', {
