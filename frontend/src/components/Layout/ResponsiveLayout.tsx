@@ -15,7 +15,7 @@ const PAGE_LABELS: Record<Page, string> = {
   review: 'Review',
   practice: 'Practice',
   play: 'Play',
-  dashboard: 'Dashboard',
+  dashboard: 'Insights Coming Soon',
   settings: 'Settings',
   profile: 'Profile',
   about: 'About',

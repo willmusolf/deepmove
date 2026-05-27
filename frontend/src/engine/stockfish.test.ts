@@ -109,6 +109,7 @@ describe('StockfishEngine multi-PV update gating', () => {
     expect(onUpdate).not.toHaveBeenCalled()
 
     ;(engine as any).onUciLine('info depth 12 multipv 1 score cp 35 pv e2e4 e7e5')
+    expect(onUpdate).not.toHaveBeenCalled()
     ;(engine as any).onUciLine('info depth 12 multipv 2 score cp 24 pv d2d4 d7d5')
 
     expect(onUpdate).toHaveBeenCalledTimes(1)
@@ -123,6 +124,33 @@ describe('StockfishEngine multi-PV update gating', () => {
 
     ;(engine as any).onUciLine('bestmove e2e4')
     await expect(resultPromise).resolves.toHaveLength(2)
+  })
+
+  it('streams multi-PV updates only after every requested line reaches the depth', async () => {
+    const engine = createEngine()
+    const onUpdate = vi.fn()
+    const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+
+    const resultPromise = engine.analyzePositionMultiPV(fen, 20, 3, onUpdate)
+
+    ;(engine as any).onUciLine('info depth 20 multipv 1 score cp 30 pv e2e4 e7e5')
+    ;(engine as any).onUciLine('info depth 20 multipv 2 score cp 22 pv d2d4 d7d5')
+    expect(onUpdate).not.toHaveBeenCalled()
+
+    ;(engine as any).onUciLine('info depth 20 multipv 3 score cp 16 pv g1f3 g8f6')
+
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+    expect(onUpdate).toHaveBeenLastCalledWith(
+      [
+        expect.objectContaining({ rank: 1, depth: 20, pv: ['e2e4', 'e7e5'] }),
+        expect.objectContaining({ rank: 2, depth: 20, pv: ['d2d4', 'd7d5'] }),
+        expect.objectContaining({ rank: 3, depth: 20, pv: ['g1f3', 'g8f6'] }),
+      ],
+      20,
+    )
+
+    ;(engine as any).onUciLine('bestmove e2e4')
+    await expect(resultPromise).resolves.toHaveLength(3)
   })
 
   it('rejects queued multi-PV requests when position analysis is cancelled', async () => {

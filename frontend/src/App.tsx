@@ -53,7 +53,7 @@ import type { Key } from 'chessground/types'
 import { cacheRatingsFromGameList, readCachedRatings } from './components/Import/normalizeGame'
 import { formatEval } from './utils/format'
 import { prunePendingNodes, pruneReviewPendingNodes, shouldTrackReviewPendingNode } from './utils/reviewPending'
-import { readSessionJson, writeSessionJson } from './utils/sessionStorage'
+import { readSessionJson, removeSessionValue, writeSessionJson } from './utils/sessionStorage'
 import {
   positionCacheKey,
   restorePositionCache,
@@ -75,10 +75,13 @@ import {
   MOBILE_BANNER_PAGE_SET,
 } from './config/sponsor'
 import { SUPPORT_GITHUB_ISSUES_URL } from './config/contact'
+import { buildSupportIssueUrl } from './config/contact'
 import { getPageFromPathname, getPageMeta, getPathForPage, isIndexablePage } from './utils/pageMeta'
 import { normalizeRestoredPage } from './utils/navigation'
 import { reportFrontendPerf } from './services/monitoring'
 import { getIdentity } from './services/identity'
+import { trackLaunchEvent, trackReviewSessionWindow } from './services/launchAnalytics'
+import { getAnalyzedGame, updateBranchAnnotations } from './services/gameDB'
 
 // Lichess-style thickness brushes — all green, varying weight
 const LINE_BRUSHES = ['bestMove', 'goodMove', 'okMove'] as const
@@ -102,6 +105,9 @@ const DEPTH_FOR_PRESET: Record<EngineDepthPreset, number> = {
   standard: 25,
   max: 27,
 }
+
+const BRANCH_BADGE_DEPTH = 14
+const POSITION_MIN_VISIBLE_DEPTH = 20
 
 export function depthForPreset(preset: EngineDepthPreset): number {
   return DEPTH_FOR_PRESET[preset]
@@ -151,12 +157,41 @@ function renderBoundaryFallback(title: string, message: string) {
   )
 }
 
+function InsightsComingSoonPage() {
+  return (
+    <div className="practice-coming-soon-page">
+      <div className="practice-coming-soon-board">
+        <ChessBoard
+          fen="r2q1rk1/pp2bppp/2npbn2/2p1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8"
+          orientation="white"
+          interactive={false}
+          pathKey={0}
+        />
+      </div>
+      <div className="coming-soon-overlay">
+        <div className="coming-soon-card">
+          <h2>Insights Coming Soon</h2>
+          <p>Account-history trends and recurring-weakness reports are being tightened before launch.<br />Free game review and analysis are live now.</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function nowMs(): number {
   return typeof performance !== 'undefined' ? performance.now() : Date.now()
 }
 
 function roundDuration(durationMs: number): number {
   return Math.round(durationMs * 10) / 10
+}
+
+function branchGradesSessionKey(gameId: string): string {
+  return `deepmove_bg_${gameId}`
+}
+
+function branchDeltasSessionKey(gameId: string): string {
+  return `deepmove_bd_${gameId}`
 }
 
 function renderNavChevron(direction: 'left' | 'right') {
@@ -460,6 +495,8 @@ export default function App() {
   const currentGameMeta = useGameStore(s => s.currentGameMeta)
   const currentGameId = useGameStore(s => s.currentGameId)
   const backendGameId = useGameStore(s => s.backendGameId)
+  const lessonReviewContext = useGameStore(s => s.lessonReviewContext)
+  const setLessonReviewContext = useGameStore(s => s.setLessonReviewContext)
   const loadRequestId = useGameStore(s => s.loadRequestId)
   const [panelTab, setPanelTab] = useState<PanelTab>(savedUiState?.panelTab ?? 'load')
   const [importTab, setImportTab] = useState<ImportTab>(savedUiState?.importTab ?? 'chesscom')
@@ -498,7 +535,7 @@ export default function App() {
     lessons: coachLessons,
     moveComments: coachMoveComments,
   } = useCoaching({
-    enabled: COACHING_ENABLED && panelTab === 'coach' && isLoaded,
+    enabled: COACHING_ENABLED && panelTab === 'coach' && isLoaded && !lessonReviewContext,
     criticalMoments,
     moveEvals,
     pgn: pgn ?? '',
@@ -514,15 +551,25 @@ export default function App() {
   const reloadUser = useAuthStore(s => s.reloadUser)
   const authUser = useAuthStore(s => s.user)
   const isPremium = useAuthStore(s => s.isPremium)
+  const reviewSessionKeyRef = useRef<string | null>(null)
+  const prevIsAnalyzingRef = useRef(false)
   useEffect(() => {
     void authRefresh()
   }, [authRefresh])
+
+  useEffect(() => {
+    void trackLaunchEvent('open_app', { route: window.location.pathname }, { oncePerSessionKey: 'open_app' })
+  }, [])
 
   // After an account-link redirect, reload user to get updated oauth flags
   useEffect(() => {
     const linkSuccess = sessionStorage.getItem('dm_link_success')
     if (linkSuccess) {
       sessionStorage.removeItem('dm_link_success')
+      void trackLaunchEvent('account_linked', {
+        method: 'oauth',
+        provider: linkSuccess,
+      }, { oncePerSessionKey: `account_linked_oauth_${linkSuccess}` })
       void reloadUser()
     }
   }, [reloadUser])
@@ -569,6 +616,52 @@ export default function App() {
     if (Object.keys(patch).length === 0) return
     void updateProfile(patch).catch(() => {})
   }, [authUser, updateProfile])
+
+  useEffect(() => {
+    if (currentPage !== 'dashboard') return
+    void trackLaunchEvent(
+      'training_plan_beta_opened',
+      { source: 'nav' },
+      { oncePerSessionKey: 'training_plan_beta_opened' },
+    )
+  }, [currentPage])
+
+  useEffect(() => {
+    const currentReviewKey = currentGameId ?? (pgn ? `pgn:${pgn.slice(0, 48)}` : null)
+    if (currentPage !== 'review' || !currentReviewKey) return
+    if (reviewSessionKeyRef.current === currentReviewKey) return
+    reviewSessionKeyRef.current = currentReviewKey
+
+    const source = currentGameId
+      ? (platform ?? 'linked-account')
+      : backendGameId
+        ? 'backend'
+        : 'pgn'
+
+    void trackLaunchEvent(
+      'review_session_started',
+      { source, has_backend_game: !!backendGameId },
+      { oncePerSessionKey: `review_session_${currentReviewKey}` },
+    )
+    void trackLaunchEvent(
+      'first_game_imported',
+      { source, has_backend_game: !!backendGameId },
+      { onceEverKey: 'first_game_imported' },
+    )
+    trackReviewSessionWindow()
+  }, [backendGameId, currentGameId, currentPage, pgn, platform])
+
+  useEffect(() => {
+    if (prevIsAnalyzingRef.current && !isAnalyzing && moveEvals.length > 0) {
+      const source = currentGameId ? (platform ?? 'linked-account') : 'pgn'
+      void trackLaunchEvent(
+        'first_analysis_completed',
+        { source, move_count: moveEvals.length },
+        { onceEverKey: 'first_analysis_completed' },
+      )
+    }
+    prevIsAnalyzingRef.current = isAnalyzing
+  }, [currentGameId, isAnalyzing, moveEvals.length, platform])
 
   // Initialize userElo from cached detected ratings (instant — cached at import time, no analysis needed)
   useEffect(() => {
@@ -633,8 +726,11 @@ export default function App() {
 
   // Trigger full-game analysis whenever a new game loads and the engine is ready
   const setSkipNextAnalysis = useGameStore(s => s.setSkipNextAnalysis)
+  const pendingReviewTarget = useGameStore(s => s.pendingReviewTarget)
+  const setPendingReviewTarget = useGameStore(s => s.setPendingReviewTarget)
   useEffect(() => {
     if (pgn && isReady) {
+      let cancelled = false
       // Always clear the position cache when a new game loads — even for cached
       // games where skipNextAnalysis is true — so stale per-position multi-PV
       // results from the previous game never bleed into the new one.
@@ -646,7 +742,7 @@ export default function App() {
       const bgGameId = useGameStore.getState().currentGameId
       branchGradesKeyRef.current = bgGameId  // capture so write effect uses the right key
       const storedBg = bgGameId
-        ? readSessionJson<Record<string, string>>(`deepmove_bg_${bgGameId}`)
+        ? readSessionJson<Record<string, MoveGrade>>(branchGradesSessionKey(bgGameId))
         : null
       lastGradedNodeIdRef.current = null
       setBranchGrades(
@@ -655,13 +751,34 @@ export default function App() {
           : new Map()
       )
       const storedBd = bgGameId
-        ? readSessionJson<Record<string, number>>(`deepmove_bd_${bgGameId}`)
+        ? readSessionJson<Record<string, number>>(branchDeltasSessionKey(bgGameId))
         : null
       setBranchDeltas(
         storedBd && Object.keys(storedBd).length > 0
           ? new Map(Object.entries(storedBd))
           : new Map()
       )
+      if (bgGameId) {
+        void getAnalyzedGame(bgGameId)
+          .then(record => {
+            if (cancelled || branchGradesKeyRef.current !== bgGameId) return
+            if (record?.branchGrades && Object.keys(record.branchGrades).length > 0) {
+              setBranchGrades(prev => {
+                const next = new Map(Object.entries(record.branchGrades!) as [string, MoveGrade][])
+                for (const [nodeId, grade] of prev) next.set(nodeId, grade)
+                return next
+              })
+            }
+            if (record?.branchDeltas && Object.keys(record.branchDeltas).length > 0) {
+              setBranchDeltas(prev => {
+                const next = new Map(Object.entries(record.branchDeltas!))
+                for (const [nodeId, delta] of prev) next.set(nodeId, delta)
+                return next
+              })
+            }
+          })
+          .catch(() => {})
+      }
       setPendingBranchNodes(new Set())
       lastEvalRef.current = { cp: 0, isMate: false, mateIn: null }
       // Restore persisted position cache for this game (same-tab refresh fast path)
@@ -673,15 +790,28 @@ export default function App() {
       )
       if (useGameStore.getState().skipNextAnalysis) {
         setSkipNextAnalysis(false)
-        return
+        return () => { cancelled = true }
       }
       const t = setTimeout(() => { void runAnalysis(pgn) }, 0)
-      return () => clearTimeout(t)
+      return () => {
+        cancelled = true
+        clearTimeout(t)
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadRequestId, pgn, isReady])
 
+  useEffect(() => {
+    if (!isLoaded || !pendingReviewTarget) return
+    if (pendingReviewTarget.gameId && currentGameId && pendingReviewTarget.gameId !== currentGameId) return
+    pathKeyRef.current++
+    goToMove(pendingReviewTarget.plyIndex)
+    setPendingReviewTarget(null)
+  }, [currentGameId, goToMove, isLoaded, pendingReviewTarget, setPendingReviewTarget])
+
   const displayFen = isLoaded ? currentFen : analysisFen
+  const displayFenRef = useRef(displayFen)
+  displayFenRef.current = displayFen
   const loadedGameKey = isLoaded ? `${currentGameId ?? pgn ?? '__loaded-game__'}:${loadRequestId}` : null
   const inBranch = currentPath.length > 0 && !moveTree[currentPath[currentPath.length - 1]]?.isMainLine
 
@@ -730,6 +860,24 @@ export default function App() {
     return Array.from(mergedByRank.values())
       .sort((a, b) => a.rank - b.rank)
       .slice(0, targetCount)
+  }
+
+  function getTargetLineCountForFen(fen: string, requestedLines = engineLinesRef.current): number {
+    try {
+      const legalMoveCount = new Chess(fen).moves().length
+      return Math.min(requestedLines, legalMoveCount)
+    } catch {
+      return requestedLines
+    }
+  }
+
+  function getDisplayedDepthForFen(fen: string, lines: TopLine[], requestedLines = engineLinesRef.current): number {
+    const targetLineCount = getTargetLineCountForFen(fen, requestedLines)
+    if (targetLineCount === 0 || lines.length === 0) return 0
+
+    const displayedLines = lines.slice(0, targetLineCount)
+    const displayedDepth = Math.min(...displayedLines.map(line => line.depth))
+    return displayedDepth > 0 ? displayedDepth : 0
   }
 
   useEffect(() => {
@@ -794,25 +942,26 @@ export default function App() {
 
     // Cap multi-PV to legal move count (avoids duplicate arrows on forced moves)
     const requestedLines = engineLinesRef.current
-    let numLines: number = requestedLines
-    try {
-      const chess = new Chess(fen)
-      const legalMoveCount = chess.moves().length
-      if (legalMoveCount === 0) {
-        // Terminal position (checkmate/stalemate) — nothing to analyze
-        setCurrentPositionLines([])
-        setAnalyzingPosition(false)
-        return
-      }
-      numLines = Math.min(requestedLines, legalMoveCount)
-    } catch { /* invalid FEN — fall through with requested line count */ }
+    const numLines = getTargetLineCountForFen(fen, requestedLines)
+    if (numLines === 0) {
+      // Terminal position (checkmate/stalemate) — nothing to analyze
+      setCurrentPositionLines([])
+      setAnalyzingPosition(false)
+      return
+    }
 
     const token = ++positionTokenRef.current
     setAnalyzingPosition(true)
-    // Snapshot cached depth at the start of this analysis run.
-    // onUpdate skips any depth ≤ resumeFromDepth so the counter never goes backward:
-    // if we left at depth 12, we show 12 from cache, then continue at 13, 14...
-    const resumeFromDepth = positionCache.current.get(fen)?.[0]?.depth ?? 0
+    // Snapshot cache at the start of this analysis run. A single-PV cache entry
+    // from full-game or branch analysis should not block same-depth MultiPV
+    // updates; otherwise the UI sits at "depth 20" with only one line until the
+    // engine reaches depth 21.
+    const cachedAtStart = positionCache.current.get(fen) ?? []
+    const resumeFromDepth = cachedAtStart[0]?.depth ?? 0
+    const cachedHasRequestedLines = cachedAtStart.length >= numLines
+    const effectiveResumeDepth = cachedHasRequestedLines
+      ? resumeFromDepth
+      : Math.min(resumeFromDepth, POSITION_MIN_VISIBLE_DEPTH - 1)
     positionPerfRef.current = {
       startedAt: nowMs(),
       cacheState: resumeFromDepth > 0 ? 'resume' : 'cold',
@@ -829,7 +978,13 @@ export default function App() {
 
     analyzePositionLines(fen, depth, numLines, (lines, d) => {
       if (positionTokenRef.current !== token) return
-      if (d <= resumeFromDepth) return  // skip already-seen depths
+      if (d <= effectiveResumeDepth) return  // skip already-seen complete depths
+      const stableLines = mergeStreamingTopLines(lines)
+      if (stableLines.length > 0) seedPositionCache(fen, stableLines)
+      const displayedDepth = getDisplayedDepthForFen(fen, stableLines, requestedLines)
+      if (displayedDepth === 0) return
+      setCurrentAnalysisDepth(displayedDepth)
+
       const perfState = positionPerfRef.current
       if (
         perfState
@@ -840,21 +995,18 @@ export default function App() {
         hasReportedBestLineVisibleRef.current = true
         reportFrontendPerf('best_line_visible', {
           cacheState: perfState.cacheState,
-          depth: d,
+          depth: displayedDepth,
           durationMs: roundDuration(nowMs() - perfState.startedAt),
           mode: isLoaded ? 'review' : 'sandbox',
         })
       }
-      const stableLines = mergeStreamingTopLines(lines)
       setCurrentPositionLines(stableLines)
-      setCurrentAnalysisDepth(d)
-      if (stableLines.length > 0) seedPositionCache(fen, stableLines)
     })
       .then(lines => {
         if (positionTokenRef.current !== token) return
         if (lines.length > 0) seedPositionCache(fen, lines)
         setCurrentPositionLines(lines)
-        setCurrentAnalysisDepth(lines[0]?.depth ?? 0)
+        setCurrentAnalysisDepth(getDisplayedDepthForFen(fen, lines, requestedLines))
         setAnalyzingPosition(false)
       })
       .catch(() => {
@@ -930,19 +1082,24 @@ export default function App() {
 
     const cached = positionCache.current.get(displayFen)
 
-    // Always show any cached result immediately (partial or full depth)
+    // Show cached review suggestions immediately, even when they came from the
+    // lower-depth full-game pass. Deeper per-position analysis refines them in
+    // place, but users should not see a blank shimmer on every move.
     if (cached && cached.length > 0) {
+      const cachedDepth = cached[0]?.depth ?? 0
+      const targetLineCount = getTargetLineCountForFen(displayFen, engineLines)
+      const cacheHasRequestedLines = cached.length >= targetLineCount
       setCurrentPositionLines(cached)
-      setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
+      setCurrentAnalysisDepth(getDisplayedDepthForFen(displayFen, cached, engineLines))
       if (!hasReportedPositionCacheHitRef.current) {
         hasReportedPositionCacheHitRef.current = true
         reportFrontendPerf('position_analysis_cache_hit', {
-          complete: (cached[0]?.depth ?? 0) >= positionMaxDepth,
-          depth: cached[0]?.depth ?? 0,
+          complete: cachedDepth >= positionMaxDepth && cacheHasRequestedLines,
+          depth: getDisplayedDepthForFen(displayFen, cached, engineLines),
           mode: isLoaded ? 'review' : 'sandbox',
         })
       }
-      if ((cached[0]?.depth ?? 0) >= positionMaxDepth) {
+      if (cachedDepth >= positionMaxDepth && cacheHasRequestedLines) {
         // Full depth — no further analysis needed
         setAnalyzingPosition(false)
         return
@@ -1080,7 +1237,9 @@ export default function App() {
     if (branchGrades.size === 0) return
     const gameId = branchGradesKeyRef.current
     if (!gameId) return
-    writeSessionJson(`deepmove_bg_${gameId}`, Object.fromEntries(branchGrades))
+    const serialized = Object.fromEntries(branchGrades) as Record<string, MoveGrade>
+    writeSessionJson(branchGradesSessionKey(gameId), serialized)
+    void updateBranchAnnotations(gameId, { branchGrades: serialized }).catch(() => {})
   }, [branchGrades])
 
   // Persist branch deltas alongside grades. Without this, evaluateBranchMove's
@@ -1091,7 +1250,9 @@ export default function App() {
     if (branchDeltas.size === 0) return
     const gameId = branchGradesKeyRef.current
     if (!gameId) return
-    writeSessionJson(`deepmove_bd_${gameId}`, Object.fromEntries(branchDeltas))
+    const serialized = Object.fromEntries(branchDeltas) as Record<string, number>
+    writeSessionJson(branchDeltasSessionKey(gameId), serialized)
+    void updateBranchAnnotations(gameId, { branchDeltas: serialized }).catch(() => {})
   }, [branchDeltas])
 
   // Recovery effect: on refresh, currentGameId may be restored by Zustand after pgn+isReady
@@ -1101,14 +1262,33 @@ export default function App() {
     if (branchGradesKeyRef.current === currentGameId) return  // already set correctly
     branchGradesKeyRef.current = currentGameId
     if (branchGrades.size > 0) return  // grades already present, don't overwrite
-    const storedBg = readSessionJson<Record<string, string>>(`deepmove_bg_${currentGameId}`)
+    const storedBg = readSessionJson<Record<string, MoveGrade>>(branchGradesSessionKey(currentGameId))
     if (storedBg && Object.keys(storedBg).length > 0) {
       setBranchGrades(new Map(Object.entries(storedBg) as [string, MoveGrade][]))
     }
-    const storedBd = readSessionJson<Record<string, number>>(`deepmove_bd_${currentGameId}`)
+    const storedBd = readSessionJson<Record<string, number>>(branchDeltasSessionKey(currentGameId))
     if (storedBd && Object.keys(storedBd).length > 0) {
       setBranchDeltas(new Map(Object.entries(storedBd)))
     }
+    void getAnalyzedGame(currentGameId)
+      .then(record => {
+        if (branchGradesKeyRef.current !== currentGameId) return
+        if (record?.branchGrades && Object.keys(record.branchGrades).length > 0) {
+          setBranchGrades(prev => {
+            const next = new Map(Object.entries(record.branchGrades!) as [string, MoveGrade][])
+            for (const [nodeId, grade] of prev) next.set(nodeId, grade)
+            return next
+          })
+        }
+        if (record?.branchDeltas && Object.keys(record.branchDeltas).length > 0) {
+          setBranchDeltas(prev => {
+            const next = new Map(Object.entries(record.branchDeltas!))
+            for (const [nodeId, delta] of prev) next.set(nodeId, delta)
+            return next
+          })
+        }
+      })
+      .catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentGameId])
 
@@ -1158,6 +1338,10 @@ export default function App() {
     }
     setCurrentPage(page)
   }, [cancelGameAnalysis, resetPositionAnalysisState, stopBranchAnalysis])
+  const feedbackUrl = useMemo(
+    () => buildSupportIssueUrl({ page: currentPage, section: 'app-footer' }),
+    [currentPage],
+  )
   const [showEvalBar, setShowEvalBar] = useState(savedUiState?.showEvalBar ?? true)
   const phoneViewport = usePhoneViewport()
   const isPhone = phoneViewport.matches
@@ -1205,6 +1389,16 @@ export default function App() {
   const [showEvalGraph, setShowEvalGraph] = useState(savedUiState?.showEvalGraph ?? true)
   const [showReport, setShowReport] = useState(savedUiState?.showReport ?? true)
   const [resetConfirmArmed, setResetConfirmArmed] = useState(false)
+  const [lessonAnswerRevealed, setLessonAnswerRevealed] = useState(false)
+
+  useEffect(() => {
+    setLessonAnswerRevealed(false)
+  }, [
+    lessonReviewContext?.lessonId,
+    lessonReviewContext?.exampleIndex,
+    lessonReviewContext?.movePlayed,
+    lessonReviewContext?.betterMoveSan,
+  ])
 
   useEffect(() => {
     if (!resetConfirmArmed) return
@@ -1333,6 +1527,7 @@ export default function App() {
     analysisBoardReset()
     lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
+    setBranchDeltas(new Map())
     setPendingBranchNodes(new Set())
 
     // loadedGameKey is included in the position-analysis effect dependencies, so
@@ -1490,6 +1685,7 @@ export default function App() {
     positionCache.current.clear()
     lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
+    setBranchDeltas(new Map())
     setPendingBranchNodes(new Set())
     analysisBoardReset()
     setOpeningName(null)
@@ -1519,9 +1715,24 @@ export default function App() {
     analysisBoardReset()
     lastGradedNodeIdRef.current = null
     setBranchGrades(new Map())
+    setBranchDeltas(new Map())
     setPendingBranchNodes(new Set())
     setOpeningName(null)
     setResetConfirmArmed(false)
+  }
+
+  function handleClearVariations() {
+    const gameId = branchGradesKeyRef.current
+    resetBranches()
+    lastGradedNodeIdRef.current = null
+    setBranchGrades(new Map())
+    setBranchDeltas(new Map())
+    setPendingBranchNodes(new Set())
+    if (gameId) {
+      removeSessionValue(branchGradesSessionKey(gameId))
+      removeSessionValue(branchDeltasSessionKey(gameId))
+      void updateBranchAnnotations(gameId, null).catch(() => {})
+    }
   }
 
   // Called by GameSelector before loading a new game — stops any in-flight
@@ -1575,11 +1786,17 @@ export default function App() {
       const inCheck = chess.isCheck()
       const color: 'white' | 'black' = parentFen.split(' ')[1] === 'w' ? 'white' : 'black'
 
-      const cachedParentTopLine = positionCache.current.get(parentFen)?.[0] ?? null
-      const cachedAfterTopLine = positionCache.current.get(newFen)?.[0] ?? null
+      const cachedParentLine = positionCache.current.get(parentFen)?.[0] ?? null
+      const cachedAfterLine = positionCache.current.get(newFen)?.[0] ?? null
+      const cachedParentTopLine = cachedParentLine && cachedParentLine.depth >= BRANCH_BADGE_DEPTH
+        ? cachedParentLine
+        : null
+      const cachedAfterTopLine = cachedAfterLine && cachedAfterLine.depth >= BRANCH_BADGE_DEPTH
+        ? cachedAfterLine
+        : null
       const parentResult = cachedParentTopLine
         ? { score: cachedParentTopLine.score, pv: cachedParentTopLine.pv }
-        : await analyzePositionSingleBranch(parentFen, 14)
+        : await analyzePositionSingleBranch(parentFen, BRANCH_BADGE_DEPTH)
       // If newFen is a terminal position (checkmate/stalemate), Stockfish returns
       // bestmove (none) which can hang or produce nonsense evals. Derive the score directly.
       const afterChess = new Chess(newFen)
@@ -1592,7 +1809,7 @@ export default function App() {
             pv: [] }
         : cachedAfterTopLine
           ? { score: cachedAfterTopLine.score, pv: cachedAfterTopLine.pv }
-          : await analyzePositionSingleBranch(newFen, 14)
+          : await analyzePositionSingleBranch(newFen, BRANCH_BADGE_DEPTH)
 
       if (!parentResult || !afterResult) {
         lastGradedNodeIdRef.current = nodeId
@@ -1609,6 +1826,40 @@ export default function App() {
 
       // Discard result if the user already switched to a different game
       if (branchGradesKeyRef.current !== gameIdAtStart) return
+
+      let afterTopLines: TopLine[] = []
+      if (cachedAfterTopLine) {
+        afterTopLines = [cachedAfterTopLine]
+      } else if ('fen' in afterResult) {
+        afterTopLines = evalResultToTopLines(afterResult)
+      } else if (afterIsTerminal) {
+        afterTopLines = [{
+          rank: 1,
+          score: afterResult.score,
+          isMate: afterChess.isCheckmate(),
+          mateIn: null,
+          pv: [],
+          san: '',
+          depth: BRANCH_BADGE_DEPTH,
+        }]
+      }
+
+      // The branch-grade engine is shallower than the main MultiPV pass, but it
+      // is much faster. Use it to hydrate the active branch surface immediately;
+      // the deeper per-position analysis will overwrite this when it reaches the
+      // normal visible depth.
+      if (
+        afterTopLines.length > 0
+        && activeBranchNodeIdForEngineGateRef.current === nodeId
+        && displayFenRef.current === newFen
+      ) {
+        const currentDepth = useGameStore.getState().currentPositionLines[0]?.depth ?? 0
+        const branchDepth = afterTopLines[0]?.depth ?? 0
+        if (currentDepth < branchDepth) {
+          setCurrentPositionLines(afterTopLines)
+          setCurrentAnalysisDepth(getDisplayedDepthForFen(newFen, afterTopLines))
+        }
+      }
 
       const evalBefore = parentResult.score
       const evalAfter = afterResult.score
@@ -1690,6 +1941,38 @@ export default function App() {
         // Invalid SAN should not break the review UI.
       }
     })
+  }
+
+  function handleRevealLessonAnswer() {
+    setLessonAnswerRevealed(true)
+    if (!lessonReviewContext?.betterMoveSan) {
+      setShowBestLines(true)
+      return
+    }
+    try {
+      const chess = new Chess(displayFen)
+      const sanMove = chess.move(lessonReviewContext.betterMoveSan)
+      if (sanMove) {
+        addVariationMove(sanMove.from, sanMove.to, sanMove.san, chess.fen())
+        return
+      }
+    } catch {
+      // Fall through to UCI parsing below.
+    }
+
+    if (!lessonReviewContext.betterMoveUci) return
+    try {
+      const chess = new Chess(displayFen)
+      const uci = lessonReviewContext.betterMoveUci
+      const move = chess.move({
+        from: uci.slice(0, 2),
+        to: uci.slice(2, 4),
+        promotion: uci.length > 4 ? uci.slice(4, 5) : undefined,
+      })
+      if (move) addVariationMove(move.from, move.to, move.san, chess.fen())
+    } catch {
+      // Invalid stored move data should not break the lesson panel.
+    }
   }
 
   function handleNavigateTo(path: string[]) {
@@ -1799,8 +2082,10 @@ export default function App() {
     const cached = positionCache.current.get(finalTargetFen)
     if (cached && cached.length > 0) {
       setCurrentPositionLines(cached)
-      setCurrentAnalysisDepth(cached[0]?.depth ?? 0)
-      if ((cached[0]?.depth ?? 0) >= positionMaxDepth) {
+      const cachedDisplayedDepth = getDisplayedDepthForFen(finalTargetFen, cached)
+      setCurrentAnalysisDepth(cachedDisplayedDepth)
+      const targetLineCount = getTargetLineCountForFen(finalTargetFen)
+      if (cached.length >= targetLineCount && cachedDisplayedDepth >= positionMaxDepth) {
         setBestLineJumping(false)
         setAnalyzingPosition(false)
         return
@@ -1963,7 +2248,7 @@ export default function App() {
     autoAnalyze,
     setAutoAnalyze,
     onAnalyzeNow: handleAnalyzeNow,
-    onClearVariations: resetBranches,
+    onClearVariations: handleClearVariations,
     onExportPgn: handleExportPgn,
     onExportDeepMoveStats: handleExportDeepMoveStats,
     hasVariations: hasReviewVariations,
@@ -2010,6 +2295,31 @@ export default function App() {
     })
   }, [currentPositionLines, isBestLineJumping])
 
+  const currentDisplayPositionIsTerminal = useMemo(() => {
+    try {
+      return new Chess(displayFen).moves().length === 0
+    } catch {
+      return false
+    }
+  }, [displayFen])
+
+  const activeBranchNodeIdForEngineGate = isLoaded
+    ? (inBranch ? currentNodeId : null)
+    : sandboxCurrentNodeId
+  const activeBranchNodeIdForEngineGateRef = useRef(activeBranchNodeIdForEngineGate)
+  activeBranchNodeIdForEngineGateRef.current = activeBranchNodeIdForEngineGate
+  const activeBranchEngineSurfaceReady = !activeBranchNodeIdForEngineGate
+    || !autoAnalyze
+    || currentDisplayPositionIsTerminal
+    || visibleLines.length > 0
+
+  const displayedPendingBranchNodes = useMemo(() => {
+    if (!activeBranchNodeIdForEngineGate || activeBranchEngineSurfaceReady) return pendingBranchNodes
+    const next = new Set(pendingBranchNodes)
+    next.add(activeBranchNodeIdForEngineGate)
+    return next
+  }, [activeBranchEngineSurfaceReady, activeBranchNodeIdForEngineGate, pendingBranchNodes])
+
   const boardShapes: DrawShape[] = useMemo(() => visibleLines
     .filter(l => l.pv.length >= 1)
     .map((line, i) => ({
@@ -2017,6 +2327,9 @@ export default function App() {
       dest: line.pv[0].slice(2, 4) as Key,
       brush: LINE_BRUSHES[i] ?? 'okMove',
     })), [visibleLines])
+  const lessonEngineUnlocked = !lessonReviewContext || lessonAnswerRevealed
+  const lessonVisibleLines = lessonEngineUnlocked ? visibleLines : []
+  const lessonBoardShapes = lessonEngineUnlocked ? boardShapes : []
 
   // ── Misc ───────────────────────────────────────────────────────────────────
 
@@ -2050,6 +2363,7 @@ export default function App() {
   const reviewBoundaryKey = `${currentGameId ?? 'sandbox'}:${panelTab}:${importTab}:${isLoaded ? 'loaded' : 'sandbox'}`
   const boardBoundaryKey = `${reviewBoundaryKey}:${orientation}`
   const selfDisplayName = useMemo(() => getSelfDisplayName(authUser), [authUser])
+  const showLessonTab = COACHING_ENABLED || lessonReviewContext !== null
 
   useEffect(() => {
     if (importTab !== 'chesscom' && importTab !== 'lichess') return
@@ -2360,7 +2674,7 @@ export default function App() {
                 if (panelTab !== 'coach') setPanelTab('analysis')
               }
                       }
-                      shapes={showArrows ? boardShapes : []}
+                      shapes={showArrows ? lessonBoardShapes : []}
                       lastMove={isLoaded ? boardLastMove : (
                         analysisPath.length > 0
                           ? [analysisTree[analysisPath[analysisPath.length - 1]]?.from, analysisTree[analysisPath[analysisPath.length - 1]]?.to] as [Key, Key] | undefined
@@ -2390,7 +2704,7 @@ export default function App() {
                       // (mainEval?.grade not yet populated for this move index).
                       const isMainLinePending = isLoaded && !inBranch && !hideLoadedReviewArtifacts && isAnalyzing && !mainEval?.grade && !!boardLastMove
                       const isPendingOnBoard = showGrades && !hideLoadedReviewArtifacts && (
-                        (boardNodeId !== null && pendingBranchNodes.has(boardNodeId)) ||
+                        (boardNodeId !== null && displayedPendingBranchNodes.has(boardNodeId)) ||
                         isMainLinePending
                       )
                       if (isPendingOnBoard && destSquare) {
@@ -2589,7 +2903,7 @@ export default function App() {
                     moveGrades={moveGrades}
                     moveDeltas={moveDeltas}
                     branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
-                    pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
+                    pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? displayedPendingBranchNodes : undefined}
                     onNodeClick={handleNavigateTo}
                     isAnalyzing={showAnalyzingBar || !showGrades}
                     rootBranchIds={rootBranchIds}
@@ -2602,7 +2916,7 @@ export default function App() {
                     currentPath={analysisPath}
                     moveGrades={[]}
                     branchGrades={showGrades ? branchGrades : undefined}
-                    pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
+                    pendingBranchNodes={showGrades ? displayedPendingBranchNodes : undefined}
                     onNodeClick={handleAnalysisNavigateTo}
                     isAnalyzing={!showGrades}
                     rootBranchIds={analysisRootBranchIds}
@@ -2626,12 +2940,12 @@ export default function App() {
                   >
                     Analysis
                   </button>
-                  {COACHING_ENABLED && (
+                  {showLessonTab && (
                     <button
                       className={`panel-tab${panelTab === 'coach' ? ' active' : ''}`}
                       onClick={() => setPanelTab('coach')}
                     >
-                      Coach
+                      Lesson
                     </button>
                   )}
                 </div>
@@ -2673,10 +2987,10 @@ export default function App() {
                         <EvalDisplay {...evalDisplayProps} />
                       )}
 
-                      {!hideLoadedReviewArtifacts && showBestLines && (
+                      {!hideLoadedReviewArtifacts && showBestLines && lessonEngineUnlocked && (
                         <BestLines
                           key={bestLinesComponentKey}
-                          lines={visibleLines}
+                          lines={lessonVisibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
                           maxLines={engineLines}
                           onLineClick={handleAnalysisBestLineClick}
@@ -2717,7 +3031,7 @@ export default function App() {
                         moveDeltas={moveDeltas}
                         branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
                         branchDeltas={showGrades && !hideLoadedReviewArtifacts ? branchDeltas : undefined}
-                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
+                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? displayedPendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
                         isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
@@ -2725,14 +3039,86 @@ export default function App() {
                     </>
                   )}
 
-                  {panelTab === 'coach' && isLoaded && !COACHING_ENABLED && (
+                  {panelTab === 'coach' && isLoaded && lessonReviewContext && (
+                    <div className="insights-lesson-panel">
+                      <div className="insights-lesson-panel__eyebrow">
+                        Example {lessonReviewContext.exampleIndex + 1} of {lessonReviewContext.exampleCount}
+                      </div>
+                      <h3>{lessonReviewContext.lessonTitle}</h3>
+                      <div className="insights-lesson-panel__prompt">
+                        <span>Pause here</span>
+                        <strong>{lessonReviewContext.practicePrompt || 'Find the better move or idea before revealing the answer.'}</strong>
+                      </div>
+                      <div className="insights-lesson-panel__compare">
+                        <div>
+                          <span>Your game move</span>
+                          <strong>{lessonReviewContext.movePlayed}</strong>
+                        </div>
+                        <div>
+                          <span>{lessonReviewContext.betterMoveSan ? 'Better idea' : 'Review goal'}</span>
+                          <strong>
+                            {lessonReviewContext.betterMoveSan
+                              ? (lessonAnswerRevealed ? lessonReviewContext.betterMoveSan : 'Hidden until reveal')
+                              : (lessonAnswerRevealed ? 'Engine review is unlocked' : 'Think first, then unlock engine review')}
+                          </strong>
+                        </div>
+                      </div>
+                      {lessonAnswerRevealed && (
+                        <p className="insights-lesson-panel__note">{lessonReviewContext.coachNote}</p>
+                      )}
+                      {lessonReviewContext.habit.length > 0 && (
+                        <div className="insights-lesson-panel__habit">
+                          <span>Habit for the next game</span>
+                          {lessonReviewContext.habit.map(item => <em key={item}>{item}</em>)}
+                        </div>
+                      )}
+                      {lessonAnswerRevealed && lessonReviewContext.themeFacts.length > 0 && (
+                        <div className="insights-lesson-panel__facts">
+                          {lessonReviewContext.themeFacts.map(fact => <span key={fact}>{fact}</span>)}
+                        </div>
+                      )}
+                      <div className="insights-lesson-panel__actions">
+                        <button type="button" className="btn btn-primary" onClick={handleRevealLessonAnswer}>
+                          {lessonReviewContext.betterMoveSan
+                            ? (lessonAnswerRevealed ? 'Answer revealed' : 'Reveal better idea')
+                            : (lessonAnswerRevealed ? 'Engine lines unlocked' : 'Unlock engine review')}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            setLessonReviewContext(null)
+                            goToPage('review')
+                          }}
+                        >
+                          Back to Review
+                        </button>
+                      </div>
+
+                      <MoveList
+                        tree={moveTree}
+                        rootId={rootId}
+                        currentPath={currentPath}
+                        moveGrades={moveGrades}
+                        moveDeltas={moveDeltas}
+                        branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
+                        branchDeltas={showGrades && !hideLoadedReviewArtifacts ? branchDeltas : undefined}
+                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? displayedPendingBranchNodes : undefined}
+                        onNodeClick={handleNavigateTo}
+                        isAnalyzing={showAnalyzingBar || !showGrades}
+                        rootBranchIds={rootBranchIds}
+                      />
+                    </div>
+                  )}
+
+                  {panelTab === 'coach' && isLoaded && !COACHING_ENABLED && !lessonReviewContext && (
                     <div className="coming-soon-panel">
                       <h3>AI Coaching</h3>
                       <p>Our AI coach is coming soon &mdash; it analyzes your critical moments and teaches you the chess principles behind why positions go wrong.</p>
                       <p className="coming-soon-sub">Game review, eval bar, and best lines are fully live now.</p>
                     </div>
                   )}
-                  {panelTab === 'coach' && isLoaded && COACHING_ENABLED && (
+                  {panelTab === 'coach' && isLoaded && COACHING_ENABLED && !lessonReviewContext && (
                     <>
                       {/* Engine / analyzing status */}
                       {engineStatus === 'error' && (
@@ -2774,7 +3160,7 @@ export default function App() {
                         moveDeltas={moveDeltas}
                         branchGrades={showGrades && !hideLoadedReviewArtifacts ? branchGrades : undefined}
                         branchDeltas={showGrades && !hideLoadedReviewArtifacts ? branchDeltas : undefined}
-                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? pendingBranchNodes : undefined}
+                        pendingBranchNodes={showGrades && !hideLoadedReviewArtifacts ? displayedPendingBranchNodes : undefined}
                         onNodeClick={handleNavigateTo}
                         isAnalyzing={showAnalyzingBar || !showGrades}
                         rootBranchIds={rootBranchIds}
@@ -2788,7 +3174,7 @@ export default function App() {
                       lessons={[]}
                       currentMoveIndex={0}
                       branchComment={sandboxBranchComment}
-                      inBranch={sandboxCurrentNodeId !== null && (sandboxBranchComment !== null || pendingBranchNodes.has(sandboxCurrentNodeId))}
+                      inBranch={sandboxCurrentNodeId !== null && (sandboxBranchComment !== null || displayedPendingBranchNodes.has(sandboxCurrentNodeId))}
                     />
                   )}
 
@@ -2807,10 +3193,10 @@ export default function App() {
                         <EvalDisplay {...evalDisplayProps} />
                       )}
 
-                      {showBestLines && (
+                      {showBestLines && lessonEngineUnlocked && (
                         <BestLines
                           key={bestLinesComponentKey}
-                          lines={visibleLines}
+                          lines={lessonVisibleLines}
                           isAnalyzingPosition={isAnalyzingPosition}
                           maxLines={engineLines}
                           onLineClick={handleAnalysisBestLineClick}
@@ -2829,7 +3215,7 @@ export default function App() {
                             moveGrades={[]}
                             branchGrades={showGrades ? branchGrades : undefined}
                             branchDeltas={showGrades ? branchDeltas : undefined}
-                            pendingBranchNodes={showGrades ? pendingBranchNodes : undefined}
+                            pendingBranchNodes={showGrades ? displayedPendingBranchNodes : undefined}
                             onNodeClick={handleAnalysisNavigateTo}
                             isAnalyzing={!showGrades}
                             rootBranchIds={analysisRootBranchIds}
@@ -2877,7 +3263,9 @@ export default function App() {
             )
           )}
 
-          {currentPage === 'dashboard' && <div className="stub-page">Dashboard coming soon.</div>}
+          {currentPage === 'dashboard' && (
+            <InsightsComingSoonPage />
+          )}
           {currentPage === 'practice' && (
             <div className="practice-coming-soon-page">
               <div className="practice-coming-soon-board">
@@ -2902,6 +3290,11 @@ export default function App() {
           {currentPage === 'profile' && (
             <ProfilePage
               onUsernameLinked={(platform, username) => {
+                void trackLaunchEvent(
+                  'account_linked',
+                  { method: 'manual', platform },
+                  { oncePerSessionKey: `account_linked_manual_${platform}_${username.toLowerCase()}` },
+                )
                 if (platform === 'chesscom') {
                   setChesscomUsername(username)
                   setImportTab('chesscom')
@@ -2947,7 +3340,8 @@ export default function App() {
           <footer className="app-footer app-footer--stack">
             <button className="app-footer__link" onClick={() => goToPage('about')}>About</button>
             <button className="app-footer__link" onClick={() => goToPage('privacy')}>Privacy Policy</button>
-            <a className="app-footer__link" href={SUPPORT_GITHUB_ISSUES_URL} target="_blank" rel="noreferrer">GitHub / Bug Report</a>
+            <a className="app-footer__link" href={feedbackUrl} target="_blank" rel="noreferrer">Feedback / Bug Report</a>
+            <a className="app-footer__link" href={SUPPORT_GITHUB_ISSUES_URL} target="_blank" rel="noreferrer">GitHub</a>
           </footer>
         )}
         {shouldShowMobileSponsor && (

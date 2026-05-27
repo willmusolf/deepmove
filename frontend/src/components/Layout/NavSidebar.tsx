@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 import UserMenu from '../Auth/UserMenu'
+import { buildSupportIssueUrl } from '../../config/contact'
+import { INSIGHTS_ENABLED } from '../../config/features'
 
 export type Page = 'review' | 'practice' | 'play' | 'dashboard' | 'settings' | 'profile' | 'about' | 'privacy' | 'reset-password'
 
@@ -8,6 +10,21 @@ interface NavSidebarProps {
   onNavigate: (page: Page) => void
   collapsed?: boolean
   onToggleCollapse?: () => void
+}
+
+const INSIGHTS_ITEM = {
+  id: 'dashboard' as const,
+  label: 'Insights',
+  icon: (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19V5" />
+      <path d="M4 19h16" />
+      <path d="M8 15v-4" />
+      <path d="M12 15V8" />
+      <path d="M16 15v-6" />
+      <path d="M20 15v-2" />
+    </svg>
+  ),
 }
 
 const MAIN_ITEMS = [
@@ -22,6 +39,7 @@ const MAIN_ITEMS = [
       </svg>
     ),
   },
+  ...(INSIGHTS_ENABLED ? [INSIGHTS_ITEM] : []),
   {
     id: 'play' as const,
     label: 'Play',
@@ -96,6 +114,8 @@ function renderItem(
 }
 
 export default function NavSidebar({ currentPage, onNavigate, collapsed = false, onToggleCollapse }: NavSidebarProps) {
+  const feedbackUrl = buildSupportIssueUrl({ page: currentPage, section: 'nav' })
+
   return (
     <nav className="nav-sidebar">
       <div className="nav-logo" onClick={() => onNavigate('review')} title="Go to Review">
@@ -122,6 +142,22 @@ export default function NavSidebar({ currentPage, onNavigate, collapsed = false,
       {MAIN_ITEMS.map(item => renderItem(item, currentPage, onNavigate, collapsed))}
       <div className="nav-divider" />
       {INFO_ITEMS.map(item => renderItem(item, currentPage, onNavigate, collapsed))}
+      <a
+        className="nav-item"
+        href={feedbackUrl}
+        target="_blank"
+        rel="noreferrer"
+        title={collapsed ? 'Feedback' : undefined}
+      >
+        <span className="nav-icon nav-icon--feedback">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
+            <path d="M8 9h8" />
+            <path d="M8 13h5" />
+          </svg>
+        </span>
+        {!collapsed && <span className="nav-label">Feedback</span>}
+      </a>
       <div className="nav-divider" />
       {ACCOUNT_ITEMS.map(item => renderItem(item, currentPage, onNavigate, collapsed))}
       <div className="nav-divider" />

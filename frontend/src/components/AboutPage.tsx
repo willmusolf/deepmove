@@ -7,16 +7,16 @@ interface AboutPageProps {
 
 const DIFFERENTIATORS = [
   {
-    title: 'Your games first',
-    text: 'DeepMove starts from the games you actually played, then surfaces the mistakes, turning points, and patterns worth studying next.',
+    title: 'Review first',
+    text: 'DeepMove is built around reviewing your own games quickly, spotting the moments that mattered, and leaving with something concrete to fix next time.',
   },
   {
-    title: 'Engine plus explanation',
-    text: 'Stockfish handles the heavy analysis, but the product is built to make the output understandable instead of overwhelming.',
+    title: 'Built for improvers',
+    text: 'The target player is already competing online and wants a tighter study loop, not a full beginner course and not a giant database rabbit hole.',
   },
   {
-    title: 'Built for repetition',
-    text: 'The long-term goal is a training loop where review leads into guided practice based on the mistakes you repeat most often.',
+    title: 'Training plan in progress',
+    text: 'Broader account-history insights and recurring-weakness training are coming soon. The flagship product today is free game review that leads into improvement.',
   },
 ] as const
 
@@ -27,9 +27,15 @@ const TODAY_ITEMS = [
   'Save account preferences and linked chess profiles for faster repeat use.',
 ] as const
 
+const BETA_ITEMS = [
+  'Account-history Insights are behind a coming-soon gate while trend quality is tightened.',
+  'The long-term goal is report -> lesson -> practice, but review stays the launch promise.',
+  'DeepMove will only lean on recurring-weakness claims after they are backed by stronger review examples.',
+] as const
+
 const ROADMAP_ITEMS = [
-  'More personalized coaching based on recurring weaknesses, not just one-off blunders.',
-  'Practice flows that turn reviewed mistakes into drills, puzzles, and training plans.',
+  'Better recurring-weakness detection backed by stronger review examples.',
+  'Practice flows that turn reviewed mistakes into drills, puzzles, and mini lessons.',
   'Clearer progress tracking so players can see which habits are improving over time.',
 ] as const
 
@@ -56,8 +62,8 @@ const FAQ_ITEMS = [
     answer: 'DeepMove is built around the mistakes that appear in your own imported games. The content is meant to be anchored to personal review data rather than broad recycled opening tips or scraped game dumps.',
   },
   {
-    question: 'Why does the public site focus so much on process?',
-    answer: 'Because the product is not just “upload a PGN and get a number.” The whole point is to help players build a repeatable review habit they can actually stick with between games.',
+    question: 'Why is the public promise focused on review instead of a full training system?',
+    answer: 'Because that is the most trustworthy thing DeepMove does today. Broader training-plan work is in beta, and the goal is to earn stronger claims by making the review loop genuinely useful first.',
   },
 ] as const
 
@@ -69,7 +75,7 @@ export default function AboutPage({ onOpenApp, onOpenPrivacy }: AboutPageProps) 
           <p className="about-page__eyebrow">About DeepMove</p>
           <h1>Chess improvement that starts with the games you already played.</h1>
           <p className="about-page__lede">
-            DeepMove is a chess review app for players who want more than a raw engine verdict.
+            DeepMove is a chess review app for improvers who want more than a raw engine verdict.
             The idea is simple: play real games, review them consistently, and study the mistakes
             that keep showing up in your own positions.
           </p>
@@ -115,6 +121,21 @@ export default function AboutPage({ onOpenApp, onOpenPrivacy }: AboutPageProps) 
           </ul>
         </section>
 
+        <section className="about-page__section">
+          <div className="about-page__section-head">
+            <h2>What is coming soon</h2>
+            <p>
+              Account-wide training snapshots are planned, but they are not part of the launch
+              promise. DeepMove is keeping that work gated until it is trustworthy enough to ship.
+            </p>
+          </div>
+          <ul className="about-page__list">
+            {BETA_ITEMS.map(item => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+
         <section className="about-page__section about-page__section--split">
           <div>
             <h2>Who it is for</h2>
@@ -150,19 +171,6 @@ export default function AboutPage({ onOpenApp, onOpenPrivacy }: AboutPageProps) 
                 <li key={item}>{item}</li>
               ))}
             </ul>
-          </div>
-        </section>
-
-        <section className="about-page__section">
-          <div className="about-page__section-head">
-            <h2>Why the public site exists</h2>
-            <p>
-              DeepMove is a working software product, but the public site also needs to explain the
-              approach behind it: what problem it solves, who it is built for, and how the review
-              flow is meant to create useful study material from real games. That context matters
-              because the product is designed around interpretation and training, not raw engine
-              output by itself.
-            </p>
           </div>
         </section>
 

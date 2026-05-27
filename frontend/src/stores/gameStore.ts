@@ -31,6 +31,31 @@ interface PersistedGameState {
   currentGameMeta: GameMeta | null
   skipNextAnalysis: boolean
   resumeFromIndex: number
+  pendingReviewTarget: ReviewTarget | null
+  lessonReviewContext: LessonReviewContext | null
+}
+
+export interface ReviewTarget {
+  gameId: string | null
+  plyIndex: number
+  moveNumber: number
+  color: 'white' | 'black'
+}
+
+export interface LessonReviewContext {
+  source: 'insights'
+  lessonId: string
+  lessonTitle: string
+  lessonSummary: string
+  habit: string[]
+  exampleIndex: number
+  exampleCount: number
+  movePlayed: string
+  betterMoveSan: string | null
+  betterMoveUci: string | null
+  coachNote: string
+  practicePrompt: string
+  themeFacts: string[]
 }
 
 interface GameState {
@@ -52,6 +77,8 @@ interface GameState {
   currentGameId: string | null      // canonical ID for IndexedDB persistence
   backendGameId: number | null      // DB primary key after sync (null until uploaded)
   currentGameMeta: GameMeta | null  // display metadata for IndexedDB record
+  pendingReviewTarget: ReviewTarget | null
+  lessonReviewContext: LessonReviewContext | null
 
   // Actions
   setPgn: (pgn: string) => void
@@ -74,6 +101,8 @@ interface GameState {
   setSkipNextAnalysis: (v: boolean) => void
   resumeFromIndex: number              // 0 = fresh analysis, N = resume from move N
   setResumeFromIndex: (n: number) => void
+  setPendingReviewTarget: (target: ReviewTarget | null) => void
+  setLessonReviewContext: (context: LessonReviewContext | null) => void
   reset: () => void
 }
 
@@ -97,6 +126,8 @@ const initialState: {
   skipNextAnalysis: boolean
   loadRequestId: number
   resumeFromIndex: number
+  pendingReviewTarget: ReviewTarget | null
+  lessonReviewContext: LessonReviewContext | null
 } = {
   pgn: null,
   rawPgn: null,
@@ -117,6 +148,8 @@ const initialState: {
   currentGameMeta: null,
   skipNextAnalysis: false,
   resumeFromIndex: 0,
+  pendingReviewTarget: null,
+  lessonReviewContext: null,
 }
 
 function sanitizeMoveEvals(value: unknown): MoveEval[] {
@@ -143,6 +176,52 @@ function sanitizeGameMeta(value: unknown): GameMeta | null {
     result: meta.result,
     timeControl: meta.timeControl,
     endTime: meta.endTime,
+  }
+}
+
+function sanitizeReviewTarget(value: unknown): ReviewTarget | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const target = value as Partial<ReviewTarget>
+  if (typeof target.plyIndex !== 'number' || target.plyIndex < 0) return null
+  if (typeof target.moveNumber !== 'number' || target.moveNumber < 1) return null
+  if (target.color !== 'white' && target.color !== 'black') return null
+  return {
+    gameId: typeof target.gameId === 'string' ? target.gameId : null,
+    plyIndex: Math.floor(target.plyIndex),
+    moveNumber: Math.floor(target.moveNumber),
+    color: target.color,
+  }
+}
+
+function sanitizeLessonReviewContext(value: unknown): LessonReviewContext | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const context = value as Partial<LessonReviewContext>
+  if (context.source !== 'insights') return null
+  if (typeof context.lessonId !== 'string') return null
+  if (typeof context.lessonTitle !== 'string') return null
+  if (typeof context.lessonSummary !== 'string') return null
+  if (!Array.isArray(context.habit) || !context.habit.every(item => typeof item === 'string')) return null
+  if (typeof context.exampleIndex !== 'number') return null
+  if (typeof context.exampleCount !== 'number') return null
+  if (typeof context.movePlayed !== 'string') return null
+  if (typeof context.coachNote !== 'string') return null
+  if (typeof context.practicePrompt !== 'string') return null
+  if (!Array.isArray(context.themeFacts) || !context.themeFacts.every(item => typeof item === 'string')) return null
+
+  return {
+    source: 'insights',
+    lessonId: context.lessonId,
+    lessonTitle: context.lessonTitle,
+    lessonSummary: context.lessonSummary,
+    habit: context.habit,
+    exampleIndex: Math.max(0, Math.floor(context.exampleIndex)),
+    exampleCount: Math.max(0, Math.floor(context.exampleCount)),
+    movePlayed: context.movePlayed,
+    betterMoveSan: typeof context.betterMoveSan === 'string' ? context.betterMoveSan : null,
+    betterMoveUci: typeof context.betterMoveUci === 'string' ? context.betterMoveUci : null,
+    coachNote: context.coachNote,
+    practicePrompt: context.practicePrompt,
+    themeFacts: context.themeFacts,
   }
 }
 
@@ -178,6 +257,8 @@ function loadGameState(): typeof initialState {
     currentGameMeta: sanitizeGameMeta(parsed.currentGameMeta),
     skipNextAnalysis: parsed.skipNextAnalysis === true,
     resumeFromIndex,
+    pendingReviewTarget: sanitizeReviewTarget(parsed.pendingReviewTarget),
+    lessonReviewContext: sanitizeLessonReviewContext(parsed.lessonReviewContext),
   }
 }
 
@@ -197,6 +278,8 @@ function toPersistedGameState(state: GameState): PersistedGameState {
     currentGameMeta: state.currentGameMeta,
     skipNextAnalysis: state.skipNextAnalysis,
     resumeFromIndex: state.resumeFromIndex,
+    pendingReviewTarget: state.pendingReviewTarget,
+    lessonReviewContext: state.lessonReviewContext,
   }
 }
 
@@ -220,6 +303,8 @@ function hasPersistedGameStateChanged(
     || prev.currentGameMeta !== next.currentGameMeta
     || prev.skipNextAnalysis !== next.skipNextAnalysis
     || prev.resumeFromIndex !== next.resumeFromIndex
+    || prev.pendingReviewTarget !== next.pendingReviewTarget
+    || prev.lessonReviewContext !== next.lessonReviewContext
 }
 
 const hydratedInitialState = loadGameState()
@@ -250,6 +335,8 @@ export const useGameStore = create<GameState>(set => ({
   setCurrentGameMeta: currentGameMeta => set({ currentGameMeta }),
   setSkipNextAnalysis: skipNextAnalysis => set({ skipNextAnalysis }),
   setResumeFromIndex: resumeFromIndex => set({ resumeFromIndex }),
+  setPendingReviewTarget: pendingReviewTarget => set({ pendingReviewTarget }),
+  setLessonReviewContext: lessonReviewContext => set({ lessonReviewContext }),
   reset: () => {
     removeSessionValue(GAME_SESSION_KEY)
     set(initialState)

@@ -1319,6 +1319,688 @@ body.just-clicked .lesson-dot:hover { opacity: 0.7 !important; transform: none !
   font-size: 1rem;
 }
 
+/* ── Account Analysis page ─────────────────────────────────────────────── */
+.account-analysis-page {
+  flex: 1;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+.account-analysis-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 1.25rem;
+  align-items: stretch;
+  margin-bottom: 1.25rem;
+  padding: 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--color-border) 75%, var(--color-accent));
+  border-radius: calc(var(--radius) + 8px);
+  background:
+    radial-gradient(circle at 16% 20%, color-mix(in srgb, var(--color-accent) 18%, transparent) 0 18rem, transparent 18rem),
+    linear-gradient(135deg, color-mix(in srgb, var(--color-surface) 96%, white) 0%, var(--color-surface) 100%);
+}
+
+.account-analysis-kicker {
+  margin: 0 0 0.55rem;
+  color: var(--color-accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.account-analysis-hero h1 {
+  max-width: 720px;
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(1.75rem, 3vw, 3rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+}
+
+.account-analysis-hero p:not(.account-analysis-kicker) {
+  max-width: 700px;
+  margin: 0.85rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.account-analysis-controls {
+  display: grid;
+  gap: 0.8rem;
+  align-self: center;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--color-bg) 56%, transparent);
+}
+
+.account-analysis-controls label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-analysis-controls select {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.account-analysis-controls .account-analysis-controls__note {
+  max-width: 16rem;
+  margin: -0.15rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.account-analysis-grid,
+.account-insight-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.account-insight-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.account-analysis-section-heading {
+  margin: 1.25rem 0 0.75rem;
+}
+
+.account-analysis-section-heading span {
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.account-analysis-section-heading h2 {
+  margin: 0.25rem 0 0;
+  color: var(--color-text);
+  font-size: 1.1rem;
+}
+
+.account-analysis-stat,
+.account-analysis-card,
+.account-analysis-empty,
+.account-analysis-error,
+.account-analysis-coverage,
+.account-analysis-queue,
+.account-coach-brief {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.account-insight-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 12rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, var(--color-accent));
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--color-accent) 16%, transparent) 0 8rem, transparent 8rem),
+    var(--color-surface);
+}
+
+.account-insight-card span {
+  display: inline-flex;
+  margin-bottom: 0.65rem;
+  color: var(--color-accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-insight-card h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.05rem;
+  line-height: 1.18;
+}
+
+.account-insight-card p {
+  margin: 0.65rem 0;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.account-insight-card strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.account-analysis-stat {
+  display: grid;
+  gap: 0.28rem;
+  padding: 1rem;
+}
+
+.account-analysis-stat span,
+.account-analysis-card__header span,
+.account-opening-row span,
+.account-weakness-row span,
+.account-analysis-stat small {
+  color: var(--color-text-muted);
+}
+
+.account-analysis-stat span,
+.account-analysis-card__header span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-analysis-stat strong {
+  color: var(--color-text);
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.account-analysis-stat--wide strong {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.account-analysis-coverage,
+.account-analysis-queue {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.account-analysis-coverage--none,
+.account-analysis-coverage--low {
+  border-color: color-mix(in srgb, #f97316 58%, var(--color-border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, #f97316 10%, var(--color-surface)), var(--color-surface));
+}
+
+.account-analysis-coverage--medium {
+  border-color: color-mix(in srgb, #eab308 45%, var(--color-border));
+}
+
+.account-analysis-coverage--high {
+  border-color: color-mix(in srgb, #22c55e 45%, var(--color-border));
+}
+
+.account-analysis-coverage span,
+.account-analysis-queue span {
+  display: block;
+  margin-bottom: 0.22rem;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-analysis-coverage strong,
+.account-analysis-queue strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.account-analysis-coverage p,
+.account-analysis-queue p,
+.account-analysis-queue small {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.account-analysis-meter {
+  overflow: hidden;
+  height: 0.45rem;
+  margin-top: 0.75rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-bg) 70%, white);
+}
+
+.account-analysis-meter div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 45%, #22c55e));
+  transition: width 180ms ease;
+}
+
+.account-analysis-queue {
+  border-style: dashed;
+}
+
+.account-analysis-queue__error {
+  color: #fecaca !important;
+}
+
+.account-analysis-queue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.account-analysis-show-more {
+  margin: -0.35rem 0 1rem;
+}
+
+.account-coach-brief {
+  display: grid;
+  gap: 1rem;
+  padding: 1.15rem;
+  margin-bottom: 1rem;
+  border-color: color-mix(in srgb, var(--color-border) 65%, var(--color-accent));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 8%, var(--color-surface)), var(--color-surface));
+}
+
+.account-coach-brief__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.account-coach-brief__header span,
+.account-coach-brief__grid span,
+.account-evidence-moments__title span {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-coach-brief__header h3 {
+  margin: 0.2rem 0 0;
+  color: var(--color-text);
+  font-size: 1.3rem;
+  line-height: 1.18;
+}
+
+.account-coach-brief__header em {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+  border-radius: 999px;
+  color: var(--color-text);
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.account-coach-brief__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.account-coach-brief__grid div {
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-bg) 26%, transparent);
+}
+
+.account-coach-brief__grid p {
+  margin: 0.35rem 0 0;
+  color: var(--color-text);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.account-evidence-moments {
+  display: grid;
+  gap: 0.65rem;
+  padding-top: 0.15rem;
+}
+
+.account-evidence-moments__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.account-evidence-moments__title strong {
+  color: var(--color-text);
+  font-size: 0.98rem;
+}
+
+.account-evidence-moments__title span {
+  text-align: right;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.account-evidence-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-bg) 34%, transparent);
+}
+
+.account-evidence-row strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 0.92rem;
+}
+
+.account-evidence-row span {
+  display: block;
+  margin-top: 0.22rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.account-evidence-row small {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--color-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.account-coach-brief__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.account-analysis-card {
+  padding: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.account-analysis-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.account-analysis-card h2,
+.account-analysis-empty h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.account-opening-list,
+.account-weakness-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.account-opening-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  padding: 0 1.1rem 1.1rem;
+}
+
+.account-opening-group {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+}
+
+.account-opening-group > strong {
+  color: var(--color-text);
+  font-size: 0.86rem;
+}
+
+.account-opening-empty {
+  display: block;
+  padding: 0.75rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 10px;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.account-opening-row,
+.account-weakness-row {
+  display: grid;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-bg) 34%, transparent);
+}
+
+.account-opening-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.account-opening-row strong,
+.account-weakness-row strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+.account-opening-row span,
+.account-weakness-row span {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 0.78rem;
+}
+
+.account-opening-row__score {
+  text-align: right;
+}
+
+.account-weakness-row {
+  grid-template-columns: minmax(0, 1.2fr) minmax(6rem, 0.9fr) auto;
+}
+
+.account-weakness-row__meta {
+  min-width: 0;
+}
+
+.account-weakness-row__meter {
+  position: relative;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-border) 72%, transparent);
+  overflow: hidden;
+}
+
+.account-weakness-row__meter div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 55%, #f2c46d 45%), var(--color-accent));
+}
+
+.account-weakness-row__count {
+  min-width: 4.75rem;
+  text-align: right;
+}
+
+.account-weakness-row__count strong,
+.account-weakness-row__count span {
+  display: block;
+  margin: 0;
+}
+
+.account-weakness-row__count strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.account-weakness-row__count span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+}
+
+.account-weakness-dot {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 999px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.account-pattern-evidence {
+  padding: 0;
+}
+
+.account-pattern-evidence summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.account-pattern-evidence summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-pattern-evidence summary span {
+  color: var(--color-text);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.account-pattern-evidence summary em {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.account-pattern-evidence .account-weakness-list,
+.account-pattern-evidence .account-analysis-empty-copy {
+  padding: 0 1.1rem 1.1rem;
+}
+
+.account-pattern-evidence .account-opening-groups .account-opening-list {
+  padding: 0;
+}
+
+.account-analysis-takeaways ol {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding-left: 1.35rem;
+}
+
+.account-analysis-takeaways li {
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.account-analysis-empty,
+.account-analysis-error {
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.account-analysis-empty p,
+.account-analysis-empty-copy {
+  margin: 0.55rem 0 0;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.account-analysis-empty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.account-analysis-error {
+  border-color: color-mix(in srgb, #ef4444 65%, var(--color-border));
+  color: #fecaca;
+}
+
+@media (max-width: 860px) {
+  .account-analysis-page {
+    padding: 1rem;
+  }
+
+  .account-analysis-hero,
+  .account-analysis-grid,
+  .account-insight-grid,
+  .account-coach-brief__grid,
+  .account-opening-groups,
+  .account-analysis-coverage,
+  .account-analysis-queue {
+    grid-template-columns: 1fr;
+  }
+
+  .account-coach-brief__header,
+  .account-evidence-moments__title,
+  .account-evidence-row,
+  .account-pattern-evidence summary {
+    align-items: flex-start;
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .account-evidence-moments__title span,
+  .account-pattern-evidence summary em {
+    text-align: left;
+  }
+
+  .account-weakness-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.55rem;
+  }
+
+  .account-weakness-row__count {
+    text-align: left;
+  }
+
+  .account-analysis-queue-actions {
+    justify-content: flex-start;
+  }
+}
+
 /* ── Board-first layout once side-by-side gets cramped ─────────────────── */
 @media (max-width: 1180px) {
   .app-main {
@@ -4262,6 +4944,96 @@ html.theme-light .analysis-settings-popover {
   font-style: italic;
   text-align: center;
   padding: 0.5rem 0;
+}
+
+.insights-lesson-panel {
+  display: grid;
+  gap: 0.65rem;
+  max-height: min(72vh, 100%);
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.insights-lesson-panel__eyebrow,
+.insights-lesson-panel__prompt span,
+.insights-lesson-panel__compare span,
+.insights-lesson-panel__habit span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.insights-lesson-panel h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.insights-lesson-panel p {
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.insights-lesson-panel__prompt,
+.insights-lesson-panel__note,
+.insights-lesson-panel__habit,
+.insights-lesson-panel__facts {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-bg) 32%, transparent);
+}
+
+.insights-lesson-panel__prompt strong {
+  color: var(--color-text);
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.insights-lesson-panel__compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.insights-lesson-panel__compare div {
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.insights-lesson-panel__compare strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.insights-lesson-panel__note {
+  color: var(--color-text);
+}
+
+.insights-lesson-panel__habit em,
+.insights-lesson-panel__facts span {
+  color: var(--color-text);
+  font-size: 0.84rem;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.insights-lesson-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 /* ── Blunder-Check Checklist ───────────────────────────────────────────── */

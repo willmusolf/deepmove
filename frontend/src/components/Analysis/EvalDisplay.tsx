@@ -71,7 +71,9 @@ export default function EvalDisplay({
           depth: {currentAnalysisDepth} / {positionMaxDepth}{isAnalyzingPosition ? ' …' : ''}
         </span>
       ) : isAnalyzingPosition ? (
-        <span className="eval-display-depth">analyzing…</span>
+        <span className="eval-display-depth">
+          depth: … / {positionMaxDepth}
+        </span>
       ) : fallbackDepthLabel ? (
         <span className="eval-display-depth">{fallbackDepthLabel}</span>
       ) : null}
