@@ -93,6 +93,7 @@ export class StockfishEngine {
   private currentIsMultiPV = false
   private currentMultiPvResolve: ((lines: TopLine[]) => void) | null = null
   private currentMultiPvOnUpdate: ((lines: TopLine[], depth: number) => void) | null = null
+  private currentMultiPvTargetLines = 1
   private lastEmittedMultiPvDepth = 0
   private latestMultiPvLines: Map<number, TopLine> = new Map()
   private currentSideToMove: 'w' | 'b' = 'w'
@@ -213,16 +214,18 @@ export class StockfishEngine {
 
         this.latestMultiPvLines.set(rank, { rank, score, isMate, mateIn: whiteMateIn, pv, san, depth })
 
-        // Emit when rank 1 reaches a new depth. Rank 1 is emitted first by Stockfish,
-        // so this fires as early as possible at each depth. Ranks 2/3 may lag by
-        // one depth in the emitted array, which is acceptable — the depth counter
-        // progresses smoothly and rank 1 (the best move) is always current.
-        if (rank === 1 && depth >= MIN_MULTIPV_DISPLAY_DEPTH && depth > this.lastEmittedMultiPvDepth && this.currentMultiPvOnUpdate) {
+        // Stockfish streams MultiPV ranks one at a time: rank 1 usually arrives
+        // first, then rank 2/3. Wait until every requested rank has reached this
+        // depth before updating the UI so BestLines never flashes as a one-line
+        // panel while the remaining PV rows are still arriving.
+        const targetLinesReady = Array.from(
+          { length: this.currentMultiPvTargetLines },
+          (_, index) => this.latestMultiPvLines.get(index + 1),
+        )
+        const canEmitDepth = targetLinesReady.every(line => line && line.depth >= depth)
+        if (canEmitDepth && depth >= MIN_MULTIPV_DISPLAY_DEPTH && depth > this.lastEmittedMultiPvDepth && this.currentMultiPvOnUpdate) {
           this.lastEmittedMultiPvDepth = depth
-          this.currentMultiPvOnUpdate(
-            Array.from(this.latestMultiPvLines.values()).sort((a, b) => a.rank - b.rank),
-            depth,
-          )
+          this.currentMultiPvOnUpdate(targetLinesReady as TopLine[], depth)
         }
       } else {
         // Single-PV parsing (existing logic)
@@ -340,6 +343,7 @@ export class StockfishEngine {
       this.currentIsMultiPV = true
       this.currentMultiPvResolve = item.multiPvResolve
       this.currentMultiPvOnUpdate = item.multiPvOnUpdate ?? null
+      this.currentMultiPvTargetLines = item.multiPV
       this.lastEmittedMultiPvDepth = 0
       this.latestMultiPvLines = new Map()
       this.worker!.postMessage(`setoption name MultiPV value ${item.multiPV}`)
