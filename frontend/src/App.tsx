@@ -1061,16 +1061,13 @@ export default function App() {
 
     const cached = positionCache.current.get(displayFen)
 
-    // Show cached suggestions only once they are deep enough to be useful.
-    // Shallower cached depths still resume the counter and continue silently.
+    // Show cached review suggestions immediately, even when they came from the
+    // lower-depth full-game pass. Deeper per-position analysis refines them in
+    // place, but users should not see a blank shimmer on every move.
     if (cached && cached.length > 0) {
       const cachedDepth = cached[0]?.depth ?? 0
-      if (cachedDepth >= POSITION_MIN_VISIBLE_DEPTH) {
-        setCurrentPositionLines(cached)
-      } else {
-        setCurrentPositionLines([])
-      }
-      setCurrentAnalysisDepth(cachedDepth >= POSITION_MIN_VISIBLE_DEPTH ? cachedDepth : 0)
+      setCurrentPositionLines(cached)
+      setCurrentAnalysisDepth(cachedDepth)
       if (!hasReportedPositionCacheHitRef.current) {
         hasReportedPositionCacheHitRef.current = true
         reportFrontendPerf('position_analysis_cache_hit', {
